@@ -1,0 +1,175 @@
+# Copyright [2025] [IBM]
+# Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+# See the LICENSE file in the project root for license information.
+
+from fastmcp.server.dependencies import get_http_headers
+
+from app.services.constants import CLOUD_IAM_ENDPOINT, CPD_IAM_ENDPOINT
+from app.shared.exceptions.base import ExternalAPIError
+
+# Application-specific imports
+from app.core.settings import settings
+from app.shared.utils.http_client import get_http_client
+
+from async_lru import alru_cache
+
+from app.shared.logging import LOGGER
+
+INVALID_DI_ENV_MODE = "DI_ENV_MODE is either not provided in env or not one of SaaS or CPD"
+
+def get_cloud_iam_url_from_service_url(service_url: str) -> str:
+    """
+    Calculate the Cloud IAM URL based on the service URL.
+
+    Mapping:
+    - https://api.dataplatform.dev.cloud.ibm.com => https://iam.test.cloud.ibm.com
+    - https://api.dataplatform.test.cloud.ibm.com => https://iam.cloud.ibm.com
+    - https://api.dataplatform.cloud.ibm.com => https://iam.cloud.ibm.com
+
+    Args:
+        service_url: The service URL to map from
+
+    Returns:
+        str: The corresponding Cloud IAM URL
+    """
+    service_url_str = str(service_url).lower()
+
+    if "dev.cloud.ibm.com" in service_url_str:
+        return "https://iam.test.cloud.ibm.com"
+    elif "test.cloud.ibm.com" in service_url_str or "cloud.ibm.com" in service_url_str:
+        return "https://iam.cloud.ibm.com"
+    else:
+        return "https://iam.cloud.ibm.com"
+
+
+async def get_access_token() -> str | None:
+    """
+    Resolve Authorization header from HTTP request headers or STDIO fallback.
+    Returns a full 'Bearer ...' string or None if nothing available.
+    If apikey is provided instead, calls relevant apis for SaaS or CPD
+    to get the bearer token
+    """
+    headers = get_http_headers()  # {} if not over HTTP / no active request
+    auth = headers.get("authorization", "")
+
+    if not auth:
+        api_key_header = headers.get("x-api-key", "")
+        if api_key_header:
+            auth = await get_bearer_token_from_apikey(
+                api_key_header, headers.get("username", "")
+            )
+
+    if not auth and settings.server_transport == "stdio":
+        if settings.di_auth_token:
+            auth = settings.di_auth_token
+            if not auth.lower().startswith("bearer "):
+                auth = f"Bearer {auth}"
+        elif settings.di_apikey:
+            apikey = settings.di_apikey
+            username = settings.di_username
+            auth = await get_bearer_token_from_apikey(apikey, username)
+
+    return auth or None
+
+
+def get_iam_url() -> str:
+    if settings.di_env_mode == "SaaS":
+        if settings.cloud_iam_url:
+            return settings.cloud_iam_url + CLOUD_IAM_ENDPOINT
+        elif settings.di_service_url:
+            # Calculate IAM URL dynamically based on service URL
+            cloud_iam_url = get_cloud_iam_url_from_service_url(settings.di_service_url)
+            return cloud_iam_url + CLOUD_IAM_ENDPOINT
+        else:
+            raise ExternalAPIError("DI_SERVICE_URL is not set in env")
+    elif settings.di_env_mode == "CPD":
+        return settings.di_service_url + CPD_IAM_ENDPOINT
+    else:
+        raise ExternalAPIError(
+            INVALID_DI_ENV_MODE
+        )
+
+def get_request_body(api_key: str, username: str) -> dict:
+    if settings.di_env_mode == "SaaS":
+        return {
+            "apikey": api_key,
+            "grant_type": "urn:ibm:params:oauth:grant-type:apikey",
+        }
+    elif settings.di_env_mode == "CPD":
+        if not username:
+            raise ExternalAPIError(
+                "For CPD, USERNAME has to be provided in the header if running the server under "
+                "http mode else in env if running in stdio mode"
+            )
+        return {"api_key": api_key, "username": username}
+    else:
+        raise ExternalAPIError(
+            INVALID_DI_ENV_MODE
+        )
+
+
+def get_header():
+    if settings.di_env_mode == "SaaS":
+        return {"Content-Type": "application/x-www-form-urlencoded"}
+    elif settings.di_env_mode == "CPD":
+        return {"Content-Type": "application/json"}
+    else:
+        raise ExternalAPIError(
+            INVALID_DI_ENV_MODE
+        )
+
+
+@alru_cache(maxsize=100, ttl=3540)
+async def get_bearer_token_from_apikey(api_key: str, username: str) -> str:
+
+    LOGGER.info("Getting bearer token for the api key passed in")
+
+    headers = get_header()
+    req_body = get_request_body(api_key, username)
+    iam_url = get_iam_url()
+
+    client = get_http_client()
+
+    try:
+        if settings.di_env_mode == "SaaS":
+            response = await client.post(
+                iam_url,
+                headers=headers,
+                data=req_body,
+                content_type="application/x-www-form-urlencoded",
+            )
+            token = response.get("access_token", "")
+            return "Bearer " + token
+        else:
+            response = await client.post(iam_url, headers=headers, data=req_body)
+            token = response.get("token", "")
+            return "Bearer " + token
+
+    except ExternalAPIError:
+        # This will catch HTTP errors (4xx, 5xx) that were raised by raise_for_status()
+        raise
+    except Exception as e:
+        raise ExternalAPIError(f"Failed to get bearer token: {str(e)}")
+
+
+@alru_cache(maxsize=100, ttl=3540)
+async def get_dph_catalog_id_for_user(bearer_token) -> str:
+
+    LOGGER.info("Getting DPH catalog id")
+
+    headers = get_header()
+    headers.update({"Authorization": bearer_token})
+
+    client = get_http_client()
+
+    try:
+        response = await client.get(
+            f"{settings.di_service_url}/v2/catalogs/ibm-default-hub", headers=headers
+        )
+        return response.get("metadata", {}).get("guid", "")
+
+    except ExternalAPIError:
+        # This will catch HTTP errors (4xx, 5xx) that were raised by raise_for_status()
+        raise
+    except Exception as e:
+        raise ExternalAPIError(f"Failed to get bearer token: {str(e)}")

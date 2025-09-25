@@ -1,0 +1,81 @@
+[project]
+name = "ibm-data-intelligence-mcp-server"
+version = "1.0.0"
+description = "MCP Server implementation for IBM Data Intelligence"
+readme = "README.md"
+license = "Apache-2.0"
+authors = [
+    {name = "Ramakanta Samal", email = "rsamal@us.ibm.com"},
+    {name = "Mithun Mithun", email = "vbmithun@in.ibm.com"},
+    {name = "Neeru Gupta", email = "guptaneeru@us.ibm.com"},
+    {name = "Tomasz Hanusiak", email = "t.hanusiak@pl.ibm.com"},
+    {name = "Bartłomiej Chwast", email = "Bartlomiej.Chwast@ibm.com"},
+    {name = "Robin Jose", email = "robincjose@in.ibm.com"},
+    {name = "Austin Joyal", email = "austin.joyal@ibm.com"},
+]
+keywords = ["mcp", "model-context-protocol", "server", "ai", "fastmcp", "watsonx-data-intelligence"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.11.3",
+    "pydantic>=2",
+    "pyyaml>=6",
+    "async-lru>=2.0.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/ibm/data-intelligence-mcp-server"
+"Bug Reports" = "https://github.com/ibm/data-intelligence-mcp-server/issues"
+"Source" = "https://github.com/ibm/data-intelligence-mcp-server"
+"Documentation" = "https://github.com/ibm/data-intelligence-mcp-server"
+
+[project.scripts]
+ibm-data-intelligence-mcp-server = "app.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+exclude = ["tests*", "client*", "scripts*"]
+
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.12.10",
+    "mcp>=1.0.0",
+]
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=7.0.0",
+    "httpx>=0.24.0",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[dependency-groups]
+test = [
+    "httpx>=0.28.1",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.1.0",
+    "pytest-cov>=7.0.0",
+    "respx>=0.22.0"
+]
+
+dev = [
+    "build>=1.3.0",
+    "twine>=6.1.0",
+]

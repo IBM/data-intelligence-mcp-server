@@ -1,0 +1,39 @@
+# Virtual Environment
+.venv/
+venv/
+*.venv
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# macOS specific
+.DS_Store
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Linter cache
+.ruff_cache/
+
+# Planning documents
+architectural_plan_detailed.md
+plan.md
+
+# sonar coverage
+.coverage
+coverage.xml
+
+# vscode
+.vscode
+server.crt
+server.csr
+server.key

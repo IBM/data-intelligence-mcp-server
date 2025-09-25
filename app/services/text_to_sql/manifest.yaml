@@ -1,0 +1,5 @@
+service:
+  name: text_to_sql
+  description: "This service contais tools to work with creating assets from sql queries"
+system_instructions: |
+  High-level rules and instructions for the text_to_sql service.

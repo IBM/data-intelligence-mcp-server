@@ -1,0 +1,5 @@
+service:
+  name: search_assets
+  description: "This service contains tools to search for an asset in catalog or project."
+system_instructions: |
+  High-level rules and instructions for the search_assets service.

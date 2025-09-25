@@ -1,0 +1,7 @@
+service:
+  name: data_protection_rules
+  description: "A description for the data_protection_rules service."
+system_instructions: |
+  High-level rules and instructions for the data protection rules service.
+  tools:
+    1. create_rule: Create a new data protection rule.
