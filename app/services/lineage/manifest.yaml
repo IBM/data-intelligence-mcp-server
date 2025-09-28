@@ -2,5 +2,7 @@ service:
   name: lineage
   description: "This service contains tools to work with lineage history of an asset."
 system_instructions: |
-  High-level rules and instructions for the lineage service.
-  1. To search for an asset's lineage, use the `search_lineage_assets` tool with the asset's unique identifier.
+  Lineage service tools:
+  1. lineage_get_lineage_graph_by_cams_id → returns upstream/downstream lineage graph (URL provided).
+  2. lineage_get_lineage_graph → returns upstream/downstream lineage graph of a lineage asset (URL provided).
+  3. lineage_search_lineage_assets → searches assets in the Lineage system and returns their lineage history.

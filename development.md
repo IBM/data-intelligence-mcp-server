@@ -24,7 +24,7 @@ This guide covers development setup, tool development process, and comprehensive
 
 1. **Clone the repository**:
    ```bash
-   git clone git@github.ibm.com:wdp-gov/data-intelligence-mcp-server.git
+   git clone https://github.com/IBM/data-intelligence-mcp-server.git
    cd data-intelligence-mcp-server
    ```
 

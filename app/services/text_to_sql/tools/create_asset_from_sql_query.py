@@ -19,7 +19,7 @@ from app.shared.logging import auto_context
 
 @service_registry.tool(
     name="text_to_sql_create_asset_from_sql_query",
-    description="Create a new asset in the specified project and connection if provided based on the provided SQL query if creation of new asset was made explicitly..",
+    description="Create a new asset in the specified project and connection if provided based on the provided SQL query if creation of new asset was made explicitly.",
 )
 @auto_context
 async def create_asset_from_sql_query(
@@ -62,3 +62,25 @@ async def create_asset_from_sql_query(
         raise
     except Exception as e:
         raise ServiceError(f"Failed to run create_asset_from_sql_query tool: {str(e)}")
+
+@service_registry.tool(
+    name="text_to_sql_create_asset_from_sql_query",
+    description="Create a new asset in the specified project and connection if provided based on the provided SQL query if creation of new asset was made explicitly.",
+)
+@auto_context
+async def wxo_create_asset_from_sql_query(
+    sql_query: str,
+    project_id: str,
+    connection_id: str
+) -> CreateAssetFromSqlQueryResponse:
+    """Watsonx Orchestrator compatible version that expands CreateAssetFromSqlQueryRequest object into individual parameters."""
+
+
+    request = CreateAssetFromSqlQueryRequest(
+        sql_query=sql_query,
+        project_id=project_id,
+        connection_id=connection_id
+    )
+
+    # Call the original search_asset function
+    return await create_asset_from_sql_query(request)

@@ -38,3 +38,23 @@ async def get_lineage_graph_by_cams_id(
     )
     url = f"{settings.ui_url}{LINEAGE_UI_BASE_ENDPOINT}/?assetsIds={lineage_id}&startingAssetDirection=upstreamDownstream&numberOfHops=3&assetTypes=deduced&featureFiltersScopeSettingsCloud=false&context=df"
     return GetLineageGraphByCamsIdResponse(lineage_assets=lineage_assets, url=url)
+
+@service_registry.tool(
+    name="lineage_get_lineage_graph_by_cams_idq",
+    description="""This function takes container_id (this is either catalog_id or project_id) and
+                       asset_id as parameters and returns upstream and downstream lineage graph accessible under the url.""",
+)
+@auto_context
+async def wxo_get_lineage_graph_by_cams_id(
+    container_id: str,
+    asset_id: str 
+) -> GetLineageGraphByCamsIdResponse:
+    """Watsonx Orchestrator compatible version of get_lineage_graph_by_cams_id."""
+
+    request = GetLineageGraphByCamsIdRequest(
+        container_id=container_id,
+        asset_id=asset_id
+    )
+
+    # Call the original search_asset function
+    return await get_lineage_graph_by_cams_id(request)

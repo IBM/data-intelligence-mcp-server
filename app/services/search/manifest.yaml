@@ -1,0 +1,6 @@
+service:
+  name: search
+  description: "Tools for searching artifacts."
+system_instructions: |
+  Search service tools:
+  1. search_assets(catalog_id?, project_id?, query) → find assets in a catalog or project.

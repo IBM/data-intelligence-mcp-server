@@ -167,3 +167,26 @@ async def generate_sql_query(
         raise
     except Exception as e:
         raise ServiceError(f"Failed to run generate_sql_query tool: {str(e)}")
+
+
+@service_registry.tool(
+    name="text_to_sql_generate_sql_query",
+    description="Generate the SQL query which addresses the request of the user and utilises the specified container.",
+)
+@auto_context
+async def wxo_generate_sql_query(
+    request: str,
+    project_name: str,
+    connection_name: str
+) -> GenerateSqlQueryResponse:
+    """Watsonx Orchestrator compatible version that expands CreateAssetFromSqlQueryRequest object into individual parameters."""
+
+
+    request = GenerateSqlQueryRequest(
+        request=request,
+        project_name=project_name,
+        connection_name=connection_name
+    )
+
+    # Call the original search_asset function
+    return await generate_sql_query(request)

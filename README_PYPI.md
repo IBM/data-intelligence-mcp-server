@@ -2,21 +2,6 @@
 
 The IBM Data Intelligence MCP Server provides a modular and scalable implementation of the Model Context Protocol (MCP), purpose-built to integrate with IBM Data Intelligence services. It enables secure and extensible interaction between MCP clients and IBM’s data intelligence capabilities.
 
-
-```mermaid
-flowchart LR
-    github["data-intelligence-mcp Github"] -- publish --> registry
-    registry["PyPi registry"] -- pip install ibm-watsonx-data-intelligence-mcp-server--> server
-    subgraph MCP Host
-        client["MCP Client"] <-- MCP/STDIO --> server("Data Intelligence MCP Server")
-    end
-    server -- HTTPS --> runtime("IBM Data Intelligence")
-    subgraph id["Services"]
-        runtime
-    end
-    client <-- MCP/HTTP --> server2("Data Intelligence MCP Server") -- HTTPS --> runtime
-
-```
 ---
 
 ## Table of Contents
@@ -284,4 +269,4 @@ e.g:
 
 ### SSL/TLS Configuration
 
-If running in CPD environment, you might need to configure SSL certificate for client connection. Please look into [SSL_CERTIFICATE_GUIDE.md](SSL_CERTIFICATE_GUIDE.md) for more details.
+If running in CPD environment, you might need to configure SSL certificate for client connection. Please look into [SSL_CERTIFICATE_GUIDE.md](https://github.com/IBM/data-intelligence-mcp-server/blob/main/SSL_CERTIFICATE_GUIDE.md) for more details.

@@ -31,7 +31,7 @@ async def attach_business_domain_to_data_product(
     request: AttachBusinessDomainToDataProductRequest,
 ) -> str:
     LOGGER.info(
-        f"In the data_product.attach_business_domain_to_data_product tool, attaching business domain {request.domain} to the data product draft {request.data_product_draft_id}."
+        f"In the data_product_attach_business_domain_to_data_product tool, attaching business domain {request.domain} to the data product draft {request.data_product_draft_id}."
     )
     token = await get_access_token()
     DPH_CATALOG_ID = await get_dph_catalog_id_for_user(token)
@@ -49,29 +49,35 @@ async def attach_business_domain_to_data_product(
             headers=headers,
             data=json,
         )
-    except ExternalAPIError:
+        domain_id = ""
+        available_domains = []
+        for result in response["results"]:
+            if result["metadata"]["name"].lower() == request.domain.lower():
+                domain_id = result["metadata"]["asset_id"]
+            available_domains.append(result["metadata"]["name"])
+
+        if not domain_id:
+            LOGGER.error(
+                f'Failed to run data_product_attach_business_domain_to_data_product tool. Domain name "{request.domain}" is not found, so it is not attached to {request.data_product_draft_id}. Here are the available domains: {available_domains}'
+            )
+            raise ServiceError(
+                f'Failed to run data_product_attach_business_domain_to_data_product tool. Domain name "{request.domain}" is not found, so it is not attached to {request.data_product_draft_id}. Here are the available domains: {available_domains}'
+            )
+    except ExternalAPIError as e:
+        LOGGER.error(
+            f"Failed to run data_product_attach_business_domain_to_data_product tool. Error while getting business domain information: {str(e)}"
+        )
+        raise ExternalAPIError(
+            f"Failed to run data_product_attach_business_domain_to_data_product tool. Error while getting business domain information: {str(e)}"
+        )
+    except ServiceError:
         raise
     except Exception as e:
         LOGGER.error(
-            f"Failed to run data_product.attach_business_domain_to_data_product tool. Error while getting business domain information: {str(e)}"
+            f"Failed to run data_product_attach_business_domain_to_data_product tool. Error while getting business domain information: {str(e)}"
         )
         raise ServiceError(
-            f"Failed to run data_product.attach_business_domain_to_data_product tool. Error while getting business domain information: {str(e)}"
-        )
-
-    domain_id = ""
-    available_domains = []
-    for result in response["results"]:
-        if result["metadata"]["name"].lower() == request.domain.lower():
-            domain_id = result["metadata"]["asset_id"]
-        available_domains.append(result["metadata"]["name"])
-
-    if not domain_id:
-        LOGGER.error(
-            f'Failed to run data_product.attach_business_domain_to_data_product tool. Domain name "{request.domain}" is not found, so it is not attached to {request.data_product_draft_id}. Here are the available domains: {available_domains}'
-        )
-        raise ServiceError(
-            f'Failed to run data_product.attach_business_domain_to_data_product tool. Domain name "{request.domain}" is not found, so it is not attached to {request.data_product_draft_id}. Here are the available domains: {available_domains}'
+            f"Failed to run data_product_attach_business_domain_to_data_product tool. Error while getting business domain information: {str(e)}"
         )
 
     # step 2: attach the business domain to data product draft
@@ -93,17 +99,42 @@ async def attach_business_domain_to_data_product(
             headers=headers,
             data=json,
         )
-    except ExternalAPIError:
-        raise
-    except Exception as e:
+    except ExternalAPIError as e:
         LOGGER.error(
-            f"Failed to run data_product.attach_business_domain_to_data_product tool. Error while attaching business domain to data product: {str(e)}"
+            f"Failed to run data_product_attach_business_domain_to_data_product tool. Error while attaching business domain to data product: {str(e)}"
         )
-        raise ServiceError(
-            f"Failed to run data_product.attach_business_domain_to_data_product tool. Error while attaching business domain to data product: {str(e)}"
+        raise ExternalAPIError(
+            f"Failed to run data_product_attach_business_domain_to_data_product tool. Error while attaching business domain to data product: {str(e)}"
         )
 
     LOGGER.info(
-        f"In the data_product.attach_business_domain_to_data_product tool, business domain {request.domain} attached to the data product draft {request.data_product_draft_id}."
+        f"In the data_product_attach_business_domain_to_data_product tool, business domain {request.domain} attached to the data product draft {request.data_product_draft_id}."
     )
     return f"Business domain {request.domain} is attached to the data product draft {request.data_product_draft_id}."
+
+
+@service_registry.tool(
+    name="data_product_attach_business_domain_to_data_product",
+    description="""
+    This tool attaches the given business domain to a data product draft.
+    The business domain given should be a valid business domain in the system or else this returns the list of business domains available to choose from.
+    Appropriate success message is sent if the business domain is attached to the data product draft.
+    """,
+    tags={"create", "data_product"},
+    meta={"version": "1.0", "service": "data_product"},
+)
+@add_catalog_id_suffix()
+@auto_context
+async def wxo_attach_business_domain_to_data_product(
+    domain: str,
+    data_product_draft_id: str
+) -> str:
+    """Watsonx Orchestrator compatible version that expands SearchAssetRequest object into individual parameters."""
+
+    request = AttachBusinessDomainToDataProductRequest(
+        domain=domain,
+        data_product_draft_id=data_product_draft_id
+    )
+
+    # Call the original search_asset function
+    return await attach_business_domain_to_data_product(request)

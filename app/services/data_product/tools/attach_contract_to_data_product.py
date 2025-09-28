@@ -31,7 +31,7 @@ async def attach_url_contract_to_data_product(
     request: AttachURLContractToDataProductRequest,
 ) -> str:
     LOGGER.info(
-        f"In the data_product.attach_url_contract_to_data_product tool, attaching URL contract {request.contract_url} with name {request.contract_name} to the data product draft {request.data_product_draft_id}."
+        f"In the data_product_attach_url_contract_to_data_product tool, attaching URL contract {request.contract_url} with name {request.contract_name} to the data product draft {request.data_product_draft_id}."
     )
     # step 1: attach the URL contract to data product draft
     token = await get_access_token()
@@ -51,15 +51,44 @@ async def attach_url_contract_to_data_product(
             headers=headers,
             data=json,
         )
-    except ExternalAPIError:
-        raise
-    except Exception as e:
-        LOGGER.error(f"Failed to run data_product.attach_url_contract_to_data_product tool. Error while attaching URL contract to data product: {str(e)}")
-        raise ServiceError(
-            f"Failed to run data_product.attach_url_contract_to_data_product tool. Error while attaching URL contract to data product: {str(e)}"
+    except ExternalAPIError as e:
+        LOGGER.error(f"Failed to run data_product_attach_url_contract_to_data_product tool. Error while attaching URL contract to data product: {str(e)}")
+        raise ExternalAPIError(
+            f"Failed to run data_product_attach_url_contract_to_data_product tool. Error while attaching URL contract to data product: {str(e)}"
         )
 
     LOGGER.info(
-        f"In the data_product.attach_url_contract_to_data_product tool, attached URL contract {request.contract_url} with name {request.contract_name} to the data product draft {request.data_product_draft_id}."
+        f"In the data_product_attach_url_contract_to_data_product tool, attached URL contract {request.contract_url} with name {request.contract_name} to the data product draft {request.data_product_draft_id}."
     )
     return f"Attached URL contract {request.contract_url} with name {request.contract_name} to the data product draft {request.data_product_draft_id}."
+
+
+@service_registry.tool(
+    name="data_product_attach_url_contract_to_data_product",
+    description="""
+    This tool attaches the given URL contract to a data product draft.
+    Appropriate success message is sent if the URL contract is attached to the data product draft.
+    """,
+    tags={"create", "data_product"},
+    meta={"version": "1.0", "service": "data_product"},
+)
+@add_catalog_id_suffix(field_name="data_product_draft_id")
+@add_catalog_id_suffix(field_name="contract_terms_id")
+@auto_context
+async def wxo_attach_url_contract_to_data_product(
+    contract_url: str,
+    contract_name: str,
+    contract_terms_id: str,
+    data_product_draft_id: str
+) -> str:
+    """Watsonx Orchestrator compatible version that expands SearchAssetRequest object into individual parameters."""
+
+    request = AttachURLContractToDataProductRequest(
+        contract_url=contract_url,
+        contract_name=contract_name,
+        contract_terms_id=contract_terms_id,
+        data_product_draft_id=data_product_draft_id
+    )
+
+    # Call the original search_asset function
+    return await attach_url_contract_to_data_product(request)

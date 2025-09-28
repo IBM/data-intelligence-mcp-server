@@ -49,8 +49,11 @@ def create_server() -> FastMCP:
 
     mcp = FastMCP("WXDI MCP Server", version="1.0.0")
 
-    print(f"Registering {len(service_registry._tools)} discovered tools...")
+    # Register tools first to get the actual count
     service_registry.register_all(mcp)
+    actual_registered_count = service_registry.get_registered_count()
+    
+    print(f"Registering {actual_registered_count} discovered tools...")
     print("✓ Tool registration complete.")
 
     prompts_provider = get_prompts_provider()
@@ -60,7 +63,7 @@ def create_server() -> FastMCP:
         instructions: str
         services: list[str]
 
-    @mcp.tool(name="system:get_prompts")
+    @mcp.tool(name="get_system_prompts")
     async def get_system_prompts() -> SystemPromptsResponse:
         """Gets system prompts for all available tools."""
         return SystemPromptsResponse(
@@ -72,6 +75,27 @@ def create_server() -> FastMCP:
     return mcp
 
 
+def apply_cli_settings_overrides(args):
+    """Apply command line argument overrides to settings and print notifications.
+    
+    Args:
+        args: Parsed command line arguments
+    """
+    if args.transport != settings.server_transport:
+        settings.server_transport = args.transport
+        print(f"ℹ Transport overridden via CLI: {args.transport}")
+
+    if args.di_url != settings.di_service_url:
+        settings.di_service_url = args.di_url
+        print(f"Data Intelligence service URL overridden via CLI: {args.di_url}")
+
+    if args.wxo:
+        settings.wxo = True
+        print("✓ Watsonx orchestrator compatibility mode enabled")
+    else:
+        settings.wxo = False
+
+
 def main():
     """Main server entry point."""
     parser = argparse.ArgumentParser(description="IKC MCP Server")
@@ -81,15 +105,10 @@ def main():
     parser.add_argument("--ssl-cert", help="Path to SSL certificate file")
     parser.add_argument("--ssl-key", help="Path to SSL private key file")
     parser.add_argument("--di-url", default=settings.di_service_url, help="Data Intelligence service URL")
+    parser.add_argument("--wxo", action="store_true", help="Enable watsonx orchestrator compatibility mode")
     args = parser.parse_args()
 
-    if args.transport != settings.server_transport:
-        settings.server_transport = args.transport
-        print(f"ℹ Transport overridden via CLI: {args.transport}")
-
-    if args.di_url != settings.di_service_url:
-        settings.di_service_url = args.di_url
-        print(f"Data Intelligence service URL overridden via CLI: {args.di_url}")
+    apply_cli_settings_overrides(args)
 
     print(" Starting IKC MCP Server...")
     print(f"   Transport: {args.transport}")
@@ -100,8 +119,9 @@ def main():
 
     try:
         mcp = create_server()
-        # Note: The final tool count will be the number of discovered tools plus built-ins.
-        print(f"✓ Server initialized with {len(service_registry._tools)} discovered tools.")
+        # Get the actual registered count after registration
+        actual_registered_count = service_registry.get_registered_count()
+        print(f"✓ Server initialized with {actual_registered_count} registered tools.")
 
         if args.transport == "http":
             kwargs = {

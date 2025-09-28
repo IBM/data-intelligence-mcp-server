@@ -71,7 +71,9 @@ class AsyncHttpClient:
             response = await client.get(url, params=params, headers=headers or {})
             response.raise_for_status()
             return response.json()
-        except httpx.HTTPError as e:
+        except httpx.HTTPStatusError as e:
+            handle_api_exception(e)
+        except httpx.RequestError as e:
             raise ExternalAPIError(f"HTTP request failed: {str(e)}")
         except Exception as e:
             raise ExternalAPIError(f"Request failed: {str(e)}")
@@ -110,18 +112,20 @@ class AsyncHttpClient:
                 )
             response.raise_for_status()
             return response.json()
-        except httpx.HTTPError as e:
+        except httpx.HTTPStatusError as e:
+            handle_api_exception(e)
+        except httpx.RequestError as e:
             raise ExternalAPIError(f"HTTP request failed: {str(e)}")
         except Exception as e:
             raise ExternalAPIError(f"Request failed: {str(e)}")
-        
+
     async def patch(
         self,
         url: str,
         data: dict[str, Any] | None = None,
         params: dict[str, str] | None = None,
         headers: dict[str, str] | None = None,
-        content_type: str = "application/json"
+        content_type: str = "application/json",
     ) -> dict[str, Any]:
         """
         Make async PATCH request with error handling.
@@ -142,16 +146,21 @@ class AsyncHttpClient:
         try:
             client = await self.client
             if content_type == "application/x-www-form-urlencoded":
-                response = await client.patch(url, data=data, params=params, headers=headers or {})
+                response = await client.patch(
+                    url, data=data, params=params, headers=headers or {}
+                )
             else:
-                response = await client.patch(url, json=data, params=params, headers=headers or {})
+                response = await client.patch(
+                    url, json=data, params=params, headers=headers or {}
+                )
             response.raise_for_status()
             return response.json()
-        except httpx.HTTPError as e:
+        except httpx.HTTPStatusError as e:
+            handle_api_exception(e)
+        except httpx.RequestError as e:
             raise ExternalAPIError(f"HTTP request failed: {str(e)}")
         except Exception as e:
             raise ExternalAPIError(f"Request failed: {str(e)}")
-
 
     async def close(self) -> None:
         """Close the async HTTP client and clean up resources."""
@@ -188,3 +197,14 @@ def get_http_client() -> AsyncHttpClient:
     if _shared_client is None:
         _shared_client = AsyncHttpClient()
     return _shared_client
+
+
+def handle_api_exception(e: httpx.HTTPStatusError):
+    try:
+        error_detail = e.response.json().get("error", e.response.text)
+    except Exception:
+        error_detail = e.response.text
+
+    raise ExternalAPIError(
+        f"HTTP error {e.response.status_code} for {e.request.url}: {error_detail}"
+    )

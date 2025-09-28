@@ -5,6 +5,8 @@ import inspect
 from collections.abc import Callable
 from typing import Any, NamedTuple
 
+from app.core.settings import settings
+
 
 class RegisteredTool(NamedTuple):
     """Holds tool information prior to registration with the MCP server."""
@@ -22,6 +24,7 @@ class RegisteredTool(NamedTuple):
 class ServiceRegistry:
     def __init__(self):
         self._tools: list[RegisteredTool] = []
+        self._registered_count = 0
 
     def tool(
         self,
@@ -62,29 +65,48 @@ class ServiceRegistry:
             return func
         return decorator
 
+    def _build_tool_kwargs(self, tool: RegisteredTool) -> dict[str, Any]:
+        """Build kwargs dictionary for mcp.tool decorator."""
+        kwargs = {
+            "name": tool.name,
+            "description": tool.description
+        }
+
+        if tool.tags is not None:
+            kwargs["tags"] = tool.tags
+        if tool.exclude_args is not None:
+            kwargs["exclude_args"] = tool.exclude_args
+        if tool.annotations is not None:
+            kwargs["annotations"] = tool.annotations
+        if tool.meta is not None:
+            kwargs["meta"] = tool.meta
+
+        return kwargs
+
     def register_all(self, mcp_instance):
         """Registers all collected tools with the FastMCP instance at startup."""
+        self._registered_count = 0
+
         for tool in self._tools:
             # Only register enabled tools
             if not tool.enabled:
                 continue
 
-            # Build kwargs for mcp.tool decorator
-            kwargs = {
-                "name": tool.name,
-                "description": tool.description
-            }
+            # If wxo mode is enabled, only register tools with 'wxo' prefix
+            # if wxo mode is disabled, skip tools with 'wxo' prefix
+            if hasattr(settings, 'wxo'):
+                if (settings.wxo and not tool.func.__name__.startswith("wxo")) or \
+                   (not settings.wxo and tool.func.__name__.startswith("wxo")):
+                    continue
 
-            if tool.tags is not None:
-                kwargs["tags"] = tool.tags
-            if tool.exclude_args is not None:
-                kwargs["exclude_args"] = tool.exclude_args
-            if tool.annotations is not None:
-                kwargs["annotations"] = tool.annotations
-            if tool.meta is not None:
-                kwargs["meta"] = tool.meta
-
+            # Build kwargs and register tool
+            kwargs = self._build_tool_kwargs(tool)
             mcp_instance.tool(**kwargs)(tool.func)
+            self._registered_count += 1
+
+    def get_registered_count(self):
+        """Returns the number of tools that were actually registered."""
+        return self._registered_count
 
 # Global singleton instance for collecting tools
 service_registry = ServiceRegistry()

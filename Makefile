@@ -6,7 +6,7 @@
 # Define python and pip interpreters dynamically
 PYTHON := $(shell command -v python3 || command -v python)
 PIP := $(shell command -v pip3 || command -v pip)
-PROJECT_NAME := ibm-data-intelligence-mcp-server
+PROJECT_NAME := ibm-watsonx-data-intelligence-mcp-server
 
 # Self-documenting help target. See https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
 .PHONY: help

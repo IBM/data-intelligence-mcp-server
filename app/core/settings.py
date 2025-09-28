@@ -70,6 +70,9 @@ class Settings(BaseSettings):
     # Log file path
     log_file_path: str | None = None
 
+    # wxo compatibile tools
+    wxo: bool = False
+
     def get_auth_config(self) -> dict:
         """Get authentication configuration for the current auth mode."""
         return {

@@ -61,13 +61,18 @@ async def create_url_data_product(
             headers=headers,
             data=json,
         )
+        url_asset_id = response["asset_id"]
     except ExternalAPIError as e:
         LOGGER.error(f"Failed to run data_product_create_url_data_product tool. Error while creating URL asset in CAMS: {str(e)}")
         raise ExternalAPIError(
             f"Failed to run data_product_create_url_data_product tool. Error while creating URL asset in CAMS: {str(e)}"
         )
+    except Exception as e:
+        LOGGER.error(f"Failed to run data_product_create_url_data_product tool. Error while creating URL asset in CAMS: {str(e)}")
+        raise ServiceError(
+            f"Failed to run data_product_create_url_data_product tool. Error while creating URL asset in CAMS: {str(e)}"
+        )
     
-    url_asset_id = response["asset_id"]
 
     LOGGER.info(f"In the data_product_create_url_data_product tool, created URL Asset. {url_asset_id}")
 
@@ -102,7 +107,7 @@ async def create_url_data_product(
         raise ServiceError(
             f"Failed to run data_product_create_url_data_product tool. Error while getting delivery method ID: {str(e)}"
         )
-    
+
     LOGGER.info(f"In the data_product_create_url_data_product tool tool, Got delivery method id - {delivery_method_id}.")
 
     # step 3: create ibm_data_product_part asset and set relationship between URL asset and ibm_data_product_part asset
@@ -162,17 +167,38 @@ async def create_url_data_product(
             f"Failed to run data_product_create_url_data_product tool. Error while creating data product draft: {str(e)}"
         )
 
-    create_dp_response = response
-    draft = create_dp_response["drafts"][0]
-    data_product_draft_id = draft["id"]
-    contract_terms_id = draft["contract_terms"][0]["id"]
-
     LOGGER.info(
         f"In the data_product_create_url_data_product tool, created URL data product draft - {data_product_draft_id}, contract terms id: {contract_terms_id}."
     )
-    
+
     return CreateUrlDataProductResponse(
         data_product_draft_id=data_product_draft_id,
         contract_terms_id=contract_terms_id,
         create_data_product_response=create_dp_response,
     )
+
+@service_registry.tool(
+    name="data_product_create_url_data_product",
+    description="""
+    This tool creates a URL data product. Example: 'Create a URL data product with <name>, <url>,.....'
+    """,
+    tags={"create", "data_product"},
+    meta={"version": "1.0", "service": "data_product"},
+)
+@auto_context
+async def wxo_create_url_data_product(
+    name: str,
+    url_name: str,
+    url_value: str
+) -> CreateUrlDataProductResponse:
+    """Watsonx Orchestrator compatible version that expands SearchAssetRequest object into individual parameters."""
+
+    request = CreateUrlDataProductRequest(
+        name=name,
+        url_name=url_name,
+        url_value=url_value
+    )
+
+    # Call the original search_asset function
+    return await create_url_data_product(request)
+

@@ -31,3 +31,21 @@ async def get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraphR
     )
     url = f"{settings.ui_url}{LINEAGE_UI_BASE_ENDPOINT}/?assetsIds={request.lineage_id}&startingAssetDirection=upstreamDownstream&numberOfHops=3&assetTypes=deduced&featureFiltersScopeSettingsCloud=false&context=df"
     return GetLineageGraphResponse(lineage_assets=lineage_assets, url=url)
+
+
+@service_registry.tool(
+    name="lineage_get_lineage_graph",
+    description="""This function returns upstream and downstream lineage graph of lineage asset accessible under the url""",
+)
+@auto_context
+async def wxo_get_lineage_graph(
+    lineage_id: str
+) -> GetLineageGraphResponse:
+    """Watsonx Orchestrator compatible version of get_lineage_graph."""
+
+    request = GetLineageGraphRequest(
+        lineage_id=lineage_id
+    )
+
+    # Call the original search_asset function
+    return await get_lineage_graph(request)

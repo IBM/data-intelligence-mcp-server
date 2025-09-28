@@ -104,3 +104,28 @@ async def call_search_lineage_assets(
 
 def _create_asset_filter(name: str, values: list[str]):
     return {"type": name, "values": values}
+
+
+
+@service_registry.tool(
+    name="lineage_search_lineage_assets",
+    description="""This tool searches assets in Lineage system based on users query
+                   and two optional filters: technology_name and asset_type.
+                   It returns the lineage history of asset.""",
+)
+@auto_context
+async def wxo_search_lineage_assets(
+    name_query: str,
+    technology_name: str = None,
+    asset_type: str = None
+) -> SearchLineageAssetsResponse:
+    """Watsonx Orchestrator compatible version of get_lineage_graph."""
+
+    request = SearchLineageAssetsRequest(
+        name_query=name_query,
+        technology_name=technology_name,
+        asset_type=asset_type
+    )
+
+    # Call the original search_asset function
+    return await search_lineage_assets(request)
