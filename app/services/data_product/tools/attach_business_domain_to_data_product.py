@@ -123,7 +123,6 @@ async def attach_business_domain_to_data_product(
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
 )
-@add_catalog_id_suffix()
 @auto_context
 async def wxo_attach_business_domain_to_data_product(
     domain: str,

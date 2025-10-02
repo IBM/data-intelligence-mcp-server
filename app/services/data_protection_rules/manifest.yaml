@@ -4,4 +4,4 @@ service:
 system_instructions: |
   High-level rules and instructions for the data protection rules service.
   tools:
-    1. create_rule: Create a new data protection rule.
+    1. data_protection_rule_create: Create a new data protection rule.

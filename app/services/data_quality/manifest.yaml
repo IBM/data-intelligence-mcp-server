@@ -1,0 +1,6 @@
+service:
+  name: data_quality
+  description: "This service contains tools to work with data quality of an asset"
+system_instructions: |
+  Data Quality service tools:
+  1. data_quality_get_data_quality_for_asset → returns data quality information for an asset (URL provided).

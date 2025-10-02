@@ -2,6 +2,7 @@
 
 The IBM Data Intelligence MCP Server provides a modular and scalable implementation of the Model Context Protocol (MCP), purpose-built to integrate with IBM Data Intelligence services. It enables secure and extensible interaction between MCP clients and IBM’s data intelligence capabilities.
 
+For the list of tools supported in this version and sample prompts, refer to [Tools](https://github.com/IBM/data-intelligence-mcp-server/blob/main/TOOLS.md).
 
 ```mermaid
 flowchart LR
@@ -17,6 +18,9 @@ flowchart LR
     client <-- MCP/HTTP --> server2("Data Intelligence MCP Server") -- HTTPS --> runtime
 
 ```
+Resources:
+- [Integrating Claude with Watsonx Data Intelligence](https://community.ibm.com/community/user/blogs/ramakanta-samal/2025/10/01/integrating-claude-with-watsonx-data-intelligence) A step-by-step guide showing how Claude Desktop connects to the Data Intelligence MCP Server.
+- [Watsonx Orchestrate + Data Intelligence](https://community.ibm.com/community/user/blogs/ramakanta-samal/2025/09/25/data) Demonstrates how Watsonx Orchestrate integrates with the MCP Server for automation.
 ---
 
 ## Table of Contents
@@ -92,7 +96,7 @@ ibm-watsonx-data-intelligence-mcp-server --transport http --host 0.0.0.0 --port 
 ```
 
 ### HTTPS Mode
-Refer to [server_https.md](SERVERS_HTTPS.md) for detailed HTTPS server configuration and setup.
+Refer to [SERVER_HTTPS.md](SERVER_HTTPS.md) for detailed HTTPS server configuration and setup.
 
 ### stdio Mode
 When configuring the server through Claude, Copilot, or an MCP client in **stdio mode**, the server does not need to be started separately. The client will invoke the server directly using standard input/output.
