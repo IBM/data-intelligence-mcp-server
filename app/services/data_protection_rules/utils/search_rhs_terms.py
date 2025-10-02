@@ -66,7 +66,7 @@ async def search_rhs_terms(term_name: str, artifact_type: str) -> RuleRhsTermRes
             artifacts = entity.get("artifacts", {})
 
             if artifacts.get("enabled") and "global_id" in artifacts:
-                entities.append(Entity(name=name, globalid= "$" + artifacts["global_id"]))
+                entities.append(Entity(name=name, globalid="$" + artifacts["global_id"]))
 
 
         return RuleRhsTermResponse(

@@ -24,5 +24,5 @@ class DataProduct(BaseModel):
 
 
 class SearchDataProductsResponse(BaseModel):
-    count: int = Field(descripion="The number of data products found.")
+    count: int = Field(description="The number of data products found.")
     data_products: List[DataProduct]

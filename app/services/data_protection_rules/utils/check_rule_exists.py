@@ -36,7 +36,6 @@ async def check_rule_exists(rule_name: str) -> bool:
         headers=headers,
         data=search_query,
     )
-    print(response)
     rule_count = response.get("size", 0)
     return  rule_count > 0
 

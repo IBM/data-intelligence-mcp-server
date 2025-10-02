@@ -62,7 +62,7 @@ sudo chmod 600 /etc/ssl/mcp-server/server.key
 sudo chmod 644 /etc/ssl/mcp-server/server.crt
 
 # Run with production certificates
-ibm-watsonx-data-intelligence-mcp-serverr \
+ibm-watsonx-data-intelligence-mcp-server \
     --transport http \
     --ssl-cert /etc/ssl/mcp-server/server.crt \
     --ssl-key /etc/ssl/mcp-server/server.key \

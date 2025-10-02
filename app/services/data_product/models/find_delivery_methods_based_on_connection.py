@@ -10,7 +10,7 @@ class FindDeliveryMethodsBasedOnConnectionRequest(BaseModel):
 
 class DeliveryMethod(BaseModel):
     delivery_method_id: str = Field(..., description="The ID of the delivery method.")
-    delivery_method_name: str = Field(..., description="The name of the delivry method.")
+    delivery_method_name: str = Field(..., description="The name of the delivery method.")
 
 
 class FindDeliveryMethodsBasedOnConnectionResponse(BaseModel):

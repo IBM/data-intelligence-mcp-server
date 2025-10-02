@@ -104,10 +104,49 @@ class TriggerCondition(BaseModel):
         field = self.field
         operator = self.operator
 
+        # Data classes MUST use CONTAINS or LIKE
+        if field == "Asset.Name" and operator not in ["CONTAINS", "LIKE"]:
+            raise ValueError(
+                f"Asset.Name (data class) MUST use 'CONTAINS' or 'LIKE' operator. "
+                f"You cannot use '{operator}' with data classes. Change operator to 'CONTAINS' or 'LIKE'."
+            )
+
+        # Owner should MUST use CONTAINS
+        if field == "Asset.Owner" and operator != "CONTAINS":
+            raise ValueError(
+                f"Asset.Owner should use 'EQUALS' or 'IN' operator, not '{operator}'."
+            )
+
+        # Schema should MUST use CONTAINS
+        if field == "Asset.Schema" and operator != "CONTAINS":
+            raise ValueError(
+                f"Asset.Schema should use 'CONTAINS' operator, not '{operator}'."
+            )
+
+        # Business terms should MUST use CONTAINS
+        if field == "Business.Term" and operator != "CONTAINS":
+            raise ValueError(
+                f"Business.Term should use 'CONTAINS' operator, not '{operator}'."
+            )
+
         # Data classes MUST use CONTAINS
         if field == "Asset.InferredClassification" and operator != "CONTAINS":
             raise ValueError(
                 f"Asset.InferredClassification (data class) MUST use 'CONTAINS' operator. "
+                f"You cannot use '{operator}' with data classes. Change operator to 'CONTAINS'."
+            )
+
+        # Column name MUST use CONTAINS or LIKE
+        if field == "Asset.ColumnName" and operator not in ["CONTAINS", "LIKE"]:
+            raise ValueError(
+                f"Asset.ColumnName (data class) MUST use 'CONTAINS' or 'LIKE' operator. "
+                f"You cannot use '{operator}' with data classes. Change operator to 'CONTAINS' or 'LIKE'."
+            )
+
+        # UserClassification MUST use CONTAINS
+        if field == "Asset.UserClassification" and operator != "CONTAINS":
+            raise ValueError(
+                f"Asset.UserClassification (data class) MUST use 'CONTAINS' operator. "
                 f"You cannot use '{operator}' with data classes. Change operator to 'CONTAINS'."
             )
 
@@ -118,18 +157,21 @@ class TriggerCondition(BaseModel):
                 f"You cannot use '{operator}' with tags. Change operator to 'CONTAINS'."
             )
 
-        # Business terms should use CONTAINS
-        if field == "Business.Term" and operator != "CONTAINS":
+        # User.Group MUST use CONTAINS
+        if field == "User.Group" and operator != "CONTAINS":
             raise ValueError(
-                f"Business.Term should use 'CONTAINS' operator. "
-                f"You cannot use '{operator}' with business terms. Change operator to 'CONTAINS'."
+                f"User.Group MUST use 'CONTAINS' operator. "
+                f"You cannot use '{operator}' with user groups. Change operator to 'CONTAINS'."
             )
 
-        # Owner should not use CONTAINS or LIKE
-        if field == "Asset.Owner" and operator in ["CONTAINS", "LIKE"]:
+        # User.Name MUST use CONTAINS
+        if field == "User.Name" and operator != "CONTAINS":
             raise ValueError(
-                f"Asset.Owner should use 'EQUALS' or 'IN' operator, not '{operator}'."
+                f"User.Name MUST use 'CONTAINS' operator. "
+                f"You cannot use '{operator}' with user names. Change operator to 'CONTAINS'."
             )
+
+
 
         return self
 
