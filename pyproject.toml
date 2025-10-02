@@ -1,6 +1,6 @@
 [project]
 name = "ibm-watsonx-data-intelligence-mcp-server"
-version = "1.0.0"
+version = "0.1.0"
 description = "MCP Server implementation for IBM Data Intelligence"
 readme = "README_PYPI.md"
 license = "Apache-2.0"
