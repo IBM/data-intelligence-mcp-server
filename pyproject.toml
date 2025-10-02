@@ -1,6 +1,6 @@
 [project]
 name = "ibm-watsonx-data-intelligence-mcp-server"
-version = "1.0.0"
+version = "0.1.0"
 description = "MCP Server implementation for IBM Data Intelligence"
 readme = "README_PYPI.md"
 license = "Apache-2.0"
@@ -39,7 +39,8 @@ dependencies = [
     "fastmcp>=2.11.3",
     "pydantic>=2",
     "pyyaml>=6",
-    "async-lru>=2.0.0",
+    "jwt>=1.4.0",
+    "aiocache>=0.12.3",
 ]
 
 [project.urls]

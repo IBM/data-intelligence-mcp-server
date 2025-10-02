@@ -1,6 +1,6 @@
 # HTTPS Server Setup Guide
 
-This guide explains how to configure the Data Intelligence MCP Server to run with HTTPS support after installing via `pip install ibm-data-intelligence-mcp-server`.
+This guide explains how to configure the Data Intelligence MCP Server to run with HTTPS support after installing via `pip install ibm-watsonx-data-intelligence-mcp-server`.
 
 ## Table of Contents
 
@@ -20,7 +20,7 @@ For development and testing purposes, you can quickly set up HTTPS with automati
 
 ```bash
 # Install the server
-pip install ibm-data-intelligence-mcp-server
+pip install ibm-watsonx-data-intelligence-mcp-server
 
 # Generate self-signed certificates automatically
 openssl genrsa -out server.key 2048
@@ -31,7 +31,7 @@ chmod 600 server.key
 chmod 644 server.crt
 
 # Run the server with HTTPS
-data-intelligence-mcp-server --transport http --ssl-cert ./server.crt --ssl-key ./server.key
+ibm-watsonx-data-intelligence-mcp-server --transport http --ssl-cert ./server.crt --ssl-key ./server.key
 ```
 
 ### Method 2: Using Environment Variables
@@ -42,7 +42,7 @@ export SSL_CERT_PATH=./server.crt
 export SSL_KEY_PATH=./server.key
 
 # Run the server (it will automatically use HTTPS when certificates are configured)
-data-intelligence-mcp-server --transport http
+ibm-watsonx-data-intelligence-mcp-server --transport http
 ```
 
 The server will be available at: `https://localhost:443`
@@ -62,7 +62,7 @@ sudo chmod 600 /etc/ssl/mcp-server/server.key
 sudo chmod 644 /etc/ssl/mcp-server/server.crt
 
 # Run with production certificates
-data-intelligence-mcp-server \
+ibm-watsonx-data-intelligence-mcp-server \
     --transport http \
     --ssl-cert /etc/ssl/mcp-server/server.crt \
     --ssl-key /etc/ssl/mcp-server/server.key \
@@ -83,7 +83,7 @@ sudo apt install certbot
 sudo certbot certonly --standalone -d your-domain.com
 
 # Run with Let's Encrypt certificates
-data-intelligence-mcp-server \
+ibm-watsonx-data-intelligence-mcp-server \
     --transport http \
     --ssl-cert /etc/letsencrypt/live/your-domain.com/fullchain.pem \
     --ssl-key /etc/letsencrypt/live/your-domain.com/privkey.pem \
@@ -116,8 +116,8 @@ SERVER_PORT=443
 SSL_CERT_PATH=/path/to/server.crt
 SSL_KEY_PATH=/path/to/server.key
 
-# Service Configuration
-DI_SERVICE_URL=https://data-intelligence-instance.com
+# Service Configuration. Set the url accordingly for your environment
+DI_SERVICE_URL=https://api.dataplatform.cloud.ibm.com
 REQUEST_TIMEOUT_S=30
 
 ```
@@ -140,6 +140,6 @@ REQUEST_TIMEOUT_S=30
 EOF
 
 # Run the server
-data-intelligence-mcp-server
+ibm-watsonx-data-intelligence-mcp-server
 ```
 

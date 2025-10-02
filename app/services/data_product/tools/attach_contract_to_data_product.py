@@ -7,7 +7,7 @@ from app.services.data_product.models.attach_contract_to_data_product import (
     AttachURLContractToDataProductRequest,
 )
 from app.services.data_product.utils.common_utils import add_catalog_id_suffix
-from app.shared.exceptions.base import ExternalAPIError, ServiceError
+from app.shared.exceptions.base import ExternalAPIError
 from app.core.auth import get_access_token
 from app.shared.utils.http_client import get_http_client
 from app.services.constants import JSON_CONTENT_TYPE
@@ -56,7 +56,7 @@ async def attach_url_contract_to_data_product(
         raise ExternalAPIError(
             f"Failed to run data_product_attach_url_contract_to_data_product tool. Error while attaching URL contract to data product: {str(e)}"
         )
-
+    
     LOGGER.info(
         f"In the data_product_attach_url_contract_to_data_product tool, attached URL contract {request.contract_url} with name {request.contract_name} to the data product draft {request.data_product_draft_id}."
     )
@@ -72,8 +72,6 @@ async def attach_url_contract_to_data_product(
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
 )
-@add_catalog_id_suffix(field_name="data_product_draft_id")
-@add_catalog_id_suffix(field_name="contract_terms_id")
 @auto_context
 async def wxo_attach_url_contract_to_data_product(
     contract_url: str,

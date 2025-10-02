@@ -24,7 +24,7 @@ This guide covers development setup, tool development process, and comprehensive
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/IBM/data-intelligence-mcp-server.git
+   git clone git@github.ibm.com:wdp-gov/data-intelligence-mcp-server.git
    cd data-intelligence-mcp-server
    ```
 
@@ -53,11 +53,11 @@ This guide covers development setup, tool development process, and comprehensive
 
 | Command | Description |
 |---------|-------------|
-| `make run` | Run MCP server in default mode |
-| `make run-stdio` | Run MCP server in stdio mode |
-| `make lint` | Check code style and errors |
-| `make lint-fix` | Auto-fix linting issues |
-| `make clean` | Remove build artifacts |
+| `make -f Makefile.local run` | Run MCP server in default mode |
+| `make -f Makefile.local run-stdio` | Run MCP server in stdio mode |
+| `make -f Makefile.local lint` | Check code style and errors |
+| `make -f Makefile.local lint-fix` | Auto-fix linting issues |
+| `make -f Makefile.local clean` | Remove build artifacts |
 
 ## 2. Tool Development
 
@@ -65,15 +65,15 @@ This guide covers development setup, tool development process, and comprehensive
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `make service-list` | List all services and tools | |
-| `make service-create name=<name>` | Create new service | `make service-create name=my_service` |
-| `make service-add-tool service=<svc> tool=<tool>` | Add tool to service | `make service-add-tool service=dummy tool=new_tool` |
+| `make -f Makefile.local service-list` | List all services and tools | |
+| `make -f Makefile.local service-create name=<name>` | Create new service | `make -f Makefile.local service-create name=my_service` |
+| `make -f Makefile.local service-add-tool service=<svc> tool=<tool>` | Add tool to service | `make -f Makefile.local service-add-tool service=dummy tool=new_tool` |
 
 ### Creating a New Tool
 Below make command can be use to create a service and tool under it
 ```sh
-make service-create name=my_service
-make service-add-tool service=my_service tool=my_tool
+make -f Makefile.local service-create name=my_service
+make -f Makefile.local service-add-tool service=my_service tool=my_tool
 ```
 It will create the below directory structure and template code for the tool.
 
@@ -164,13 +164,13 @@ Unit tests validate individual components in isolation.
 #### Generate Test Stubs
 ```bash
 # Generate test stub for specific tool
-make test-generate-tool service=my_service tool=my_tool
+make -f Makefile.local test-generate-tool service=my_service tool=my_tool
 ```
 
 #### Run Unit Tests
 ```bash
 # Run all unit tests
-make test
+make -f Makefile.local test
 
 # Run specific test file
 uv run python -m pytest tests/services/dummy/test_lineage.py -v

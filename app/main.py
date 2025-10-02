@@ -39,12 +39,12 @@ def discover_and_import_services(package):
                 try:
                     importlib.import_module(tool_name)
                 except ImportError as e:
-                    print(f"Warning: Could not import tool module '{tool_name}': {e}")
+                    print(f"Warning: Could not import tool module '{tool_name}': {e}", file=sys.stderr)
 
 
 def create_server() -> FastMCP:
     """Creates and configures the MCP server."""
-    print("Discovering services...")
+    print("Discovering services...", file=sys.stderr)
     discover_and_import_services(app.services)
 
     mcp = FastMCP("WXDI MCP Server", version="1.0.0")
@@ -52,9 +52,9 @@ def create_server() -> FastMCP:
     # Register tools first to get the actual count
     service_registry.register_all(mcp)
     actual_registered_count = service_registry.get_registered_count()
-    
-    print(f"Registering {actual_registered_count} discovered tools...")
-    print("✓ Tool registration complete.")
+
+    print(f"Registering {actual_registered_count} discovered tools...", file=sys.stderr)
+    print("✓ Tool registration complete.", file=sys.stderr)
 
     prompts_provider = get_prompts_provider()
 
@@ -77,21 +77,21 @@ def create_server() -> FastMCP:
 
 def apply_cli_settings_overrides(args):
     """Apply command line argument overrides to settings and print notifications.
-    
+
     Args:
         args: Parsed command line arguments
     """
     if args.transport != settings.server_transport:
         settings.server_transport = args.transport
-        print(f"ℹ Transport overridden via CLI: {args.transport}")
+        print(f"ℹ Transport overridden via CLI: {args.transport}", file=sys.stderr)
 
     if args.di_url != settings.di_service_url:
         settings.di_service_url = args.di_url
-        print(f"Data Intelligence service URL overridden via CLI: {args.di_url}")
+        print(f"Data Intelligence service URL overridden via CLI: {args.di_url}", file=sys.stderr)
 
     if args.wxo:
         settings.wxo = True
-        print("✓ Watsonx orchestrator compatibility mode enabled")
+        print("✓ Watsonx orchestrator compatibility mode enabled", file=sys.stderr)
     else:
         settings.wxo = False
 
@@ -110,18 +110,18 @@ def main():
 
     apply_cli_settings_overrides(args)
 
-    print(" Starting IKC MCP Server...")
-    print(f"   Transport: {args.transport}")
+    print(" Starting IKC MCP Server...", file=sys.stderr)
+    print(f"   Transport: {args.transport}", file=sys.stderr)
 
     if args.transport == "http":
         protocol = "https" if args.ssl_cert and args.ssl_key else "http"
-        print(f"   Address: {protocol}://{args.host}:{args.port}")
+        print(f"   Address: {protocol}://{args.host}:{args.port}", file=sys.stderr)
 
     try:
         mcp = create_server()
         # Get the actual registered count after registration
         actual_registered_count = service_registry.get_registered_count()
-        print(f"✓ Server initialized with {actual_registered_count} registered tools.")
+        print(f"✓ Server initialized with {actual_registered_count} registered tools.", file=sys.stderr)
 
         if args.transport == "http":
             kwargs = {
@@ -152,7 +152,7 @@ def main():
             mcp.run()  # Default stdio transport
 
     except Exception as e:
-        print(f"✗ Failed to start server: {e}")
+        print(f"✗ Failed to start server: {e}", file=sys.stderr)
         sys.exit(1)
 
 

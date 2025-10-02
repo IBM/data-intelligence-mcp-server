@@ -2,13 +2,14 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
+import os
 from pydantic import AnyHttpUrl
 from pydantic_settings import (
     BaseSettings,
     SettingsConfigDict,
 )
 
-from app.shared.models.ssl_config import SSLConfig
+from app.shared.models.ssl_config import SSLConfig, CertificateMode
 
 
 class Settings(BaseSettings):
@@ -46,6 +47,27 @@ class Settings(BaseSettings):
     # SSL Configuration (enhanced certificate support)
     ssl_config: SSLConfig = SSLConfig()
 
+    def model_post_init(self, __context) -> None:
+        """Post-initialization to handle environment variable overrides."""
+        # Check for SSL_CONFIG_MODE environment variable override
+        ssl_mode = os.environ.get("SSL_CONFIG_MODE", "").lower()
+        if ssl_mode == "disabled":
+            self.ssl_config = SSLConfig(mode=CertificateMode.DISABLED)
+        elif ssl_mode == "custom_ca_bundle":
+            ca_bundle_path = os.environ.get("SSL_CONFIG_CA_BUNDLE_PATH")
+            self.ssl_config = SSLConfig(
+                mode=CertificateMode.CUSTOM_CA_BUNDLE,
+                ca_bundle_path=ca_bundle_path
+            )
+        elif ssl_mode == "client_cert":
+            self.ssl_config = SSLConfig(
+                mode=CertificateMode.CLIENT_CERT,
+                client_cert_path=os.environ.get("SSL_CONFIG_CLIENT_CERT_PATH"),
+                client_key_path=os.environ.get("SSL_CONFIG_CLIENT_KEY_PATH"),
+                client_key_password=os.environ.get("SSL_CONFIG_CLIENT_KEY_PASSWORD"),
+                check_hostname=os.environ.get("SSL_CONFIG_CHECK_HOSTNAME", "true").lower() == "true",
+            )
+
     # Backwards compatibility - deprecated, use ssl_config instead
     ssl_verify: bool = True  # Set to False for self-signed certificates
 
@@ -65,7 +87,7 @@ class Settings(BaseSettings):
     di_username: str | None = None
 
     #CPD, SaaS
-    di_env_mode: str = "SaaS" 
+    di_env_mode: str = "SaaS"
 
     # Log file path
     log_file_path: str | None = None

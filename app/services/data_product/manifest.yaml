@@ -2,8 +2,14 @@ service:
   name: data_product
   description: "Tools for managing data products."
 system_instructions: |
-  Data Product service tools:
-  1. data_product_create_url_data_product → Create a URL data product draft. Ask the user if they want to attach business domain and contract.
-  2. data_product_attach_business_domain → Attach a business domain to a data product draft. Read the business domain from the user.
-  3. data_product_attach_url_contract → Attach a URL contract to a data product draft. Read the contract details from the user.
-  4. data_product_publish_data_product → Publish a data product draft. Use only after required fields (name, domain, contract URL, delivery methods, etc.) are filled.
+  This service deals with data product related tasks.
+  Tools available:-
+  data_product_create_url_data_product - Use this tool when user wants to create a URL data product. Note that this tool creates a URL data product draft and should ask user if he wants to attach business domain and contract to the created draft.
+  data_product_get_assets_from_catalog - Use this tool to get assets from catalog.
+  data_product_create_data_product_from_catalog - Use this tool when user wants to create a data product from catalog. If you need to know assets in a catalog, call data_product_get_assets_from_catalog tool. Note that this tool creates a data product draft and should ask user if he wants to attach contract and business domain to the created draft.
+  data_product_attach_business_domain - Use this tool to attach business domain to a data product draft. Read the business domain to be attached from the user.
+  data_product_attach_url_contract - Use this tool to attach a url contract to a data product draft. Read the contract details to be attached from the user.
+  data_product_find_delivery_methods_based_on_connection - Use this tool to find delivery methods available in the catalog based on the connection. This tool lets the user choose from the available delivery methods. If the user does not know the delivery methods available, use this tool to help the user.
+  data_product_add_delivery_methods_to_data_product: Use this tool to add delivery methods to a data product draft. Read the delivery method details from the user. This tool should be called after data_product_find_delivery_methods_based_on_connection tool.
+  data_product_publish_data_product - Use this tool to publish a data product draft. Make sure to call this tool after all the required fields are filled in the data product draft, like name, domain, contract URL, delivery methods, etc.
+
