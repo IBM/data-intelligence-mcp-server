@@ -3,6 +3,9 @@
 # See the LICENSE file in the project root for license information.
 
 from fastmcp.server.dependencies import get_http_headers
+import json
+import jwt
+import jwt.utils
 
 from app.services.constants import CLOUD_IAM_ENDPOINT, CPD_IAM_ENDPOINT
 from app.shared.exceptions.base import ExternalAPIError
@@ -11,7 +14,7 @@ from app.shared.exceptions.base import ExternalAPIError
 from app.core.settings import settings
 from app.shared.utils.http_client import get_http_client
 
-from async_lru import alru_cache
+from aiocache import cached
 
 from app.shared.logging import LOGGER
 
@@ -85,6 +88,41 @@ def get_iam_url() -> str:
     elif settings.di_env_mode == "CPD":
         return settings.di_service_url + CPD_IAM_ENDPOINT
     else:
+        raise ExternalAPIError(INVALID_DI_ENV_MODE)
+
+
+async def get_token() -> str:
+    """
+    Retrieves the current user token from the context.
+
+    This function checks if a user token is present in the context. If a token is found, it returns ONLY the token as a string without "Bearer ".
+    If no token is present, it returns an empty string.
+
+    Returns:
+        str: The current user token or an empty string if no token is found.
+    """
+    access_token = await get_access_token()
+    return access_token[7:] if access_token else ""
+
+
+async def get_bss_account_id() -> str:
+    """
+    Retrieves the BSS Account ID from the JWT token.
+
+    This function extracts the BSS Account ID from the JWT token by decoding the payload.
+    It assumes the token is in a valid format and contains an "account.bss" key.
+
+    Returns:
+        str: The BSS Account ID extracted from the token payload.
+    """
+    if settings.di_env_mode == "SaaS":
+        token = await get_token()
+        payload_b64 = token.split(".")[1]
+        payload = json.loads(jwt.utils.b64decode(payload_b64).decode("utf-8"))
+        return payload.get("account", {}).get("bss", "")
+    elif settings.di_env_mode == "CPD":
+        return "999"
+    else:
         raise ExternalAPIError(
             INVALID_DI_ENV_MODE
         )
@@ -119,7 +157,7 @@ def get_header():
         )
 
 
-@alru_cache(maxsize=100, ttl=3540)
+@cached(ttl=3300)  # 55 minutes - shorter than 1 hour token expiration
 async def get_bearer_token_from_apikey(api_key: str, username: str) -> str:
 
     LOGGER.info("Getting bearer token for the api key passed in")
@@ -152,7 +190,7 @@ async def get_bearer_token_from_apikey(api_key: str, username: str) -> str:
         raise ExternalAPIError(f"Failed to get bearer token: {str(e)}")
 
 
-@alru_cache(maxsize=100, ttl=3540)
+@cached(ttl=3300)  # 55 minutes - shorter than 1 hour token expiration
 async def get_dph_catalog_id_for_user(bearer_token) -> str:
 
     LOGGER.info("Getting DPH catalog id")

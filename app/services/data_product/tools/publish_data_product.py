@@ -13,8 +13,13 @@ from app.shared.logging import LOGGER, auto_context
 
 @service_registry.tool(
     name="data_product_publish_data_product",
-    description="A sample tool for data_product.",
-    tags={"sample", "data_product"},
+    description="""
+    This tool publishes a data product draft.
+    Make sure to call this tool after all the required fields are filled in the data product draft, like name, domain, contract URL, delivery methods, etc.
+    Example: 'Publish data product draft' - Get the data product draft ID from context.
+    This receives the data product draft ID to publish the data product draft.
+    """,
+    tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
 )
 @add_catalog_id_suffix()
@@ -36,7 +41,7 @@ async def publish_data_product(
 
     try:
         await client.post(
-            f"{settings.di_service_url}/data_product_exchange/v1/data_products/-/drafts/{request.data_product_draft_id}/publish",
+            url=f"{settings.di_service_url}/data_product_exchange/v1/data_products/-/drafts/{request.data_product_draft_id}/publish",
             headers=headers,
         )
     except ExternalAPIError:
@@ -56,11 +61,15 @@ async def publish_data_product(
 
 @service_registry.tool(
     name="data_product_publish_data_product",
-    description="A sample tool for data_product.",
-    tags={"sample", "data_product"},
+    description="""
+    This tool publishes a data product draft.
+    Make sure to call this tool after all the required fields are filled in the data product draft, like name, domain, contract URL, delivery methods, etc.
+    Example: 'Publish data product draft' - Get the data product draft ID from context.
+    This receives the data product draft ID to publish the data product draft.
+    """,
+    tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
 )
-@add_catalog_id_suffix()
 @auto_context
 async def wxo_publish_data_product(
     data_product_draft_id: str,
