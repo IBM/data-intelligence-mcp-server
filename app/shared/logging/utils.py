@@ -38,52 +38,52 @@ def setup_logging(
 ) -> logging.Logger:
     """
     Configure logging based on specified parameters.
-    
+
     This function sets up a logger with either human-readable or JSON format,
     includes traceability information, and configures appropriate handlers.
-    
+
     Args:
         logger_name: Name for the logger (defaults to container name from config)
         log_level: Logging level (defaults to config value)
         log_format: Logging format type (defaults to config value)
         log_file_path: File to which logs are written. For stdio mode, this is mandatory
                        as stdio is used by the MCP protocol itself
-        
+
     Returns:
         logging.Logger: Configured logger instance
-        
+
     Raises:
         ValueError: If invalid logging level is specified
     """
     # Set parameter values from environment or defaults
     retrieve_parameters_from_env()
-    
+
     # Use provided values or fall back to configuration
     final_logger_name = logger_name or parameter_values[CONTAINER_NAME]
     final_log_level = log_level or parameter_values[LOGGING_LEVEL]
     final_log_format = log_format or parameter_values[LOGGING_FORMAT]
     final_log_file_path = log_file_path or parameter_values.get(LOG_FILE_PATH)
-    
+
     # Get logger instance
     logger = logging.getLogger(final_logger_name)
 
     # We don't want to propagate the logger to the root logger
     logger.propagate = False
-    
+
     # Return existing logger if already configured
     if logger.handlers:
         return logger
-    
+
     # Validate logging level
     if final_log_level.upper() not in LOGGING_LEVELS:
         raise ValueError(
             f"Invalid logging level '{final_log_level.upper()}'. "
             f"Supported levels: {list(LOGGING_LEVELS.keys())}"
         )
-    
+
     # Set logger level
     logger.setLevel(LOGGING_LEVELS[final_log_level.upper()])
-    
+
     # Create handler based on configuration
     if final_log_file_path:
         # File logging
@@ -91,9 +91,12 @@ def setup_logging(
         log_path.parent.mkdir(parents=True, exist_ok=True)
         ch = logging.FileHandler(log_path)
     else:
-        # Console logging
-        ch = logging.StreamHandler(sys.stdout)
-    
+        # Console logging - CRITICAL: Use stderr for MCP stdio transport
+        # In stdio mode, STDOUT is exclusively used by FastMCP for JSON-RPC protocol
+        # Writing logs to stdout corrupts the protocol stream causing client-side
+        # JSON parse errors like "Expected ',' or '}' at position X"
+        ch = logging.StreamHandler(sys.stderr)
+
     # Configure formatter based on format type
     if final_log_format == HUMAN_LOGGING:
         formatter = logging.Formatter(
@@ -120,7 +123,7 @@ def setup_logging(
     else:
         # Custom format provided
         formatter = logging.Formatter(final_log_format)
-    
+
     # Set formatter and add handler
     ch.setFormatter(formatter)
     logger.addHandler(ch)
@@ -134,17 +137,17 @@ def setup_logging(
         )
         console_handler.setFormatter(console_formatter)
         logger.addHandler(console_handler)
-    
+
     return logger
 
 
 def get_logger(name: Optional[str] = None) -> logging.Logger:
     """
     Get a logger instance with the specified name.
-    
+
     Args:
         name: Logger name (defaults to container name from config)
-        
+
     Returns:
         logging.Logger: Configured logger instance
     """
@@ -154,15 +157,15 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
 def retrieve_parameters_from_env() -> None:
     """
     Get and verify configuration from the environment.
-    
+
     This function reads all configuration parameters from environment variables
     and stores them in the parameter_values dictionary.
     """
     from .constants import DEFAULT_PARAMETERS
-    
+
     for parameter_name in DEFAULT_PARAMETERS.keys():
         set_parameter_value(parameter_name)
 
 
-# Global logger instance 
+# Global logger instance
 LOGGER = setup_logging()

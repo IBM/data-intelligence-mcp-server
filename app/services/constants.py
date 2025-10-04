@@ -11,7 +11,11 @@ All service-specific endpoints and IDs live here.
 SEARCH_PATH = "/v3/search"
 
 # ---- service/tools specific endpoints go here ----
-ASSISTANT_BASE_ENDPOINT = "/semantic_automation/v1/assistant"
+PROJECTS_BASE_ENDPOINT = "/v2/projects"
+CONNECTIONS_BASE_ENDPOINT = "/v2/connections"
+CAMS_ASSETS_BASE_ENDPOINT = "/v2/assets"
+GS_BASE_ENDPOINT = "/v3/search"
+DATA_QUALITY_BASE_ENDPOINT = "/data_quality/v4"
 LINEAGE_BASE_ENDPOINT = "/gov_lineage/v2"
 LINEAGE_UI_BASE_ENDPOINT = "/lineage"
 TEXT_TO_SQL_BASE_ENDPOINT = "/semantic_automation/v1/text_to_sql"
