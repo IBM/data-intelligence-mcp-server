@@ -2,8 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-import uuid
-
 from ..models.generate_sql_query import (
     GenerateSqlQueryRequest,
     GenerateSqlQueryResponse,
@@ -12,7 +10,8 @@ from ..models.generate_sql_query import (
 from app.core.auth import get_access_token
 from app.core.registry import service_registry
 from app.services.constants import (
-    ASSISTANT_BASE_ENDPOINT,
+    CONNECTIONS_BASE_ENDPOINT,
+    PROJECTS_BASE_ENDPOINT,
     TEXT_TO_SQL_BASE_ENDPOINT,
 )
 from app.core.settings import settings
@@ -33,22 +32,25 @@ async def find_project_id(project_name: str) -> str:
         uuid.UUID: Unique identifier of the project.
     """
 
-    data = {"operation_type": "get_projects"}
-
     auth = await get_access_token()
 
     headers = {"Content-Type": "application/json", "Authorization": auth}
 
+    params = {"name": project_name, "match": "keyword", "limit": 100}
+
     client = get_http_client()
 
     try:
-        response = await client.post(
-            settings.di_service_url + ASSISTANT_BASE_ENDPOINT,
-            data=data,
+        response = await client.get(
+            settings.di_service_url + PROJECTS_BASE_ENDPOINT,
+            params=params,
             headers=headers,
         )
 
-        projects = response.get("projects")
+        projects = [
+            {"name": project["entity"]["name"], "id": project["metadata"]["guid"]}
+            for project in response.get("resources", {})
+        ]
         result_id = get_closest_match(projects, project_name)
         if result_id:
             return result_id
@@ -65,7 +67,7 @@ async def find_project_id(project_name: str) -> str:
         )
 
 
-async def find_connection_id(connection_name: str, project_id: uuid) -> str:
+async def find_connection_id(connection_name: str, project_id: str) -> str:
     """
     Find id of connection based on connection name.
 
@@ -77,30 +79,28 @@ async def find_connection_id(connection_name: str, project_id: uuid) -> str:
         uuid.UUID: Unique identifier of the project.
     """
 
-    data = {
-        "operation_type": "get_connections",
-        "get_connnections": {
-            "asset_container": {
-                "container_id": project_id,
-                "container_type": "project",
-            }
-        },
-    }
-
     auth = await get_access_token()
 
     headers = {"Content-Type": "application/json", "Authorization": auth}
 
+    params = {"project_id": project_id}
+
     client = get_http_client()
 
     try:
-        response = await client.post(
-            settings.di_service_url + ASSISTANT_BASE_ENDPOINT,
-            data=data,
+        response = await client.get(
+            settings.di_service_url + CONNECTIONS_BASE_ENDPOINT,
             headers=headers,
+            params=params,
         )
 
-        connections = response.get("connections")
+        connections = [
+            {
+                "name": connection["entity"]["name"],
+                "id": connection["metadata"]["asset_id"],
+            }
+            for connection in response.get("resources", {})
+        ]
         result_id = get_closest_match(connections, connection_name)
         if result_id:
             return result_id
@@ -128,9 +128,13 @@ async def generate_sql_query(
     project_id = await find_project_id(request.project_name)
     is_uuid(project_id)
 
-    data = {"query": request.request, "raw_output": "true"}
+    payload = {"query": request.request, "raw_output": "true"}
 
-    LOGGER.info("Calling generate_sql_query, project_name: %s, connection_name: %s", request.project_name, request.connection_name)
+    LOGGER.info(
+        "Calling generate_sql_query, project_name: %s, connection_name: %s",
+        request.project_name,
+        request.connection_name,
+    )
 
     params = {
         "container_id": project_id,
@@ -149,7 +153,7 @@ async def generate_sql_query(
         response = await client.post(
             settings.di_service_url + TEXT_TO_SQL_BASE_ENDPOINT,
             params=params,
-            data=data,
+            data=payload,
             headers=headers,
         )
 
@@ -175,17 +179,12 @@ async def generate_sql_query(
 )
 @auto_context
 async def wxo_generate_sql_query(
-    request: str,
-    project_name: str,
-    connection_name: str
+    request: str, project_name: str, connection_name: str
 ) -> GenerateSqlQueryResponse:
     """Watsonx Orchestrator compatible version that expands CreateAssetFromSqlQueryRequest object into individual parameters."""
 
-
     request = GenerateSqlQueryRequest(
-        request=request,
-        project_name=project_name,
-        connection_name=connection_name
+        request=request, project_name=project_name, connection_name=connection_name
     )
 
     # Call the original search_asset function

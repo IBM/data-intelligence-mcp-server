@@ -39,7 +39,7 @@ DEFAULT_PARAMETERS = {
     LOGGING_FORMAT: [JSON_LOGGING, False, str],
     CONTAINER_NAME: ["data-intelligence-mcp-server", False, str],
     ENVIRONMENT: ["development", False, str],
-    BUILD_VERSION: ["1.0.0", False, str],
+    BUILD_VERSION: ["0.1.4", False, str],
     LOG_FILE_PATH: [None, False, str],
 }
 
@@ -49,16 +49,16 @@ parameter_values: Dict[str, Any] = {}
 def _get_environment_value(parameter_name: str) -> str:
     """
     Get parameter value from environment variable or Pydantic settings.
-    
+
     Args:
         parameter_name: The name of the parameter to look up
-        
+
     Returns:
         str: The environment value if found, None otherwise
     """
     # Try environment variable first
     env_value = os.environ.get(parameter_name.upper())
-    
+
     # Fallback to Pydantic settings if available
     if env_value is None:
         try:
@@ -67,18 +67,18 @@ def _get_environment_value(parameter_name: str) -> str:
                 env_value = getattr(settings, parameter_name)
         except ImportError:
             pass
-    
+
     return env_value
 
 
 def _convert_value_to_type(value: str, param_type: type) -> Any:
     """
     Convert string value to the specified parameter type.
-    
+
     Args:
         value: The string value to convert
         param_type: The target type for conversion
-        
+
     Returns:
         Any: The converted value
     """
@@ -93,10 +93,10 @@ def _convert_value_to_type(value: str, param_type: type) -> Any:
 def _validate_parameter_exists(parameter_name: str) -> None:
     """
     Validate that the parameter exists in DEFAULT_PARAMETERS.
-    
+
     Args:
         parameter_name: The name of the parameter to validate
-        
+
     Raises:
         ValueError: If parameter is not found in DEFAULT_PARAMETERS
     """
@@ -107,12 +107,12 @@ def _validate_parameter_exists(parameter_name: str) -> None:
 def _handle_missing_parameter(parameter_name: str, is_mandatory: bool, default_value: Any) -> None:
     """
     Handle the case when parameter value is not found in environment.
-    
+
     Args:
         parameter_name: The name of the parameter
         is_mandatory: Whether the parameter is mandatory
         default_value: The default value to use if not mandatory
-        
+
     Raises:
         ValueError: If parameter is mandatory but not found
     """
@@ -124,15 +124,15 @@ def _handle_missing_parameter(parameter_name: str, is_mandatory: bool, default_v
 def set_parameter_value(parameter_name: str) -> None:
     """
     Set parameter value from environment variable or use default.
-    
+
     Args:
         parameter_name: The name of the parameter to set
     """
     _validate_parameter_exists(parameter_name)
-    
+
     default_value, is_mandatory, param_type = DEFAULT_PARAMETERS[parameter_name]
     env_value = _get_environment_value(parameter_name)
-    
+
     if env_value is not None:
         converted_value = _convert_value_to_type(env_value, param_type)
         parameter_values[parameter_name] = converted_value
