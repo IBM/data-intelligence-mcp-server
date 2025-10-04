@@ -206,7 +206,7 @@ async def create_assets_for_data_product_from_catalog(
         )
 
     # creating ibm_data_product_part asset and setting relationship
-    create_part_asset_and_set_relationship(
+    await create_part_asset_and_set_relationship(
         asset_name, target_asset_id, dph_catalog_id, token
     )
 

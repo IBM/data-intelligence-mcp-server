@@ -151,13 +151,13 @@ async def search_data_products(
         for row in response["rows"]:
             products.append(
                 {
-                    "name": row["metadata"]["name"],
-                    "description": row["metadata"].get("description", ""),
-                    "created_on": row["metadata"]["created_on"],
-                    "domain": row["entity"].get("data_product_version", {}).get("domain_name", ""),
+                    "name": row.get("metadata", {}).get("name", ""),
+                    "description": row.get("metadata", {}).get("description", ""),
+                    "created_on": row.get("metadata", {}).get("created_on", ""),
+                    "domain": row.get("entity", {}).get("data_product_version", {}).get("domain_name", ""),
                     "data_asset_items": [
                         {"name": parts_out.get("name", ""), "description": parts_out.get("description", "")}
-                        for parts_out in row["entity"].get("data_product_version", {}).get("parts_out", [])
+                        for parts_out in row.get("entity", {}).get("data_product_version", {}).get("parts_out", [])
                     ]
                 }
             )

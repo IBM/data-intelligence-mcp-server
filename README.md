@@ -2,7 +2,7 @@
 
 The IBM Data Intelligence MCP Server provides a modular and scalable implementation of the Model Context Protocol (MCP), purpose-built to integrate with IBM Data Intelligence services. It enables secure and extensible interaction between MCP clients and IBM’s data intelligence capabilities.
 
-For the list of tools supported in this version and sample prompts, refer to [Tools](https://github.com/IBM/data-intelligence-mcp-server/blob/main/TOOLS.md).
+For the list of tools supported in this version and sample prompts, refer to [TOOLS.md](TOOLS.md)
 
 ```mermaid
 flowchart LR
@@ -45,6 +45,10 @@ Resources:
 5. [Configuration](#configuration)
    - [Client Settings](#client-settings)
    - [SSL/TLS Configuration](#ssltls-configuration)
+6. [Running Server in Development Mode](#running-server-in-development-mode)
+   - [Prerequisites](#prerequisites-2)
+   - [Running the Server](#running-the-server)
+   - [MCP Inspector Tool](#mcp-inspector-tool)
 
 ---
 
@@ -222,7 +226,9 @@ For CPD:
 ```
 
 ### Watsonx Orchestrate
-**Work in Progress**
+
+[Watsonx Orchestrate + Data Intelligence](https://community.ibm.com/community/user/blogs/ramakanta-samal/2025/09/25/data) blog post demonstrates how Watsonx Orchestrate integrates with the MCP Server for automation.
+
 
 ---
 ## Configuration
@@ -289,3 +295,55 @@ e.g:
 ### SSL/TLS Configuration
 
 If running in CPD environment, you might need to configure SSL certificate for client connection. Please look into [SSL_CERTIFICATE_GUIDE.md](SSL_CERTIFICATE_GUIDE.md) for more details.
+
+
+---
+
+## Running Server in Development Mode
+
+For development and testing purposes, you can run the server locally using the Makefile commands.
+
+### Prerequisites
+- Clone the repository
+- Install [uv](https://docs.astral.sh/uv/getting-started/installation/)
+- Configure your environment variables in `.env` file (copy from `.env.example`)
+
+### Running the Server
+
+Navigate to the project directory:
+```bash
+cd /path/to/data-intelligence-mcp-server
+```
+
+#### Run in stdio mode
+```bash
+make run-stdio
+```
+
+#### Run in HTTP mode
+```bash
+make run
+```
+
+#### Run in HTTPS mode
+```bash
+make run-https
+```
+
+### MCP Inspector Tool
+
+The MCP Inspector is a useful tool for testing and debugging your MCP server during development.
+
+**Prerequisites:**
+- Ensure npm is installed on your machine
+
+**Usage:**
+```sh
+npx @modelcontextprotocol/inspector
+```
+
+This will launch an interactive inspector interface to test your MCP server tools and capabilities.
+
+![Demo](docs/demo.gif)
+
+---
