@@ -2,7 +2,7 @@
 
 The IBM Data Intelligence MCP Server provides a modular and scalable implementation of the Model Context Protocol (MCP), purpose-built to integrate with IBM Data Intelligence services. It enables secure and extensible interaction between MCP clients and IBM's data intelligence capabilities.
 
-For the list of tools supported in this version and sample prompts, refer to [Tools](https://github.com/IBM/data-intelligence-mcp-server/blob/main/TOOLS.md).
+For the list of tools supported in this version and sample prompts, refer to [Tools](https://github.com/IBM/data-intelligence-mcp-server/blob/main/TOOLS_PROMPTS.md).
 
 Resources:
 - [Integrating Claude with Watsonx Data Intelligence](https://community.ibm.com/community/user/blogs/ramakanta-samal/2025/10/01/integrating-claude-with-watsonx-data-intelligence) A step-by-step guide showing how Claude Desktop connects to the Data Intelligence MCP Server.
