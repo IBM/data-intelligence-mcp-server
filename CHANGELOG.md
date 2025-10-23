@@ -17,7 +17,7 @@
 - Fixed mcp client error notification in stdio mode
 - pypi package changes for 0.1.4
 
-## [0.2.0] - Oct 24th, 2025
+## [0.2.0] - Oct 23rd, 2025
 
 ### Added
 - With MCP transport mode `http`, server now defaults to starting on `https` url (can be configured to start on http by setting `SERVER_HTTPS=False`)
