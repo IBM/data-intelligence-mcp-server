@@ -11,6 +11,8 @@ from app.core.auth import get_access_token
 from app.core.registry import service_registry
 from app.services.constants import (
     CONNECTIONS_BASE_ENDPOINT,
+    GEN_AI_SETTINGS_BASE_ENDPOINT,
+    JSON_CONTENT_TYPE,
     PROJECTS_BASE_ENDPOINT,
     TEXT_TO_SQL_BASE_ENDPOINT,
 )
@@ -34,9 +36,9 @@ async def find_project_id(project_name: str) -> str:
 
     auth = await get_access_token()
 
-    headers = {"Content-Type": "application/json", "Authorization": auth}
+    headers = {"Content-Type": JSON_CONTENT_TYPE, "Authorization": auth}
 
-    params = {"name": project_name, "match": "keyword", "limit": 100}
+    params = {"limit": 100}
 
     client = get_http_client()
 
@@ -81,7 +83,7 @@ async def find_connection_id(connection_name: str, project_id: str) -> str:
 
     auth = await get_access_token()
 
-    headers = {"Content-Type": "application/json", "Authorization": auth}
+    headers = {"Content-Type": JSON_CONTENT_TYPE, "Authorization": auth}
 
     params = {"project_id": project_id}
 
@@ -116,6 +118,47 @@ async def find_connection_id(connection_name: str, project_id: str) -> str:
             f"find_connection_id failed to find any connections with name '{connection_name}': {str(e)}"
         )
 
+async def _check_if_project_is_enabled_for_text_to_sql(project_id) -> None:
+    """
+    Check if the project is enabled for text to sql.
+
+    Args:
+        project_id (str): The project id.
+    """
+
+    auth = await get_access_token()
+
+    headers = {"Content-Type": JSON_CONTENT_TYPE, "Authorization": auth}
+
+    params = {
+        "container_id": project_id,
+        "container_type": "project",
+    }
+
+    client = get_http_client()
+
+    try:
+        response = await client.get(
+            settings.di_service_url + GEN_AI_SETTINGS_BASE_ENDPOINT,
+            params=params,
+            headers=headers,
+        )
+
+        if not (
+            response.get("enable_gen_ai") and response.get("onboard_metadata_for_gen_ai")
+        ):
+            raise ServiceError(
+                f"Project with id: {project_id} is not enabled for text2sql, please enable it first."
+            )
+
+    except ExternalAPIError:
+        # This will catch HTTP errors (4xx, 5xx) that were raised by raise_for_status()
+        raise
+    except Exception as e:
+        raise ServiceError(
+            f"_check_if_project_is_enabled_for_text_to_sql failed to find if project with id '{project_id}' is enabled for text2sql: {str(e)}"
+        )
+
 
 @service_registry.tool(
     name="text_to_sql_generate_sql_query",
@@ -127,6 +170,8 @@ async def generate_sql_query(
 ) -> GenerateSqlQueryResponse:
     project_id = await find_project_id(request.project_name)
     is_uuid(project_id)
+
+    await _check_if_project_is_enabled_for_text_to_sql(project_id)
 
     payload = {"query": request.request, "raw_output": "true"}
 
@@ -145,7 +190,7 @@ async def generate_sql_query(
 
     auth = await get_access_token()
 
-    headers = {"Content-Type": "application/json", "Authorization": auth}
+    headers = {"Content-Type": JSON_CONTENT_TYPE, "Authorization": auth}
 
     client = get_http_client()
 
@@ -181,11 +226,11 @@ async def generate_sql_query(
 async def wxo_generate_sql_query(
     request: str, project_name: str, connection_name: str
 ) -> GenerateSqlQueryResponse:
-    """Watsonx Orchestrator compatible version that expands CreateAssetFromSqlQueryRequest object into individual parameters."""
+    """Watsonx Orchestrator compatible version that expands GenerateSqlQueryRequest object into individual parameters."""
 
-    request = GenerateSqlQueryRequest(
+    req = GenerateSqlQueryRequest(
         request=request, project_name=project_name, connection_name=connection_name
     )
 
-    # Call the original search_asset function
-    return await generate_sql_query(request)
+    # Call the original generate_sql_query function
+    return await generate_sql_query(req)
