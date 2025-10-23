@@ -2,7 +2,7 @@
 
 The IBM Data Intelligence MCP Server provides a modular and scalable implementation of the Model Context Protocol (MCP), purpose-built to integrate with IBM Data Intelligence services. It enables secure and extensible interaction between MCP clients and IBM’s data intelligence capabilities.
 
-For the list of tools supported in this version and sample prompts, refer to [TOOLS.md](TOOLS.md)
+For the list of tools supported in this version and sample prompts, refer to [TOOLS_PROMPTS.md](TOOLS_PROMPTS.md)
 
 ```mermaid
 flowchart LR
