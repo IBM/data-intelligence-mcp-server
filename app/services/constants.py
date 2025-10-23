@@ -19,6 +19,9 @@ DATA_QUALITY_BASE_ENDPOINT = "/data_quality/v4"
 LINEAGE_BASE_ENDPOINT = "/gov_lineage/v2"
 LINEAGE_UI_BASE_ENDPOINT = "/lineage"
 TEXT_TO_SQL_BASE_ENDPOINT = "/semantic_automation/v1/text_to_sql"
+GEN_AI_ONBOARD_API = "/semantic_automation/v1/gen_ai/onboard"
+GEN_AI_SETTINGS_BASE_ENDPOINT = "/semantic_automation/v1/gen_ai_settings"
+JOBS_BASE_ENDPOINT = "/v2/jobs"
 
 DPR_RULES = "/v3/enforcement/rules"
 

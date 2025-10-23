@@ -3,3 +3,4 @@ pydantic>=2
 pyyaml>=6
 aiocache>=0.12.3
 jwt>=1.4.0
+tenacity>=9.0.0

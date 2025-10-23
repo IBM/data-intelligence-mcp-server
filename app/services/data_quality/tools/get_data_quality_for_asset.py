@@ -2,6 +2,8 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
+# This file has been modified with the assistance of IBM Bob AI tool
+
 from typing import Literal
 
 from app.core.auth import get_access_token
@@ -15,6 +17,8 @@ from app.services.data_quality.models.get_data_quality_for_asset import (
 )
 from app.shared.exceptions.base import ExternalAPIError, ServiceError
 from app.shared.logging import LOGGER, auto_context
+from app.shared.utils.helpers import append_context_to_url
+from app.shared.utils.helpers import is_uuid
 from app.shared.utils.http_client import get_http_client
 
 
@@ -123,7 +127,9 @@ async def retrieve_data_quality(
             if dimension["dimension"].get("name", "").lower() == "consistency"
         ]
         consistency = (
-            str(consistency_list[0]["score"]) if len(consistency_list) > 0 else None
+            ratio_to_percentage(consistency_list[0]["score"])
+            if len(consistency_list) > 0
+            else None
         )
 
         validity_list = [
@@ -131,7 +137,11 @@ async def retrieve_data_quality(
             for dimension in dimension_scores
             if dimension["dimension"].get("name", "").lower() == "validity"
         ]
-        validity = str(validity_list[0]["score"]) if len(validity_list) > 0 else None
+        validity = (
+            ratio_to_percentage(validity_list[0]["score"])
+            if len(validity_list) > 0
+            else None
+        )
 
         completeness_list = [
             dimension
@@ -139,17 +149,20 @@ async def retrieve_data_quality(
             if dimension["dimension"].get("name", "").lower() == "completeness"
         ]
         completeness = (
-            str(completeness_list[0]["score"]) if len(completeness_list) > 0 else None
+            ratio_to_percentage(completeness_list[0]["score"])
+            if len(completeness_list) > 0
+            else None
         )
 
-        report_url = (
+        base_report_url = (
             f"{settings.ui_url}/data/catalogs/{container_id}/asset/{asset_id}/data-quality"
             if container_type == "catalog"
             else f"{settings.ui_url}/projects/{container_id}/data-assets/{asset_id}/data-quality"
         )
+        report_url = append_context_to_url(base_report_url)
 
         return DataQuality(
-            overall=str(score["score"]),
+            overall=ratio_to_percentage(score["score"]),
             consistency=consistency,
             validity=validity,
             completeness=completeness,
@@ -162,6 +175,16 @@ async def retrieve_data_quality(
         raise ServiceError(
             f"retrieve_data_quality_for_asset failed for asset '{asset_id}' in {container_type} '{container_id}': {str(e)}"
         )
+
+
+def ratio_to_percentage(ratio):
+    value = float(ratio)
+    percentage = value * 100
+    # If the hundredths place (second decimal) is 0, show one decimal
+    if int((percentage * 100) % 10) == 0:
+        return f"{percentage:.1f}"  # show up to 1 decimal
+    else:
+        return f"{percentage:.2f}"  # show up to 2 decimals
 
 
 @service_registry.tool(
@@ -178,6 +201,8 @@ async def retrieve_data_quality(
 async def get_data_quality_for_asset(
     request: GetDataQualityForAssetRequest,
 ) -> GetDataQualityForAssetResponse:
+    is_uuid(request.asset_id)
+    is_uuid(request.container_id)
     LOGGER.info(
         f"Calling get_data_quality_for_asset with asset_id: {request.asset_id}, "
         f"asset_name: {request.asset_name}, container_id: {request.container_id}, "

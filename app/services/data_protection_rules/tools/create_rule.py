@@ -10,7 +10,7 @@ from app.services.data_protection_rules.models.create_rule import (
     RuleAction,
     TriggerCondition,
 )
-from app.core.settings import settings
+from app.core.settings import settings, ENV_MODE_SAAS
 from app.services.data_protection_rules.utils.check_rule_exists import check_rule_exists
 from app.services.data_protection_rules.utils.create_rule_util import create_rule_util
 from app.services.data_protection_rules.utils.search_rhs_terms import search_rhs_terms
@@ -22,7 +22,7 @@ from app.shared.logging.generate_context import auto_context
     description="""
 Create a data protection rule with automatic preview.
 
-⚠️ CRITICAL FOR AGENTS: This tool returns a 'display_to_user' field that MUST be shown
+CRITICAL FOR AGENTS: This tool returns a 'display_to_user' field that MUST be shown
 to the user exactly as returned. DO NOT summarize, paraphrase, or rewrite it.
 Show the full text to the user so they can see the complete preview.
 
@@ -253,12 +253,12 @@ Ready to create this rule? Reply **yes** to confirm or **no** to cancel.
 
         rule_id = await create_rule_util(rule)
 
-        url = (
-            f"{settings.di_service_url}/governance/rules/dataProtection/view/{rule_id}"
-        )
-        if settings.di_env_mode == "SaaS":
-            url = url.replace("https://api.", "https://")
+        if settings.di_env_mode.upper() == ENV_MODE_SAAS:
+            url_prefix = settings.di_service_url.replace("https://api.", "https://") + "/governance/rules/dataProtection/view/"
+        else:
+            url_prefix = settings.di_service_url + "/gov/rules/dataProtection/view/"
 
+        url = url_prefix + rule_id
         success_msg = f"""✅ **Rule created successfully!**
 
 **Name:** {input.name}

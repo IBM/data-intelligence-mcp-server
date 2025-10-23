@@ -36,9 +36,10 @@ Tools for managing data products.
 ## Data Protection Rule Service
 Tools for managing data protection rules.
 
-| Tool Name | Description | Sample Prompt |
-|-----------|-------------|---------------|
-| `data_protection_rule_create` | Creates data protection rules.| "create me data protection rule name  sample when the asset contains name test and dataclass contains ssn with action allow" |
+| Tool Name                     | Description                    | Sample Prompt                                                                                                                |
+|-------------------------------|--------------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| `data_protection_rule_create` | Creates data protection rules. | "create me data protection rule name  sample when the asset contains name test and dataclass contains ssn with action allow" |
+| `data_protection_rule_search` | Search data protection rules.  | "show me all data protection rules with Deny name"                                                                           |
 
 ## Lineage Service
 
