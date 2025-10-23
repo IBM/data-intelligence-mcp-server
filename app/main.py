@@ -10,6 +10,7 @@ import argparse
 import importlib
 import pkgutil
 import sys
+import os
 from pathlib import Path
 
 from fastmcp import FastMCP
@@ -113,10 +114,6 @@ def main():
     print(" Starting IKC MCP Server...", file=sys.stderr)
     print(f"   Transport: {args.transport}", file=sys.stderr)
 
-    if args.transport == "http":
-        protocol = "https" if args.ssl_cert and args.ssl_key else "http"
-        print(f"   Address: {protocol}://{args.host}:{args.port}", file=sys.stderr)
-
     try:
         mcp = create_server()
         # Get the actual registered count after registration
@@ -124,6 +121,10 @@ def main():
         print(f"✓ Server initialized with {actual_registered_count} registered tools.", file=sys.stderr)
 
         if args.transport == "http":
+            # Initialize protocol and port for display
+            protocol = "http"
+            port = args.port
+            
             kwargs = {
                 "transport": "streamable-http",
                 "host": args.host,
@@ -135,18 +136,47 @@ def main():
             ssl_cert = args.ssl_cert or settings.ssl_cert_path
             ssl_key = args.ssl_key or settings.ssl_key_path
 
-            if ssl_cert and ssl_key:
-                ciphers = [
-                    "ECDHE-ECDSA-AES256-GCM-SHA384",
-                    "ECDHE-RSA-AES256-GCM-SHA384",
-                    "ECDHE-ECDSA-AES128-GCM-SHA256",
-                    "ECDHE-RSA-AES128-GCM-SHA256",
-                    "DHE-RSA-AES128-GCM-SHA256",
-                    "DHE-RSA-AES256-GCM-SHA384",
-                ]
-                kwargs["port"]=443
-                kwargs["uvicorn_config"]= {"ssl_keyfile":ssl_key,"ssl_certfile":ssl_cert,"ssl_ciphers":":".join(ciphers),}
+            if not settings.use_https:
+                highlight = "\033[1;33m"  # Bold yellow
+                reset = "\033[0m"  # Reset formatting
+                print(f"⚠️ WARNING: Starting server in HTTP mode because {highlight}SERVER_HTTPS=False{reset}.", file=sys.stderr)
+            
+            # Check if we should use HTTPS based on settings
+            if settings.use_https:
+                # If certificates are available, configure HTTPS
+                if ssl_cert and ssl_key:
+                    ciphers = [
+                        "ECDHE-ECDSA-AES256-GCM-SHA384",
+                        "ECDHE-RSA-AES256-GCM-SHA384",
+                        "ECDHE-ECDSA-AES128-GCM-SHA256",
+                        "ECDHE-RSA-AES128-GCM-SHA256",
+                        "DHE-RSA-AES128-GCM-SHA256",
+                        "DHE-RSA-AES256-GCM-SHA384",
+                    ]
+                    kwargs["port"] = 443
 
+                    port = 443  # Update port for display
+                    protocol = "https"  # Ensure protocol is https
+
+                    kwargs["uvicorn_config"] = {
+                        "ssl_keyfile": ssl_key,
+                        "ssl_certfile": ssl_cert,
+                        "ssl_ciphers": ":".join(ciphers),
+                    }
+                else:
+                    # No certificates found, but HTTPS is required
+                    error_msg = (
+                        "Server cert and key not found. MCP server is by default started in HTTPS mode. "
+                        "Either set SSL_CERT_PATH and SSL_KEY_PATH environment variables or provide "
+                        "the cert/keys via --ssl-cert and --ssl-key options OR set SERVER_HTTPS=False "
+                        "to start the server without HTTPS (i.e., HTTP)"
+                    )
+                    print(f"✗ Error: {error_msg}", file=sys.stderr)
+                    sys.exit(1)
+            
+            # Print address with correct protocol and port
+            print(f"   Address: {protocol}://{args.host}:{port}", file=sys.stderr)
+            
             mcp.run(**kwargs)
         else:
             mcp.run()  # Default stdio transport

@@ -39,7 +39,7 @@ DEFAULT_PARAMETERS = {
     LOGGING_FORMAT: [JSON_LOGGING, False, str],
     CONTAINER_NAME: ["data-intelligence-mcp-server", False, str],
     ENVIRONMENT: ["development", False, str],
-    BUILD_VERSION: ["0.1.4", False, str],
+    BUILD_VERSION: ["0.2.0", False, str],
     LOG_FILE_PATH: [None, False, str],
 }
 

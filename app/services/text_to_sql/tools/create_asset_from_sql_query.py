@@ -2,6 +2,8 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
+# This file has been modified with the assistance of IBM Bob AI tool
+
 import time
 from typing import Dict, Any
 
@@ -16,6 +18,7 @@ from app.core.settings import settings
 from app.services.constants import CAMS_ASSETS_BASE_ENDPOINT
 from app.shared.exceptions.base import ExternalAPIError, ServiceError
 from app.shared.utils.http_client import get_http_client
+from app.shared.utils.helpers import append_context_to_url
 from app.shared.logging import auto_context
 
 
@@ -101,7 +104,7 @@ async def create_asset_from_sql_query(
 
         asset_id = response.get("asset_id")
 
-        asset_url = (
+        asset_url = append_context_to_url(
             f"{settings.ui_url}/projects/{request.project_id}/data-assets/{asset_id}"
         )
 
