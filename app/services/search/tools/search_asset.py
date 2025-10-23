@@ -1,3 +1,9 @@
+# Copyright [2025] [IBM]
+# Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+# See the LICENSE file in the project root for license information.
+
+# This file has been modified with the assistance of IBM Bob AI tool
+
 from typing import Any, List
 
 from ..models.search_asset import SearchAssetRequest, SearchAssetResponse
@@ -7,7 +13,7 @@ from app.core.registry import service_registry
 from app.core.settings import settings
 from app.services.constants import GS_BASE_ENDPOINT
 from app.shared.exceptions.base import ExternalAPIError
-from app.shared.utils.helpers import is_none
+from app.shared.utils.helpers import is_none, append_context_to_url
 from app.shared.utils.http_client import get_http_client
 from app.shared.logging import LOGGER, auto_context
 
@@ -55,7 +61,7 @@ async def search_asset(
 
     headers = {"Content-Type": "application/json", "Authorization": auth}
 
-    params = {"auth_scope": request.container_type}
+    params = {"auth_scope": request.container_type} if request.container_type else {}
 
     client = get_http_client()
 
@@ -67,8 +73,8 @@ async def search_asset(
             headers=headers,
         )
 
-        search_response = response.get("rows")
-        li = list(map(_construct_search_asset, search_response))
+        search_response = response.get("rows", [])
+        li = list(map(_construct_search_asset, search_response)) if search_response else []
 
         return li
 
@@ -103,11 +109,13 @@ def _construct_search_asset(row: Any):
     asset_id = row["artifact_id"]
     catalog_id = row["entity"]["assets"].get("catalog_id", None)
     project_id = row["entity"]["assets"].get("project_id", None)
-    url = (
+    base_url = (
         f"{settings.ui_url}/data/catalogs/{catalog_id}/asset/{asset_id}"
         if catalog_id
         else f"{settings.ui_url}/projects/{project_id}/data-assets/{asset_id}"
     )
+
+    url = append_context_to_url(base_url)
 
     return SearchAssetResponse(
         id=asset_id,

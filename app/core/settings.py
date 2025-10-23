@@ -2,6 +2,8 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
+# This file has been modified with the assistance of IBM Bob AI Tool
+
 import os
 from pydantic import AnyHttpUrl
 from pydantic_settings import (
@@ -10,6 +12,10 @@ from pydantic_settings import (
 )
 
 from app.shared.models.ssl_config import SSLConfig, CertificateMode
+
+# Environment mode constants for case-insensitive comparisons
+ENV_MODE_SAAS = "SAAS"
+ENV_MODE_CPD = "CPD"
 
 
 class Settings(BaseSettings):
@@ -24,6 +30,21 @@ class Settings(BaseSettings):
     request_timeout_s: int = 30
     di_service_url: AnyHttpUrl | str | None = None
 
+    # Context for UI URLs (df, cpdaas for SaaS; df, cpd for CPD)
+    di_context: str = "df"
+
+    @property
+    def valid_contexts(self) -> list[str]:
+        """
+        Returns the list of valid contexts based on the environment mode.
+        For SaaS: df, cpdaas
+        For CPD: df, cpd
+        """
+        if self.di_env_mode.upper() == ENV_MODE_CPD:
+            return ["df", "cpd"]
+        else:  # SaaS
+            return ["df", "cpdaas"]
+
     @property
     def ui_url(self) -> AnyHttpUrl | str | None:
         """
@@ -34,7 +55,7 @@ class Settings(BaseSettings):
         if not self.di_service_url:
             return None
 
-        if self.di_env_mode == "CPD":
+        if self.di_env_mode.upper() == ENV_MODE_CPD:
             return self.di_service_url
 
         # For SaaS or any other mode, remove 'api.' prefix if present
@@ -68,6 +89,11 @@ class Settings(BaseSettings):
                 check_hostname=os.environ.get("SSL_CONFIG_CHECK_HOSTNAME", "true").lower() == "true",
             )
 
+        # Check for SERVER_HTTPS environment variable override
+        server_https = os.environ.get("SERVER_HTTPS", "True").lower()
+        if server_https in ["false", "0", "no", "n", "off"]:
+            self.use_https = False
+
     # Backwards compatibility - deprecated, use ssl_config instead
     ssl_verify: bool = True  # Set to False for self-signed certificates
 
@@ -75,8 +101,9 @@ class Settings(BaseSettings):
     server_host: str = "0.0.0.0"
     server_port: int = 3000
     server_transport: str = "http"  # "http" or "stdio"
-    ssl_cert_path: str | None = None  # Path to SSL certificate file
-    ssl_key_path: str | None = None   # Path to SSL private key file
+    ssl_cert_path: str | None = os.environ.get("SSL_CERT_PATH")  # Path to SSL certificate file
+    ssl_key_path: str | None = os.environ.get("SSL_KEY_PATH")    # Path to SSL private key file
+    use_https: bool = True  # Default to HTTPS mode, can be disabled with SERVER_HTTPS=False
 
     # Auth token for stdio mode (optional)
     di_auth_token: str | None = None
@@ -94,15 +121,5 @@ class Settings(BaseSettings):
 
     # wxo compatibile tools
     wxo: bool = False
-
-    def get_auth_config(self) -> dict:
-        """Get authentication configuration for the current auth mode."""
-        return {
-            "mode": self.auth_mode,
-            "iam_url": self.auth_iam_url,
-            "wkc_service_id": self.auth_wkc_service_id,
-            "auto_error": self.auth_auto_error,
-        }
-
 
 settings = Settings()

@@ -12,6 +12,7 @@ from app.core.registry import service_registry
 from app.services.constants import LINEAGE_UI_BASE_ENDPOINT
 from app.core.settings import settings
 from app.shared.logging import LOGGER, auto_context
+from app.shared.utils.helpers import append_context_to_url
 
 
 @service_registry.tool(
@@ -36,7 +37,8 @@ async def get_lineage_graph_by_cams_id(
     lineage_assets = list(
         map(lambda asset: LineageAsset.model_validate(asset), assets_in_view)
     )
-    url = f"{settings.ui_url}{LINEAGE_UI_BASE_ENDPOINT}/?assetsIds={lineage_id}&startingAssetDirection=upstreamDownstream&numberOfHops=3&assetTypes=deduced&featureFiltersScopeSettingsCloud=false&context=df"
+    base_url = f"{settings.ui_url}{LINEAGE_UI_BASE_ENDPOINT}/?assetsIds={lineage_id}&startingAssetDirection=upstreamDownstream&numberOfHops=3&assetTypes=deduced&featureFiltersScopeSettingsCloud=false"
+    url = append_context_to_url(base_url)
     return GetLineageGraphByCamsIdResponse(lineage_assets=lineage_assets, url=url)
 
 @service_registry.tool(

@@ -5,3 +5,4 @@ system_instructions: |
   High-level rules and instructions for the data protection rules service.
   tools:
     1. data_protection_rule_create: Create a new data protection rule.
+    2. data_protection_rule_search: Search data protection rule by query filter.
