@@ -294,4 +294,4 @@ e.g:
 
 ### SSL/TLS Configuration
 
-If running in CPD environment, you might need to configure SSL certificate for client connection. Please look into [SSL_CERTIFICATE_GUIDE.md](SSL_CERTIFICATE_GUIDE.md) for more details.
+If running in CPD environment, you might need to configure SSL certificate for client connection. Please look into [SSL_CERTIFICATE_GUIDE.md](readme_guides/SSL_CERTIFICATE_GUIDE.md) for more details.
