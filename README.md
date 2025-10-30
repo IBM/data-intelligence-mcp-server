@@ -100,7 +100,7 @@ ibm-watsonx-data-intelligence-mcp-server --transport http --host 0.0.0.0 --port 
 ```
 
 ### HTTPS Mode
-Refer to [SERVER_HTTPS.md](SERVER_HTTPS.md) for detailed HTTPS server configuration and setup.
+Refer to [SERVER_HTTPS.md](readme_guides/SERVER_HTTPS.md) for detailed HTTPS server configuration and setup.
 
 ### stdio Mode
 When configuring the server through Claude, Copilot, or an MCP client in **stdio mode**, the server does not need to be started separately. The client will invoke the server directly using standard input/output.
