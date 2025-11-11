@@ -24,5 +24,6 @@ class DataProduct(BaseModel):
 
 
 class SearchDataProductsResponse(BaseModel):
-    count: int = Field(description="The number of data products found.")
+    message: str = "Only maximum 20 products sorted by last updated are returned."
+    count: int = Field(description="The number of data products found. This can be more than 20, but maximum data products returnable is 20.")
     data_products: List[DataProduct]

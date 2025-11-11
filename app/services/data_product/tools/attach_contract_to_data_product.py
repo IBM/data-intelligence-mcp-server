@@ -7,11 +7,7 @@ from app.services.data_product.models.attach_contract_to_data_product import (
     AttachURLContractToDataProductRequest,
 )
 from app.services.data_product.utils.common_utils import add_catalog_id_suffix
-from app.shared.exceptions.base import ExternalAPIError
-from app.core.auth import get_access_token
-from app.shared.utils.http_client import get_http_client
-from app.services.constants import JSON_CONTENT_TYPE
-from app.core.settings import settings
+from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.logging import LOGGER, auto_context
 
 
@@ -33,29 +29,19 @@ async def attach_url_contract_to_data_product(
     LOGGER.info(
         f"In the data_product_attach_url_contract_to_data_product tool, attaching URL contract {request.contract_url} with name {request.contract_name} to the data product draft {request.data_product_draft_id}."
     )
+    
     # step 1: attach the URL contract to data product draft
-    token = await get_access_token()
-    headers = {
-        "Content-Type": JSON_CONTENT_TYPE,
-        "Authorization": token,
-    }
-    json = {
+    payload = {
         "url": request.contract_url,
         "type": "terms_and_conditions",
         "name": request.contract_name,
     }
-    client = get_http_client()
-    try:
-        await client.post(
-            url=f"{settings.di_service_url}/data_product_exchange/v1/data_products/-/drafts/{request.data_product_draft_id}/contract_terms/{request.contract_terms_id}/documents",
-            headers=headers,
-            data=json,
-        )
-    except ExternalAPIError as e:
-        LOGGER.error(f"Failed to run data_product_attach_url_contract_to_data_product tool. Error while attaching URL contract to data product: {str(e)}")
-        raise ExternalAPIError(
-            f"Failed to run data_product_attach_url_contract_to_data_product tool. Error while attaching URL contract to data product: {str(e)}"
-        )
+    
+    await tool_helper_service.execute_post_request(
+        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/drafts/{request.data_product_draft_id}/contract_terms/{request.contract_terms_id}/documents",
+        json=payload,
+        tool_name="data_product_attach_url_contract_to_data_product",
+    )
     
     LOGGER.info(
         f"In the data_product_attach_url_contract_to_data_product tool, attached URL contract {request.contract_url} with name {request.contract_name} to the data product draft {request.data_product_draft_id}."
@@ -79,7 +65,7 @@ async def wxo_attach_url_contract_to_data_product(
     contract_terms_id: str,
     data_product_draft_id: str
 ) -> str:
-    """Watsonx Orchestrator compatible version that expands SearchAssetRequest object into individual parameters."""
+    """Watsonx Orchestrator compatible version that expands AttachURLContractToDataProductRequest object into individual parameters."""
 
     request = AttachURLContractToDataProductRequest(
         contract_url=contract_url,
@@ -88,5 +74,5 @@ async def wxo_attach_url_contract_to_data_product(
         data_product_draft_id=data_product_draft_id
     )
 
-    # Call the original search_asset function
+    # Call the original attach_url_contract_to_data_product function
     return await attach_url_contract_to_data_product(request)

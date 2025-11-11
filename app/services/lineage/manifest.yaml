@@ -2,7 +2,41 @@ service:
   name: lineage
   description: "This service contains tools to work with lineage history of an asset."
 system_instructions: |
-  Lineage service tools:
-  1. lineage_get_lineage_graph_by_cams_id → returns upstream/downstream lineage graph (URL provided).
-  2. lineage_get_lineage_graph → returns upstream/downstream lineage graph of a lineage asset (URL provided).
-  3. lineage_search_lineage_assets → searches assets in the Lineage system and returns their lineage history.
+  For lineage questions, ALWAYS use these tools, not other tools:
+  - General rules for lineage tools:
+    - If user has no IDs, use search_lineage_assets first.
+    - If user has asset ID and no container ID, use the asset ID as lineage ID and directly call get_lineage_graph tool. Don't call convert_to_lineage_id tool.
+    - Do not pass an asset name to get_lineage_graph. Call search_lineage_assets first unless user passes a proper list of lineage Ids.
+    - If you cannot fill a parameter passed in the method - skip it rather than passing 'null'.
+    - Never set 'null' as value unless you are asked for it by user
+    - If user searches using name of the asset and name of the project or catalog - use search_asset first.
+    - If user has project name but no container ID, do not call convert_to_lineage_id tool. Instead, use search_lineage_assets tool.
+    - Always call search_lineage_assets before get_lineage_graph if users input is not a lineage Id like for example ['75f98515137593b49de589911f69974dc15c357730b6d6c3fb4ca90a118ef002']
+
+  - search_lineage_assets: Use when:
+    - Finding assets in lineage system
+    - Questions about data history or flow
+    - User has no IDs and searches by name
+    - User wants to know data sources/destinations
+    Don't use when:
+    - User just wants assets without lineage
+    - User already has lineage ID
+
+  - convert_to_lineage_id: Use when:
+    - User has asset ID and container ID but needs lineage ID
+    - User mentions "convert" or "lineage id"
+    Don't use when:
+    - User has no specific IDs
+    - User already has lineage ID
+    - Arguments are names
+    - search_lineage_assets was already called
+
+  - get_lineage_graph: Use when:
+    - User has lineage ID and wants to see the graph
+    - User wants detailed lineage for a known asset
+    - User wants to see upstream/downstream flow
+    - The lineage ID is not empty
+    Don't use when:
+    - User has no specific IDs
+    - User wants to search by query
+    - User doesn't have lineage ID (use convert_to_lineage_id first)
