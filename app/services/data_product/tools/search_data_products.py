@@ -1,13 +1,12 @@
+from typing import Union, Literal
+
 from app.core.registry import service_registry
 from app.services.data_product.models.search_data_products import (
     SearchDataProductsRequest,
     SearchDataProductsResponse,
 )
-from app.shared.exceptions.base import ExternalAPIError, ServiceError
-from app.core.auth import get_access_token, get_dph_catalog_id_for_user
-from app.shared.utils.http_client import get_http_client
-from app.services.constants import JSON_CONTENT_TYPE
-from app.core.settings import settings
+from app.services.data_product.utils.common_utils import get_dph_catalog_id_for_user
+from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.logging import LOGGER, auto_context
 
 
@@ -30,8 +29,7 @@ async def search_data_products(
     LOGGER.info(
         f"In the data_product_search_data_products tool, searching data products with query {request.product_search_query}, filter type {request.search_filter_type} and filter value {request.search_filter_value}."
     )
-    token = await get_access_token()
-    DPH_CATALOG_ID = await get_dph_catalog_id_for_user(token)
+    DPH_CATALOG_ID = await get_dph_catalog_id_for_user()
 
     if request.search_filter_type.lower() == "domain":
         should_query = [
@@ -94,11 +92,7 @@ async def search_data_products(
         ]
         sort = [{"last_updated_at": {"order": "desc", "unmapped_type": "date"}}]
 
-    headers = {
-        "Content-Type": JSON_CONTENT_TYPE,
-        "Authorization": token,
-    }
-    json = {
+    search_payload = {
         "_source": [
             "artifact_id",
             "last_updated_at",
@@ -131,49 +125,33 @@ async def search_data_products(
         },
     }
 
-    client = get_http_client()
+    response = await tool_helper_service.execute_post_request(
+        url=f"{tool_helper_service.base_url}/v3/search?role=viewer&auth_scope=ibm_data_product_catalog",
+        json=search_payload,
+        tool_name="data_product_search_data_products",
+    )
 
-    try:
-        response = await client.post(
-            url=f"{settings.di_service_url}/v3/search?role=viewer&auth_scope=ibm_data_product_catalog",
-            headers=headers,
-            data=json,
+    number_of_responses = response["size"]
+    if number_of_responses == 0:
+        LOGGER.info(
+            "In the data_product_search_data_products tool, no data products found."
         )
-
-        number_of_responses = response["size"]
-        if number_of_responses == 0:
-            LOGGER.info(
-                "In the data_product_search_data_products tool, no data products found."
-            )
-            return SearchDataProductsResponse(count=0, data_products=[])
-        LOGGER.info(f"Found {number_of_responses} data products.")
-        products = []
-        for row in response["rows"]:
-            products.append(
-                {
-                    "name": row.get("metadata", {}).get("name", ""),
-                    "description": row.get("metadata", {}).get("description", ""),
-                    "created_on": row.get("metadata", {}).get("created_on", ""),
-                    "domain": row.get("entity", {}).get("data_product_version", {}).get("domain_name", ""),
-                    "data_asset_items": [
-                        {"name": parts_out.get("name", ""), "description": parts_out.get("description", "")}
-                        for parts_out in row.get("entity", {}).get("data_product_version", {}).get("parts_out", [])
-                    ]
-                }
-            )
-    except ExternalAPIError as e:
-        LOGGER.error(
-            f"Failed to run data_product_search_data_products tool. Error while searching data products: {str(e)}"
-        )
-        raise ExternalAPIError(
-            f"Failed to run data_product_search_data_products tool. Error while searching data products: {str(e)}"
-        )
-    except Exception as e:
-        LOGGER.error(
-            f"Failed to run data_product_search_data_products tool. Error while searching data products: {str(e)}"
-        )
-        raise ServiceError(
-            f"Failed to run data_product_search_data_products tool. Error while searching data products: {str(e)}"
+        return SearchDataProductsResponse(count=0, data_products=[])
+    
+    LOGGER.info(f"Found {number_of_responses} data products.")
+    products = []
+    for row in response["rows"]:
+        products.append(
+            {
+                "name": row.get("metadata", {}).get("name", ""),
+                "description": row.get("metadata", {}).get("description", ""),
+                "created_on": row.get("metadata", {}).get("created_on", ""),
+                "domain": row.get("entity", {}).get("data_product_version", {}).get("domain_name", ""),
+                "data_asset_items": [
+                    {"name": parts_out.get("name", ""), "description": parts_out.get("description", "")}
+                    for parts_out in row.get("entity", {}).get("data_product_version", {}).get("parts_out", [])
+                ]
+            }
         )
 
     return SearchDataProductsResponse(count=number_of_responses, data_products=products)
@@ -197,7 +175,7 @@ async def search_data_products(
 )
 @auto_context
 async def wxo_search_data_products(
-    product_search_query: str, search_filter_type: str, search_filter_value: str
+    product_search_query: Union[Literal["*"], str], search_filter_type: Literal["None", "Domain"], search_filter_value: str
 ) -> SearchDataProductsResponse:
     """Watsonx Orchestrator compatible version that expands SearchDataProductsRequest object into individual parameters."""
 
