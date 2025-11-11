@@ -2,12 +2,9 @@ from app.core.registry import service_registry
 from app.services.data_product.models.add_delivery_methods_to_data_product import (
     AddDeliveryMethodsToDataProductRequest,
 )
-from app.shared.exceptions.base import ExternalAPIError, ServiceError
-from app.services.data_product.utils.common_utils import add_catalog_id_suffix
-from app.core.auth import get_access_token, get_dph_catalog_id_for_user
-from app.shared.utils.http_client import get_http_client
+from app.services.data_product.utils.common_utils import add_catalog_id_suffix, get_dph_catalog_id_for_user
+from app.shared.utils.tool_helper_service import tool_helper_service
 from app.services.constants import JSON_CONTENT_TYPE, JSON_PATCH_CONTENT_TYPE
-from app.core.settings import settings
 from app.shared.logging import LOGGER, auto_context
 
 from typing import List
@@ -32,58 +29,39 @@ async def add_delivery_methods_to_data_product(
     LOGGER.info(
         f"In the data_product_add_delivery_methods_to_data_product tool, adding delivery methods {request.delivery_method_ids} to data product draft id: {request.data_product_draft_id}"
     )
-    token = await get_access_token()
-    DPH_CATALOG_ID = await get_dph_catalog_id_for_user(token)
+    DPH_CATALOG_ID = await get_dph_catalog_id_for_user()
+
+    json = []
+    for delivery_method_id in request.delivery_method_ids:
+        LOGGER.info(f"Adding delivery method id: {delivery_method_id}")
+        json.append(
+            {
+                "op": "add",
+                "path": "/parts_out/0/delivery_methods/-",
+                "value": {
+                    "id": delivery_method_id,
+                    "container": {"id": DPH_CATALOG_ID, "type": "catalog"},
+                    "properties": {},
+                },
+            }
+        )
 
     headers = {
         "Accept": JSON_CONTENT_TYPE,
         "Content-Type": JSON_PATCH_CONTENT_TYPE,
-        "Authorization": token,
     }
 
-    client = get_http_client()
+    await tool_helper_service.execute_patch_request(
+        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/drafts/{request.data_product_draft_id}",
+        headers=headers,
+        json=json,
+        tool_name="data_product_add_delivery_methods_to_data_product",
+    )
 
-    try:
-        json = []
-        for delivery_method_id in request.delivery_method_ids:
-            LOGGER.info(f"Adding delivery method id: {delivery_method_id}")
-            json.append(
-                {
-                    "op": "add",
-                    "path": "/parts_out/0/delivery_methods/-",
-                    "value": {
-                        "id": delivery_method_id,
-                        "container": {"id": DPH_CATALOG_ID, "type": "catalog"},
-                        "properties": {},
-                    },
-                }
-            )
-
-        await client.patch(
-            url=f"{settings.di_service_url}/data_product_exchange/v1/data_products/-/drafts/{request.data_product_draft_id}",
-            headers=headers,
-            data=json,
-        )
-
-        LOGGER.info(
-            f"Delivery methods {request.delivery_method_ids} added to data product draft {request.data_product_draft_id} successfully."
-        )
-        return f"Delivery methods {request.delivery_method_ids} added to data product draft {request.data_product_draft_id} successfully."
-
-    except ExternalAPIError as e:
-        LOGGER.error(
-            f"Failed to run data_product_add_delivery_methods_to_data_product tool. Error while adding delivery methods to data product: {str(e)}"
-        )
-        raise ExternalAPIError(
-            f"Failed to run data_product_add_delivery_methods_to_data_product tool. Error while adding delivery methods to data product: {str(e)}"
-        )
-    except Exception as e:
-        LOGGER.error(
-            f"Failed to run data_product_add_delivery_methods_to_data_product tool. Error while adding delivery methods to data product: {str(e)}"
-        )
-        raise ServiceError(
-            f"Failed to run data_product_add_delivery_methods_to_data_product tool. Error while adding delivery methods to data product: {str(e)}"
-        )
+    LOGGER.info(
+        f"Delivery methods {request.delivery_method_ids} added to data product draft {request.data_product_draft_id} successfully."
+    )
+    return f"Delivery methods {request.delivery_method_ids} added to data product draft {request.data_product_draft_id} successfully."
 
 
 @service_registry.tool(
