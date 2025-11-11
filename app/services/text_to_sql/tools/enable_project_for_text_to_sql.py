@@ -6,18 +6,18 @@ import time
 
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_result, RetryError
 
-from app.core.auth import get_access_token
 from app.core.registry import service_registry
-from app.core.settings import settings
 from app.services.constants import GEN_AI_ONBOARD_API, JOBS_BASE_ENDPOINT
 from app.services.text_to_sql.models.enable_project_for_text_to_sql import (
     EnableProjectForTextToSqlRequest,
     EnableProjectForTextToSqlResponse,
 )
+from app.services.tool_utils import find_project_id
 from app.shared.exceptions.base import ExternalAPIError, ServiceError
 from app.shared.logging.generate_context import auto_context
 from app.shared.logging.utils import LOGGER
-from app.shared.utils.http_client import get_http_client
+from app.shared.utils.helpers import confirm_uuid
+from app.shared.utils.tool_helper_service import tool_helper_service
 
 
 async def _wait_for_onboarding_job_to_finish(job_id, run_id, project_id):
@@ -30,41 +30,27 @@ async def _wait_for_onboarding_job_to_finish(job_id, run_id, project_id):
         reraise=True,
     )
     async def check_job_status():
-        auth = await get_access_token()
-        headers = {"Content-Type": "application/json", "Authorization": auth}
-        client = get_http_client()
+        response = await tool_helper_service.execute_get_request(
+            url=f"{tool_helper_service.base_url}{JOBS_BASE_ENDPOINT}/{job_id}/runs/{run_id}",
+            params=params,
+        )
 
-        try:
-            response = await client.get(
-                f"{settings.di_service_url}{JOBS_BASE_ENDPOINT}/{job_id}/runs/{run_id}",
-                params=params,
-                headers=headers,
+        run_state = (
+            response.get("entity", {}).get("job_run", {}).get("state", "Running")
+        )
+
+        if run_state.lower() in ["completed", "completedwithwarnings"]:
+            return False
+        elif run_state.lower() in [
+            "failed",
+            "canceled",
+            "paused",
+            "completedwitherrors",
+        ]:
+            raise ExternalAPIError(
+                f"Tool enable_project_for_text_to_sql call finishes unsuccessfully because onboarding job had some failure for job_id: {job_id}, run_id: {run_id} in project: {project_id}. Please check the job status in the UI."
             )
-
-            run_state = (
-                response.get("entity", {}).get("job_run", {}).get("state", "Running")
-            )
-
-            if run_state.lower() in ["completed", "completedwithwarnings"]:
-                return False
-            elif run_state.lower() in [
-                "failed",
-                "canceled",
-                "paused",
-                "completedwitherrors",
-            ]:
-                raise ExternalAPIError(
-                    f"Tool enable_project_for_text_to_sql call finishes unsuccessfully because onboarding job had some failure for job_id: {job_id}, run_id: {run_id} in project: {project_id}. Please check the job status in the UI."
-                )
-            return True
-
-        except ExternalAPIError:
-            # This will catch HTTP errors (4xx, 5xx) that were raised by raise_for_status()
-            raise
-        except Exception as e:
-            raise ServiceError(
-                f"Failed to run check onboarding job status for job_id: {job_id}, run_id: {run_id} in project: {project_id}: {str(e)}"
-            )
+        return True
 
     try:
         await check_job_status()
@@ -85,52 +71,37 @@ async def _wait_for_onboarding_job_to_finish(job_id, run_id, project_id):
 async def enable_project_for_text_to_sql(
     input: EnableProjectForTextToSqlRequest,
 ) -> EnableProjectForTextToSqlResponse:
+    project_id = await confirm_uuid(input.project_id_or_name, find_project_id)
     LOGGER.info(
         "Calling enable_project_for_text_to_sql, project_id: %s",
-        input.project_id,
+        input.project_id_or_name,
     )
-
-    auth = await get_access_token()
-
-    headers = {"Content-Type": "application/json", "Authorization": auth}
-
-    client = get_http_client()
 
     params = {
         "container_type": "project",
-        "container_id": input.project_id,
+        "container_id": project_id,
     }
 
     payload = {
-        "containers": [{"container_id": input.project_id, "container_type": "project"}],
+        "containers": [{"container_id": project_id, "container_type": "project"}],
         "description": "Onboard the asset containers for text2sql capability",
         "name": f"Onboard for generative AI {time.strftime('%Y-%m-%d %H-%M-%S')}",
     }
 
-    try:
-        response = await client.post(
-            settings.di_service_url + GEN_AI_ONBOARD_API,
-            params=params,
-            data=payload,
-            headers=headers,
-        )
+    response = await tool_helper_service.execute_post_request(
+        url=str(tool_helper_service.base_url) + GEN_AI_ONBOARD_API,
+        params=params,
+        json=payload,
+    )
 
-        await _wait_for_onboarding_job_to_finish(
-            job_id=response["job_id"],
-            run_id=response["run_id"],
-            project_id=input.project_id,
-        )
-
-    except ExternalAPIError:
-        # This will catch HTTP errors (4xx, 5xx) that were raised by raise_for_status()
-        raise
-    except Exception as e:
-        raise ServiceError(
-            f"Failed to run enable_project_for_text_to_sql tool: {str(e)}"
-        )
+    await _wait_for_onboarding_job_to_finish(
+        job_id=response["job_id"],
+        run_id=response["run_id"],
+        project_id=project_id,
+    )
 
     return EnableProjectForTextToSqlResponse(
-        message=f"Project {input.project_id} has been enabled for Text to SQL."
+        message=f"Project {project_id} has been enabled for Text to SQL."
     )
 
 
@@ -139,10 +110,12 @@ async def enable_project_for_text_to_sql(
     description="This tool enables the specified project for Text To SQL.",
 )
 @auto_context
-async def wxo_generate_sql_query(project_id: str) -> EnableProjectForTextToSqlResponse:
+async def wxo_enable_project_for_text_to_sql(
+    project_id_or_name: str,
+) -> EnableProjectForTextToSqlResponse:
     """Watsonx Orchestrator compatible version that expands EnableProjectForTextToSqlRequest object into individual parameters."""
 
-    request = EnableProjectForTextToSqlRequest(project_id=project_id)
+    request = EnableProjectForTextToSqlRequest(project_id_or_name=project_id_or_name)
 
     # Call the original enable_project_for_text_to_sql function
     return await enable_project_for_text_to_sql(request)

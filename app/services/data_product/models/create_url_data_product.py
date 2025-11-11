@@ -18,6 +18,4 @@ class CreateUrlDataProductResponse(BaseModel):
         ...,
         description="The ID of the contract terms of the data product draft created.",
     )
-    create_data_product_response: dict = Field(
-        ..., description="The Create Data Product API response."
-    )
+    url: str = Field(..., description="The URL of the data product draft created.")

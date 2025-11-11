@@ -2,10 +2,12 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
+# This file has been modified with the assistance of IBM Bob AI tool
+
 from fastmcp.server.dependencies import get_http_headers
 import json
 import jwt
-import jwt.utils
+import base64
 
 from app.services.constants import CLOUD_IAM_ENDPOINT, CPD_IAM_ENDPOINT
 from app.shared.exceptions.base import ExternalAPIError
@@ -118,7 +120,11 @@ async def get_bss_account_id() -> str:
     if settings.di_env_mode.upper() == ENV_MODE_SAAS:
         token = await get_token()
         payload_b64 = token.split(".")[1]
-        payload = json.loads(jwt.utils.b64decode(payload_b64).decode("utf-8"))
+        # Add padding if needed for base64 decoding
+        padding = len(payload_b64) % 4
+        if padding:
+            payload_b64 += '=' * (4 - padding)
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64).decode("utf-8"))
         return payload.get("account", {}).get("bss", "")
     elif settings.di_env_mode.upper() == ENV_MODE_CPD:
         return "999"

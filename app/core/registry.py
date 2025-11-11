@@ -1,6 +1,9 @@
 # Copyright [2025] [IBM]
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
+
+# This file has been modified with the assistance of IBM Bob AI tool
+
 import inspect
 from collections.abc import Callable
 from typing import Any, NamedTuple
@@ -38,6 +41,18 @@ class ServiceRegistry:
     ) -> Callable:
         """A decorator to collect a function as a tool to be registered later."""
         def decorator(func: Callable) -> Callable:
+            # Filter during collection phase based on wxo setting
+            # This prevents duplicate tool names from being collected
+            if hasattr(settings, 'wxo'):
+                func_name = func.__name__
+                is_wxo_func = func_name.startswith('wxo')
+                
+                # Skip collection if:
+                # - wxo mode is enabled but function doesn't start with 'wxo'
+                # - wxo mode is disabled but function starts with 'wxo'
+                if (settings.wxo and not is_wxo_func) or (not settings.wxo and is_wxo_func):
+                    return func
+            
             sig = inspect.signature(func)
             params = list(sig.parameters.values())
 
@@ -92,12 +107,8 @@ class ServiceRegistry:
             if not tool.enabled:
                 continue
 
-            # If wxo mode is enabled, only register tools with 'wxo' prefix
-            # if wxo mode is disabled, skip tools with 'wxo' prefix
-            if hasattr(settings, 'wxo'):
-                if (settings.wxo and not tool.func.__name__.startswith("wxo")) or \
-                   (not settings.wxo and tool.func.__name__.startswith("wxo")):
-                    continue
+            # Note: wxo filtering now happens during collection phase in the decorator
+            # so all tools in self._tools are already filtered appropriately
 
             # Build kwargs and register tool
             kwargs = self._build_tool_kwargs(tool)

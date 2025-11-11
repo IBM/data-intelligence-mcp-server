@@ -6,7 +6,9 @@ from pydantic import BaseModel, Field
 
 
 class EnableProjectForTextToSqlRequest(BaseModel):
-    project_id: str = Field(..., description="UUID of the project to onboard.")
+    project_id_or_name: str = Field(
+        ..., description="Id or name of the project to onboard."
+    )
 
 
 class EnableProjectForTextToSqlResponse(BaseModel):

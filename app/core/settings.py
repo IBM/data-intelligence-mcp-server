@@ -27,8 +27,21 @@ class Settings(BaseSettings):
     )
 
     # HTTP Client Settings
-    request_timeout_s: int = 30
+    request_timeout_s: int = 60
     di_service_url: AnyHttpUrl | str | None = None
+    
+    # HTTP Client Connection Pool Settings
+    http_max_connections: int = 150  # Max concurrent outgoing connections to external APIs
+    http_max_keepalive_connections: int = 50  # Max idle connections kept in pool for reuse
+    http_keepalive_expiry: float = 60.0  # Seconds to keep idle connections alive
+    
+    # Semaphore Settings (Application-level concurrency control)
+    ibm_api_max_concurrent_calls: int = 50  # Max concurrent IBM API calls (protects downstream services)
+    
+    # Server-side Connection Settings (for HTTP transport mode)
+    server_limit_concurrency: int = 300  # Max concurrent incoming client connections
+    server_timeout_keep_alive: int = 60  # Keep-alive timeout for client connections (seconds)
+    server_backlog: int = 2048  # Connection queue size for pending connections
 
     # Context for UI URLs (df, cpdaas for SaaS; df, cpd for CPD)
     di_context: str = "df"
