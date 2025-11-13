@@ -21,6 +21,7 @@ flowchart LR
 Resources:
 - [Integrating Claude with Watsonx Data Intelligence](https://community.ibm.com/community/user/blogs/ramakanta-samal/2025/10/01/integrating-claude-with-watsonx-data-intelligence) A step-by-step guide showing how Claude Desktop connects to the Data Intelligence MCP Server.
 - [Watsonx Orchestrate + Data Intelligence](https://community.ibm.com/community/user/blogs/ramakanta-samal/2025/09/25/data) Demonstrates how Watsonx Orchestrate integrates with the MCP Server for automation.
+- [Ibm Bob + Data Intelligence](https://community.ibm.com/community/user/blogs/xixiang-chen/2025/10/15/integrating-bob-with-watsonx-data-intelligence)  A step-by-step guide showing how IBM Bob connects to the Data Intelligence MCP Server.
 ---
 
 ## Table of Contents
@@ -42,13 +43,10 @@ Resources:
      - [stdio (Recommended for local setup)](#stdio-recommended-for-local-setup-1)
      - [http/https (Remote setup)](#httphttps-remote-setup-1)
    - [Watsonx Orchestrate](#watsonx-orchestrate)
+   - [IBM Bob](#ibm-bob)
 5. [Configuration](#configuration)
    - [Client Settings](#client-settings)
    - [SSL/TLS Configuration](#ssltls-configuration)
-6. [Running Server in Development Mode](#running-server-in-development-mode)
-   - [Prerequisites](#prerequisites-2)
-   - [Running the Server](#running-the-server)
-   - [MCP Inspector Tool](#mcp-inspector-tool)
 
 ---
 
@@ -229,6 +227,8 @@ For CPD:
 
 [Watsonx Orchestrate + Data Intelligence](https://community.ibm.com/community/user/blogs/ramakanta-samal/2025/09/25/data) blog post demonstrates how Watsonx Orchestrate integrates with the MCP Server for automation.
 
+### IBM Bob
+[IBM Bob + Data Intelligence](https://community.ibm.com/community/user/blogs/xixiang-chen/2025/10/15/integrating-bob-with-watsonx-data-intelligence) blog post demonstrates how IBM Bob integrates with the MCP Server for automation.
 
 ---
 ## Configuration
@@ -245,6 +245,7 @@ Below client settings are common whether `http` or `stdio` mode
 | `DI_ENV_MODE` | `SaaS` | Environment mode (`SaaS` or `CPD`) |
 | `REQUEST_TIMEOUT_S` | `60` | HTTP request timeout in seconds |
 | `LOG_FILE_PATH` | `None` | Logs will be written here if provided. Mandatory for `stdio` mode |
+| `DI_CONTEXT` | `df` | Context for URLs returned from tool responses ( `df`, `cpdaas` for DI_ENV_MODE=SaaS; `df`, `cpd` for DI_ENV_MODE=CPD ). url will be appended by query parameter accordingly.`context=df` in the url for example  |
 
 Below client settings are only applicable for `stdio` mode
 

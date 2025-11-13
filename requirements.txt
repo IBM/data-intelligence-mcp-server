@@ -1,6 +1,6 @@
-fastmcp>=2.11.3
+fastmcp>=2.13.0
 pydantic>=2
 pyyaml>=6
 aiocache>=0.12.3
-jwt>=1.4.0
+PyJWT>=2.8.0
 tenacity>=9.0.0

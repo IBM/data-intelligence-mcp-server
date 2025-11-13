@@ -7,19 +7,15 @@
 import time
 from typing import Dict, Any
 
-from ..models.create_asset_from_sql_query import (
+from app.core.registry import service_registry
+from app.services.constants import CAMS_ASSETS_BASE_ENDPOINT
+from app.services.text_to_sql.models.create_asset_from_sql_query import (
     CreateAssetFromSqlQueryRequest,
     CreateAssetFromSqlQueryResponse,
 )
-
-from app.core.auth import get_access_token
-from app.core.registry import service_registry
-from app.core.settings import settings
-from app.services.constants import CAMS_ASSETS_BASE_ENDPOINT
-from app.shared.exceptions.base import ExternalAPIError, ServiceError
-from app.shared.utils.http_client import get_http_client
 from app.shared.utils.helpers import append_context_to_url
 from app.shared.logging import auto_context
+from app.shared.utils.tool_helper_service import tool_helper_service
 
 
 def _build_asset_payload(request: CreateAssetFromSqlQueryRequest) -> Dict[str, Any]:
@@ -88,32 +84,21 @@ async def create_asset_from_sql_query(
     """
 
     payload = _build_asset_payload(request)
-    auth = await get_access_token()
-
-    headers = {"Content-Type": "application/json", "Authorization": auth}
     params = {"project_id": request.project_id}
-    client = get_http_client()
 
-    try:
-        response = await client.post(
-            settings.di_service_url + CAMS_ASSETS_BASE_ENDPOINT,
-            params=params,
-            data=payload,
-            headers=headers,
-        )
+    response = await tool_helper_service.execute_post_request(
+        url=str(tool_helper_service.base_url) + CAMS_ASSETS_BASE_ENDPOINT,
+        params=params,
+        json=payload,
+    )
 
-        asset_id = response.get("asset_id")
+    asset_id = response.get("asset_id")
 
-        asset_url = append_context_to_url(
-            f"{settings.ui_url}/projects/{request.project_id}/data-assets/{asset_id}"
-        )
+    asset_url = append_context_to_url(
+        f"{tool_helper_service.ui_base_url}/projects/{request.project_id}/data-assets/{asset_id}"
+    )
 
-        return CreateAssetFromSqlQueryResponse(asset_url=asset_url)
-    except ExternalAPIError:
-        # This will catch HTTP errors (4xx, 5xx) that were raised by raise_for_status()
-        raise
-    except Exception as e:
-        raise ServiceError(f"Failed to run create_asset_from_sql_query tool: {str(e)}")
+    return CreateAssetFromSqlQueryResponse(asset_url=asset_url)
 
 
 @service_registry.tool(

@@ -12,6 +12,7 @@ import pkgutil
 import sys
 import os
 from pathlib import Path
+from typing import Any
 
 from fastmcp import FastMCP
 from pydantic import BaseModel
@@ -55,7 +56,7 @@ def create_server() -> FastMCP:
     actual_registered_count = service_registry.get_registered_count()
 
     print(f"Registering {actual_registered_count} discovered tools...", file=sys.stderr)
-    print("✓ Tool registration complete.", file=sys.stderr)
+    print("✅ Tool registration complete.", file=sys.stderr)
 
     prompts_provider = get_prompts_provider()
 
@@ -92,7 +93,7 @@ def apply_cli_settings_overrides(args):
 
     if args.wxo:
         settings.wxo = True
-        print("✓ Watsonx orchestrator compatibility mode enabled", file=sys.stderr)
+        print("✅ Watsonx orchestrator compatibility mode enabled", file=sys.stderr)
     else:
         settings.wxo = False
 
@@ -118,7 +119,7 @@ def main():
         mcp = create_server()
         # Get the actual registered count after registration
         actual_registered_count = service_registry.get_registered_count()
-        print(f"✓ Server initialized with {actual_registered_count} registered tools.", file=sys.stderr)
+        print(f"✅ Server initialized with {actual_registered_count} registered tools.", file=sys.stderr)
 
         if args.transport == "http":
             # Initialize protocol and port for display
@@ -131,6 +132,22 @@ def main():
                 "port": args.port,
                 "stateless_http": True
             }
+            
+            # Configure uvicorn for high concurrency handling
+            uvicorn_config: dict[str, Any] = {
+                "limit_concurrency": settings.server_limit_concurrency,
+                "timeout_keep_alive": settings.server_timeout_keep_alive,
+                "backlog": settings.server_backlog,
+            }
+            kwargs["uvicorn_config"] = uvicorn_config
+            
+            print(
+                f"   Server concurrency settings: "
+                f"limit_concurrency={settings.server_limit_concurrency}, "
+                f"timeout_keep_alive={settings.server_timeout_keep_alive}s, "
+                f"backlog={settings.server_backlog}",
+                file=sys.stderr
+            )
 
             # Add SSL configuration if certificate and key are provided
             ssl_cert = args.ssl_cert or settings.ssl_cert_path
@@ -158,20 +175,21 @@ def main():
                     port = 443  # Update port for display
                     protocol = "https"  # Ensure protocol is https
 
-                    kwargs["uvicorn_config"] = {
-                        "ssl_keyfile": ssl_key,
-                        "ssl_certfile": ssl_cert,
-                        "ssl_ciphers": ":".join(ciphers),
-                    }
+                    # Merge SSL configuration with existing uvicorn_config
+                    uvicorn_config["ssl_keyfile"] = ssl_key
+                    uvicorn_config["ssl_certfile"] = ssl_cert
+                    uvicorn_config["ssl_ciphers"] = ":".join(ciphers)
+                    kwargs["uvicorn_config"] = uvicorn_config
                 else:
                     # No certificates found, but HTTPS is required
                     error_msg = (
                         "Server cert and key not found. MCP server is by default started in HTTPS mode. "
                         "Either set SSL_CERT_PATH and SSL_KEY_PATH environment variables or provide "
                         "the cert/keys via --ssl-cert and --ssl-key options OR set SERVER_HTTPS=False "
-                        "to start the server without HTTPS (i.e., HTTP)"
+                        "to start the server without HTTPS (i.e., HTTP). For details on cert/key generation for HTTPS, "
+                        "pls. refer to https://github.com/IBM/data-intelligence-mcp-server/blob/main/readme_guides/SERVER_HTTPS.md"
                     )
-                    print(f"✗ Error: {error_msg}", file=sys.stderr)
+                    print(f"❌ Error: {error_msg}", file=sys.stderr)
                     sys.exit(1)
             
             # Print address with correct protocol and port
@@ -182,7 +200,7 @@ def main():
             mcp.run()  # Default stdio transport
 
     except Exception as e:
-        print(f"✗ Failed to start server: {e}", file=sys.stderr)
+        print(f"❌ Failed to start server: {e}", file=sys.stderr)
         sys.exit(1)
 
 
