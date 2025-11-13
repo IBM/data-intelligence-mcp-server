@@ -24,15 +24,14 @@ Tools for managing data products.
 | Tool Name | Description | Sample Prompt | pypi version | CPD version |
 |-----------|-------------|---------------|-------------|-------------|
 | `data_product_create_url_data_product` | Creates a URL data product draft with specified name and URL details. | "Create a url data product draft with Name: Customer360, URL name: service, URL value: https://example.com/" | >=0.1.4 | >=5.2.1 |
-| `data_product_get_assets_from_container` | Gets assets from a container (catalog/project) and is called as the first step to create a data product from an asset in container. | "Show me all assets from catalog" or "Show me all assets from project" | >=0.3.0 | >=5.2.1 |
-| `data_product_create_data_product_from_asset_in_container` | Creates a data product draft from catalog or project assets. | "Create a data product draft from catalog using CustomerReview asset and name the product as Customer Reviews" or "Create a data product draft from project using Sales asset and name the product as Sales Target" | >=0.3.0 | >=5.2.1 |
+| `data_product_get_assets_from_container` | Gets assets from a container (catalog/project) and is called as the first step to create a data product from an asset in container. | "Show me all assets from catalog" or "Show me all assets from project" | >=0.3.1 | >=5.2.1 |
+| `data_product_create_data_product_from_asset_in_container` | Creates a data product draft from catalog or project assets. | "Create a data product draft from catalog using CustomerReview asset and name the product as Customer Reviews" or "Create a data product draft from project using Sales asset and name the product as Sales Target" | >=0.3.1 | >=5.2.1 |
 | `data_product_attach_business_domain` | Attaches a business domain to a data product draft. | "Attach a business domain to this draft with domain name: Business Management" | >=0.1.4 | >=5.2.1 |
 | `data_product_attach_url_contract` | Attaches a URL contract to a data product draft. | "Attach a url contract to this draft with contract name as policy and contract url as https://example.com/" | >=0.1.4 | >=5.2.1 |
 | `data_product_find_delivery_methods_based_on_connection` | Finds available delivery methods based on connection. | "What delivery methods are available for my data product?" | >=0.1.4 | >=5.2.1 |
 | `data_product_add_delivery_methods_to_data_product` | Adds delivery methods to a data product draft. | "Add Download and Data Extract delivery methods to this draft" | >=0.1.4 | >=5.2.1 |
 | `data_product_publish_data_product` | Publishes a data product draft to make it available. | "Publish this draft" | >=0.1.4 | >=5.2.1 |
 | `data_product_search_data_products` | Searches data products based on a search query or in a domain | "Find me stock related data products" or "Find me data products in Audit domain" | >=0.1.4 | >=5.2.1 |
-| `data_product_request_new_data_product` | Requests a new data product. This reads a number of mandatory and optional fields from user for requesting a data product. | "Request a new data product" or "I would like to request a data product with name RequestDP" | >=0.3.0 | >=5.2.1 |
 
 ## Data Protection Rule Service
 Tools for managing data protection rules.
@@ -48,7 +47,7 @@ Tools for working with data lineage.
 
 | Tool Name | Description | Sample Prompt | pypi version | CPD version |
 |-----------|-------------|---------------|-------------|-------------|
-| `lineage_convert_to_lineage_id` | Returns lineage ID of a CAMS asset | "What is the lineage id of asset 'asset_id' from project id 'project_id'" or following on a response of `search_asset` tool "Could you show me lineage id of the 'asset name'" | >=0.3.0 | >=5.2.1 |
+| `lineage_convert_to_lineage_id` | Returns lineage ID of a CAMS asset | "What is the lineage id of asset 'asset_id' from project id 'project_id'" or following on a response of `search_asset` tool "Could you show me lineage id of the 'asset name'" | >=0.3.1 | >=5.2.1 |
 | `lineage_get_lineage_graph` | Returns lineage graph of lineage assets. | "I would like to get the full lineage graph of lineage asset 'lineage_id'" or following on a response of `lineage_search_lineage_assets` tool "Can you point to the upstream and downstream lineage of this one 'asset name' or "What are the immediate downstream assets of 'asset name'?"| >=0.1.4 | >=5.2.1 |
 | `lineage_search_lineage_assets` | Searches assets in the Lineage system. | "Find lineage asset named ACCOUNT_TYPES_STG", "What is the lineage of orders, it's a table with IBM Db2 technology" or  "Find lineage asset that has quality score of less than 65, has a tag dp_source and has business classification PI" | >=0.1.4 | >=5.2.1 |
 
