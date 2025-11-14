@@ -507,7 +507,7 @@ wheels = [
 
 [[package]]
 name = "ibm-watsonx-data-intelligence-mcp-server"
-version = "0.3.1"
+version = "0.3.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aiocache" },
