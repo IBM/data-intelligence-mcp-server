@@ -18,11 +18,11 @@ from app.services.data_product.utils.common_utils import get_dph_default_project
     This tool gets assets from container. The container can be one of "catalog" or "project" - always ask container_type from user.
     This is also called as the first step to create a data product from asset in container.
     If you want to create a data product from asset in catalog, call
-        - get_assets_from_container() with request.container_type="catalog"
-        - create_data_product_from_asset_in_container() with request.container_type="catalog" and other parameters.
+        - data_product_get_assets_from_container tool with request.container_type="catalog"
+        - data_product_create_or_update_from_asset_in_container tool with request.container_type="catalog" and other parameters.
     If you want to create a data product from asset in project, call
-        - get_assets_from_container() with request.container_type="project"
-        - create_data_product_from_asset_in_container() with request.container_type="project" and other parameters.  
+        - data_product_get_assets_from_container tool with request.container_type="project"
+        - data_product_create_or_update_from_asset_in_container tool with request.container_type="project" and other parameters.  
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
@@ -172,11 +172,14 @@ async def get_assets_from_project_payload() -> dict:
     This tool gets assets from container. The container can be one of "catalog" or "project" - always ask container_type from user.
     This is called as the first step to create a data product from asset in container.
     If you want to create a data product from asset in catalog, call
-        - get_assets_from_container() with container_type="catalog"
-        - create_data_product_from_asset_in_container() with container_type="catalog"
+        - data_product_get_assets_from_container tool with container_type="catalog"
+        - data_product_create_or_update_from_asset_in_container tool with container_type="catalog"
     If you want to create a data product from asset in project, call
-        - get_assets_from_container() with container_type="project"
-        - create_data_product_from_asset_in_container() with container_type="project"
+        - data_product_get_assets_from_container tool with container_type="project"
+        - data_product_create_or_update_from_asset_in_container tool with container_type="project"
+    
+    Args:
+        container_type (Literal["catalog", "project"]): Where to search - either 'project' or 'catalog'. This is a mandatory field.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},

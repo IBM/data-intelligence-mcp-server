@@ -45,7 +45,6 @@ async def search_data_products(
                 }
             }
         ]
-        sort = []
     else:
         search_fields = ["metadata.name", "metadata.description", "metadata.tags"]
         parts_out_search_fields = [
@@ -90,7 +89,6 @@ async def search_data_products(
                 }
             },
         ]
-        sort = [{"last_updated_at": {"order": "desc", "unmapped_type": "date"}}]
 
     search_payload = {
         "_source": [
@@ -116,7 +114,6 @@ async def search_data_products(
             }
         },
         "size": 20,
-        "sort": sort,
         "aggregations": {
             "product_id": {
                 "terms": {"field": "entity.data_product_version.product_id"}
@@ -165,10 +162,11 @@ async def search_data_products(
     In this case, product_search_query is 'Environment', and this tool returns all data products that have Environment in their name.
     Example: 'Find all data products in the Sustainability domain.'
     In this case, product_search_query is '*', search_filter_type is 'Domain' and search_filter_value is 'Sustainability'.
+    
     Args:
-    product_search_query: str = The search query to search for data products. If the user wants to search for data products with a specific name, this is the name to search for. If user wants to search for all data products, this value should be "*".
-    search_filter_type: str = Specify what to filter by. It can be one of the following: None, Domain. If the user wants to filter by domain, then this value should be Domain otherwise None.
-    search_filter_value: str = The value to filter by. For example, if search_filter_type is Domain, then this is the domain name to filter by.
+        product_search_query (Literal["*"], str): The search query to search for data products. If the user wants to search for data products with a specific name, this is the name to search for. If user wants to search for all data products, this value should be "*".
+        search_filter_type (Literal["None", "Domain"]): Specify what to filter by. It can be one of the following: None, Domain. If the user wants to filter by domain, then this value should be Domain otherwise None.
+        search_filter_value (str): The value to filter by. For example, if search_filter_type is Domain, then this is the domain name to filter by.
     """,
     tags={"search", "data_product"},
     meta={"version": "1.0", "service": "data_product"},

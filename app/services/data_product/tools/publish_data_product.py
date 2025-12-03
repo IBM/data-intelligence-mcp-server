@@ -105,6 +105,9 @@ async def _validate_if_draft_has_delivery_method_added_to_each_data_asset(respon
     Make sure to call this tool after all the required fields are filled in the data product draft, like name, domain, contract URL, delivery methods, etc.
     Example: 'Publish data product draft' - Get the data product draft ID from context.
     This receives the data product draft ID to publish the data product draft.
+    
+    Args:
+        data_product_draft_id (str): The ID of the data product draft to publish.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},

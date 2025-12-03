@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 from app.shared.exceptions.base import ServiceError
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.services.constants import PROJECTS_BASE_ENDPOINT
-from app.shared.logging import LOGGER
+from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import append_context_to_url
 from aiocache import cached
 
@@ -110,3 +110,15 @@ def check_if_date_in_future(date_value: str):
         raise ServiceError(
             f"Invalid date value: '{date_value}'. Please provide the date in future."
         )
+
+
+@auto_context
+def validate_inputs(request, *fields_to_validate):
+    required_fields = fields_to_validate
+
+    for field in required_fields:
+        value = getattr(request, field, None)
+        if not value:
+            msg = f"{field.capitalize()} is a mandatory field. Please input the value for {field.capitalize()}."
+            LOGGER.error(msg)
+            raise ServiceError(msg)

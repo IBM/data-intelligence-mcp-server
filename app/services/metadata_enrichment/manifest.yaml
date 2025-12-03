@@ -1,0 +1,10 @@
+service:
+  name: metadata_enrichment 
+  description: "Tools for managing metadata enrichment service."
+system_instructions: |
+  Metadata Enrichment service tools:
+  1. create_metadata_enrichment_asset → create a metadata enrichment asset into the project.
+  2. execute_metadata_enrichment_asset → execute the metadata enrichment by name in the specified project.
+  3. execute_metadata_enrichment_asset_for_selected_assets → execute the metadata enrichment by name in the specified project for the list of specified data assets.
+  4. execute_data_quality_analysis_for_selected_assets → execute data quality analysis for selected assets in a project.
+  5. execute_metadata_expansion_for_selected_assets → execute metadata expansion for selected assets in a project.

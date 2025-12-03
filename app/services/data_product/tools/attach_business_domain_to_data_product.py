@@ -86,6 +86,10 @@ async def attach_business_domain_to_data_product(
     This tool attaches the given business domain to a data product draft.
     The business domain given should be a valid business domain in the system or else this returns the list of business domains available to choose from.
     Appropriate success message is sent if the business domain is attached to the data product draft.
+    
+    Args:
+        domain (str): The business domain to be attached to the data product draft.
+        data_product_draft_id (str): The ID of the data product draft to which the business domain is to be attached.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},

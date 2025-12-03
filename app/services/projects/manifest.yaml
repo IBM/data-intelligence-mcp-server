@@ -1,0 +1,19 @@
+service:
+  name: projects
+  description: "Tools for managing projects in IBM watsonx and Cloud Pak for Data."
+system_instructions: |
+  This service deals with project management tasks.
+  Tools available:-
+  create_project - Use this tool when user wants to create a new project. This tool supports both IBM watsonx projects (wx/df) and IBM Cloud Pak for Data (CPD) projects.
+  
+  Key behaviors:
+  - If no project name is provided, the system will suggest a default name in the format 'mcp_generated_project_YYYY-MM-DD HH-MM-SS' and ask for user confirmation.
+  - If a duplicate project name is detected, an error is thrown with a link to the existing project.
+  - For storage configuration in SaaS mode, the system validates available Cloud Object Storage (COS) instances.
+  - When multiple storage instances are found, the user must specify one by name or CRN before proceeding.
+  - Storage can be specified using either the COS instance name or a valid CRN (Cloud Resource Name).
+  - The tool supports optional parameters: description, type (wx/df/cpd), storage (CRN or instance name), and tags.
+  - Default project type is 'wx' (IBM watsonx projects) if not specified.
+  - Once all required information is provided, the project is created and a URL to access it is returned.
+
+# This file has been modified with the assistance of IBM Bob AI tool

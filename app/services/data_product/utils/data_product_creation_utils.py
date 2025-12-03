@@ -5,6 +5,23 @@
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.services.data_product.utils.common_utils import get_dph_catalog_id_for_user
+from app.shared.exceptions.base import ServiceError
+
+
+def is_data_product_draft_create(request) -> bool:
+    return not request.existing_data_product_draft_id and request.existing_data_product_draft_id != "None"
+
+
+@auto_context
+def validate_inputs_for_draft_create(request, *additional_fields_to_validate):
+    required_fields = ("name",) + additional_fields_to_validate
+
+    for field in required_fields:
+        value = getattr(request, field, None)
+        if not value:
+            msg = f"{field.capitalize()} of the data product is mandatory to create a data product draft."
+            LOGGER.error(msg)
+            raise ServiceError(msg)
 
 
 @auto_context

@@ -22,6 +22,10 @@ TEXT_TO_SQL_BASE_ENDPOINT = "/semantic_automation/v1/text_to_sql"
 GEN_AI_ONBOARD_API = "/semantic_automation/v1/gen_ai/onboard"
 GEN_AI_SETTINGS_BASE_ENDPOINT = "/semantic_automation/v1/gen_ai_settings"
 JOBS_BASE_ENDPOINT = "/v2/jobs"
+CATALOGS_BASE_ENDPOINT = "/v2/catalogs"
+SPACES_BASE_ENDPOINT = "/v2/spaces"
+ASSET_TYPE_BASE_ENDPOINT = "/v2/asset_types"
+DATASOURCE_TYPES_BASE_ENDPOINT = "/v2/datasource_types"
 
 DPR_RULES = "/v3/enforcement/rules"
 
@@ -30,3 +34,5 @@ CPD_IAM_ENDPOINT = "/icp4d-api/v1/authorize"
 
 JSON_CONTENT_TYPE = "application/json"
 JSON_PATCH_CONTENT_TYPE = "application/json-patch+json"
+JSON_PLUS_UTF8_ACCEPT_TYPE = "application/json;charset=utf-8"
+EN_LANGUAGE_ACCEPT_TYPE = "en-US"

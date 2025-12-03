@@ -1,6 +1,9 @@
 service:
   name: search
-  description: "Tools for searching artifacts."
+  description: "Tools for searching artifacts and managing containers."
 system_instructions: |
   Search service tools:
   1. search_assets(catalog_id?, project_id?, query) → find assets in a catalog or project.
+  2. get_asset_details(asset, catalog?, project?) → retrieve detailed metadata for a specific asset.
+  3. list_containers(container_type?) → list all available containers (catalogs, projects, or spaces).
+  4. find_container(container_id_or_name, container_type?) → find a specific container by ID or name.

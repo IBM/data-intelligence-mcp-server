@@ -54,6 +54,12 @@ async def attach_url_contract_to_data_product(
     description="""
     This tool attaches the given URL contract to a data product draft.
     Appropriate success message is sent if the URL contract is attached to the data product draft.
+    
+    Args:
+        contract_url (str): The URL of the contract.
+        contract_name (str): The name of the contract.
+        contract_terms_id (str): The ID of the contract terms asset. This should be fetched from the context (not from the user).
+        data_product_draft_id (str): The ID of the data product draft to which the contract is to be attached.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
