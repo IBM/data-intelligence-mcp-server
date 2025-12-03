@@ -1,0 +1,105 @@
+name: Auto tag and release from main
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  tag-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need full history for tags
+
+      - name: Configure git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Read version from pyproject.toml and changelog entry
+        id: meta
+        run: |
+          python - << 'PY'
+          import pathlib, re, os, sys
+
+          import tomllib  # builtin in Python 3.11 on ubuntu runners
+
+          root = pathlib.Path(".")
+
+          # Read version from pyproject.toml
+          proj_toml = root / "pyproject.toml"
+          if not proj_toml.exists():
+              print("::error::pyproject.toml not found")
+              sys.exit(1)
+
+          data = tomllib.loads(proj_toml.read_text(encoding="utf-8"))
+          try:
+              version = data["project"]["version"]
+          except KeyError:
+              print("::error::Could not find [project].version in pyproject.toml")
+              sys.exit(1)
+
+          # Read CHANGELOG.md and extract the section for that version
+          changelog_path = root / "CHANGELOG.md"
+          if not changelog_path.exists():
+              print("::error::CHANGELOG.md not found")
+              sys.exit(1)
+
+          changelog = changelog_path.read_text(encoding="utf-8")
+
+          pattern = rf"^## \[{re.escape(version)}\].*?(?=^## \[|\Z)"
+          match = re.search(pattern, changelog, flags=re.MULTILINE | re.DOTALL)
+          if not match:
+              print(f"::error::Could not find changelog entry for version {version}")
+              sys.exit(1)
+
+          entry = match.group(0).strip()
+
+          # Write outputs for later steps
+          output_file = os.environ["GITHUB_OUTPUT"]
+          with open(output_file, "a", encoding="utf-8") as f:
+              print(f"version={version}", file=f)
+              print("body<<EOF", file=f)
+              print(entry, file=f)
+              print("EOF", file=f)
+          PY
+
+      - name: Check if tag already exists
+        id: tagcheck
+        run: |
+          VERSION="${{ steps.meta.outputs.version }}"
+          if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create git tag
+        if: steps.tagcheck.outputs.exists == 'false'
+        run: |
+          VERSION="${{ steps.meta.outputs.version }}"
+          git tag -a "$VERSION" -m "Release $VERSION"
+
+      - name: Push tag
+        if: steps.tagcheck.outputs.exists == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.meta.outputs.version }}"
+          git push origin "$VERSION"
+
+      - name: Create GitHub Release
+        if: steps.tagcheck.outputs.exists == 'false'
+        run: |
+          gh release create ${{ steps.meta.outputs.version }} \
+            --title="${{ steps.meta.outputs.version }}" \
+            --notes="${{ steps.meta.outputs.body }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
