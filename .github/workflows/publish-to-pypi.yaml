@@ -133,7 +133,7 @@ jobs:
       - name: Verify package on PyPI
         run: |
           pip install ibm-watsonx-data-intelligence-mcp-server --upgrade
-          python -c "import ibm_watsonx_data_intelligence_mcp_server; print(f'Successfully installed version: {ibm_watsonx_data_intelligence_mcp_server.__version__}')"
+          python -c "import importlib.metadata; print(f'Successfully installed version: {importlib.metadata.version('ibm-watsonx-data-intelligence-mcp-server')})"
 
       - name: Start and verify server (Production)
         run: |
