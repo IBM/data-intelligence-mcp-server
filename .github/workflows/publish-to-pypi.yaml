@@ -45,8 +45,17 @@ jobs:
 
       - name: Wait for TestPyPI to be ready
         run: |
-          sleep 10
           echo "Waiting for package to be available on TestPyPI..."
+          for i in {1..5}; do
+            if pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ ibm-watsonx-data-intelligence-mcp-server; then
+              echo "Package available on TestPyPI"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying in $((i * 5)) seconds..."
+            sleep $((i * 5))
+          done
+          echo "Package not available on TestPyPI after multiple attempts."
+          exit 1
 
       - name: Test package installation from TestPyPI
         run: |
