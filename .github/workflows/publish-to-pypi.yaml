@@ -144,7 +144,9 @@ jobs:
           echo "Server output:"
           cat /tmp/server.log
 
-          if [ "${EXIT_CODE:-0}" -gt 1 ]; then
+          if [ "${EXIT_CODE:-0}" -eq 124 ]; then
+            echo "Server timed out as expected (running indefinitely)"
+          elif [ "${EXIT_CODE:-0}" -ne 0 ]; then
             echo "Server failed to start (exit code: $EXIT_CODE)"
             exit 1
           fi
