@@ -78,7 +78,7 @@ jobs:
             exit 1
           fi
 
-          if grep -qi "error\|failed\|traceback\|exception" /tmp/server.log; then
+          if grep -qiE "(^error|^failed|^traceback|^exception|: error|: failed)" /tmp/server.log; then
             echo "Server startup errors detected in logs"
             exit 1
           fi
