@@ -50,7 +50,7 @@ jobs:
       - name: Test package installation from TestPyPI
         run: |
           pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ ibm-watsonx-data-intelligence-mcp-server
-          python -c "import ibm_watsonx_data_intelligence_mcp_server; print(f'Successfully installed version: {ibm_watsonx_data_intelligence_mcp_server.__version__}')"
+          python -c "from importlib.metadata import version; print(f'Successfully installed version: {version('ibm-watsonx-data-intelligence-mcp-server')}')"
 
       - name: Start and verify server (TestPyPI)
         run: |
