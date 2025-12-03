@@ -5,7 +5,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write  # Required for trusted publishing and environment protection rules
+  id-token: write
 
 jobs:
   publish-test:
@@ -60,7 +60,7 @@ jobs:
       - name: Test package installation from TestPyPI
         run: |
           pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ ibm-watsonx-data-intelligence-mcp-server
-          python -c "from importlib.metadata import version; print(f'Successfully installed version: {version('ibm-watsonx-data-intelligence-mcp-server')}')"
+          python -c "from importlib.metadata import version; print(f'Successfully installed version: {version(\"ibm-watsonx-data-intelligence-mcp-server\")}')"
 
       - name: Start and verify server (TestPyPI)
         run: |
@@ -111,17 +111,32 @@ jobs:
       name: pypi
 
     steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          name: dist
-          path: dist/
+          python-version: '3.11'
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build package
+        run: |
+          python -m build
+
+      - name: Display build artifacts
+        run: |
+          echo "Build artifacts:"
+          ls -lh dist/
+
+      - name: Verify package metadata
+        run: |
+          twine check dist/*
+
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
@@ -139,15 +154,35 @@ jobs:
           done
           echo "Package not available on PyPI after multiple attempts"
           exit 1
+
       - name: Verify package on PyPI
         run: |
           pip install ibm-watsonx-data-intelligence-mcp-server --upgrade
-          python -c "import importlib.metadata; print(f'Successfully installed version: {importlib.metadata.version('ibm-watsonx-data-intelligence-mcp-server')})"
+          python -c "import importlib.metadata; print(f'Successfully installed version: {importlib.metadata.version(\"ibm-watsonx-data-intelligence-mcp-server\")}')"
 
       - name: Start and verify server (Production)
         run: |
           echo "Starting ibm-watsonx-data-intelligence-mcp-server..."
-        run: .github/scripts/verify-server.sh
+
+          timeout 5 ibm-watsonx-data-intelligence-mcp-server --transport stdio > /tmp/server.log 2>&1 || EXIT_CODE=$?
+
+          echo "Server output:"
+          cat /tmp/server.log
+
+          if [ "${EXIT_CODE:-0}" -eq 124 ]; then
+            echo "Server timed out as expected (running indefinitely)"
+          elif [ "${EXIT_CODE:-0}" -ne 0 ]; then
+            echo "Server failed to start (exit code: $EXIT_CODE)"
+            exit 1
+          fi
+
+          if grep -qiE "(^error|^failed|^traceback|^exception|: error|: failed)" /tmp/server.log; then
+            echo "Server startup errors detected in logs"
+            exit 1
+          fi
+
+          echo "Server verification passed - no errors"
+
       - name: Create prod verification summary
         run: |
           echo "## Production PyPI Deployment Successful" >> $GITHUB_STEP_SUMMARY
