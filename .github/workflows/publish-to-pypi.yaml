@@ -138,26 +138,7 @@ jobs:
       - name: Start and verify server (Production)
         run: |
           echo "Starting ibm-watsonx-data-intelligence-mcp-server..."
-
-          timeout 5 ibm-watsonx-data-intelligence-mcp-server --transport stdio > /tmp/server.log 2>&1 || EXIT_CODE=$?
-
-          echo "Server output:"
-          cat /tmp/server.log
-
-          if [ "${EXIT_CODE:-0}" -eq 124 ]; then
-            echo "Server timed out as expected (running indefinitely)"
-          elif [ "${EXIT_CODE:-0}" -ne 0 ]; then
-            echo "Server failed to start (exit code: $EXIT_CODE)"
-            exit 1
-          fi
-
-          if grep -qi "error\|failed\|traceback\|exception" /tmp/server.log; then
-            echo "Server startup errors detected in logs"
-            exit 1
-          fi
-
-          echo "Server verification passed - no errors"
-
+        run: .github/scripts/verify-server.sh
       - name: Create prod verification summary
         run: |
           echo "## Production PyPI Deployment Successful" >> $GITHUB_STEP_SUMMARY
