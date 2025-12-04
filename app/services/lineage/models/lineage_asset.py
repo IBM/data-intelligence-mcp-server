@@ -13,17 +13,9 @@ class LineageAsset(BaseModel):
     name: str = Field(..., description="Name of the asset")
     type: str = Field(..., description="Type of the asset")
     tags: list[str] = Field([], description="List of tags")
-    identity_key: str = Field(..., description="Asset identity key")
+    identity_key: Optional[str] = Field(..., description="Asset identity key")
     parent_name: Optional[str] = Field(None, description="Name of the parent asset")
     parent_type: Optional[str] = Field(None, description="Type of the parent asset")
-
-
-class LineageEdge(BaseModel):
-    """Lineage edge model"""
-
-    type: str
-    source: Optional[str] = None
-    target: Optional[str] = None
 
 
 class QualityScore(BaseModel):

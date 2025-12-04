@@ -56,7 +56,7 @@ class Settings(BaseSettings):
         if self.di_env_mode.upper() == ENV_MODE_CPD:
             return ["df", "cpd"]
         else:  # SaaS
-            return ["df", "cpdaas"]
+            return ["df", "cpdaas","wx"]
 
     @property
     def ui_url(self) -> AnyHttpUrl | str | None:
@@ -74,7 +74,21 @@ class Settings(BaseSettings):
         # For SaaS or any other mode, remove 'api.' prefix if present
         service_url_str = str(self.di_service_url)
         return service_url_str.replace("api.", "", 1)
-
+    
+    @property
+    def resource_controller_url(self) -> AnyHttpUrl | str | None:
+        if not self.di_service_url:
+            return None
+        
+        if self.di_env_mode.upper() == ENV_MODE_CPD:
+            return self.di_service_url
+        
+        if "dev.cloud.ibm.com" in self.di_service_url:
+            return "https://resource-controller.test.cloud.ibm.com"
+        else:
+            return "https://resource-controller.cloud.ibm.com"
+        
+    
     # Saas IAM url
     cloud_iam_url: AnyHttpUrl | str | None = None
 

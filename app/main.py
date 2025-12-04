@@ -4,6 +4,8 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
+# This file has been modified with the assistance of IBM Bob AI tool
+
 """WXDI MCP Server"""
 
 import argparse
@@ -15,11 +17,9 @@ from pathlib import Path
 from typing import Any
 
 from fastmcp import FastMCP
-from pydantic import BaseModel
 
 import app.services
-from app.core.prompts_provider import get_prompts_provider
-from app.core.registry import service_registry
+from app.core.registry import prompt_registry, service_registry
 from app.core.settings import settings
 
 # Ensure the project root is in the Python path for module resolution
@@ -28,20 +28,41 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 
+def _import_modules_from_path(module_path: Path, package_prefix: str, module_type: str):
+    """Helper function to import all modules from a given path.
+    
+    Args:
+        module_path: Path to the directory containing modules
+        package_prefix: Package prefix for module names (e.g., "app.services.search.tools")
+        module_type: Type of module for error messages (e.g., "tool", "prompt")
+    """
+    if not module_path.is_dir():
+        return
+    
+    # First, import the package itself to trigger the __init__.py
+    importlib.import_module(package_prefix)
+    
+    # Then, iterate over any other modules that might not be in __init__.py
+    for _, module_name, _ in pkgutil.iter_modules([str(module_path)], f"{package_prefix}."):
+        try:
+            importlib.import_module(module_name)
+        except ImportError as e:
+            print(f"Warning: Could not import {module_type} module '{module_name}': {e}", file=sys.stderr)
+
+
 def discover_and_import_services(package):
-    """Dynamically imports all tool modules to trigger registration decorators."""
+    """Dynamically imports all tool and prompt modules to trigger registration decorators."""
     for _, service_name, _ in pkgutil.iter_modules(package.__path__, package.__name__ + "."):
         service_module = importlib.import_module(service_name)
-        tools_path = Path(service_module.__file__).parent / "tools"
-        if tools_path.is_dir():
-            # First, import the tools package itself to trigger the __init__.py
-            importlib.import_module(f"{service_name}.tools")
-            # Then, iterate over any other tool modules that might not be in __init__.py
-            for _, tool_name, _ in pkgutil.iter_modules([str(tools_path)], f"{service_name}.tools."):
-                try:
-                    importlib.import_module(tool_name)
-                except ImportError as e:
-                    print(f"Warning: Could not import tool module '{tool_name}': {e}", file=sys.stderr)
+        service_path = Path(service_module.__file__).parent
+        
+        # Discover and import tools
+        tools_path = service_path / "tools"
+        _import_modules_from_path(tools_path, f"{service_name}.tools", "tool")
+        
+        # Discover and import prompts
+        prompts_path = service_path / "prompts"
+        _import_modules_from_path(prompts_path, f"{service_name}.prompts", "prompt")
 
 
 def create_server() -> FastMCP:
@@ -58,21 +79,13 @@ def create_server() -> FastMCP:
     print(f"Registering {actual_registered_count} discovered tools...", file=sys.stderr)
     print("✅ Tool registration complete.", file=sys.stderr)
 
-    prompts_provider = get_prompts_provider()
-
-    class SystemPromptsResponse(BaseModel):
-        system_prompt: str
-        instructions: str
-        services: list[str]
-
-    @mcp.tool(name="get_system_prompts")
-    async def get_system_prompts() -> SystemPromptsResponse:
-        """Gets system prompts for all available tools."""
-        return SystemPromptsResponse(
-            system_prompt=prompts_provider.get_system_prompt(),
-            instructions="Use these prompts to understand how to interact with each service's tools.",
-            services=list(prompts_provider.service_instructions.keys())
-        )
+    # Register prompts
+    prompt_registry.register_all(mcp)
+    actual_prompt_count = prompt_registry.get_registered_count()
+    
+    if actual_prompt_count > 0:
+        print(f"Registering {actual_prompt_count} discovered prompts...", file=sys.stderr)
+        print("✅ Prompt registration complete.", file=sys.stderr)
 
     return mcp
 

@@ -5,7 +5,7 @@
 from typing import List, Optional, Union
 from pydantic import BaseModel, Field
 
-from app.services.lineage.models.lineage_asset import LineageAsset, LineageEdge
+from app.services.lineage.models.lineage_asset import LineageAsset
 
 
 class GetLineageGraphRequest(BaseModel):
@@ -47,8 +47,8 @@ class GetLineageGraphResponse(BaseModel):
     lineage_assets: List[LineageAsset] = Field(
         ..., description="List of all assets in the lineage graph"
     )
-    edges_in_view: Optional[List[LineageEdge]] = Field(
-        ..., description="Connections between assets showing data flow"
+    edges_in_view: Optional[List[str]] = Field(
+        ..., description="Connections between assets showing data flow in format: 'from edge: AssetA, to: AssetB, relation: RelationType'"
     )
     url: str = Field(
         ..., description="Direct link to visualize this lineage graph in the UI"

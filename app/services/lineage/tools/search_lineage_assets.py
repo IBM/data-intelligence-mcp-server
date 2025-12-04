@@ -443,7 +443,10 @@ def _transform_lineage_assets(
         # Extract parent data if available
         parent_name = None
         parent_type = None
+        path = None
         if "hierarchical_path" in asset and asset["hierarchical_path"]:
+            path = "/".join(item.get("name", "") for item in reversed(asset["hierarchical_path"][1:]))    
+            path = path.replace("|", "/")
             parent_data = asset["hierarchical_path"][-1]
             parent_name = parent_data.get("name")
             parent_type = parent_data.get("type")
@@ -454,11 +457,10 @@ def _transform_lineage_assets(
             name=asset.get("name", ""),
             type=asset.get("type", ""),
             tags=asset.get("tags", []),
-            identity_key=asset.get("identity_key", ""),
+            identity_key=path,
             parent_name=parent_name,
             parent_type=parent_type,
         )
-        lineage_asset.identity_key = lineage_asset.identity_key.replace("|","/")
         lineage_assets_model.append(lineage_asset)
     return lineage_assets_model
 

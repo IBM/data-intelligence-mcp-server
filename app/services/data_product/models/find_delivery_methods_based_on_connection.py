@@ -4,7 +4,10 @@ from typing import List
 
 class FindDeliveryMethodsBasedOnConnectionRequest(BaseModel):
     data_product_draft_id: str = Field(...,
-        description="The ID of the data product draft for which we need to find the delivery method options."
+        description="The ID of the data product draft."
+    )
+    data_asset_name: str = Field(...,
+        description="The name of the data asset for which we need to find the delivery method options."
     )
 
 

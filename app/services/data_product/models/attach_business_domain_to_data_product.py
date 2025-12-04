@@ -6,6 +6,6 @@ from pydantic import BaseModel, Field
 
 class AttachBusinessDomainToDataProductRequest(BaseModel):
     data_product_draft_id: str = Field(
-        ..., description="The ID of the data product draft."
+        ..., description="The ID of the data product draft to which the business domain is to be attached."
     )
-    domain: str = Field(..., description="The domain of the data product.")
+    domain: str = Field(..., description="The business domain to be attached to the data product draft.")

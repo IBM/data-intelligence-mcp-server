@@ -1,0 +1,25 @@
+service:
+  name: metadata_import
+  description: "Tools for creating and managing metadata imports (MDI)."
+system_instructions: |
+  This service helps create and manage metadata import (MDI) assets.
+  
+  CRITICAL WORKFLOW - ALWAYS FOLLOW THIS ORDER:
+  
+  1. **list_connection_paths** - MUST be called FIRST when:
+     - User mentions "first N schemas" (e.g., "first 7 schemas")
+     - User does NOT explicitly provide schema names
+     - User asks to import schemas but doesn't specify which ones
+     - You need to discover available schemas/tables for a connection
+     
+     This tool lists available schema/table paths for a connection. Supports pagination (limit/offset) and optional filter_text.
+     Use limit parameter to get the desired number of schemas (e.g., limit=7 for "first 7 schemas").
+  
+  2. **create_metadata_import** - Call ONLY AFTER list_connection_paths when:
+     - You have obtained the list of available schemas from list_connection_paths, OR
+     - User explicitly provided schema names in their request
+     
+     This tool creates a draft metadata import in a project. Requires project name, connection name, and scope (list of schema/table paths).
+  
+  NEVER call create_metadata_import before list_connection_paths when schema discovery is needed.
+  ALWAYS confirm the final scope with the user before creating the import.

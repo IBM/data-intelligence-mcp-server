@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from app.core.auth import get_access_token
 from app.core.settings import settings
-from app.services.constants import JSON_CONTENT_TYPE
+from app.services.constants import JSON_CONTENT_TYPE, JSON_PATCH_CONTENT_TYPE
 from app.shared.exceptions.base import ExternalAPIError, ServiceError
 from app.shared.logging.utils import LOGGER
 from app.shared.utils.http_client import get_http_client
@@ -58,6 +58,7 @@ class ToolHelperService:
 
     def __init__(self):
         self.base_url = settings.di_service_url
+        self.resource_controller_url = settings.resource_controller_url
         self.ui_base_url = settings.ui_url
         self.http_client = get_http_client()
 
@@ -138,7 +139,7 @@ class ToolHelperService:
     async def execute_patch_request(
         self,
         url: str,
-        headers: Dict[str, str] = create_default_headers(),
+        headers: Dict[str, str] = create_default_headers(content_type=JSON_PATCH_CONTENT_TYPE),
         json: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
         params: Optional[Dict[str, Any]] = None,
         tool_name: Optional[str] = None,
@@ -160,6 +161,7 @@ class ToolHelperService:
             ExternalAPIError: If the request fails
         """
         headers["Authorization"] = await get_access_token()
+
         try:
             response_json = await self.http_client.patch(
                 url=url, data=json, headers=headers, params=params

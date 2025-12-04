@@ -5,11 +5,13 @@
 # This file has been modified with the assistance of IBM Bob AI tool
 
 import inspect
+import re
 from collections.abc import Callable
 from typing import Any, NamedTuple
-
 from app.core.settings import settings
 
+# Tool name validation pattern: alphanumeric, underscore, hyphen, 1-64 chars
+TOOL_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
 
 class RegisteredTool(NamedTuple):
     """Holds tool information prior to registration with the MCP server."""
@@ -24,10 +26,43 @@ class RegisteredTool(NamedTuple):
     annotations: Any
     meta: dict[str, Any] | None
 
+class RegisteredPrompt(NamedTuple):
+    """Holds prompt information prior to registration with the MCP server."""
+    func: Callable
+    name: str
+    description: str
+    input_model: Any
+
 class ServiceRegistry:
     def __init__(self):
         self._tools: list[RegisteredTool] = []
         self._registered_count = 0
+
+    def _validate_tool_name(self, tool_name: str) -> None:
+        """Validate that tool name matches required pattern."""
+        if not TOOL_NAME_PATTERN.match(tool_name):
+            raise ValueError(
+                f"Invalid tool name '{tool_name}'. Tool names must match pattern "
+                f"'^[a-zA-Z0-9_-]{{1,64}}$' (alphanumeric, underscore, hyphen, 1-64 chars). "
+                f"Colons and other special characters are not allowed."
+            )
+
+    def _should_skip_wxo_filtering(self, func: Callable) -> bool:
+        """Check if function should be skipped based on WXO filtering rules."""
+        if not hasattr(settings, 'wxo'):
+            return False     
+        func_name = func.__name__
+        is_wxo_func = func_name.startswith('wxo')
+        # Skip if wxo mode enabled but not wxo function, or vice versa
+        return (settings.wxo and not is_wxo_func) or (not settings.wxo and is_wxo_func)
+
+    def _infer_models(self, func: Callable) -> tuple[Any, Any]:
+        """Infer input and output models from function signature."""
+        sig = inspect.signature(func)
+        params = list(sig.parameters.values())  
+        input_model = params[0].annotation if params else None
+        output_model = sig.return_annotation if sig.return_annotation is not inspect.Signature.empty else None
+        return input_model, output_model
 
     def tool(
         self,
@@ -41,28 +76,12 @@ class ServiceRegistry:
     ) -> Callable:
         """A decorator to collect a function as a tool to be registered later."""
         def decorator(func: Callable) -> Callable:
-            # Filter during collection phase based on wxo setting
-            # This prevents duplicate tool names from being collected
-            if hasattr(settings, 'wxo'):
-                func_name = func.__name__
-                is_wxo_func = func_name.startswith('wxo')
-                
-                # Skip collection if:
-                # - wxo mode is enabled but function doesn't start with 'wxo'
-                # - wxo mode is disabled but function starts with 'wxo'
-                if (settings.wxo and not is_wxo_func) or (not settings.wxo and is_wxo_func):
-                    return func
-            
-            sig = inspect.signature(func)
-            params = list(sig.parameters.values())
-
-            # Infer Input/Output models from type hints
-            input_model = params[0].annotation if params else None
-            output_model = sig.return_annotation if sig.return_annotation is not inspect.Signature.empty else None
-
-            # Use function name if name not provided
             tool_name = name if name is not None else func.__name__
+            self._validate_tool_name(tool_name)
+            if self._should_skip_wxo_filtering(func):
+                return func
 
+            input_model, output_model = self._infer_models(func)
             self._tools.append(
                 RegisteredTool(
                     func=func,
@@ -119,5 +138,58 @@ class ServiceRegistry:
         """Returns the number of tools that were actually registered."""
         return self._registered_count
 
+class PromptRegistry:
+    """Registry for collecting and registering prompts with the MCP server."""
+    
+    def __init__(self):
+        self._prompts: list[RegisteredPrompt] = []
+        self._registered_count = 0
+
+    def prompt(
+        self,
+        name: str | None = None,
+        description: str | None = None,
+    ) -> Callable:
+        """A decorator to collect a function as a prompt to be registered later."""
+        def decorator(func: Callable) -> Callable:
+            sig = inspect.signature(func)
+            params = list(sig.parameters.values())
+
+            # Infer Input model from type hints (first parameter)
+            input_model = params[0].annotation if params else None
+
+            # Use function name if name not provided
+            prompt_name = name if name is not None else func.__name__
+
+            self._prompts.append(
+                RegisteredPrompt(
+                    func=func,
+                    name=prompt_name,
+                    description=description or func.__doc__ or "",
+                    input_model=input_model,
+                )
+            )
+            return func
+        return decorator
+
+    def register_all(self, mcp_instance):
+        """Registers all collected prompts with the FastMCP instance at startup."""
+        self._registered_count = 0
+        for prompt in self._prompts:
+            kwargs = {
+                "name": prompt.name,
+            }
+            if prompt.description:
+                # FastMCP uses docstring for description, but we can pass it if supported
+                pass
+            mcp_instance.prompt(**kwargs)(prompt.func)
+            self._registered_count += 1
+
+    def get_registered_count(self):
+        """Returns the number of prompts that were actually registered."""
+        return self._registered_count
+
 # Global singleton instance for collecting tools
 service_registry = ServiceRegistry()
+# Global singleton instance for collecting prompts
+prompt_registry = PromptRegistry()

@@ -14,6 +14,7 @@ from app.services.lineage.models.get_lineage_graph import (
     GetLineageGraphRequest,
     GetLineageGraphResponse,
 )
+from app.services.lineage.tools.search_lineage_assets import _transform_lineage_assets
 from app.shared.exceptions.base import ServiceError
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import append_context_to_url, are_lineage_ids
@@ -97,7 +98,17 @@ def _construct_get_lineage_graph_response(
         Object containing all lineage data to be returned to user.
     """
     lineage_assets = lineage_graph_response.get("assets_in_view", [])
-    connections = lineage_graph_response.get("edges_in_view")
+    lineage_assets_model = _transform_lineage_assets(lineage_assets=lineage_assets)
+    
+    id_to_name = {asset["id"]: asset["name"] for asset in lineage_assets}
+    
+    edges = lineage_graph_response.get("edges_in_view", [])
+    connections = [
+        f"edge from: {id_to_name.get(edge.get('source'), 'None')}, "
+        f"to: {id_to_name.get(edge.get('target'), 'None')}, "
+        f"relation: {edge.get('type', 'direct')}"
+        for edge in edges
+    ]
     query_params = {
         "assetsIds": lineage_ids[0] if len(lineage_ids) == 1 else ",".join(lineage_ids),
         "startingAssetDirection": _calculate_starting_asset_direction(
@@ -120,7 +131,7 @@ def _construct_get_lineage_graph_response(
         f"{tool_helper_service.ui_base_url}{LINEAGE_UI_BASE_ENDPOINT}?{urlencode(query_params)}"
     )
     return GetLineageGraphResponse(
-        lineage_assets=lineage_assets, edges_in_view=connections, url=url
+        lineage_assets=lineage_assets_model, edges_in_view=connections, url=url
     )
 
 

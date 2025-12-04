@@ -37,12 +37,32 @@ def is_uuid(id: str):
         id (str): A value to be tested
 
     Returns:
-        bool: Information if string is a valid UUID
+        None if valid UUID
+
+    Raises:
+        ServiceError: If the string is not a valid UUID
     """
     try:
         UUID(id, version=4)
     except ValueError:
         raise ServiceError(f"'{id}' is not valid UUID")
+
+
+def is_uuid_bool(id: str) -> bool:
+    """
+    Check if a string is a valid UUID.
+    
+    Args:
+        id: String to check
+        
+    Returns:
+        bool: True if valid UUID, False otherwise
+    """
+    try:
+        UUID(id, version=4)
+        return True
+    except (ValueError, AttributeError):
+        return False
 
 
 async def confirm_uuid(uuid_or_str: str, find_function: Callable) -> str:
@@ -195,25 +215,45 @@ def get_closest_match(word_list_with_id: list, search_word: str) -> str | None:
     return None
 
 
-def append_context_to_url(url: str) -> str:
+
+def get_project_or_space_type_based_on_context() -> str | None:
+    """
+    Returns the project or space type based on the current context.
+    
+    Returns:
+        str | None: The project/space type ('cpd' or 'wx') or None
+    """
+    context = settings.di_context
+    if context in ["cpdaas", "cpd"]:
+        return "cpd"
+    elif context == "df":
+        return "wx"
+    return None
+
+def append_context_to_url(url: str, context: str | None = None) -> str:
     """
     Appends the context parameter to a URL if it doesn't already have one.
     Validates that the context is appropriate for the current environment mode.
 
     Args:
         url (str): The URL to append the context parameter to.
+        context (str | None, optional): The context value to append. 
+            If None, uses settings.di_context. Defaults to None.
 
     Returns:
         str: The URL with the context parameter appended.
 
     Raises:
-        ValueError: If the current di_context is not valid for the environment mode.
+        ValueError: If the context is not valid for the environment mode.
     """
-    # Validate that the current context is valid for the environment mode
-    if settings.di_context not in settings.valid_contexts:
+    # Use provided context or fall back to settings.di_context
+    context_value = context if context is not None else settings.di_context
+    
+    # Validate that the context is valid for the environment mode
+    if context_value not in settings.valid_contexts:
         valid_contexts = ", ".join(settings.valid_contexts)
         raise ValueError(
-            f"Invalid context '{settings.di_context}' for environment mode '{settings.di_env_mode}'. "
+            f"Invalid context '{context_value}' for environment mode '{settings.di_env_mode}'. "
             f"Valid contexts are: {valid_contexts}"
         )
 
@@ -229,4 +269,4 @@ def append_context_to_url(url: str) -> str:
     separator = "&" if parsed_url.query else "?"
 
     # Append the context parameter with the appropriate separator
-    return f"{url}{separator}context={settings.di_context}"
+    return f"{url}{separator}context={context_value}"

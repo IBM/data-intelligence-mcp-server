@@ -2,13 +2,15 @@ from typing import Literal
 from urllib.parse import urlencode
 
 from app.core.registry import service_registry
-from app.services.data_product.models.create_data_product_from_asset_in_container import (
-    CreateDataProductFromAssetInContainerRequest,
-    CreateDataProductFromAssetInContainerResponse,
+from app.services.data_product.models.create_or_update_data_product_from_asset_in_container import (
+    CreateOrUpdateDataProductFromAssetInContainerRequest,
+    CreateOrUpdateDataProductFromAssetInContainerResponse,
 )
 from app.shared.exceptions.base import ServiceError
 from app.services.data_product.utils.common_utils import get_data_product_url, get_dph_catalog_id_for_user
 from app.services.data_product.utils.data_product_creation_utils import (
+    is_data_product_draft_create,
+    validate_inputs_for_draft_create,
     create_part_asset_and_set_relationship,
 )
 from app.shared.logging import LOGGER, auto_context
@@ -16,52 +18,79 @@ from app.shared.utils.tool_helper_service import tool_helper_service
 
 
 @service_registry.tool(
-    name="data_product_create_data_product_from_asset_in_container",
+    name="data_product_create_or_update_from_asset_in_container",
     description="""
-    This tool creates a data product via add from a container. The container can be one of "catalog" or "project".
-    Call this tool after calling `get_assets_from_container()`.
-    If you want to create a data product from asset in catalog, call
-        - get_assets_from_container() with request.container_type="catalog"
-        - create_data_product_from_asset_in_container() with request.container_type="catalog" and other parameters.
-    If you want to create a data product from asset in project, call
-        - get_assets_from_container() with request.container_type="project"
-        - create_data_product_from_asset_in_container() with request.container_type="project" and other parameters.
-
-    This receives the asset ID selected by the user (from get_assets_from_container) and the container id of the selected asset (from get_assets_from_container) along with other info from user.
+    This tool creates a data product draft via add from a container or updates an existing draft to add a new asset from container.
+    The container can be one of "catalog" or "project".
+    Call this tool after calling data_product_get_assets_from_container tool.
+    Example 1 - Create a data product draft:
+        If you want to create a data product from asset in catalog, call
+            - data_product_get_assets_from_container tool with request.container_type="catalog"
+            - data_product_create_or_update_from_asset_in_container tool with request.container_type="catalog" and other parameters.
+        If you want to create a data product from asset in project, call
+            - data_product_get_assets_from_container tool with request.container_type="project"
+            - data_product_create_or_update_from_asset_in_container tool with request.container_type="project" and other parameters.
+    Example 2 - Add a data asset item to an existing data product draft:
+        In this case, request.existing_data_product_draft_id is NOT null/None.
+        Identifies the data product draft by request.existing_data_product_draft_id and adds the asset to the data product draft.
+    
+    This receives the asset ID selected by the user (from data_product_get_assets_from_container) and the container id of the selected asset (from data_product_get_assets_from_container) along with other info from user.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
 )
 @auto_context
-async def create_data_product_from_asset_in_container(
-    request: CreateDataProductFromAssetInContainerRequest,
-) -> CreateDataProductFromAssetInContainerResponse:
+async def create_or_update_data_product_from_asset_in_container(
+    request: CreateOrUpdateDataProductFromAssetInContainerRequest,
+) -> CreateOrUpdateDataProductFromAssetInContainerResponse:
     LOGGER.info(
-        f"In the data_product_create_data_product_from_asset_in_container tool, creating data product from container_type {request.container_type} with name {request.name}, asset id {request.asset_id} and container id {request.container_id_of_asset}."
+        f"In the data_product_create_or_update_from_asset_in_container tool, creating data product from container_type {request.container_type} with name {request.name}, asset id {request.asset_id} and container id {request.container_id_of_asset}."
     )
+    if is_data_product_draft_create(request):
+        validate_inputs_for_draft_create(request)
+
     dph_catalog_id = await get_dph_catalog_id_for_user()
 
     target_asset_id = await create_assets_for_data_product(
         request.asset_id, request.container_id_of_asset, request.container_type
     )
 
-    # creating data product draft
-    payload = get_data_product_draft_method_creation_payload(
-        dph_catalog_id, request.name, target_asset_id
-    )
-    create_dp_response = await tool_helper_service.execute_post_request(
-        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products",
-        json=payload,
-        tool_name="data_product_create_data_product_from_asset_in_container",
-    )
-    draft = create_dp_response["drafts"][0]
-    data_product_draft_id = draft["id"]
+    if is_data_product_draft_create(request):
+        # This is not adding data asset item operation, so creating data product draft.
+        payload = get_data_product_draft_method_creation_payload(
+            dph_catalog_id, target_asset_id, request
+        )
+        response = await tool_helper_service.execute_post_request(
+            url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products",
+            json=payload,
+            tool_name="data_product_create_or_update_from_asset_in_container",
+        )  
+        LOGGER.info(
+            "In the data_product_create_or_update_from_asset_in_container tool, created data product draft."
+        )
+        message = "Created data product draft with the provided data asset item successfully."
+        draft = response["drafts"][0]
+    else:
+        # Draft exists already. The task is to add data asset item to the existing draft.
+        payload = get_patch_data_asset_items_to_draft_payload(
+            dph_catalog_id, target_asset_id
+        )
+        response = await tool_helper_service.execute_patch_request(
+            url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/drafts/{request.existing_data_product_draft_id}",
+            json=payload,
+            tool_name="data_product_create_or_update_from_asset_in_container",
+        )
+        LOGGER.info(
+            "In the data_product_create_or_update_from_asset_in_container tool, patched data product draft with the provided data asset item."
+        )
+        message = "Updated data product draft with the provided data asset item successfully."
+        draft = response
+
+    data_product_draft_id = request.existing_data_product_draft_id if request.existing_data_product_draft_id else draft["id"]
     contract_terms_id = draft["contract_terms"][0]["id"]
 
-    LOGGER.info(
-        f"In the data_product_create_data_product_from_asset_in_container tool, created data product draft - {data_product_draft_id}, contract terms id: {contract_terms_id}."
-    )
-    return CreateDataProductFromAssetInContainerResponse(
+    return CreateOrUpdateDataProductFromAssetInContainerResponse(
+        message=message,
         data_product_draft_id=data_product_draft_id,
         contract_terms_id=contract_terms_id,
         url=get_data_product_url(data_product_draft_id, "draft")
@@ -125,7 +154,7 @@ async def get_asset_details(asset_id: str, container_id: str, container_type: st
     response = await tool_helper_service.execute_get_request(
         url=f"{tool_helper_service.base_url}/v2/assets/bulk",
         params=query_params,
-        tool_name="data_product_create_data_product_from_asset_in_container",
+        tool_name="data_product_create_or_update_from_asset_in_container",
     )
     response = response["resources"][0]
     
@@ -159,7 +188,7 @@ async def get_datasource_type_from_connection(connection_id: str, container_id: 
     response = await tool_helper_service.execute_get_request(
         url=f"{tool_helper_service.base_url}/v2/connections/{connection_id}",
         params=query_params,
-        tool_name="data_product_create_data_product_from_asset_in_container",
+        tool_name="data_product_create_or_update_from_asset_in_container",
     )
     datasource_type = response.get("entity", {}).get("datasource_type", "")
     LOGGER.info(f"Datasource type found: {datasource_type}")
@@ -182,7 +211,7 @@ async def _validate_if_datasource_type_is_supported(datasource_type: str) -> Non
     response = await tool_helper_service.execute_get_request(
         url=f"{tool_helper_service.base_url}/v2/datasource_types",
         params=query_params,
-        tool_name="data_product_create_data_product_from_asset_in_container",
+        tool_name="data_product_create_or_update_from_asset_in_container",
     )
     supported_datasource_types = set({resource.get("metadata", {}).get("asset_id") for resource in response["resources"]})
     if datasource_type not in supported_datasource_types:
@@ -223,7 +252,7 @@ async def copy_asset_to_dph_catalog(
         url=f"{tool_helper_service.base_url}/v2/assets/bulk_copy",
         params=query_params,
         json=payload,
-        tool_name="data_product_create_data_product_from_asset_in_container",
+        tool_name="data_product_create_or_update_from_asset_in_container",
     )
     response = response["responses"][0]
 
@@ -252,7 +281,7 @@ async def _validate_if_connection_credentials_are_available(connection_id: str |
     response = await tool_helper_service.execute_get_request(
         url=f"{tool_helper_service.base_url}/data_product_exchange/v1/connections/{connection_id}/get_credentials",
         params=query_params,
-        tool_name="data_product_create_data_product_from_asset_in_container",
+        tool_name="data_product_create_or_update_from_asset_in_container",
     )
     if not response.get("caller", False):
         LOGGER.error("DPH Functional credentials are not added for this connection.")
@@ -272,12 +301,12 @@ async def create_asset_revision(target_asset_id: str, dph_catalog_id: str):
     await tool_helper_service.execute_post_request(
         url=f"{tool_helper_service.base_url}/v2/assets/{target_asset_id}/revisions?catalog_id={dph_catalog_id}&hide_deprecated_response_fields=false",
         json=payload,
-        tool_name="data_product_create_data_product_from_asset_in_container",
+        tool_name="data_product_create_or_update_from_asset_in_container",
     )
 
 
 def get_data_product_draft_method_creation_payload(
-    dph_catalog_id: str, name: str, url_asset_id: str
+    dph_catalog_id: str, data_asset_id: str, request: CreateOrUpdateDataProductFromAssetInContainerRequest
 ) -> dict:
     return {
         "drafts": [
@@ -285,14 +314,14 @@ def get_data_product_draft_method_creation_payload(
                 "asset": {"container": {"id": dph_catalog_id}},
                 "version": None,
                 "data_product": None,
-                "name": name,
-                "description": None,
+                "name": request.name,
+                "description": request.description,
                 "types": None,
                 "dataview_enabled": False,
                 "parts_out": [
                     {
                         "asset": {
-                            "id": url_asset_id,
+                            "id": data_asset_id,
                             "container": {"id": dph_catalog_id},
                         }
                     }
@@ -302,44 +331,77 @@ def get_data_product_draft_method_creation_payload(
     }
 
 
-@service_registry.tool(
-    name="data_product_create_data_product_from_asset_in_container",
-    description="""
-    This tool creates a data product via add from a container. The container can be one of "catalog" or "project".
-    Call this tool after calling `get_assets_from_container()`.
-    If you want to create a data product from asset in catalog, call
-        - get_assets_from_container() with container_type="catalog"
-        - create_data_product_from_asset_in_container() with container_type="catalog"
-    If you want to create a data product from asset in project, call
-        - get_assets_from_container() with container_type="project"
-        - create_data_product_from_asset_in_container() with container_type="project"
+def get_patch_data_asset_items_to_draft_payload(
+    dph_catalog_id: str, data_asset_id: str
+) -> list[dict]:
+    return [
+        {
+            "op": "add",
+            "path": "/parts_out/-",
+            "value": {
+                "asset": {
+                    "id": data_asset_id,
+                    "container": {
+                        "id": dph_catalog_id,
+                        "type": "catalog"
+                    },
+                    "type": "data_asset"
+                },
+                "delivery_methods": []
+            }
+        }
+    ]
 
-    This receives the asset ID selected by the user (from get_assets_from_container) and the container id of the selected asset (from get_assets_from_container) along with other info from user.
+
+@service_registry.tool(
+    name="data_product_create_or_update_from_asset_in_container",
+    description="""
+    This tool creates a data product draft via add from a container or updates an existing draft to add a new asset from container.
+    The container can be one of "catalog" or "project".
+    Call this tool after calling data_product_get_assets_from_container tool.
+    Example 1 - Create a data product draft:
+        If you want to create a data product from asset in catalog, call
+            - data_product_get_assets_from_container tool with request.container_type="catalog"
+            - data_product_create_or_update_from_asset_in_container tool with request.container_type="catalog" and other parameters.
+        If you want to create a data product from asset in project, call
+            - data_product_get_assets_from_container tool with request.container_type="project"
+            - data_product_create_or_update_from_asset_in_container tool with request.container_type="project" and other parameters.
+    Example 2 - Add a data asset item to an existing data product draft:
+        In this case, request.existing_data_product_draft_id is NOT null/None.
+        Identifies the data product draft by request.existing_data_product_draft_id and adds the asset to the data product draft.
     
+    This receives the asset ID selected by the user (from data_product_get_assets_from_container) and the container id of the selected asset (from data_product_get_assets_from_container) along with other info from user.
+
     Args:
-        name: str = The name of the data product.
-        asset_id: str = The ID of the asset selected from container (catalog/project) to be added to the data product.
-        container_id_of_asset: str = The ID of the container (catalog/project) that the asset selected is part of.
-        container_type (str): Where to create data product from - either "project" or "catalog". If not specified, defaults to "catalog".
+        name (str): The name of the data product. Read the value from user.
+        description (str): The description of the data product. Read the value from user.
+        asset_id (str): The ID of the asset selected from container (catalog/project) to be added to the data product.
+        container_id_of_asset (str): The ID of the container (catalog/project) that the asset belongs to.
+        container_type (Literal["catalog", "project"]): Where to create data product from - either 'project' or 'catalog'. This is a mandatory field.
+        existing_data_product_draft_id (str | None, optional): The ID of the existing data product draft. This field is populated only if we are adding a data asset item to an existing draft, otherwise this field value is None.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
 )
 @auto_context
-async def wxo_create_data_product_from_asset_in_container(
+async def wxo_create_or_update_data_product_from_asset_in_container(
     name: str,
+    description: str,
     asset_id: str,
     container_id_of_asset: str,
-    container_type: Literal["catalog", "project"] 
-) -> CreateDataProductFromAssetInContainerResponse:
-    """Watsonx Orchestrator compatible version that expands CreateDataProductFromAssetInContainerRequest object into individual parameters."""
+    container_type: Literal["catalog", "project"],
+    existing_data_product_draft_id: str | None = None,
+) -> CreateOrUpdateDataProductFromAssetInContainerResponse:
+    """Watsonx Orchestrator compatible version that expands CreateOrUpdateDataProductFromAssetInContainerRequest object into individual parameters."""
 
-    request = CreateDataProductFromAssetInContainerRequest(
+    request = CreateOrUpdateDataProductFromAssetInContainerRequest(
         name=name,
+        description=description,
         asset_id=asset_id,
         container_id_of_asset=container_id_of_asset,
-        container_type=container_type
+        container_type=container_type,
+        existing_data_product_draft_id=existing_data_product_draft_id,
     )
 
-    # Call the original create_data_product_from_asset_in_container function
-    return await create_data_product_from_asset_in_container(request)
+    # Call the original create_or_update_data_product_from_asset_in_container function
+    return await create_or_update_data_product_from_asset_in_container(request)
