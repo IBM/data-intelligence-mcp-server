@@ -32,7 +32,7 @@ jobs:
         env:
           TEST_PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
         run: |
-          make -f Makefile.local publish-testpypi
+          make publish-testpypi
 
       - name: Wait for TestPyPI to be ready
         run: |
@@ -114,7 +114,7 @@ jobs:
         env:
           PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: |
-          make -f Makefile.local publish
+          make publish
 
       - name: Wait for PyPI to be ready
         run: |
