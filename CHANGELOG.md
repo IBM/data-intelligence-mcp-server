@@ -10,6 +10,7 @@
 - `data_product_attach_contract_template_to_data_product` tool to attach a contract template chosen by the user to a data product draft
 - `data_product_create_and_attach_custom_contract` tool to create a custom contract and attach it to a data product draft.
 - `search_connection` tool to search for connections based on allowed filters of container, connection name, data source type, or creator
+- `create_metadata_enrichment_asset` tool replaced by `create_or_update_metadata_enrichment_asset` which supports update also now
 - **Lineage Impact Analysis** prompt to perform impact analysis using data lineage to understand downstream and upstream dependencies
 - **Search Assets** prompt to get guidance on how to search for data assets effectively in catalogs or projects
 - Manual sample prompt templates available in `PROMPTS_SAMPLES/` directory for MCP clients without prompt registration support

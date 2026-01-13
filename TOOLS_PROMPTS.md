@@ -72,7 +72,7 @@ Tools for working with metadata enrichment assets.
 
 | Tool Name | Description | Sample Prompt | pypi version | CPD version |
 |-----------|-------------|---------------|-------------|-------------|
-| `create_metadata_enrichment_asset` | Creates a metadata enrichment asset in a project. | "Create a metadata enrichment `MDE_HR` for dataset `EMPLOYEE.csv` and `DEPARTMENT.csv` in project `HR_GOVERNANCE` with category `uncategorized` and with objectives `profile`, `dq_gen_constraints` and `analyze_quality`." | >=0.4.0 | >=5.2.1 |
+| `create_or_update_metadata_enrichment_asset` | Creates a metadata enrichment asset in a project. | "Create a metadata enrichment `MDE_HR` for dataset `EMPLOYEE.csv` and `DEPARTMENT.csv` in project `HR_GOVERNANCE` with category `uncategorized` and with objectives `profile`, `dq_gen_constraints` and `analyze_quality`." | >=0.5.0 | >=5.2.1 |
 | `execute_metadata_enrichment_asset` | Executes a metadata enrichment by name in the specified project. | "Execute the metadata enrichment `MDE_HR` in the project `HR_GOVERNANCE`." | >=0.4.0 | >=5.2.1 |
 | `execute_metadata_enrichment_asset_for_selected_assets` | Executes a metadata enrichment by name in the specified project for the specified data assets. | "Execute the metadata enrichment `MDE_HR` for dataset `EMPLOYEE.csv` in the project `HR_GOVERNANCE`." | >=0.4.0 | >=5.2.1 |
 | `execute_data_quality_analysis_for_selected_assets` | Executes data quality analysis for selected assets in a project. | "Execute the data quality analysis for dataset `STAFF.csv` in the project `HR_GOVERNANCE` with category `Sales`." | >=0.4.0 | >=5.2.1 |
