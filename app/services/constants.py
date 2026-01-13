@@ -26,6 +26,7 @@ CATALOGS_BASE_ENDPOINT = "/v2/catalogs"
 SPACES_BASE_ENDPOINT = "/v2/spaces"
 ASSET_TYPE_BASE_ENDPOINT = "/v2/asset_types"
 DATASOURCE_TYPES_BASE_ENDPOINT = "/v2/datasource_types"
+USER_PROFILES_BASE_ENDPOINT = "/v2/user_profiles"
 
 DPR_RULES = "/v3/enforcement/rules"
 
@@ -36,3 +37,5 @@ JSON_CONTENT_TYPE = "application/json"
 JSON_PATCH_CONTENT_TYPE = "application/json-patch+json"
 JSON_PLUS_UTF8_ACCEPT_TYPE = "application/json;charset=utf-8"
 EN_LANGUAGE_ACCEPT_TYPE = "en-US"
+AUTH_SCOPE_ALL_STR = "all"
+FIELD_PREFERENCES = "fields,preferences"

@@ -1,17 +1,19 @@
 [project]
 name = "ibm-watsonx-data-intelligence-mcp-server"
-version = "0.4.0"
+version = "0.5.0"
 description = "MCP Server implementation for IBM Data Intelligence"
 readme = "readme_guides/README_PYPI.md"
 license = "Apache-2.0"
 authors = [
     { name = "Ramakanta Samal", email = "rsamal@us.ibm.com" },
-    { name = "Mithun Mithun", email = "vbmithun@in.ibm.com" },
+    { name = "Mithun", email = "vbmithun@in.ibm.com" },
     { name = "Neeru Gupta", email = "guptaneeru@us.ibm.com" },
     { name = "Tomasz Hanusiak", email = "t.hanusiak@pl.ibm.com" },
     { name = "Bartłomiej Chwast", email = "Bartlomiej.Chwast@ibm.com" },
     { name = "Robin Jose", email = "robincjose@in.ibm.com" },
     { name = "Austin Joyal", email = "austin.joyal@ibm.com" },
+    { name = "Megha Varshney", email = "Megha.Varshney@ibm.com" },
+
 ]
 keywords = [
     "mcp",
@@ -36,7 +38,7 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "fastmcp>=2.13.0",
+    "fastmcp>=2.14.1",
     "pydantic>=2",
     "pyyaml>=6",
     "PyJWT>=2.8.0",
@@ -63,7 +65,7 @@ exclude = ["tests*", "client*", "scripts*"]
 
 
 [project.optional-dependencies]
-dev = ["ruff>=0.12.10", "mcp>=1.0.0"]
+dev = ["ruff>=0.12.10"]
 test = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",

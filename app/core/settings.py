@@ -78,15 +78,22 @@ class Settings(BaseSettings):
     @property
     def resource_controller_url(self) -> AnyHttpUrl | str | None:
         if not self.di_service_url:
-            return None
-        
-        if self.di_env_mode.upper() == ENV_MODE_CPD:
-            return self.di_service_url
+            return "https://resource-controller.cloud.ibm.com"
         
         if "dev.cloud.ibm.com" in self.di_service_url:
             return "https://resource-controller.test.cloud.ibm.com"
         else:
             return "https://resource-controller.cloud.ibm.com"
+        
+    @property
+    def user_management_url(self) -> AnyHttpUrl | str | None:
+        if not self.di_service_url:
+            return "https://user-management.cloud.ibm.com"
+                
+        if "dev.cloud.ibm.com" in self.di_service_url:
+            return "https://user-management.test.cloud.ibm.com"
+        else:
+            return "https://user-management.cloud.ibm.com"
         
     
     # Saas IAM url

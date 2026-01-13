@@ -9,10 +9,14 @@ class GetAssetDetailsRequest(BaseModel):
 class AssetUsage(BaseModel):
     last_updated_at: str = Field(..., description="Timestamp asset was last updated at")
     last_updater_id: str = Field(..., description="ID of the user who last updated the asset")
+    last_updater_name: str = Field(..., description="Name of the user who last updated the asset")
+    last_updater_email: str = Field(..., description="Email of the user who last updated the asset")
     last_update_time: int = Field(..., description="Unix time asset was last updated at")
     last_accessed_at: str = Field(..., description="Timestamp asset was last accessed at")
     last_access_time: int = Field(..., description="Unix time asset was last accessed at")
     last_accessor_id: str = Field(..., description="ID of the user who last accessed the asset")
+    last_accessor_name: str = Field(..., description="Name of the user who last accessed the asset")
+    last_accessor_email: str = Field(..., description="Email of the user who last accessed the asset")
     access_count: int = Field(..., description="Number of times asset has been accessed")
 
 class MemberRoles(BaseModel):
@@ -63,6 +67,8 @@ class GetAssetDetailsResponse(BaseModel):
     created: int = Field(..., description="Unix time asset was created at")
     created_at: str = Field(..., description="Timestamp asset was created at")
     owner_id: Optional[str] = Field(None, description="ID of the owner of the asset")
+    owner_name: Optional[str] = Field(None, description="Name of the owner of the asset")
+    owner_email: Optional[str] = Field(None, description="Email of the owner of the asset")
     size: int = Field(..., description="Size of the asset")
     version: float = Field(..., description="Version of the asset")
     asset_state: Literal["deleted", "available"] = Field(
@@ -81,6 +87,8 @@ class GetAssetDetailsResponse(BaseModel):
     revision_id: Optional[int] = Field(None, description="Revision ID of the asset")
     number_of_shards: Optional[int] = Field(None, description="Number of shards of the asset")
     creator_id: str = Field(..., description="ID of the creator of the asset")
+    creator_name: str = Field(..., description="Name of the creator of the asset")
+    creator_email: str = Field(..., description="Email of the creator of the asset")
     is_branched: Optional[bool] = Field(None, description="Whether the asset is branched or not")
     set_id: Optional[str] = Field(None, description="Set ID of the asset")
     is_managed_asset: bool = Field(..., description="Whether the asset is a managed asset or not")

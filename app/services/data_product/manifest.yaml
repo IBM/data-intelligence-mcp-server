@@ -13,3 +13,7 @@ system_instructions: |
   data_product_add_delivery_methods_to_data_product: Use this tool to add delivery methods to a data product draft. Read the delivery method details from the user. This tool should be called after data_product_find_delivery_methods_based_on_connection tool.
   data_product_publish_data_product - Use this tool to publish a data product draft. Make sure to call this tool after all the required fields are filled in the data product draft, like name, domain, contract URL, delivery methods, etc.
   data_product_search_data_products - Use this tool to search all data products to return data products that match the given search query.
+  data_product_get_data_contract - Use this tool to get data contract for the specified data product (draft/published (available)).
+  data_product_get_contract_templates - Use this tool to get all data contract templates available in the instance.
+  data_product_attach_contract_template_to_data_product - Use this tool to attach a contract template to a data product draft. Read the contract template name to be attached from the user. This tool receives the template ID from the context. If template ID is not known, use data_product_get_contract_templates to find the template ID.
+  data_product_create_and_attach_custom_contract - Use this tool to create and attach a custom contract (not from a template) to a data product draft. Read the contract details from the user.

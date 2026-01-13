@@ -1,7 +1,7 @@
 from app.core.registry import service_registry
 from app.services.search.models.search_data_source_definition import SearchDataSourceDefinitionRequest, SearchDataSourceDefinitionResponse
 
-from typing import List
+from typing import List, Optional
 
 from app.shared.exceptions.base import ServiceError
 from app.shared.utils.tool_helper_service import tool_helper_service
@@ -21,6 +21,14 @@ from app.services.constants import ASSET_TYPE_BASE_ENDPOINT
                     results based on the optional input parameters: data source type, 
                     hostname, port, or physical collection. If no filters are provided, then 
                     all available DSDs are retrieved.
+                    Example: Find all dsds.
+                    In this case, all input parameters will be None.
+                    Example: Find DSDs with datasource type postgresql.
+                    In this case, datasource_type parameter will be 'postgresql', and hostname, port, physical_collection will be None.
+                    Example: Find dsds with endpoint localhost:0000 and database db1.
+                    In this case, hostname parameter will be 'localhost', port parameter will be '0000', physical_collection parameter will be 'db1' and datasource_type parameter will be None.
+                    Example: Find data source definitons with hostname someendpoint and bucket testbucket.
+                    In this case, hostname parameter will be 'someendpoint', physical_collection parameter will be 'testbucket', and port and datasource_type parameters will be None.
                     
                     IMPORTANT CONSTRAINTS:
                     - All possible combinations of input parameters include:
@@ -66,6 +74,7 @@ async def search_data_source_definition(
     if request.datasource_type:
         try:
             is_uuid(request.datasource_type)
+            datasource_asset_id = request.datasource_type
         except ServiceError:
             datasource_asset_id = await find_datasource_type_asset_id(request.datasource_type)
         payload["query"] = f"ibm_data_source.data_source_type_id:{datasource_asset_id}"
@@ -109,6 +118,14 @@ async def search_data_source_definition(
                     results based on the optional input parameters: data source type,
                     hostname, port, or physical collection. If no filters are provided, then
                     all available DSDs are retrieved.
+                    Example: Find all dsds.
+                    In this case, all input parameters will be None.
+                    Example: Find DSDs with datasource type postgresql.
+                    In this case, datasource_type parameter will be 'postgresql', and hostname, port, physical_collection will be None.
+                    Example: Find DSDs with endpoint localhost:0000 and database db1.
+                    In this case, hostname parameter will be 'localhost', port parameter will be '0000', physical_collection parameter will be 'db1' and datasource_type parameter will be None.
+                    Example: Find data source definitons with hostname someendpoint and bucket testbucket.
+                    In this case, hostname parameter will be 'someendpoint', physical_collection parameter will be 'testbucket', and port and datasource_type parameters will be None.
 
                     IMPORTANT CONSTRAINTS:
                     - All possible combinations of input parameters include:
@@ -124,7 +141,7 @@ async def search_data_source_definition(
 )
 @auto_context
 async def wxo_search_data_source_definition(
-    datasource_type: str, hostname: str, port: str, physical_collection: str
+    datasource_type: Optional[str], hostname: Optional[str], port: Optional[str], physical_collection: Optional[str]
 ) -> List[SearchDataSourceDefinitionResponse]:
     """Watsonx Orchestrator compatible version that expands SearchDataSourceDefinitionRequest object into individual parameters."""
 

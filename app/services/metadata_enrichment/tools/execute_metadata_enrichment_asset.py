@@ -1,6 +1,10 @@
 # Copyright [2025] [IBM]
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
+#
+# Note: This tool integrates with Metadata Enrichment Asset APIs that are actively maintained
+# and subject to change. While we strive to keep this tool synchronized with the latest API versions,
+# temporary discrepancies in behavior may occur between API updates and tool updates.
 
 
 from string import Template
