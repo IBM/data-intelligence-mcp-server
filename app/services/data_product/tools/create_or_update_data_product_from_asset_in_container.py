@@ -1,3 +1,9 @@
+# Copyright [2025] [IBM]
+# Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+# See the LICENSE file in the project root for license information.
+
+# This file has been modified with the assistance of IBM Bob AI tool
+
 from typing import Literal
 from urllib.parse import urlencode
 

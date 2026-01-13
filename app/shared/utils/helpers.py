@@ -215,6 +215,110 @@ def get_closest_match(word_list_with_id: list, search_word: str) -> str | None:
     return None
 
 
+def find_exact_matches(candidates: List[dict], search_fields: List[str], search_lower: str) -> List[dict]:
+    """Find candidates with exact field matches (case-insensitive)."""
+    return [
+        candidate for candidate in candidates
+        if any(candidate.get(field) and str(candidate.get(field)).lower() == search_lower
+               for field in search_fields)
+    ]
+
+
+def calculate_best_token_score(search_tokens: List[str], candidate_tokens: List[str], cutoff: float) -> float:
+    """
+    Calculate the best match score between search tokens and candidate tokens.
+    
+    Scoring hierarchy:
+    - Exact match: 1.0
+    - Starts with: 0.95
+    - Contains: 0.85
+    - Fuzzy match: 0.7
+    """
+    max_score = 0.0
+    for search_token in search_tokens:
+        for candidate_token in candidate_tokens:
+            if candidate_token == search_token:
+                max_score = max(max_score, 1.0)
+            elif candidate_token.startswith(search_token):
+                max_score = max(max_score, 0.95)
+            elif search_token in candidate_token:
+                max_score = max(max_score, 0.85)
+            elif get_close_matches(search_token, [candidate_token], n=1, cutoff=cutoff):
+                max_score = max(max_score, 0.7)
+    return max_score
+
+
+def perform_token_based_matching(
+    candidates: List[dict],
+    search_tokens: List[str],
+    search_fields: List[str],
+    cutoff: float,
+    max_results: int
+) -> List[dict]:
+    """Score candidates based on token matching and return top matches."""
+    candidate_scores = []
+    
+    for candidate in candidates:
+        # Combine search fields into searchable text
+        text_parts = [str(candidate.get(field)) for field in search_fields if candidate.get(field)]
+        if not text_parts:
+            continue
+        
+        search_text = " ".join(text_parts).lower()
+        candidate_tokens = [t for t in re.split(r'[._+\-@\s]+', search_text) if t]
+        
+        # Calculate best match score using helper function
+        max_score = calculate_best_token_score(search_tokens, candidate_tokens, cutoff)
+        
+        if max_score >= cutoff:
+            candidate_scores.append((candidate, max_score))
+    
+    # Sort by score and return top matches
+    candidate_scores.sort(key=lambda x: x[1], reverse=True)
+    return [candidate for candidate, _ in candidate_scores[:max_results]]
+
+def get_exact_or_fuzzy_matches(
+    search_word: str,
+    candidates: List[dict],
+    search_fields: Optional[List[str]] = None,
+    max_results: int = 10,
+    cutoff: float = 0.6
+) -> List[dict]:
+    """
+    Perform exact match first, then fall back to token-based fuzzy matching.
+    Returns multiple matches to allow caller to handle ambiguity.
+    
+    This function extracts tokens from email addresses and names to perform
+    intelligent matching
+    
+    Args:
+        search_word: The word to search for
+        candidates: List of candidate dictionaries to search through
+        search_fields: List of field names to search in (defaults to ["name"])
+        max_results: Maximum number of fuzzy matches to return (default 10)
+        cutoff: Minimum similarity score for fuzzy matching (0.0-1.0, default 0.6)
+        
+    Returns:
+        List[dict]: List of matching candidate dictionaries
+    """
+    if not search_word or not candidates:
+        return []
+    
+    search_fields = search_fields or ["name"]
+    search_lower = search_word.lower().strip()
+    
+    # Try exact match first
+    exact_matches = find_exact_matches(candidates, search_fields, search_lower)
+    if exact_matches:
+        return exact_matches
+    
+    # Extract and validate search tokens
+    search_tokens = [t for t in re.split(r'[._+\-@\s]+', search_lower) if t and len(t) > 1]
+    if not search_tokens:
+        return []
+    
+    # Perform token-based fuzzy matching
+    return perform_token_based_matching(candidates, search_tokens, search_fields, cutoff, max_results)
 
 def get_project_or_space_type_based_on_context() -> str | None:
     """

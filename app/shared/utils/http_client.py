@@ -15,7 +15,10 @@ import httpx
 from app.core.settings import settings
 from app.shared.exceptions.base import ExternalAPIError
 from app.shared.utils.ssl_utils import get_ssl_verify_setting
+from app.services.constants import JSON_CONTENT_TYPE
 
+
+APPLICATION_FORM_URL_ENCODED = "application/x-www-form-urlencoded"
 LOGGER = logging.getLogger(__name__)
 
 # Log message format for HTTP client statistics
@@ -178,7 +181,7 @@ class AsyncHttpClient:
         data: dict[str, Any] | None = None,
         params: dict[str, str] | None = None,
         headers: dict[str, str] | None = None,
-        content_type: str = "application/json",
+        content_type: str = JSON_CONTENT_TYPE,
     ) -> dict[str, Any]:
         """
         Make async POST request with error handling and semaphore-based concurrency control.
@@ -197,12 +200,48 @@ class AsyncHttpClient:
             ExternalAPIError: If the request fails or returns an error status
         """
         async def request_func(client: httpx.AsyncClient) -> httpx.Response:
-            if content_type == "application/x-www-form-urlencoded":
+            if content_type == APPLICATION_FORM_URL_ENCODED:
                 return await client.post(
                     url, data=data, params=params, headers=headers or {}
                 )
             else:
                 return await client.post(
+                    url, json=data, params=params, headers=headers or {}
+                )
+        
+        return await self._make_request(request_func)
+
+    async def put(
+        self,
+        url: str,
+        data: dict[str, Any] | None = None,
+        params: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+        content_type: str = JSON_CONTENT_TYPE,
+    ) -> dict[str, Any]:
+        """
+        Make async PUT request with error handling and semaphore-based concurrency control.
+
+        Args:
+            url: The URL to make the PUT request to
+            data: Optional JSON data to send in the request body
+            params: Optional query parameters
+            headers: Optional HTTP headers to include
+            content_type: Content type for the request
+
+        Returns:
+            Dict[str, Any]: JSON response data
+
+        Raises:
+            ExternalAPIError: If the request fails or returns an error status
+        """
+        async def request_func(client: httpx.AsyncClient) -> httpx.Response:
+            if content_type == APPLICATION_FORM_URL_ENCODED:
+                return await client.put(
+                    url, data=data, params=params, headers=headers or {}
+                )
+            else:
+                return await client.put(
                     url, json=data, params=params, headers=headers or {}
                 )
         
@@ -214,7 +253,7 @@ class AsyncHttpClient:
         data: dict[str, Any] | list[dict[str, Any]] | None = None,
         params: dict[str, str] | None = None,
         headers: dict[str, str] | None = None,
-        content_type: str = "application/json",
+        content_type: str = JSON_CONTENT_TYPE,
     ) -> dict[str, Any]:
         """
         Make async PATCH request with error handling and semaphore-based concurrency control.
@@ -233,7 +272,7 @@ class AsyncHttpClient:
             ExternalAPIError: If the request fails or returns an error status
         """
         async def request_func(client: httpx.AsyncClient) -> httpx.Response:
-            if content_type == "application/x-www-form-urlencoded":
+            if content_type == APPLICATION_FORM_URL_ENCODED:
                 return await client.patch(
                     url, data=data, params=params, headers=headers or {}
                 )

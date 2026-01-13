@@ -59,6 +59,7 @@ class ToolHelperService:
     def __init__(self):
         self.base_url = settings.di_service_url
         self.resource_controller_url = settings.resource_controller_url
+        self.user_management_url = settings.user_management_url
         self.ui_base_url = settings.ui_url
         self.http_client = get_http_client()
 
@@ -136,6 +137,43 @@ class ToolHelperService:
             )
             raise self._format_exception(e, HTTPMethod.POST, tool_name)
 
+    async def execute_put_request(
+        self,
+        url: str,
+        headers: Dict[str, str] = create_default_headers(),
+        json: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        tool_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Execute a PUT request with authorization header and handle common error patterns.
+
+        Args:
+            url: URL for the request
+            headers: Headers for the request
+            payload: JSON data for the request body
+            params: Query parameters
+            tool_name: Name of the tool making the request (for error messages)
+
+        Returns:
+            Dict[str, Any]: JSON response
+
+        Raises:
+            ExternalAPIError: If the request fails
+        """
+        headers["Authorization"] = await get_access_token()
+        try:
+            response_json = await self.http_client.put(
+                url=url, data=json, headers=headers, params=params
+            )
+
+            return response_json
+        except ExternalAPIError as e:
+            LOGGER.error(
+                f"{tool_name or 'Request'} to {url} failed with error: {str(e)}"
+            )
+            raise self._format_exception(e, HTTPMethod.PUT, tool_name)
+
     async def execute_patch_request(
         self,
         url: str,
@@ -204,7 +242,7 @@ class ToolHelperService:
         sanitized_message = self._get_sanitized_message(status_code, error_detail)
         
         error_message = self._build_error_message(
-            tool_name, error_category, status_code, sanitized_message
+            tool_name, error_category, status_code, sanitized_message, error_detail
         )
         
         return self._raise_formatted_error(
@@ -240,10 +278,16 @@ class ToolHelperService:
         sanitized = self._extract_error_message(error_detail, max_length=250)
         LOGGER.debug(f"Extracted sanitized_message: {sanitized[:100] if sanitized else 'EMPTY'}")
         return sanitized
+
+    def _get_error_message_code(self, error_detail: str) -> str:
+        LOGGER.debug(f"Extracting error message code from error_detail (first 200 chars): {error_detail[:200]}")
+        error_message_code = self._extract_error_message_code(error_detail)
+        LOGGER.debug(f"Extracted error message code: {error_message_code}")
+        return error_message_code
     
     def _build_error_message(
         self, tool_name: Optional[str], error_category: str, 
-        status_code: str | None, sanitized_message: str
+        status_code: str | None, sanitized_message: str, error_detail: str
     ) -> str:
         """Build formatted error message."""
         tool_display = tool_name or 'request'
@@ -253,6 +297,14 @@ class ToolHelperService:
             return f"{base_message} (Status: {status_code}). Internal server error."
         
         if status_code == "404":
+            error_message_code = self._get_error_message_code(error_detail)
+            
+            # Handle "not_implemented" error code
+            not_implemented_error = self._handle_not_implemented_error(error_message_code, base_message, status_code, sanitized_message)
+            if not_implemented_error:
+                return not_implemented_error
+            
+            # Default 404 message
             message = f"{base_message} (Status: {status_code}). Resource was not found."
             return f"{message} {sanitized_message}" if sanitized_message else message
         
@@ -267,6 +319,15 @@ class ToolHelperService:
         # Fallback if we can't parse status code
         return f"{base_message}. {sanitized_message}" if sanitized_message else base_message
     
+    def _handle_not_implemented_error(self, error_message_code: str, base_message: str, status_code: str, sanitized_message: str) -> str | None:
+        if error_message_code.lower() == "not_implemented" and settings.di_env_mode == "CPD":
+            message = f"{base_message} (Status: {status_code}). This capability is not available in this CPD version or the functionality is not enabled. Please refer to https://github.com/IBM/data-intelligence-mcp-server/blob/main/TOOLS_PROMPTS.md (TOOLS_PROMPTS.md) for information about the versions where this is available. Consider upgrading to the right version to access this capability."
+            return f"{message} {sanitized_message}" if sanitized_message else message
+
+        if error_message_code.lower() == "not_implemented" and settings.di_env_mode == "SaaS":
+            message = f"{base_message} (Status: {status_code}). This capability is not available in this SaaS version or the functionality is not enabled."
+            return f"{message} {sanitized_message}" if sanitized_message else message
+
     def _raise_formatted_error(
         self, status_code: str | None, method: HTTPMethod, 
         error_message: str, original_message: str
@@ -347,6 +408,38 @@ class ToolHelperService:
         # No message found
         LOGGER.debug(f"Could not extract message from error_json. Keys: {list(error_json.keys()) if isinstance(error_json, dict) else 'not a dict'}")
         return ""
+
+    def _extract_error_message_code(self, error_detail: str) -> str:
+        """
+        Extract error message code from error detail.
+        If error_detail is JSON, tries to extract message code from errors array or message field.
+        Otherwise, returns empty string to show only categorized error.
+        
+        Args:
+            error_detail: Original error detail (could be JSON string or plain text)
+            
+        Returns:
+            str: Extracted and sanitized error message code, or empty string if no message found
+        """
+        if not error_detail:
+            return ""
+        
+        json_str = self._find_json_string(error_detail)
+        if not json_str:
+            return ""
+        
+        error_json = self._parse_json_safely(json_str)
+        if error_json is None:
+            return ""
+        
+        # Try to extract error message code from errors array first
+        message = self._extract_message_code_from_errors_array(error_json)
+        if message:
+            return message
+        
+        # No error message code found
+        LOGGER.debug(f"Could not extract error message code from error_json. Keys: {list(error_json.keys()) if isinstance(error_json, dict) else 'not a dict'}")
+        return ""
     
     def _find_json_string(self, error_detail: str) -> str:
         """Find and extract JSON string from error detail."""
@@ -386,6 +479,24 @@ class ToolHelperService:
             return self._sanitize_error_message(message, max_length)
         
         return ""
+        
+    def _extract_message_code_from_errors_array(self, error_json: dict | list) -> str:
+        """Extract message code from errors array if present."""
+        if not isinstance(error_json, dict) or "errors" not in error_json:
+            return ""
+        
+        errors = error_json.get("errors", [])
+        if not isinstance(errors, list) or len(errors) == 0:
+            LOGGER.debug(f"errors is not a list or is empty: {errors}")
+            return ""
+        
+        first_error = errors[0]
+        if not isinstance(first_error, dict) or "code" not in first_error:
+            LOGGER.debug(f"first_error is not dict or has no error message code: {first_error}")
+            return ""
+        
+        message = first_error.get("code", "")
+        return message
     
     def _extract_message_from_top_level(self, error_json: dict | list, max_length: int) -> str:
         """Extract message from top-level message field if present."""

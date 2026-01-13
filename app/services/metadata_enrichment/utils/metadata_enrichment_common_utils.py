@@ -202,6 +202,12 @@ def set_metadata_enrichment_objective(
                 mde_options.analyze_quality = True
             case MetadataEnrichmentObjective.SEMANTIC_EXPANSION:
                 mde_options.semantic_expansion = True
+            case MetadataEnrichmentObjective.ASSIGN_TERMS:
+                mde_options.assign_terms = True
+            case MetadataEnrichmentObjective.ANALYZE_RELATIONSHIPS:
+                mde_options.analyze_relationships = True
+            case MetadataEnrichmentObjective.DQ_SLA_ASSESSMENT:
+                mde_options.dq_sla_assessment = True
             case _:
                 raise ValueError(f"Invalid objective: {objective}")
 
@@ -412,7 +418,11 @@ async def create_or_find_metadata_enrichment_assets_from_data_asset_ids(
 
     if data_asset_ids_not_belonging_to_mde:
         if default_mde_id:
-            # add data assets not belonging to mde to default mde
+            # update default mde with defined objectives,
+            await call_update_metadata_enrichment_asset(
+                project_id, default_mde_id, category_ids, objectives
+            )
+            # and add data assets not belonging to mde to default mde
             result_operation = await call_update_data_scope(
                 project_id, default_mde_id, data_asset_ids_not_belonging_to_mde
             )
@@ -528,8 +538,23 @@ async def call_update_metadata_enrichment_asset(
     metadata_enrichment_id: str,
     category_ids: list[str],
     objectives: list[MetadataEnrichmentObjective],
+    name: Optional[str] = None,
+    description: Optional[str] = None,
 ) -> MetadataEnrichmentAssetPatchResponse:
-
+    """
+    Update an existing metadata enrichment asset.
+    
+    Args:
+        project_id: The ID of the project containing the MDE
+        metadata_enrichment_id: The ID of the MDE to update
+        category_ids: List of category IDs for governance scope
+        objectives: List of objectives to set
+        name: Optional new name for the MDE
+        description: Optional new description for the MDE
+        
+    Returns:
+        MetadataEnrichmentAssetPatchResponse with updated MDE details
+    """
     mde_patch = MetadataEnrichmentAssetPatch()
     set_metadata_enrichment_objective(mde_patch, objectives)
     for category_id in category_ids:
@@ -537,9 +562,18 @@ async def call_update_metadata_enrichment_asset(
             GovernanceScopeCategory(id=category_id)
         )
 
+    # Build the patch payload with optional name and description
+    patch_payload = mde_patch.model_dump(exclude_none=True)
+    
+    # Add name and description to the patch if provided
+    if name is not None:
+        patch_payload["name"] = name
+    if description is not None:
+        patch_payload["description"] = description
+
     response = await tool_helper_service.execute_patch_request(
         url=f"{METADATA_ENRICHMENT_SERVICE_URL}/metadata_enrichment_assets/{metadata_enrichment_id}",
-        json=mde_patch.model_dump(exclude_none=True),
+        json=patch_payload,
         params={"project_id": project_id},
         headers={"Content-Type": "application/merge-patch+json"},
     )

@@ -35,6 +35,10 @@ Tools for managing data products.
 | `data_product_add_delivery_methods_to_data_product` | Adds delivery methods to a data asset item of a data product draft. | "Add Download and Data Extract delivery methods to CustomerReview asset in my draft" | >=0.1.4 | >=5.2.1 |
 | `data_product_publish_data_product` | Publishes a data product draft to make it available. | "Publish this draft" | >=0.1.4 | >=5.2.1 |
 | `data_product_search_data_products` | Searches data products based on a search query or in a domain | "Find me stock related data products" or "Find me data products in Audit domain" | >=0.1.4 | >=5.2.1 |
+| `data_product_get_data_contract` | Gets data contract for a specified data product (draft/published) | "Get me data contract for CustomerReview data product" | >=0.5.0 | >=5.3 |
+| `data_product_get_contract_templates` | Gets all data contract templates defined in the instance | "What are my contract templates?" | >=0.5.0 | >=5.3 |
+| `data_product_attach_contract_template_to_data_product` | Attaches a contract template chosen by the user to a data product draft | "Attach ContractTemplate1 contract template to CustomerReview data product" | >=0.5.0 | >=5.3 |
+| `data_product_create_and_attach_custom_contract` | Attaches a custom contract created by the user to a data product draft. This will create a odcs contract from scratch (not from a template) and attach it to the draft. | "I would like to create a contract with name MyCustomContract for research purpose with a limitation that it is only for authorized users. Attach it to CustomerReview data product" | >=0.5.0 | >=5.3 |
 
 ## Data Protection Rule Service
 Tools for managing data protection rules.
@@ -68,7 +72,7 @@ Tools for working with metadata enrichment assets.
 
 | Tool Name | Description | Sample Prompt | pypi version | CPD version |
 |-----------|-------------|---------------|-------------|-------------|
-| `create_metadata_enrichment_asset` | Creates a metadata enrichment asset in a project. | "Create a metadata enrichment `MDE_HR` for dataset `EMPLOYEE.csv` and `DEPARTMENT.csv` in project `HR_GOVERNANCE` with category `uncategorized` and with objectives `profile`, `dq_gen_constraints` and `analyze_quality`." | >=0.4.0 | >=5.2.1 |
+| `create_or_update_metadata_enrichment_asset` | Creates a metadata enrichment asset in a project. | "Create a metadata enrichment `MDE_HR` for dataset `EMPLOYEE.csv` and `DEPARTMENT.csv` in project `HR_GOVERNANCE` with category `uncategorized` and with objectives `profile`, `dq_gen_constraints` and `analyze_quality`." | >=0.5.0 | >=5.2.1 |
 | `execute_metadata_enrichment_asset` | Executes a metadata enrichment by name in the specified project. | "Execute the metadata enrichment `MDE_HR` in the project `HR_GOVERNANCE`." | >=0.4.0 | >=5.2.1 |
 | `execute_metadata_enrichment_asset_for_selected_assets` | Executes a metadata enrichment by name in the specified project for the specified data assets. | "Execute the metadata enrichment `MDE_HR` for dataset `EMPLOYEE.csv` in the project `HR_GOVERNANCE`." | >=0.4.0 | >=5.2.1 |
 | `execute_data_quality_analysis_for_selected_assets` | Executes data quality analysis for selected assets in a project. | "Execute the data quality analysis for dataset `STAFF.csv` in the project `HR_GOVERNANCE` with category `Sales`." | >=0.4.0 | >=5.2.1 |
@@ -88,6 +92,7 @@ Tools for managing projects.
 | Tool Name | Description | Sample Prompt | pypi version | CPD version |
 |-----------|-------------|---------------|-------------|-------------|
 | `create_project` | Creates a new project with specified name, description, type, storage, and tags. | "Create a new project named CustomerAnalytics with description 'Customer data analysis project'" or "Create a CPD project named SalesData with storage crn:v1:bluemix:public:cloud-object-storage:global:a/abc123:def456::" or "Create a watsonx project named MarketingInsights" | >=0.4.0 | >=5.2.1 |
+| `add_or_edit_collaborator` | Add or update one or more collaborators (users or groups) in a project with specified roles. Intelligently searches for users or access groups using fuzzy matching on names and emails. Automatically detects whether members are new or existing and handles them appropriately. Supports role assignment (admin, editor, viewer) with 'viewer' as the default role. | "Add john.doe@example.com as an viewer to project CustomerAnalytics" or "Add users alice@example.com and bob@example.com as admins to project SalesData" or "Update jane.smith@example.com to viewer role in project MarketingInsights" or "Add access group DataScientists as viewer to project Analytics" or "Add user mike@example.com and group Analysts with admin and editor roles to project Research" | >=0.4.0 | >=5.2.1 |
 
 ## Search Service
 
@@ -96,10 +101,11 @@ Tools for searching artifacts.
 | Tool Name | Description | Sample Prompt | pypi version | CPD version |
 |-----------|-------------|---------------|-------------|-------------|
 | `search_asset` | Searches for data assets based on a search prompt. | "I'm searching for assets about stocks in projects" or "Please search for data related to vehicles in projects" | >=0.1.4 | >=5.2.1 |
-| `get_asset_details` | Searches for details of a specific asset. | "Find details of asset TestAsset in TestCatalog catalog" or "Please search for total ratings of asset TestAsset in TestProject project"  or "Find asset attributes of asset TestAsset in TestCatalog catalog" | >=0.4.0 | >=5.2.1 |
+| `get_asset_details` | Searches for details of a specific asset including owner name and email. | "Find details of asset TestAsset in TestCatalog catalog" or "Please search for total ratings of asset TestAsset in TestProject project"  or "Find asset attributes of asset TestAsset in TestCatalog catalog" or "Who is the owner of asset TestAsset in TestCatalog catalog?" | >=0.4.0 | >=5.2.1 |
 | `search_data_source_definition` | Searches for DSDs based on allowed filters of datasource type, hostname, port, and physical collection. | "Find DSDs with datasource type twitter" or "Find DSDs with database db1" or "Find DSDs with hostname localhost and port 0000" | >=0.4.0 | >=5.2.1 |
 | `list_containers` | Lists all available containers - catalogs, projects or spaces. | "List all catalogs" or "Show me all projects" or "List all catalogs and projects" or "Show me all available containers" | >=0.4.0 | >=5.2.1 |
 | `find_container` | Finds a specific container (catalog, project or space) by ID or name. | "Find catalog named CustomerData" or "Find project with ID abc-123-def" or "Find the Sales catalog" | >=0.4.0 | >=5.2.1 |
+| `search_connection` | Searches for connections based on allowed filters of container, connection name, data source type, or creator. | "Find all connections" or "Find connections with data source type twitter" or "Find connections with connection name test" or "Find connections created by user-123" | >=0.5.0 | >=5.2.1 |
 
 ## Text to SQL Service
 

@@ -1,3 +1,9 @@
+# Copyright [2025] [IBM]
+# Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+# See the LICENSE file in the project root for license information.
+
+# This file has been modified with the assistance of IBM Bob AI tool
+
 from app.core.registry import service_registry
 from app.services.data_product.models.publish_data_product import (
     PublishDataProductRequest,
@@ -34,7 +40,7 @@ async def publish_data_product(
         f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/drafts/{request.data_product_draft_id}",
     )
     _validate_if_draft_has_a_business_domain(response)
-    _validate_if_draft_has_a_contract(response)
+    await _validate_if_draft_has_a_contract(response)
     await _validate_if_draft_has_delivery_method_added_to_each_data_asset(response)
 
     await tool_helper_service.execute_post_request(
@@ -60,15 +66,24 @@ def _validate_if_draft_has_a_business_domain(response: dict) -> None:
                                      "Please attach a business domain before publishing the draft.")
 
 
-def _validate_if_draft_has_a_contract(response: dict) -> None:
+async def _validate_if_draft_has_a_contract(response: dict) -> None:
     """
     This function validates if the draft has a contract attached to it.
     """
     contract_documents = response.get("contract_terms", [{}])[0].get("documents")
     if not contract_documents or len(contract_documents) == 0:
-        LOGGER.error("The draft has no contract attached.")
-        raise ServiceError("The draft appears to have no contract attached. " \
-                                     "Please attach a contract before publishing the draft.")
+        query_params = {
+            "include_contract_documents": True,
+            "autopopulate_server_information": False
+        }
+        response = await tool_helper_service.execute_get_request(
+                url=f'{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/drafts/{response.get("id")}/contract_terms/{response.get("contract_terms", [{}])[0].get("id")}',
+                params=query_params
+            )
+        if not response.get("overview", {}).get("name"):
+            LOGGER.error("The draft has no contract attached.")
+            raise ServiceError("The draft appears to have no contract attached. " \
+                                        "Please attach a contract before publishing the draft.")
 
 
 async def _validate_if_draft_has_delivery_method_added_to_each_data_asset(response: dict) -> None:

@@ -27,26 +27,64 @@ MDE_UI_URL_TEMPLATE = (
 
 
 class MetadataEnrichmentCreationRequest(BaseModel):
+    """
+    Unified request model for creating or updating metadata enrichment assets.
+    
+    The tool automatically detects whether to create or update based on whether
+    an MDE with the given name exists in the project:
+    - If MDE exists: UPDATE mode (updates existing)
+    - If MDE doesn't exist: CREATE mode (creates new)
+    """
     project_name: str = Field(
-        ..., description="The name of the project you want to create a metadata enrichment asset into."
+        ..., description="The name of the project."
     )
     metadata_enrichment_name: str = Field(
-        ..., description="The name of the asset you want to create a metadata enrichment asset for"
-    )
-    category_names: list[str] | str = Field(
-        ...,
-        description="""Names of the categories for which data quality analysis is required.
-        If a single category name is provided, it should be a string. If multiple categories are specified,
-        they should be provided as a list of strings.""",
+        ..., description="The name of the metadata enrichment asset. Used to find existing MDE (for update) or as the name for new MDE (for create)."
     )
     objective_names: list[str] | str = Field(
         ...,
-        description="""List of names of objectives used in the enrichment job.
-        Supported objectives are 'profile', 'dq_gen_constraints', 'analyze_quality', 
-        and 'semantic_expansion""",
+        description="""List of names of objectives for the enrichment job.
+        Supported objectives are 'profile', 'dq_gen_constraints', 'analyze_quality', 'assign_terms', 'analyze_relationships', 'dq_sla_assessment', and 'semantic_expansion'.
+        Required for both create and update modes.""",
+    )
+    category_names: Optional[list[str] | str] = Field(
+        None,
+        description="""Category names for governance scope.
+        - CREATE mode: Required (must be provided)
+        - UPDATE mode: Optional (only updates if provided)""",
     )
     dataset_names: Optional[list[str] | str] = Field(
-        description="Dataset names of target datasets to be enriched with metadata."
+        None,
+        description="""Dataset names to include in the metadata enrichment asset.
+        - CREATE mode: Required (must be provided)
+        - UPDATE mode: Ignored with warning (datasets cannot be modified after creation)""",
+    )
+    description: Optional[str] = Field(
+        None,
+        description="Description of the metadata enrichment asset. Used in both create and update modes."
+    )
+    new_name: Optional[str] = Field(
+        None,
+        description="New name for the metadata enrichment asset. Only used in UPDATE mode to rename the MDE. Ignored in CREATE mode."
+    )
+
+class PatchMetadataEnrichmentRequest(BaseModel):
+    project_name: str = Field(
+        ..., description="The name of the project containing the metadata enrichment asset."
+    )
+    metadata_enrichment_name: str = Field(
+        ..., description="The name of the metadata enrichment asset to patch."
+    )
+    objective_names: list[str] | str = Field(
+        ...,
+        description="""List of names of objectives to set for the enrichment job.
+        Supported objectives are 'profile', 'dq_gen_constraints', 'analyze_quality',
+        and 'semantic_expansion'. These will replace the existing objectives.""",
+    )
+    category_names: Optional[list[str] | str] = Field(
+        None,
+        description="""Optional list of category names to update the governance scope.
+        If provided, these will replace the existing categories.""",
     )
 
 
@@ -83,6 +121,9 @@ class MetadataEnrichmentObjective(str, Enum):
     DQ_GEN_CONSTRAINTS = "dq_gen_constraints"
     ANALYZE_QUALITY = "analyze_quality"
     SEMANTIC_EXPANSION = "semantic_expansion"
+    ASSIGN_TERMS = "assign_terms"
+    ANALYZE_RELATIONSHIPS = "analyze_relationships"
+    DQ_SLA_ASSESSMENT = "dq_sla_assessment"
 
 
 class MetadataEnrichmentAssetEnrichmentJob(BaseModel):

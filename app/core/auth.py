@@ -133,6 +133,34 @@ async def get_bss_account_id() -> str:
             INVALID_DI_ENV_MODE
         )
 
+async def get_user_identifier() -> str:
+    """
+    Retrieves the user identifier from the JWT token.
+
+    This function extracts the user identifier from the JWT token by decoding the payload.
+    For CPD environments, it returns the "uid" field.
+    For other environments, it returns the "iam_id" field.
+
+    Returns:
+        str: The user identifier extracted from the token payload.
+    """
+    token = await get_token()
+    payload_b64 = token.split(".")[1]
+    # Add padding if needed for base64 decoding
+    padding = len(payload_b64) % 4
+    if padding:
+        payload_b64 += '=' * (4 - padding)
+    payload = json.loads(base64.urlsafe_b64decode(payload_b64).decode("utf-8"))
+
+    if settings.di_env_mode.upper() == ENV_MODE_CPD:
+        return payload.get("uid")
+    elif settings.di_env_mode.upper() == ENV_MODE_SAAS:
+        return payload.get("iam_id")
+    else:
+        raise ExternalAPIError(
+            INVALID_DI_ENV_MODE
+        )
+
 def get_request_body(api_key: str, username: str) -> dict:
     if settings.di_env_mode.upper() == ENV_MODE_SAAS:
         return {

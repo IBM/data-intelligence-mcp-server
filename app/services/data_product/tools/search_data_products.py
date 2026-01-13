@@ -1,3 +1,9 @@
+# Copyright [2025] [IBM]
+# Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+# See the LICENSE file in the project root for license information.
+
+# This file has been modified with the assistance of IBM Bob AI tool
+
 from typing import Union, Literal
 
 from app.core.registry import service_registry
@@ -138,15 +144,18 @@ async def search_data_products(
     LOGGER.info(f"Found {number_of_responses} data products.")
     products = []
     for row in response["rows"]:
+        metadata = row.get("metadata", {})
+        entity = row.get("entity", {})
         products.append(
             {
-                "name": row.get("metadata", {}).get("name", ""),
-                "description": row.get("metadata", {}).get("description", ""),
-                "created_on": row.get("metadata", {}).get("created_on", ""),
-                "domain": row.get("entity", {}).get("data_product_version", {}).get("domain_name", ""),
+                "data_product_id": entity.get("data_product_version", {}).get("product_id", ""),
+                "name": metadata.get("name", ""),
+                "description": metadata.get("description", ""),
+                "created_on": metadata.get("created_on", ""),
+                "domain": entity.get("data_product_version", {}).get("domain_name", ""),
                 "data_asset_items": [
                     {"name": parts_out.get("name", ""), "description": parts_out.get("description", "")}
-                    for parts_out in row.get("entity", {}).get("data_product_version", {}).get("parts_out", [])
+                    for parts_out in entity.get("data_product_version", {}).get("parts_out", [])
                 ]
             }
         )

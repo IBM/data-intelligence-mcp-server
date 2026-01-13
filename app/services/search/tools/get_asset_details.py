@@ -11,10 +11,9 @@ from app.services.search.models.get_asset_details import (
 
 from app.shared.logging import LOGGER, auto_context
 from app.services.tool_utils import (
-    find_project_id,
-    find_catalog_id,
-    get_platform_assets_catalog_id,
-    find_asset_id
+    find_asset_id,
+    retrieve_container_id,
+    get_user_info_from_iam_id,
 )
 from app.shared.exceptions.base import ServiceError
 from app.shared.utils.tool_helper_service import tool_helper_service
@@ -94,7 +93,7 @@ async def get_asset_details(
     output = None
     metadata = response.get("metadata", {})
     if metadata:
-        output = retrieve_asset_metadata(metadata)
+        output = await retrieve_asset_metadata(metadata)
         output.entity = response.get("entity", {})
     else:
         raise ServiceError(
@@ -131,7 +130,7 @@ async def wxo_get_asset_details(
     # Call the original get_asset_details function
     return await get_asset_details(request)
 
-def retrieve_asset_metadata(metadata: dict[str, any]) -> GetAssetDetailsResponse:
+async def retrieve_asset_metadata(metadata: dict[str, any]) -> GetAssetDetailsResponse:
     """
     Extracts the full metadata information from asset metadata response
     and returns it.
@@ -144,29 +143,31 @@ def retrieve_asset_metadata(metadata: dict[str, any]) -> GetAssetDetailsResponse
     """
 
     return GetAssetDetailsResponse(
-        usage=retrieve_asset_usage(metadata.get("usage", {})),
+        usage=await retrieve_asset_usage(metadata.get("usage", {})),
         rov=retrieve_rov(metadata.get("rov", {})),
         sub_container_id=metadata.get("sub_container_id", None),
-        is_linked_with_sub_container=metadata.get("is_linked_with_sub_container", None),
+        is_linked_with_sub_container=metadata["is_linked_with_sub_container"],
         name=metadata["name"],
         description=metadata.get("description", None),
         tags=metadata.get("tags", None),
-        asset_type=metadata.get("asset_type", None),
+        asset_type=metadata["asset_type"],
         origin_country=metadata.get("origin_country", None),
-        resource_key=metadata.get("resource_key", None),
+        resource_key=metadata["resource_key"],
         identity_key=metadata.get("identity_key", None),
         delete_processing_state=metadata.get("delete_processing_state", None),
         delete_reason=metadata.get("delete_reason", None),
-        rating=metadata.get("rating", None),
-        total_ratings=metadata.get("total_ratings", None),
+        rating=metadata["rating"],
+        total_ratings=metadata["total_ratings"],
         catalog_id=metadata.get("catalog_id", None),
         project_id=metadata.get("project_id", None),
         space_id=metadata.get("space_id", None),
-        created=metadata.get("created", None),
-        created_at=metadata.get("created_at", None),
+        created=metadata["created"],
+        created_at=metadata["created_at"],
         owner_id=metadata.get("owner_id", None),
-        size=metadata.get("size", None),
-        version=metadata.get("version", None),
+        owner_name=await get_user_info_from_iam_id(metadata.get("owner_id", ""), "name"),
+        owner_email=await get_user_info_from_iam_id(metadata.get("owner_id", ""), "email"),
+        size=metadata["size"],
+        version=metadata["version"],
         asset_state=metadata.get("asset_state", "available"),
         asset_attributes=metadata.get("asset_attributes", None),
         asset_id=metadata["asset_id"],
@@ -174,10 +175,13 @@ def retrieve_asset_metadata(metadata: dict[str, any]) -> GetAssetDetailsResponse
         asset_category=metadata.get("asset_category", "USER"),
         revision_id=metadata.get("revision_id", None),
         number_of_shards=metadata.get("number_of_shards", None),
-        creator_id=metadata.get("creator_id", None),
+        creator_id=metadata["creator_id"],
+        creator_name=await get_user_info_from_iam_id(metadata["creator_id"], "name"),
+        creator_email=await get_user_info_from_iam_id(metadata["creator_id"], "email"),
         is_branched=metadata.get("is_branched", None),
         set_id=metadata.get("set_id", None),
-        is_managed_asset=metadata.get("is_managed_asset", None)
+        is_managed_asset=metadata["is_managed_asset"],
+        entity={}
     )
 
 def retrieve_source_asset(source_asset_info: dict[str, any]) -> Optional[SourceAsset]:
@@ -202,7 +206,7 @@ def retrieve_source_asset(source_asset_info: dict[str, any]) -> Optional[SourceA
         asset_id=source_asset_info.get("asset_id", None),
         revision_id=source_asset_info.get("revision_id", None),
         bss_account_id=source_asset_info.get("bss_account_id", None),
-        asset_name=source_asset_info.get("asset_name", None),
+        asset_name=source_asset_info["asset_name"],
         source_url=source_asset_info.get("source_url", None),
         resource_key=source_asset_info.get("resource_key", None),
         identity_key=source_asset_info.get("identity_key", None)
@@ -231,12 +235,12 @@ def retrieve_rov(rov_info: dict[str, any]) -> Rov:
     collaborator_ids = list(rov_info.get("collaborator_ids", {}).keys())
 
     return Rov(
-        mode=rov_info.get("mode", None),
+        mode=rov_info["mode"],
         collaborator_ids=collaborator_ids,
         member_roles=member_roles
     )
 
-def retrieve_asset_usage(usage_info: dict[str, any]) -> AssetUsage:
+async def retrieve_asset_usage(usage_info: dict[str, any]) -> AssetUsage:
     """
     Extracts the usage information from asset metadata response
     and returns it.
@@ -251,38 +255,13 @@ def retrieve_asset_usage(usage_info: dict[str, any]) -> AssetUsage:
     return AssetUsage(
         last_updated_at=usage_info["last_updated_at"],
         last_updater_id=usage_info["last_updater_id"],
+        last_updater_name=await get_user_info_from_iam_id(usage_info["last_updater_id"], "name"),
+        last_updater_email=await get_user_info_from_iam_id(usage_info["last_updater_id"], "email"),
         last_update_time=usage_info["last_update_time"],
         last_accessed_at=usage_info["last_accessed_at"],
         last_access_time=usage_info["last_access_time"],
         last_accessor_id=usage_info["last_accessor_id"],
+        last_accessor_name=await get_user_info_from_iam_id(usage_info["last_accessor_id"], "name"),
+        last_accessor_email=await get_user_info_from_iam_id(usage_info["last_accessor_id"], "email"),
         access_count=usage_info["access_count"]
     )
-
-async def retrieve_container_id(container_id: str, container_type: str) -> str:
-    """
-    Validate or convert a container name to its ID.
-
-    This function checks if a container id was provided. If it is, then it
-    checks if the provided container ID is in a valid UUID format. If not, it attempts to find
-    a matching catalog or project by its name. If no container id is provided, it
-    returns the platform assets catalog's ID.
-
-    Args:
-        container_id (str): Name or UUID of the project or catalog
-        container_type (str): Type of container - "project" or "catalog"
-
-    Returns:
-        uuid.UUID: A valid container ID for the specified container.
-    """
-    if container_id:
-        try:
-            is_uuid(container_id)
-        except ServiceError:
-            if "catalog" in container_type:
-                container_id = await find_catalog_id(container_id)
-            else:
-                container_id = await find_project_id(container_id)
-    else:
-        container_id = await get_platform_assets_catalog_id()
-
-    return container_id
