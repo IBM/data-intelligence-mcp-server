@@ -151,6 +151,7 @@ If SSL connections fail:
 
 ### Debugging
 Enable debug logging to troubleshoot SSL issues:
+
 ```python
 import logging
 logging.getLogger('httpx').setLevel(logging.DEBUG)
