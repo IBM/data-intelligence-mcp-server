@@ -116,6 +116,100 @@ class MetadataEnrichmentAnalysisRequest(BaseModel):
     )
 
 
+class RelationshipAnalysisType(str, Enum):
+    """Enum for relationship analysis types."""
+    PK_SHALLOW = "pk_shallow"
+    PK_DEEP = "pk_deep"
+    FK_SHALLOW = "fk_shallow"
+    FK_DEEP = "fk_deep"
+    OVERLAP = "overlap"
+
+
+class RelationshipAnalysisOverwrittenConfigOptions(BaseModel):
+    """Configuration options for relationship analysis."""
+    maxNumberOfMultipleColumns: Optional[int] = Field(
+        None, description="Maximum number of multiple columns to analyze."
+    )
+    minConfidence: Optional[float] = Field(
+        None, description="Minimum confidence threshold for analysis."
+    )
+    autoSelection: Optional[bool] = Field(
+        None, description="Enable automatic selection of relationships."
+    )
+    autoSelectionThreshold: Optional[float] = Field(
+        None, description="Threshold for automatic selection."
+    )
+    pkMinConfidence: Optional[float] = Field(
+        None, description="Minimum confidence threshold for primary key analysis."
+    )
+
+
+class RelationshipAnalysisOverwrittenConfig(BaseModel):
+    """Overwritten configuration for relationship analysis."""
+    options: Optional[RelationshipAnalysisOverwrittenConfigOptions] = Field(
+        None, description="Configuration options for relationship analysis."
+    )
+
+
+class RelationshipAnalysisKeyObjectives(BaseModel):
+    """Key analysis objectives for relationship analysis."""
+    type: RelationshipAnalysisType = Field(
+        ..., description="The type of relationship analysis to execute."
+    )
+    overwritten_config: Optional[RelationshipAnalysisOverwrittenConfig] = Field(
+        None, description="Overwritten configuration for the analysis."
+    )
+    is_all_dataset: bool = Field(
+        True, description="Whether to analyze all datasets in the MDE area."
+    )
+    sampling_percent: int = Field(
+        0, description="Sampling percentage for the analysis (0-100)."
+    )
+    dataset_ids: Optional[list[str]] = Field(
+        None, description="List of specific dataset IDs to analyze."
+    )
+    updated_dataset_ids: Optional[list[str]] = Field(
+        None, description="List of updated dataset IDs."
+    )
+
+
+class StartRelationshipAnalysisRequest(BaseModel):
+    """Request model for starting relationship analysis."""
+    project_name: str = Field(
+        ..., description="The name of the project containing the metadata enrichment area."
+    )
+    mde_area_name: str = Field(
+        ..., description="The name of the metadata enrichment area (MDE) to analyze."
+    )
+    analysis_type: RelationshipAnalysisType = Field(
+        ..., description="The type of relationship analysis to execute."
+    )
+    is_all_dataset: bool = Field(
+        True, description="Whether to analyze all datasets in the MDE area. If False, dataset_names must be provided."
+    )
+    dataset_names: Optional[list[str] | str] = Field(
+        None, description="Dataset names to analyze. Required if is_all_dataset is False."
+    )
+    sampling_percent: int = Field(
+        0, description="Sampling percentage for the analysis (0-100). 0 means no sampling."
+    )
+    max_number_of_multiple_columns: Optional[int] = Field(
+        None, description="Maximum number of multiple columns to analyze."
+    )
+    min_confidence: Optional[float] = Field(
+        None, description="Minimum confidence threshold for analysis."
+    )
+    auto_selection: Optional[bool] = Field(
+        None, description="Enable automatic selection of relationships."
+    )
+    auto_selection_threshold: Optional[float] = Field(
+        None, description="Threshold for automatic selection."
+    )
+    pk_min_confidence: Optional[float] = Field(
+        None, description="Minimum confidence threshold for primary key analysis."
+    )
+
+
 class MetadataEnrichmentObjective(str, Enum):
     PROFILE = "profile"
     DQ_GEN_CONSTRAINTS = "dq_gen_constraints"

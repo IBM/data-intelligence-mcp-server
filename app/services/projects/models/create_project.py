@@ -17,7 +17,7 @@ class CreateProjectRequest(BaseModel):
         default="MCP generated project", description="A description for the new project"
     )
     type: Optional[str] = Field(
-        default="df",
+        default=None,
         description="The project type where the project is generated",
         examples=[
             "cpd: IBM Cloud Pak for Data (CPD) projects",

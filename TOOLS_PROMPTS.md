@@ -45,7 +45,7 @@ Tools for managing data protection rules.
 
 | Tool Name                     | Description                    | Sample Prompt                                                                                                                | pypi version | CPD version |
 |-------------------------------|--------------------------------|------------------------------------------------------------------------------------------------------------------------------|-------------|-------------|
-| `data_protection_rule_create` | Creates data protection rules. | "create me data protection rule name  sample when the asset contains name test and dataclass contains ssn with action allow" | >=0.1.4 | >=5.2.1 |
+| `create_data_protection_rule_from_text` | Creates data protection rules. | "create me data protection rule name  sample when the asset contains name test and dataclass contains ssn with action allow" | >=0.5.1 | >=5.2.1 |
 | `data_protection_rule_search` | Search data protection rules.  | "show me all data protection rules with Deny name"                                                                           | >=0.2.0 | >=5.2.1 |
 
 ## Data Quality Service
@@ -77,6 +77,7 @@ Tools for working with metadata enrichment assets.
 | `execute_metadata_enrichment_asset_for_selected_assets` | Executes a metadata enrichment by name in the specified project for the specified data assets. | "Execute the metadata enrichment `MDE_HR` for dataset `EMPLOYEE.csv` in the project `HR_GOVERNANCE`." | >=0.4.0 | >=5.2.1 |
 | `execute_data_quality_analysis_for_selected_assets` | Executes data quality analysis for selected assets in a project. | "Execute the data quality analysis for dataset `STAFF.csv` in the project `HR_GOVERNANCE` with category `Sales`." | >=0.4.0 | >=5.2.1 |
 | `execute_metadata_expansion_for_selected_assets` | Execute metadata expansion for selected assets in a project. | "Execute the metadata expansion for dataset `ORG.csv` in the project `HR_GOVERNANCE` with category `Finance`." | >=0.4.0 | >=5.2.1 |
+| `start_metadata_relationship_analysis` | Starts a relationship analysis for a metadata enrichment area (MDE). Supports primary key (PK) and foreign key (FK) analysis at shallow and deep levels, as well as overlap analysis. | "Start a deep primary key analysis for all datasets in MDE area `MDE_HR` in project `HR_GOVERNANCE`" or "Start a foreign key analysis for datasets `EMPLOYEE.csv` and `DEPARTMENT.csv` in MDE area `MDE_HR` in project `HR_GOVERNANCE` with 50% sampling" | >=0.5.1 | >=5.2.1 |
 
 ## Metadata Import Service
 

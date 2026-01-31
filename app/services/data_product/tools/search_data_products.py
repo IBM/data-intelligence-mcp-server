@@ -19,9 +19,9 @@ from app.shared.logging import LOGGER, auto_context
 @service_registry.tool(
     name="data_product_search_data_products",
     description="""
-    This tool searches all data products to return data products that match the given search_query.
+    This tool searches all data products (both released and draft) to return data products that match the given search_query.
     Example: 'Find all data products that match the name Environment.'
-    In this case, product_search_query is 'Environment', and this tool returns all data products that have Environment in their name.
+    In this case, product_search_query is 'Environment', and this tool returns all data products (released and draft) that have Environment in their name.
     Example: 'Find all data products in the Audit domain.'
     In this case, product_search_query is '*', search_filter_type is 'Domain' and search_filter_value is 'Audit'.
     """,
@@ -114,7 +114,7 @@ async def search_data_products(
                 "minimum_should_match": 1,
                 "filter": [
                     {"terms": {"metadata.artifact_type": ["ibm_data_product_version"]}},
-                    {"terms": {"entity.data_product_version.state": ["available"]}},
+                    {"terms": {"entity.data_product_version.state": ["available","draft"]}},
                     {"terms": {"entity.assets.catalog_id": [DPH_CATALOG_ID]}},
                 ],
             }
@@ -134,7 +134,7 @@ async def search_data_products(
         tool_name="data_product_search_data_products",
     )
 
-    number_of_responses = response["size"]
+    number_of_responses = response.get("size", len(response.get("rows", [])))
     if number_of_responses == 0:
         LOGGER.info(
             "In the data_product_search_data_products tool, no data products found."
@@ -166,16 +166,16 @@ async def search_data_products(
 @service_registry.tool(
     name="data_product_search_data_products",
     description="""
-    This tool searches all data products to return data products that match the given search_query.
-    Example: 'Find all data products that match the name Environment.'
-    In this case, product_search_query is 'Environment', and this tool returns all data products that have Environment in their name.
-    Example: 'Find all data products in the Sustainability domain.'
+    This tool searches all data products and data product drafts to return data products and data product drafts that match the given search_query.
+    Example: 'Find all data products and data product drafts that match the name Environment.'
+    In this case, product_search_query is 'Environment', and this tool returns all data products and data product drafts that have Environment in their name.
+    Example: 'Find all data products and data product drafts in the Sustainability domain.'
     In this case, product_search_query is '*', search_filter_type is 'Domain' and search_filter_value is 'Sustainability'.
     
     Args:
-        product_search_query (Literal["*"], str): The search query to search for data products. If the user wants to search for data products with a specific name, this is the name to search for. If user wants to search for all data products, this value should be "*".
+        product_search_query (Literal["*"], str): The search query to search for data products and drafts. If the user wants to search for data products or drafts with a specific name, this is the name to search for. If user wants to search for all data products or drafts, this value should be "*".
         search_filter_type (Literal["None", "Domain"]): Specify what to filter by. It can be one of the following: None, Domain. If the user wants to filter by domain, then this value should be Domain otherwise None.
-        search_filter_value (str): The value to filter by. For example, if search_filter_type is Domain, then this is the domain name to filter by.
+        search_filter_value (str): The value to filter by. For example, if search_filter_type is Domain, then this is the domain name to filter by. Use 'None' when search_filter_type is 'None'.
     """,
     tags={"search", "data_product"},
     meta={"version": "1.0", "service": "data_product"},

@@ -15,17 +15,22 @@ from app.shared.exceptions.base import ExternalAPIError
 from typing import List, Optional
 from enum import Enum
 
-from app.shared.utils.helpers import append_context_to_url
-from app.services.tool_utils import is_project_exist_by_name
+from app.shared.utils.helpers import append_context_to_url, get_project_or_space_type_based_on_context
+from app.services.tool_utils import (
+    is_project_exist_by_name,
+    get_response_context,
+    PROJECT_TYPE_CPD,
+    RESPONSE_CONTEXT_ICP4DATA,
+    RESPONSE_TYPE_CPDAAS,
+    RESPONSE_TYPE_DF,
+)
 
 PROJECT_TYPE_WX = "wx"
-PROJECT_TYPE_DF = "df"
-PROJECT_TYPE_CPD = "cpd"
-PROJECT_TYPE_CPDAAS = "cpdaas"
 STORAGE_TYPE_BMCOS = "bmcos_object_storage"
 STORAGE_TYPE_ASSETFILES = "assetfiles"
 GENERATOR_DF = "df-portal-projects"
-GENERATOR_CPD = "cpdaas-portal-projects"
+GENERATOR_CPDAAS = "cpdaas-portal-projects"
+GENERATOR_CPD = "icp4data-portal-projects"
 
 @service_registry.tool(
     name="create_project",
@@ -76,22 +81,48 @@ async def create_project(request: CreateProjectRequest) -> CreateProjectResponse
     project_location = prepare_response(response=response, project_type=request_type)
     return CreateProjectResponse(name=payload["name"], location=project_location)
 
+
+def build_project_location_url(project_id: str, project_type: str) -> str:
+    """Build the project location URL based on environment and context type.
+    
+    Args:
+        project_id: The ID of the existing project
+        context_type: The context type of the project (cpd or wx)
+        
+    Returns:
+        The full project location URL
+    """
+    if not tool_helper_service.base_url:
+        return ""
+    
+    context_type = get_response_context(project_type)
+    return append_context_to_url(
+        f"{tool_helper_service.ui_base_url}/projects/{project_id}/",
+        context_type
+    )
+
+
 async def check_get_project_name(request_name) -> str:
-    # Check if user has not provide the name then add default
-    # Assign an MCP-generated project name if the given name already exists
+    """Check and validate the project name, returning a valid name or raising an error.
+    
+    Args:
+        request_name: The requested project name from the user
+        
+    Returns:
+        A valid project name (either the requested name or a generated one)
+        
+    Raises:
+        ValueError: If the name is empty or already exists
+    """
+    # Generate a default project name with timestamp
     mcp_generated_name = f"mcp_generated_project_{time.strftime('%Y-%m-%d %H-%M-%S')}"
+    
     if not is_empty(request_name):
-        is_exist, context_type, project_id = await is_project_exist_by_name(request_name)
+        is_exist, project_type, project_id = await is_project_exist_by_name(request_name)
         if not is_exist:
             mcp_generated_name = request_name
         else:
-            project_location = ""
-            service_url_str = tool_helper_service.base_url
-            if service_url_str:
-                project_location = append_context_to_url(
-                    f"{tool_helper_service.ui_base_url}/projects/{project_id}/",
-                    context_type,
-                )
+            project_location = build_project_location_url(project_id, project_type)
             raise ValueError(
                 f"Given project name {request_name} already exists. Project URL: {project_location}"
             )
@@ -101,21 +132,42 @@ async def check_get_project_name(request_name) -> str:
         )
     return mcp_generated_name
 
-def check_get_type(request_type) -> tuple[str, str, str]:
-    project_type = PROJECT_TYPE_WX
-    request_project_type = PROJECT_TYPE_DF
-    generator = GENERATOR_DF
-    if not is_empty(request_type):
-        request_type_lower = request_type.lower()
-        if PROJECT_TYPE_CPD in request_type_lower:
-            project_type = PROJECT_TYPE_CPD
-            request_project_type = PROJECT_TYPE_CPDAAS if settings.di_env_mode.upper() == ENV_MODE_SAAS else PROJECT_TYPE_CPD
-            generator = GENERATOR_CPD
-        elif PROJECT_TYPE_WX in request_type_lower:
-            request_project_type = PROJECT_TYPE_WX
-        else:
-            request_project_type = PROJECT_TYPE_DF
-    return project_type, request_project_type, generator
+def check_get_type(request_type: str | None) -> tuple[str, str, str]:
+    """
+    Determine project type, request type, and generator based on environment and request.
+        
+    Args:
+        request_type: The requested project type (optional, case-insensitive)
+        
+    Returns:
+        tuple: (project_type, request_project_type, generator)
+            - project_type: Internal project type identifier ('cpd' or 'wx')
+            - request_project_type: Response context type for UI
+            - generator: Project generator identifier
+    """
+    # CPD (On-Prem) environment - always returns CPD configuration
+    if settings.di_env_mode.upper() == ENV_MODE_CPD:
+        return PROJECT_TYPE_CPD, RESPONSE_CONTEXT_ICP4DATA, GENERATOR_CPD
+    
+    # Normalize and validate request_type once
+    request_type_normalized = None
+    if request_type and not is_empty(request_type):
+        request_type_normalized = request_type.lower().strip()
+    
+    # Check if CPD type is explicitly requested
+    if request_type_normalized and PROJECT_TYPE_CPD in request_type_normalized:
+        return PROJECT_TYPE_CPD, RESPONSE_TYPE_CPDAAS, GENERATOR_CPDAAS
+    
+    # If no explicit request, use context-based default
+    if not request_type_normalized:
+        project_type_based_context = get_project_or_space_type_based_on_context()
+        if project_type_based_context == PROJECT_TYPE_CPD:
+            return PROJECT_TYPE_CPD, RESPONSE_TYPE_CPDAAS, GENERATOR_CPDAAS
+        # Default to DF for 'wx' context or None
+        return PROJECT_TYPE_WX, RESPONSE_TYPE_DF, GENERATOR_DF
+    
+    # Default to DF for any other explicit request type
+    return PROJECT_TYPE_WX, RESPONSE_TYPE_DF, GENERATOR_DF
 
 
 async def get_storage(request_storage):
@@ -236,7 +288,7 @@ def prepare_response(response, project_type):
 async def wxo_create_project(
     name: Optional[str] = None,
     description: str = "MCP generated project",
-    type: str = PROJECT_TYPE_DF,
+    type: Optional[str] = None,
     storage: Optional[str] = None,
     tags: List = [],
 ) -> CreateProjectResponse:

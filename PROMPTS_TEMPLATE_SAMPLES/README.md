@@ -4,6 +4,9 @@ This directory contains sample prompts that are available in the MCP server. The
 
 ## Available Prompts
 
+### System-Level Prompts
+- **[Data Intelligence Tool Usage Guide](system/tool_usage_guide.md)** - System-level instructions for using all Data Intelligence MCP tools correctly. Provides workflow rules, tool interaction patterns, and best practices for orchestrating multiple tools.
+
 ### Search Service
 - **[Search Assets Prompt](search/search_assets_prompt.md)** - Get guidance on how to search for data assets effectively
 
@@ -15,6 +18,7 @@ This directory contains sample prompts that are available in the MCP server. The
 ### For MCP Clients with Prompt Support
 
 If your MCP client supports prompt registration, the prompts are automatically available through the MCP server. You can call them by their registered names:
+- `Data Intelligence Tool Usage Guide` (System prompt)
 - `Search Assets prompt`
 - `Lineage Impact Analysis`
 
@@ -34,8 +38,10 @@ Each prompt file includes:
 ## Structure
 
 ```
-PROMPTS_SAMPLES/
+PROMPTS_TEMPLATE_SAMPLES/
 ├── README.md (this file)
+├── system/
+│   └── tool_usage_guide.md
 ├── search/
 │   └── search_assets_prompt.md
 └── lineage/

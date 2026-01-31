@@ -13,7 +13,7 @@ from app.services.constants import CLOUD_IAM_ENDPOINT, CPD_IAM_ENDPOINT
 from app.shared.exceptions.base import ExternalAPIError
 
 # Application-specific imports
-from app.core.settings import settings, ENV_MODE_SAAS, ENV_MODE_CPD
+from app.core.settings import settings, ENV_MODE_SAAS, ENV_MODE_CPD, ENV_MODE_YPQA
 from app.shared.utils.http_client import get_http_client
 
 from aiocache import cached
@@ -78,17 +78,18 @@ async def get_access_token() -> str | None:
 
 
 def get_iam_url() -> str:
-    if settings.di_env_mode.upper() == ENV_MODE_SAAS:
+    env_mode = settings.di_env_mode.upper()
+    if env_mode == ENV_MODE_SAAS or env_mode == ENV_MODE_YPQA:
         if settings.cloud_iam_url:
-            return settings.cloud_iam_url + CLOUD_IAM_ENDPOINT
+            return str(settings.cloud_iam_url) + CLOUD_IAM_ENDPOINT
         elif settings.di_service_url:
             # Calculate IAM URL dynamically based on service URL
-            cloud_iam_url = get_cloud_iam_url_from_service_url(settings.di_service_url)
+            cloud_iam_url = get_cloud_iam_url_from_service_url(str(settings.di_service_url))
             return cloud_iam_url + CLOUD_IAM_ENDPOINT
         else:
             raise ExternalAPIError("DI_SERVICE_URL is not set in env")
-    elif settings.di_env_mode.upper() == ENV_MODE_CPD:
-        return settings.di_service_url + CPD_IAM_ENDPOINT
+    elif env_mode == ENV_MODE_CPD:
+        return str(settings.di_service_url) + CPD_IAM_ENDPOINT
     else:
         raise ExternalAPIError(INVALID_DI_ENV_MODE)
 
@@ -117,7 +118,8 @@ async def get_bss_account_id() -> str:
     Returns:
         str: The BSS Account ID extracted from the token payload.
     """
-    if settings.di_env_mode.upper() == ENV_MODE_SAAS:
+    env_mode = settings.di_env_mode.upper()
+    if env_mode == ENV_MODE_SAAS or env_mode == ENV_MODE_YPQA:
         token = await get_token()
         payload_b64 = token.split(".")[1]
         # Add padding if needed for base64 decoding
@@ -126,7 +128,7 @@ async def get_bss_account_id() -> str:
             payload_b64 += '=' * (4 - padding)
         payload = json.loads(base64.urlsafe_b64decode(payload_b64).decode("utf-8"))
         return payload.get("account", {}).get("bss", "")
-    elif settings.di_env_mode.upper() == ENV_MODE_CPD:
+    elif env_mode == ENV_MODE_CPD:
         return "999"
     else:
         raise ExternalAPIError(
@@ -139,7 +141,7 @@ async def get_user_identifier() -> str:
 
     This function extracts the user identifier from the JWT token by decoding the payload.
     For CPD environments, it returns the "uid" field.
-    For other environments, it returns the "iam_id" field.
+    For SaaS/YPQA environments, it returns the "iam_id" field.
 
     Returns:
         str: The user identifier extracted from the token payload.
@@ -152,9 +154,10 @@ async def get_user_identifier() -> str:
         payload_b64 += '=' * (4 - padding)
     payload = json.loads(base64.urlsafe_b64decode(payload_b64).decode("utf-8"))
 
-    if settings.di_env_mode.upper() == ENV_MODE_CPD:
+    env_mode = settings.di_env_mode.upper()
+    if env_mode == ENV_MODE_CPD:
         return payload.get("uid")
-    elif settings.di_env_mode.upper() == ENV_MODE_SAAS:
+    elif env_mode == ENV_MODE_SAAS or env_mode == ENV_MODE_YPQA:
         return payload.get("iam_id")
     else:
         raise ExternalAPIError(
@@ -162,12 +165,13 @@ async def get_user_identifier() -> str:
         )
 
 def get_request_body(api_key: str, username: str) -> dict:
-    if settings.di_env_mode.upper() == ENV_MODE_SAAS:
+    env_mode = settings.di_env_mode.upper()
+    if env_mode == ENV_MODE_SAAS or env_mode == ENV_MODE_YPQA:
         return {
             "apikey": api_key,
             "grant_type": "urn:ibm:params:oauth:grant-type:apikey",
         }
-    elif settings.di_env_mode.upper() == ENV_MODE_CPD:
+    elif env_mode == ENV_MODE_CPD:
         if not username:
             raise ExternalAPIError(
                 "For CPD, USERNAME has to be provided in the header if running the server under "
@@ -181,9 +185,10 @@ def get_request_body(api_key: str, username: str) -> dict:
 
 
 def get_header():
-    if settings.di_env_mode.upper() == ENV_MODE_SAAS:
+    env_mode = settings.di_env_mode.upper()
+    if env_mode == ENV_MODE_SAAS or env_mode == ENV_MODE_YPQA:
         return {"Content-Type": "application/x-www-form-urlencoded"}
-    elif settings.di_env_mode.upper() == ENV_MODE_CPD:
+    elif env_mode == ENV_MODE_CPD:
         return {"Content-Type": "application/json"}
     else:
         raise ExternalAPIError(
@@ -203,7 +208,8 @@ async def get_bearer_token_from_apikey(api_key: str, username: str) -> str:
     client = get_http_client()
 
     try:
-        if settings.di_env_mode.upper() == ENV_MODE_SAAS:
+        env_mode = settings.di_env_mode.upper()
+        if env_mode == ENV_MODE_SAAS or env_mode == ENV_MODE_YPQA:
             response = await client.post(
                 iam_url,
                 headers=headers,

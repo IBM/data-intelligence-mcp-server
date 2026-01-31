@@ -22,7 +22,7 @@ from app.shared.exceptions.base import ServiceError
 from app.shared.utils.helpers import get_closest_match, get_project_or_space_type_based_on_context, append_context_to_url, is_uuid
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.core.auth import get_bss_account_id, get_user_identifier
-from app.core.settings import settings
+from app.core.settings import settings, ENV_MODE_CPD
 
 METADATA_ARTIFACT_TYPE = "metadata.artifact_type"
 METADATA_NAME = "metadata.name"
@@ -32,6 +32,10 @@ ARTIFACT_TYPE_CATEGORY = "category"
 ARTIFACT_TYPE_DATA_ASSET = "data_asset"
 CATEGORY_UNCATEGORIZED = "uncategorized"
 
+PROJECT_TYPE_CPD = "cpd"
+RESPONSE_TYPE_DF = "df"
+RESPONSE_TYPE_CPDAAS = "cpdaas"
+RESPONSE_CONTEXT_ICP4DATA = "icp4data"
 
 async def find_project_id(project_name: str) -> str:
     """
@@ -233,7 +237,16 @@ async def get_platform_assets_catalog_id() -> str:
             "get_platform_assets_catalog_id failed to find the platform assets catalog"
         )
 
-
+def get_response_context(project_type: str) -> str:
+    if settings.di_env_mode.upper() == ENV_MODE_CPD:
+        return RESPONSE_CONTEXT_ICP4DATA
+    else:
+        return (
+            RESPONSE_TYPE_CPDAAS
+            if project_type == PROJECT_TYPE_CPD
+            else RESPONSE_TYPE_DF
+        )
+        
 def _build_container_from_response(
     response: dict, container_type: str, id_field: str = "guid"
 ):
@@ -252,11 +265,13 @@ def _build_container_from_response(
     
     container_id = response.get("metadata", {}).get(id_field, "")
     name = response.get("entity", {}).get("name", "")
-    
+    project_type = response.get("entity", {}).get("type", "")
+
     if container_type == "project":
+        context = get_response_context(project_type)
         url = append_context_to_url(
             f"{tool_helper_service.ui_base_url}/projects/{container_id}/overview",
-            settings.di_context
+            context
         )
         return Container(
             id=container_id,

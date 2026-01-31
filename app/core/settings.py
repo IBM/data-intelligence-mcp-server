@@ -16,6 +16,7 @@ from app.shared.models.ssl_config import SSLConfig, CertificateMode
 # Environment mode constants for case-insensitive comparisons
 ENV_MODE_SAAS = "SAAS"
 ENV_MODE_CPD = "CPD"
+ENV_MODE_YPQA = "YPQA" 
 
 
 class Settings(BaseSettings):
@@ -50,12 +51,12 @@ class Settings(BaseSettings):
     def valid_contexts(self) -> list[str]:
         """
         Returns the list of valid contexts based on the environment mode.
-        For SaaS: df, cpdaas
+        For SaaS/YPQA: df, cpdaas, wx
         For CPD: df, cpd
         """
         if self.di_env_mode.upper() == ENV_MODE_CPD:
-            return ["df", "cpd"]
-        else:  # SaaS
+            return ["df", "cpd", "wx", "icp4data"]
+        else:  # SaaS or YPQA
             return ["df", "cpdaas","wx"]
 
     @property

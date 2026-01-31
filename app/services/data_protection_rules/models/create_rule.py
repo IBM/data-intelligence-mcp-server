@@ -4,6 +4,10 @@
 from pydantic import BaseModel, Field, model_validator
 from typing import Literal
 
+# ============================================================================
+# Models for Structured Rule Creation (CP4D)
+# ============================================================================
+
 class Entity(BaseModel):
     """A single RHS entity."""
     name: str = Field(..., description="Display name of the data class")
@@ -192,7 +196,8 @@ class PreviewMetadata(BaseModel):
         # Default: return cleaned value
         return clean_value
 
-class CreateRuleRequest(BaseModel):
+class StructuredCreateRuleRequest(BaseModel):
+    """Request for structured rule creation (CP4D)."""
     name: str
     description: str
     action: Literal["Allow", "Deny", "Transform"]
@@ -208,10 +213,30 @@ class CreateRuleRequest(BaseModel):
         description="Metadata for human-readable preview display"
     )
 
+# ============================================================================
+# Models for Natural Language Rule Creation (SaaS only)
+# ============================================================================
+
+class NaturalLanguageCreateRuleRequest(BaseModel):
+    """Request model for creating a data protection rule from natural language (SaaS only)."""
+    rule_description: str = Field(
+        ...,
+        description="Natural language description of the data protection rule to create"
+    )
+    preview_only: bool = Field(
+        default=True,
+        description="If true, only show preview; if false, create the rule. DEFAULT IS TRUE - always preview first!"
+    )
+
+# ============================================================================
+# Common Response Model
+# ============================================================================
+
 class CreateRuleResponse(BaseModel):
+    """Response model for rule creation."""
     success: bool
-    display_to_user: str
-    preview_json: dict | None = None
+    message: str
     rule_id: str | None = None
     url: str | None = None
     error: str | None = None
+    preview_json: dict | None = None

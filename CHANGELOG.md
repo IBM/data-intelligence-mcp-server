@@ -2,6 +2,20 @@
 
 > All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project **adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)**.
 
+## [0.5.1] - Jan 30th, 2026
+
+### Added
+- **Metadata Enrichment (MDE)**: `start_metadata_relationship_analysis` tool to initiate relationship analysis for metadata enrichment assets
+- **Prompt Templates**: Added Data Intelligence Tool Usage Guide - Prompt for using all Data Intelligence MCP tools correctly with workflow rules and best practices. Added as MCP prompt as well as prompt template samples in `PROMPTS_TEMPLATE_SAMPLES/` directory for MCP clients without prompt registration support 
+
+### Changed
+- **Data Protection Rules (DPS)**: Enhanced `create_data_protection_rule_from_text` tool to support SaaS environments with improved validation and error handling
+- Updated `search_data_product` tool descriptions and default filter values
+- **Authentication**: Enabled YPQA environment support for authentication and IAM token handling
+
+### Fixed
+- **Project Tools**: Fixed context parameter handling in `create_project` tool to correctly determine project type based on environment mode (CPD on-premises vs SaaS) and user-specified type, ensuring appropriate context values (`icp4data`, `cpdaas`, or `df`) are appended to project URLs. The `list_containers` tool now properly lists all projects with correct context values
+
 ## [0.5.0] - Jan 13th, 2026
 
 ### Added
@@ -13,7 +27,7 @@
 - `create_metadata_enrichment_asset` tool replaced by `create_or_update_metadata_enrichment_asset` which supports update also now
 - **Lineage Impact Analysis** prompt to perform impact analysis using data lineage to understand downstream and upstream dependencies
 - **Search Assets** prompt to get guidance on how to search for data assets effectively in catalogs or projects
-- Manual sample prompt templates available in `PROMPTS_SAMPLES/` directory for MCP clients without prompt registration support
+- Manual sample prompt templates available in `PROMPTS_TEMPLATE_SAMPLES/` directory for MCP clients without prompt registration support
 
 ### Changed
 - `add_or_edit_collaborator` tool default role changed from 'editor' to 'viewer'

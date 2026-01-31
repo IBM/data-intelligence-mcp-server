@@ -1,8 +1,9 @@
 service:
   name: data_protection_rules
-  description: "A description for the data_protection_rules service."
+  description: "Tools for creating and managing data protection rules to enforce data governance policies. This service enables defining rules based on asset attributes, data classes, and business classifications with configurable actions (allow/deny) to control data access and usage. Supports searching and filtering rules by name or description to maintain compliance and security across the data platform."
 system_instructions: |
-  High-level rules and instructions for the data protection rules service.
-  tools:
-    1. data_protection_rule_create: Create a new data protection rule.
-    2. data_protection_rule_search: Search data protection rule by query filter.
+  Tools for creating and managing data protection rules to enforce data governance policies. This service enables defining rules based on asset attributes, data classes, and business classifications with configurable actions (allow/deny) to control data access and usage. Supports searching and filtering rules by name or description to maintain compliance and security across the data platform.
+  
+  Data Protection Rules Tools:
+  1. create_data_protection_rule_from_text - Create a new data protection rule.
+  2. data_protection_rule_search - Search data protection rule by query filter.
