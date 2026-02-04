@@ -1,28 +1,233 @@
 # Copyright [2025] [IBM]
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
+# This file has been modified with the assistance of IBM Bob AI tool
+
 from typing import Literal
 from app.core.registry import service_registry
 from app.services.data_protection_rules.models.create_rule import (
-    CreateRuleRequest,
+    NaturalLanguageCreateRuleRequest,
+    StructuredCreateRuleRequest,
     CreateRuleResponse,
-    Rule,
-    RuleAction,
     TriggerCondition,
 )
 from app.core.settings import settings, ENV_MODE_SAAS
 from app.services.data_protection_rules.utils.check_rule_exists import check_rule_exists
-from app.services.data_protection_rules.utils.create_rule_util import create_rule_util
-from app.services.data_protection_rules.utils.search_rhs_terms import search_rhs_terms
+from app.services.data_protection_rules.utils.create_rule_util import (
+    create_rule_from_payload,
+    get_text_to_data_protect_rule,
+    validate_operator_compatibility,
+    validate_and_resolve_data_classes,
+    format_ambiguous_conditions_error,
+    build_trigger_array,
+    generate_preview_message,
+    execute_rule_creation,
+)
 from app.shared.logging.generate_context import auto_context
+from app.shared.logging import LOGGER
+from app.shared.exceptions.base import ExternalAPIError
+
+
+# ============================================================================
+# Natural Language Rule Creation (SaaS only)
+# ============================================================================
+
+# Message templates for natural language rule creation
+REFER_OBJECT_MESSAGE_TEMPLATE = (
+    "To create a data protection rule, a referenced object in your request has some issues.\n"
+    "**Reason:**\n {error_message}\n"
+)
+
+WRONG_RULE_FORMAT_MESSAGE_TEMPLATE = (
+    "**User input**: {user_input}, \n"
+    "Since your request couldn't be automatically converted into a valid data protection rule format, you'll need to define it more precisely. \n"
+    "**Example Rule Patterns:** \n"
+    "1. **Mask sensitive data:**  \n"
+    "Mask the CreditCardNumber column in the customer_transactions table for all users except those in the Fraud Analysts user group.\n "
+    "2. **Restrict access:** \n"
+    "Deny access to any data assets classified as Personally Identifiable Information in the employee_db schema for users who are not members of the HR_Managers user group. \n"
+    "3. **Filter data:**  \n"
+    "Filter rows from the loan_applications table where the credit_score column is below 600 whenever the user belongs to the ExternalPartners group. \n"
+    "\nPlease specify which type of rule you need and provide the exact details including:\n"
+    "- Table/schema name. \n"
+    "- Column name to protect. \n"
+    "- User groups, User name or Tag to include/exclude. \n"
+    "- Support governance artifacts: Data class, Business term, Classification. \n"
+    "- Specific protection action (mask column, deny access, filter rows, obfuscate column, substitute column.)")
 
 
 @service_registry.tool(
-    name="data_protection_rule_create",
-    description="""
-Create a data protection rule with automatic preview.
+    name="create_data_protection_rule_from_text",
+    description="""Create a data protection rule using natural language description (SaaS only).
 
-CRITICAL FOR AGENTS: This tool returns a 'display_to_user' field that MUST be shown
+USE THIS TOOL when user wants to create a new rule using natural language in SaaS environment.
+The system will automatically validate any referenced objects (classifications,
+user groups, etc.) and provide helpful error messages if they don't exist.
+
+DO NOT query for artifacts first - this tool handles validation automatically.
+DO NOT truncate user input, please use full user input as rule_description.
+
+WORKFLOW (call this tool twice):
+
+1. FIRST CALL - Preview Mode:
+   - Call with preview_only=true (this is the default)
+   - Tool returns formatted preview
+   - SHOW THE PREVIEW TO THE USER
+   - Then ask: "Would you like to create this rule? (yes/no)"
+
+2. SECOND CALL - Create Mode:
+   - After user confirms with "yes"
+   - Call again with preview_only=false and the EXACT SAME rule_description
+   - Tool creates the rule and returns rule_id and url
+
+DO NOT set preview_only=false without showing the preview and getting user confirmation.
+
+Args:
+    request: NaturalLanguageCreateRuleRequest with rule_description and preview_only flag
+
+Returns:
+    CreateRuleResponse with success status and message
+""",
+    tags={"create", "data_protection_rules", "natural_language", "saas"},
+    meta={"version": "1.0", "service": "data_protection_rules"},
+)
+@auto_context
+async def create_data_protection_rule_from_text(request: NaturalLanguageCreateRuleRequest) -> CreateRuleResponse:
+    """Handle create data protection rule requests from natural language (SaaS only)."""
+    
+    # Check if SaaS mode
+    if settings.di_env_mode.upper() != ENV_MODE_SAAS:
+        return CreateRuleResponse(
+            success=False,
+            message="Natural language rule creation is only supported in SaaS mode. Please use the structured rule creation tool for CP4D.",
+            error="Not supported in CP4D"
+        )
+    
+    if not request.rule_description:
+        return CreateRuleResponse(
+            success=False,
+            message="Rule description is required",
+            error="Rule description is required"
+        )
+    
+    LOGGER.info(f"Create Data Protection Rule from text, input: {request.rule_description}, preview_only: {request.preview_only}")
+    
+    try:
+        common_message = WRONG_RULE_FORMAT_MESSAGE_TEMPLATE.format(user_input=request.rule_description)
+        
+        # Extract structured parameters from natural language
+        structured_params = await get_text_to_data_protect_rule(request.rule_description)
+        
+        if not structured_params.get("rule_json"):
+            return CreateRuleResponse(
+                success=False,
+                message=common_message,
+                error="Failed to parse rule description"
+            )
+        
+        # Check for validation failures
+        status = structured_params.get("status", "")
+        if "failed" in status:
+            LOGGER.warning(f"Validation failed for DPS rule create: {structured_params.get('message')}")
+            message = REFER_OBJECT_MESSAGE_TEMPLATE.format(error_message=structured_params.get('message'))
+            return CreateRuleResponse(
+                success=False,
+                message=message,
+                error=structured_params.get('message')
+            )
+        
+        if "error" in status:
+            LOGGER.warning(f"Error in DPS rule create: {structured_params.get('message')}")
+            return CreateRuleResponse(
+                success=False,
+                message=structured_params.get('message', 'Unknown error occurred'),
+                error=structured_params.get('message')
+            )
+        
+        # Create summary for preview
+        rule_json = structured_params['rule_json']
+        summary = (
+            f"**Name**: {rule_json.get('name', 'N/A')}. \n"
+            f"**Description**: {rule_json.get('description', 'N/A')}. \n"
+            f"**Action**: {rule_json.get('action', 'N/A')}. \n"
+            f"**Trigger**: {rule_json.get('trigger', 'N/A')}"
+        )
+        
+        # Get the payload for rule creation
+        payload = structured_params.get('rule_map_json', {})
+        
+        # PREVIEW MODE - Show preview and ask for confirmation
+        if request.preview_only:
+            preview_msg = f"""**RULE PREVIEW**
+
+                            Ready to create data protection rule:
+                            {summary}
+                            
+                            Do you want to proceed? Reply **yes** to confirm or **no** to cancel.
+                            """
+            return CreateRuleResponse(
+                success=True,
+                message=preview_msg,
+                preview_json=payload
+            )
+        
+        # CREATE MODE - Actually create the rule
+        result = await create_rule_from_payload(payload)
+        
+        # Build URL based on environment
+        if settings.di_env_mode.upper() == ENV_MODE_SAAS:
+            url_prefix = str(settings.di_service_url).replace("https://api.",
+                                                              "https://") + "/governance/rules/dataProtection/view/"
+        else:
+            url_prefix = str(settings.di_service_url) + "/gov/rules/dataProtection/view/"
+        
+        # Handle successful creation
+        if result["success"] and result["guid"]:
+            rule_id = result["guid"]
+            rule_url = url_prefix + rule_id
+            success_message = f"\n✅ **Rule created successfully!**\n\n**Name**: {result['name']}. \n**View the rule**: {rule_url}"
+            return CreateRuleResponse(
+                success=True,
+                message=success_message,
+                rule_id=rule_id,
+                url=rule_url
+            )
+        else:
+            error_message = f"Data protection rule API returned success but missing expected metadata, response: {result['response']}"
+            return CreateRuleResponse(
+                success=False,
+                message=error_message,
+                error=error_message
+            )
+    
+    except ExternalAPIError as e:
+        error_msg = f"Failed to create rule due to external API error: {str(e)}"
+        LOGGER.error(error_msg)
+        return CreateRuleResponse(
+            success=False,
+            message=error_msg,
+            error=str(e)
+        )
+    except Exception as e:
+        error_msg = f"Failed in rule creation: {str(e)}"
+        LOGGER.error(error_msg)
+        return CreateRuleResponse(
+            success=False,
+            message=error_msg,
+            error=str(e)
+        )
+
+
+# ============================================================================
+# Structured Rule Creation (CP4D)
+# ============================================================================
+
+@service_registry.tool(
+    name="create_data_protection_rule",
+    description="""
+Create a data protection rule with automatic preview (works in CP4D).
+
+CRITICAL FOR AGENTS: This tool returns a 'message' field that MUST be shown
 to the user exactly as returned. DO NOT summarize, paraphrase, or rewrite it.
 Show the full text to the user so they can see the complete preview.
 
@@ -36,8 +241,8 @@ WORKFLOW (call this tool twice):
 
 1. FIRST CALL - Preview Mode:
    - Call with preview_only=true (this is the default)
-   - Tool returns formatted preview in 'display_to_user' field
-   - SHOW THE ENTIRE 'display_to_user' TEXT TO THE USER
+   - Tool returns formatted preview in 'message' field
+   - SHOW THE ENTIRE 'message' TEXT TO THE USER
    - Then ask: "Would you like to create this rule? (yes/no)"
 
 2. SECOND CALL - Create Mode:
@@ -49,128 +254,43 @@ DO NOT set preview_only=false without showing the preview and getting user confi
 """,
 )
 @auto_context
-async def create_rule(input: CreateRuleRequest) -> CreateRuleResponse:
+async def create_rule(input: StructuredCreateRuleRequest) -> CreateRuleResponse:
+    """Create a data protection rule with structured parameters (works in CP4D)."""
+    
+    # Check if CP4D mode - structured creation only supported in CP4D
+    if settings.di_env_mode.upper() == ENV_MODE_SAAS:
+        return CreateRuleResponse(
+            success=False,
+            message="Structured rule creation is only supported in CP4D mode. Please use the natural language rule creation tool for SaaS.",
+            error="Not supported in SaaS"
+        )
+    
     # Validate rule name doesn't exist
     if await check_rule_exists(input.name):
         return CreateRuleResponse(
             success=False,
-            display_to_user=f"Error: A rule named '{input.name}' already exists. Please choose a different name.",
+            message=f"Error: A rule named '{input.name}' already exists. Please choose a different name.",
             error="Rule name already exists",
         )
 
-    # VALIDATION: Check operator compatibility with field types
-    for idx, cond in enumerate(input.conditions):
-        # Data classes and tags MUST use CONTAINS operator
-        if cond.field in ["Asset.InferredClassification", "Asset.Tags"]:
-            if cond.operator != "CONTAINS":
-                field_name = "Data class" if cond.field == "Asset.InferredClassification" else "Tags"
-                return CreateRuleResponse(
-                    success=False,
-                    display_to_user=f"❌ Error in condition #{idx + 1}: {field_name} must use 'CONTAINS' operator.\n\nYou used: '{cond.operator}'\nRequired: 'CONTAINS'\n\nPlease retry with operator='CONTAINS'",
-                    error=f"Invalid operator for {cond.field}: {cond.operator}. Must use CONTAINS.",
-                )
+    # Validate operator compatibility
+    error_response = await validate_operator_compatibility(input.conditions)
+    if error_response:
+        return error_response
 
-    # VALIDATION: Check ALL data class conditions for ambiguity
-    ambiguous_conditions = []
-
-    for idx, cond in enumerate(input.conditions):
-        if cond.field == "Asset.InferredClassification":
-            value = cond.value
-
-            # If value doesn't look like a globalid (should be long UUID-like string)
-            if not value.startswith("$") or len(value) < 20:
-                # Search to see if this matches multiple data classes
-                try:
-                    search_result = await search_rhs_terms(
-                        value.lstrip("$"), "data_class"
-                    )
-
-                    if search_result.total_count == 0:
-                        return CreateRuleResponse(
-                            success=False,
-                            display_to_user=f"No data class found matching '{value}' in condition #{idx + 1}. Please use search_terms to find valid data classes.",
-                            error="Data class not found",
-                        )
-
-                    if search_result.total_count > 1:
-                        # Track this ambiguous condition
-                        ambiguous_conditions.append(
-                            {
-                                "index": idx + 1,
-                                "value": value,
-                                "matches": search_result.entities,
-                            }
-                        )
-
-                    # If exactly 1 match, auto-fix it with the correct globalid
-                    if search_result.total_count == 1:
-                        matched_entity = search_result.entities[0]
-                        cond.value = matched_entity.global_id
-                        # Store the display name in metadata for preview
-                        input.metadata.data_class_names[matched_entity.global_id] = matched_entity.name
-
-                except Exception:
-                    # If validation fails, continue (maybe it's already a valid globalid)
-                    pass
-
-    # If we found ANY ambiguous conditions, reject and ask for ALL of them
+    # Validate and resolve data class references
+    error_response, ambiguous_conditions = await validate_and_resolve_data_classes(
+        input.conditions, input.metadata
+    )
+    if error_response:
+        return error_response
+    
+    # Handle ambiguous conditions
     if ambiguous_conditions:
-        ambiguous_text = []
-        for amb in ambiguous_conditions:
-            matches_text = "\n".join(
-                [
-                    f"   {i + 1}. **{e.name}** (globalid: `{e.global_id}`)"
-                    for i, e in enumerate(amb["matches"])
-                ]
-            )
-            ambiguous_text.append(f"""**Condition #{amb["index"]}:** '{amb["value"]}'
-Found {len(amb["matches"])} matches:
-{matches_text}
-""")
-
-        all_ambiguous = "\n\n".join(ambiguous_text)
-
-        return CreateRuleResponse(
-            success=False,
-            display_to_user=f"""Ambiguous data class reference(s) found:
-
-{all_ambiguous}
-
-Please specify which data class to use for each condition.
-
-Example: "For condition 1 use SSN-US, for condition 2 use Email Address"
-""",
-            error="Ambiguous data class references - multiple matches found",
-        )
+        return format_ambiguous_conditions_error(ambiguous_conditions)
 
     # Build trigger array
-    trigger = []
-    for i, cond in enumerate(input.conditions):
-        lhs = f"${cond.field}"
-        rhs = cond.value
-
-        # Add prefixes based on field type
-        if cond.field in ["Asset.Name", "Asset.Owner", "Asset.Tags"]:
-            if not rhs.startswith("#"):
-                rhs = f"#{rhs}"
-        elif cond.field == "Asset.InferredClassification":
-            if not rhs.startswith("$"):
-                rhs = f"${rhs}"
-
-        # CONTAINS operator needs array format
-        if cond.operator == "CONTAINS":
-            rhs = [rhs]
-
-        part = [lhs, cond.operator, rhs]
-
-        if cond.negate:
-            part = ["NOT", part]
-
-        trigger.append(part)
-
-        # Add combine operator between conditions (use combine_with from input)
-        if i < len(input.conditions) - 1:
-            trigger.append(input.combine_with)
+    trigger = build_trigger_array(input.conditions, input.combine_with)
 
     # Build rule structure
     rule_dict = {
@@ -182,111 +302,29 @@ Example: "For condition 1 use SSN-US, for condition 2 use Email Address"
         "governance_type_id": "Access",
     }
 
-    # PREVIEW MODE - Use metadata for human-readable display
+    # PREVIEW MODE
     if input.preview_only:
-        conditions_text = []
-        for c in input.conditions:
-            # Get display-friendly field name
-            field_display = input.metadata.get_field_display_name(c.field)
-
-            # Get display-friendly value
-            # For data classes without metadata, try to fetch the name on-the-fly
-            if c.field == "Asset.InferredClassification":
-                clean_value = c.value.lstrip("$")
-                # If not in metadata, try to look it up for display
-                if clean_value not in input.metadata.data_class_names:
-                    try:
-                        # Try searching by global_id directly
-                        search_result = await search_rhs_terms(clean_value, "data_class")
-                        if search_result.total_count >= 1:
-                            # Use the first match's name
-                            value_display = search_result.entities[0].name
-                        else:
-                            # If no results, just show the clean value without $
-                            value_display = clean_value
-                    except Exception:
-                        # If lookup fails, show the clean value without $
-                        value_display = clean_value
-                else:
-                    value_display = input.metadata.get_value_display(c.field, c.value)
-            else:
-                value_display = input.metadata.get_value_display(c.field, c.value)
-
-            # Build the condition string
-            negate_prefix = "NOT " if c.negate else ""
-            condition_str = f"{negate_prefix}{field_display} {c.operator} '{value_display}'"
-            conditions_text.append(condition_str)
-
-        # Show how conditions are combined
-        combine_text = f" {input.combine_with} ".join(conditions_text)
-
-        preview_msg = f"""**RULE PREVIEW**
-
-**Name:** {input.name}
-**Action:** {input.action}
-**State:** {input.state}
-**Description:** {input.description}
-
-**Conditions (combined with {input.combine_with}):**
-{chr(10).join(f"- {c}" for c in conditions_text)}
-
-**Logic:** {combine_text}
-
----
-
-Ready to create this rule? Reply **yes** to confirm or **no** to cancel.
-"""
+        preview_msg = await generate_preview_message(input, input.conditions, input.metadata)
         return CreateRuleResponse(
-            success=True, display_to_user=preview_msg, preview_json=rule_dict
+            success=True, message=preview_msg, preview_json=rule_dict
         )
 
-    # CREATE MODE - Actually create the rule
-    try:
-        rule = Rule(
-            name=input.name,
-            description=input.description,
-            trigger=trigger,
-            action=RuleAction(name=input.action),
-            state=input.state,
-            governance_type_id="Access",
-        )
-
-        rule_id = await create_rule_util(rule)
-
-        if settings.di_env_mode.upper() == ENV_MODE_SAAS:
-            url_prefix = settings.di_service_url.replace("https://api.", "https://") + "/governance/rules/dataProtection/view/"
-        else:
-            url_prefix = settings.di_service_url + "/gov/rules/dataProtection/view/"
-
-        url = url_prefix + rule_id
-        success_msg = f"""✅ **Rule created successfully!**
-
-**Name:** {input.name}
-**Rule ID:** {rule_id}
-**Status:** {input.state}
-**URL:** {url}
-
-The rule is now active in your governance system.
-"""
-
-        return CreateRuleResponse(
-            success=True, display_to_user=success_msg, rule_id=rule_id, url=url
-        )
-
-    except Exception as e:
-        return CreateRuleResponse(
-            success=False,
-            display_to_user=f"Failed to create rule: {str(e)}",
-            error=str(e),
-        )
+    # CREATE MODE
+    url_prefix = (
+        str(settings.di_service_url).replace("https://api.", "https://") + "/governance/rules/dataProtection/view/"
+        if settings.di_env_mode.upper() == ENV_MODE_SAAS
+        else str(settings.di_service_url) + "/gov/rules/dataProtection/view/"
+    )
+    
+    return await execute_rule_creation(input, trigger, url_prefix)
 
 
 @service_registry.tool(
-    name="data_protection_rule_create",
+    name="create_data_protection_rule",
     description="""
 Create a data protection rule with automatic preview (Watsonx Orchestrator compatible).
 
-⚠️ CRITICAL FOR AGENTS: This tool returns a 'display_to_user' field that MUST be shown
+⚠️ CRITICAL FOR AGENTS: This tool returns a 'message' field that MUST be shown
 to the user exactly as returned. DO NOT summarize, paraphrase, or rewrite it.
 Show the full text to the user so they can see the complete preview.
 
@@ -374,8 +412,8 @@ WORKFLOW - TWO STEP PROCESS (MANDATORY!)
 
 STEP 1 - PREVIEW MODE (ALWAYS DO THIS FIRST):
    - ALWAYS set preview_only=true on your FIRST call
-   - Tool returns formatted preview in 'display_to_user' field
-   - SHOW THE ENTIRE 'display_to_user' TEXT TO THE USER
+   - Tool returns formatted preview in 'message' field
+   - SHOW THE ENTIRE 'message' TEXT TO THE USER
    - Ask user: "Would you like to create this rule? (yes/no)"
    - WAIT for user confirmation
 
@@ -411,7 +449,10 @@ async def wxo_create_rule(
     ctx=None
 ) -> CreateRuleResponse:
     """
-    Watsonx Orchestrator compatible version that expands CreateRuleRequest object into individual parameters.
+    Watsonx Orchestrator compatible version for STRUCTURED rule creation (works in CP4D).
+    
+    This function expands StructuredCreateRuleRequest object into individual parameters.
+    For natural language rule creation, you can also use wxo_create_rule_from_text.
 
     Args:
         name: Rule name
@@ -427,7 +468,7 @@ async def wxo_create_rule(
         preview_only: If true, only show preview; if false, create the rule. DEFAULT IS TRUE - always preview first!
 
     Returns:
-        CreateRuleResponse with success status and display_to_user message
+        CreateRuleResponse with success status and message
 
     Example for "deny when asset contains dataclass ssn and tag test":
         conditions = [
@@ -445,7 +486,7 @@ async def wxo_create_rule(
             }
         ]
     """
-
+    
     # SAFETY CHECK: If preview_only is False but this looks like a first call, force preview
     # Check if context suggests this is an initial request (not a confirmation)
     if not preview_only and ctx:
@@ -455,8 +496,8 @@ async def wxo_create_rule(
     # Convert condition dictionaries to TriggerCondition objects
     trigger_conditions = [TriggerCondition(**cond) for cond in conditions]
 
-    # Build the CreateRuleRequest object
-    request = CreateRuleRequest(
+    # Build the StructuredCreateRuleRequest object
+    request = StructuredCreateRuleRequest(
         name=name,
         description=description,
         action=action,
@@ -468,3 +509,54 @@ async def wxo_create_rule(
 
     # Call the original create_rule function
     return await create_rule(request)
+
+
+@service_registry.tool(
+    name="create_data_protection_rule_from_text",
+    description="""Create a data protection rule using natural language (Watsonx Orchestrator compatible, SaaS only).
+
+USE THIS TOOL when user wants to create a rule using natural language in SaaS environment.
+For CP4D or structured rule creation, use wxo_create_rule instead.
+
+WORKFLOW (call this tool twice):
+
+1. FIRST CALL - Preview Mode:
+   - Call with preview_only=true (this is the default)
+   - Tool returns formatted preview
+   - SHOW THE PREVIEW TO THE USER
+   - Then ask: "Would you like to create this rule? (yes/no)"
+
+2. SECOND CALL - Create Mode:
+   - After user confirms with "yes"
+   - Call again with preview_only=false and the EXACT SAME rule_description
+   - Tool creates the rule and returns rule_id and url
+
+Args:
+    rule_description: Natural language description of the rule
+    preview_only: If true, only show preview; if false, create the rule. DEFAULT IS TRUE
+
+Returns:
+    CreateRuleResponse with success status and message
+""",
+    tags={"create", "data_protection_rules", "natural_language", "saas", "wxo"},
+    meta={"version": "1.0", "service": "data_protection_rules"},
+)
+@auto_context
+async def wxo_create_rule_from_text(
+    rule_description: str,
+    preview_only: bool = True
+) -> CreateRuleResponse:
+    """
+    Watsonx Orchestrator compatible version for NATURAL LANGUAGE rule creation (SaaS only).
+    
+    This function expands NaturalLanguageCreateRuleRequest object into individual parameters.
+    For structured rule creation or CP4D, use wxo_create_rule instead.
+    """
+    
+    request = NaturalLanguageCreateRuleRequest(
+        rule_description=rule_description,
+        preview_only=preview_only
+    )
+    
+    # Call the natural language create function
+    return await create_data_protection_rule_from_text(request)

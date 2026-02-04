@@ -12,6 +12,7 @@ from app.services.data_product.models.attach_contract_to_data_product import (
     CreateAndAttachCustomContractRequest,
 )
 from app.services.data_product.utils.common_utils import add_catalog_id_suffix
+from app.services.tool_utils import validate_url
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.logging import LOGGER, auto_context
 
@@ -34,6 +35,9 @@ async def attach_url_contract_to_data_product(
     LOGGER.info(
         f"In the data_product_attach_url_contract_to_data_product tool, attaching URL contract {request.contract_url} with name {request.contract_name} to the data product draft {request.data_product_draft_id}."
     )
+    
+    # Validate contract URL format
+    validate_url(request.contract_url)
     
     # step 1: attach the URL contract to data product draft
     payload = {

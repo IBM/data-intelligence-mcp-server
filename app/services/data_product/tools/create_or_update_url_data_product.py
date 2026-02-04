@@ -18,6 +18,7 @@ from app.services.data_product.utils.data_product_creation_utils import (
     create_part_asset_and_set_relationship,
 )
 from app.services.data_product.utils.common_utils import get_dph_catalog_id_for_user, get_data_product_url
+from app.services.tool_utils import validate_url
 from app.shared.logging import LOGGER, auto_context
 
 
@@ -42,6 +43,10 @@ async def create_or_update_url_data_product(
     LOGGER.info(
         f"In the data_product_create_or_update_url_data_product tool, creating URL data product with name {request.name}, URL name {request.url_name} and URL value {request.url_value}."
     )
+    
+    # Validate URL format
+    validate_url(request.url_value)
+    
     if is_data_product_draft_create(request):
         LOGGER.info("This is a data product draft creation.")
         validate_inputs_for_draft_create(request, "url_value", "url_name")

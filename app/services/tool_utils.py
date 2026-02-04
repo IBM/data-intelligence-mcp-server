@@ -4,7 +4,9 @@
 
 import json
 import asyncio
+import ipaddress
 from typing import Literal
+from urllib.parse import urlparse
 from app.services.constants import (
     CONNECTIONS_BASE_ENDPOINT,
     PROJECTS_BASE_ENDPOINT,
@@ -22,7 +24,7 @@ from app.shared.exceptions.base import ServiceError
 from app.shared.utils.helpers import get_closest_match, get_project_or_space_type_based_on_context, append_context_to_url, is_uuid
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.core.auth import get_bss_account_id, get_user_identifier
-from app.core.settings import settings
+from app.core.settings import settings, ENV_MODE_CPD
 
 METADATA_ARTIFACT_TYPE = "metadata.artifact_type"
 METADATA_NAME = "metadata.name"
@@ -32,6 +34,10 @@ ARTIFACT_TYPE_CATEGORY = "category"
 ARTIFACT_TYPE_DATA_ASSET = "data_asset"
 CATEGORY_UNCATEGORIZED = "uncategorized"
 
+PROJECT_TYPE_CPD = "cpd"
+RESPONSE_TYPE_DF = "df"
+RESPONSE_TYPE_CPDAAS = "cpdaas"
+RESPONSE_CONTEXT_ICP4DATA = "icp4data"
 
 async def find_project_id(project_name: str) -> str:
     """
@@ -233,7 +239,16 @@ async def get_platform_assets_catalog_id() -> str:
             "get_platform_assets_catalog_id failed to find the platform assets catalog"
         )
 
-
+def get_response_context(project_type: str) -> str:
+    if settings.di_env_mode.upper() == ENV_MODE_CPD:
+        return RESPONSE_CONTEXT_ICP4DATA
+    else:
+        return (
+            RESPONSE_TYPE_CPDAAS
+            if project_type == PROJECT_TYPE_CPD
+            else RESPONSE_TYPE_DF
+        )
+        
 def _build_container_from_response(
     response: dict, container_type: str, id_field: str = "guid"
 ):
@@ -252,11 +267,13 @@ def _build_container_from_response(
     
     container_id = response.get("metadata", {}).get(id_field, "")
     name = response.get("entity", {}).get("name", "")
-    
+    project_type = response.get("entity", {}).get("type", "")
+
     if container_type == "project":
+        context = get_response_context(project_type)
         url = append_context_to_url(
             f"{tool_helper_service.ui_base_url}/projects/{container_id}/overview",
-            settings.di_context
+            context
         )
         return Container(
             id=container_id,
@@ -671,6 +688,79 @@ def confirm_list_str(list_or_str: list[str] | str) -> list[str]:
             list_or_str = [list_or_str]
 
     return list_or_str
+
+
+def validate_url(url: str) -> None:
+    """
+    Validates if the provided string is a valid URL with proper format.
+    Validates both the URL structure and the hostname/IP address according to RFC standards.
+    
+    Args:
+        url (str): The URL string to validate.
+    
+    Raises:
+        ServiceError: If the URL format is invalid or scheme is not https.
+    """
+    try:
+        parsed_url = urlparse(url)
+        
+        # Check if URL has both scheme (https) and netloc (domain)
+        if not parsed_url.scheme or not parsed_url.netloc:
+            raise ServiceError(
+                f"Invalid URL format: '{url}'. URL must include a scheme (https://) and a domain."
+            )
+        
+        # Validate that scheme is https only
+        if parsed_url.scheme != 'https':
+            raise ServiceError(
+                f"Invalid URL scheme: '{parsed_url.scheme}'. Only https scheme is supported."
+            )
+        
+        # Validate hostname/IP address
+        host = parsed_url.hostname  # strips port safely
+        if not host:
+            raise ServiceError(
+                f"Invalid URL format: '{url}'. Unable to extract valid hostname."
+            )
+        
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            # Not an IP address, validate as hostname
+            # Hostname validation according to RFC 1123
+            _validate_host_name(host, url)
+                           
+    except ServiceError:
+        # Re-raise ServiceError as-is
+        raise
+    except Exception as e:
+        raise ServiceError(
+            f"Invalid URL format: '{url}'. Please provide a valid URL. Error: {str(e)}"
+        )
+
+
+def _validate_host_name(host: str, url: str) -> None:
+    """Validate hostname according to RFC 1123."""
+    if len(host) > 253:
+        raise ServiceError(
+            f"Invalid URL format: '{url}'. Hostname exceeds maximum length of 253 characters."
+        )
+    
+    labels = host.split(".")
+    for label in labels:
+        if not label or len(label) > 63:
+            raise ServiceError(
+                f"Invalid URL format: '{url}'. Hostname label '{label}' is invalid (empty or exceeds 63 characters)."
+            )
+        if label[0] == "-" or label[-1] == "-":
+            raise ServiceError(
+                f"Invalid URL format: '{url}'. Hostname label '{label}' cannot start or end with a hyphen."
+            )
+        # Validate label contains only alphanumeric and hyphens
+        if not all(c.isalnum() or c == '-' for c in label):
+            raise ServiceError(
+                f"Invalid URL format: '{url}'. Hostname label '{label}' contains invalid characters."
+            )
 
 
 async def find_category_id(category_name: str) -> str:

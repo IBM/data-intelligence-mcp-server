@@ -1,8 +1,10 @@
 service:
   name: text_to_sql
-  description: "Tools for creating assets and generating queries from SQL."
+  description: "Tools for converting natural language queries into SQL statements and creating data assets from SQL queries. This service enables AI-powered SQL generation from plain text descriptions, automatic schema discovery, and asset creation from SQL query results. Supports project enablement for text-to-SQL capabilities, making database querying accessible through natural language interfaces."
 system_instructions: |
-  Text-to-SQL service tools:
+  Tools for converting natural language queries into SQL statements and creating data assets from SQL queries. This service enables AI-powered SQL generation from plain text descriptions, automatic schema discovery, and asset creation from SQL query results. Supports project enablement for text-to-SQL capabilities, making database querying accessible through natural language interfaces.
+  
+  Text-to-SQL Tools:
   1. text_to_sql_create_asset_from_sql_query → create a new asset from a SQL query (only if explicitly requested).
   2. text_to_sql_generate_sql_query → generate a SQL query from a natural language request and schema.
   2. text_to_sql_enable_project_for_text_to_sql → enable projecct for Text to SQL processing.

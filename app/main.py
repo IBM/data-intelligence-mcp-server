@@ -50,25 +50,51 @@ def _import_modules_from_path(module_path: Path, package_prefix: str, module_typ
             print(f"Warning: Could not import {module_type} module '{module_name}': {e}", file=sys.stderr)
 
 
+def _load_tools_and_prompts(service_path: Path, service_name: str):
+    """Load tools and prompts from a service directory.
+    
+    Args:
+        service_path: Path to the service directory
+        service_name: Fully qualified service name (e.g., "app.services.search")
+    """
+    # Discover and import tools
+    tools_path = service_path / "tools"
+    _import_modules_from_path(tools_path, f"{service_name}.tools", "tool")
+    
+    # Discover and import prompts
+    prompts_path = service_path / "prompts"
+    _import_modules_from_path(prompts_path, f"{service_name}.prompts", "prompt")
+
+
 def discover_and_import_services(package):
     """Dynamically imports all tool and prompt modules to trigger registration decorators."""
     for _, service_name, _ in pkgutil.iter_modules(package.__path__, package.__name__ + "."):
         service_module = importlib.import_module(service_name)
         service_path = Path(service_module.__file__).parent
         
-        # Discover and import tools
-        tools_path = service_path / "tools"
-        _import_modules_from_path(tools_path, f"{service_name}.tools", "tool")
-        
-        # Discover and import prompts
-        prompts_path = service_path / "prompts"
-        _import_modules_from_path(prompts_path, f"{service_name}.prompts", "prompt")
+        # Special handling for 'internal' directory - recursively discover nested services
+        if service_name.endswith('.internal'):
+            for _, nested_service_name, _ in pkgutil.iter_modules([str(service_path)], f"{service_name}."):
+                nested_service_module = importlib.import_module(nested_service_name)
+                nested_service_path = Path(nested_service_module.__file__).parent
+                _load_tools_and_prompts(nested_service_path, nested_service_name)
+        else:
+            # Regular service discovery
+            _load_tools_and_prompts(service_path, service_name)
 
 
 def create_server() -> FastMCP:
     """Creates and configures the MCP server."""
     print("Discovering services...", file=sys.stderr)
     discover_and_import_services(app.services)
+    
+    # Import system-level prompts (not in service subdirectories)
+    system_prompts_loaded = False
+    try:
+        importlib.import_module("app.services.system_prompts")
+        system_prompts_loaded = True
+    except ImportError as e:
+        print(f"Warning: Could not import system prompts: {e}", file=sys.stderr)
 
     mcp = FastMCP("WXDI MCP Server", version="1.0.0")
 
@@ -84,6 +110,8 @@ def create_server() -> FastMCP:
     actual_prompt_count = prompt_registry.get_registered_count()
     
     if actual_prompt_count > 0:
+        if system_prompts_loaded:
+            print("✅ System prompts loaded.", file=sys.stderr)
         print(f"Registering {actual_prompt_count} discovered prompts...", file=sys.stderr)
         print("✅ Prompt registration complete.", file=sys.stderr)
 

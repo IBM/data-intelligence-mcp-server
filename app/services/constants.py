@@ -29,7 +29,7 @@ DATASOURCE_TYPES_BASE_ENDPOINT = "/v2/datasource_types"
 USER_PROFILES_BASE_ENDPOINT = "/v2/user_profiles"
 
 DPR_RULES = "/v3/enforcement/rules"
-
+DP_TRANSFORM = "/v4/enforcement-transform"
 CLOUD_IAM_ENDPOINT = "/identity/token"
 CPD_IAM_ENDPOINT = "/icp4d-api/v1/authorize"
 
