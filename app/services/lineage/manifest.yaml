@@ -2,8 +2,11 @@ service:
   name: lineage
   description: "This service contains tools to work with lineage history of an asset."
 system_instructions: |
-  For lineage questions, ALWAYS use these tools, not other tools:
-  - General rules for lineage tools:
+  This service contains tools to work with lineage history of an asset, enabling tracking of data flow, transformations, and dependencies across the data platform.
+  
+  Lineage Tools:
+  
+  General rules for lineage tools:
     - If user has no IDs, use search_lineage_assets first.
     - If user has asset ID and no container ID, use the asset ID as lineage ID and directly call get_lineage_graph tool. Don't call convert_to_lineage_id tool.
     - Do not pass an asset name to get_lineage_graph. Call search_lineage_assets first unless user passes a proper list of lineage Ids.
@@ -13,7 +16,7 @@ system_instructions: |
     - If user has project name but no container ID, do not call convert_to_lineage_id tool. Instead, use search_lineage_assets tool.
     - Always call search_lineage_assets before get_lineage_graph if users input is not a lineage Id like for example ['75f98515137593b49de589911f69974dc15c357730b6d6c3fb4ca90a118ef002']
 
-  - search_lineage_assets: Use when:
+  1. search_lineage_assets: Use when:
     - Finding assets in lineage system
     - Questions about data history or flow
     - User has no IDs and searches by name
@@ -22,7 +25,7 @@ system_instructions: |
     - User just wants assets without lineage
     - User already has lineage ID
 
-  - convert_to_lineage_id: Use when:
+  2. convert_to_lineage_id: Use when:
     - User has asset ID and container ID but needs lineage ID
     - User mentions "convert" or "lineage id"
     Don't use when:
@@ -31,7 +34,7 @@ system_instructions: |
     - Arguments are names
     - search_lineage_assets was already called
 
-  - get_lineage_graph: Use when:
+  3. get_lineage_graph: Use when:
     - User has lineage ID and wants to see the graph
     - User wants detailed lineage for a known asset
     - User wants to see upstream/downstream flow

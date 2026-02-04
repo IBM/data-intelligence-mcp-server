@@ -23,9 +23,7 @@ from app.services.search.models.container import (
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.helpers import get_project_or_space_type_based_on_context
-from app.core.settings import settings
 from app.services.tool_utils import _build_container_from_response
-
 
 def _parse_container_types(container_type_str: str) -> Set[str]:
     """
@@ -80,9 +78,6 @@ async def _list_single_container_type(container_type: str) -> List[Container]:
     
     if container_type == "project":
         params["bss_account_id"] = await get_bss_account_id()
-        project_type = get_project_or_space_type_based_on_context()
-        if project_type:
-            params["type"] = project_type
             
         response = await tool_helper_service.execute_get_request(
             url=str(tool_helper_service.base_url) + PROJECTS_BASE_ENDPOINT,

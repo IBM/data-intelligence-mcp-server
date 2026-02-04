@@ -12,6 +12,7 @@ from app.shared.utils.http_client import get_http_client
 from app.services.constants import JSON_CONTENT_TYPE
 from app.core.settings import settings, ENV_MODE_SAAS
 from app.shared.logging import LOGGER, auto_context
+from app.services.constants import SEARCH_PATH
 
 METADATA_NAME = "metadata.name"
 METADAT_DESCRIPTION = "metadata.description"
@@ -49,7 +50,7 @@ async def search_rules(
 
     try:
         response = await client.post(
-            url=f"{settings.di_service_url}/v3/search?role=viewer&auth_scope=all",
+            url=f"{settings.di_service_url}{SEARCH_PATH}?role=viewer&auth_scope=all",
             headers=headers,
             data=payload,
         )

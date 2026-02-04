@@ -1,8 +1,10 @@
 service:
   name: search
-  description: "Tools for searching artifacts and managing containers."
+  description: "Tools for discovering and exploring data assets, connections, and data source definitions across catalogs, projects, and spaces. This service enables comprehensive search capabilities to find assets by name, metadata, or attributes, retrieve detailed asset information. Also Lists containers across projects, spaces and catalog"
 system_instructions: |
-  Search service tools:
+  Tools for discovering and exploring data assets, connections, and data source definitions across catalogs, projects, and spaces. This service enables comprehensive search capabilities to find assets by name, metadata, or attributes, retrieve detailed asset information. Also Lists containers across projects, spaces and catalog.
+  
+  Search Tools:
   1. search_assets(catalog_id?, project_id?, query) → find assets in a catalog or project.
   2. get_asset_details(asset, catalog?, project?) → retrieve detailed metadata for a specific asset.
   3. list_containers(container_type?) → list all available containers (catalogs, projects, or spaces).

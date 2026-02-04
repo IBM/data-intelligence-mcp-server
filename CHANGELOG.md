@@ -2,6 +2,25 @@
 
 > All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project **adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)**.
 
+## [0.5.1] - Feb 4th, 2026
+
+### Added
+- **Metadata Enrichment (MDE)**: `start_metadata_relationship_analysis` tool to initiate relationship analysis for metadata enrichment assets
+- **Data Protection Rules (DPS)**: `data_protection_rule_search_governance_artifacts` tool to search for governance artifacts (classifications, data classes, or glossary terms/business terms) by query to find existing artifacts in IBM Knowledge Catalog
+- **Prompt Templates**: Added Data Intelligence Tool Usage Guide - Prompt for using all Data Intelligence MCP tools correctly with workflow rules and best practices. Added as MCP prompt as well as prompt template samples in `PROMPTS_TEMPLATE_SAMPLES/` directory for MCP clients without prompt registration support
+- **Prompt Templates**: Added Data Protection Rule Creation Guide (`create_rule_guide_prompt`) - Interactive prompt to guide users through creating data protection rules with configurable actions (deny/redact/filter row/anonymize/pseudonymize) and trigger conditions including user groups, governance artifacts, data assets, and tags. Includes governance artifact verification, rule preview, and step-by-step confirmation workflow
+
+### Changed
+- **Data Protection Rules (DPS)**: Replaced single `data_protection_rule_create` tool with two specialized tools with improved validation and error handling:
+  - `create_data_protection_rule_from_text` - Create data protection rules using natural language descriptions in SaaS environments. Automatically validates referenced objects (classifications, user groups, etc.) and converts natural language into structured rule format with a two-step workflow (preview then create)
+  - `create_data_protection_rule` - Create data protection rules with structured parameters in CP4D environments. Supports configurable trigger conditions (data classes, tags, asset names, business terms, owners) with operators (CONTAINS, LIKE), automatic validation of operator-field compatibility, and a two-step workflow with automatic preview generation before rule creation
+- **Data Product Hub (DPH)**: Updated `data_product_search_data_products` tool to search all data products including both releases and drafts
+- **Data Product Hub (DPH)**: URL validation for contract URLs in `data_product_attach_url_contract_to_data_product` tool to ensure valid URL format before attaching contracts to data products
+- **Data Product Hub (DPH)**: URL validation for data product URLs in `data_product_create_or_update_url_data_product` tool to ensure valid URL format when creating or updating URL-based data products
+
+### Fixed
+- **Project Tools**: Fixed context parameter handling in `create_project` tool to correctly determine project type based on environment mode (CPD on-premises vs SaaS) and user-specified type, ensuring appropriate context values (`icp4data`, `cpdaas`, or `df`) are appended to project URLs. The `list_containers` tool now properly lists all projects with correct context values
+
 ## [0.5.0] - Jan 13th, 2026
 
 ### Added
@@ -13,7 +32,7 @@
 - `create_metadata_enrichment_asset` tool replaced by `create_or_update_metadata_enrichment_asset` which supports update also now
 - **Lineage Impact Analysis** prompt to perform impact analysis using data lineage to understand downstream and upstream dependencies
 - **Search Assets** prompt to get guidance on how to search for data assets effectively in catalogs or projects
-- Manual sample prompt templates available in `PROMPTS_SAMPLES/` directory for MCP clients without prompt registration support
+- Manual sample prompt templates available in `PROMPTS_TEMPLATE_SAMPLES/` directory for MCP clients without prompt registration support
 
 ### Changed
 - `add_or_edit_collaborator` tool default role changed from 'editor' to 'viewer'

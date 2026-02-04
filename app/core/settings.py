@@ -50,11 +50,11 @@ class Settings(BaseSettings):
     def valid_contexts(self) -> list[str]:
         """
         Returns the list of valid contexts based on the environment mode.
-        For SaaS: df, cpdaas
-        For CPD: df, cpd
+        For SaaS: df, cpdaas, wx
+        For CPD: df, cpd, wx, icp4data
         """
         if self.di_env_mode.upper() == ENV_MODE_CPD:
-            return ["df", "cpd"]
+            return ["df", "cpd", "wx", "icp4data"]
         else:  # SaaS
             return ["df", "cpdaas","wx"]
 

@@ -1,19 +1,20 @@
 service:
   name: data_product
-  description: "Tools for managing data products."
+  description: "Tools for creating, managing, and publishing data products with comprehensive lifecycle management. This service enables creation of data products from URLs or container assets (catalogs/projects), attachment of business domains and contracts (URL-based or template-based), configuration of delivery methods, and publishing to make data products available for consumption. Supports searching existing data products and managing data contracts throughout the product lifecycle."
 system_instructions: |
-  This service deals with data product related tasks.
-  Tools available:-
-  data_product_create_or_update_url_data_product - Use this tool when user wants to create a URL data product or update an existing draft with a URL asset. Note that this tool creates a URL data product draft and should ask user if he wants to attach business domain and contract to the created draft.
-  data_product_get_assets_from_container - Use this tool to get assets from a container. Container can be "catalog" or "project".
-  data_product_create_or_update_from_asset_in_container - Use this tool when user wants to create a data product from an asset in container or update an existing draft with an asset from container. Container can be "catalog" or "project". Note that this tool creates a data product draft and should ask user if he wants to attach contract and business domain to the created draft.
-  data_product_attach_business_domain - Use this tool to attach business domain to a data product draft. Read the business domain to be attached from the user.
-  data_product_attach_url_contract - Use this tool to attach a url contract to a data product draft. Read the contract details to be attached from the user.
-  data_product_find_delivery_methods_based_on_connection - Use this tool to find delivery methods available in the catalog based on the connection. This tool lets the user choose from the available delivery methods. If the user does not know the delivery methods available, use this tool to help the user.
-  data_product_add_delivery_methods_to_data_product: Use this tool to add delivery methods to a data product draft. Read the delivery method details from the user. This tool should be called after data_product_find_delivery_methods_based_on_connection tool.
-  data_product_publish_data_product - Use this tool to publish a data product draft. Make sure to call this tool after all the required fields are filled in the data product draft, like name, domain, contract URL, delivery methods, etc.
-  data_product_search_data_products - Use this tool to search all data products to return data products that match the given search query.
-  data_product_get_data_contract - Use this tool to get data contract for the specified data product (draft/published (available)).
-  data_product_get_contract_templates - Use this tool to get all data contract templates available in the instance.
-  data_product_attach_contract_template_to_data_product - Use this tool to attach a contract template to a data product draft. Read the contract template name to be attached from the user. This tool receives the template ID from the context. If template ID is not known, use data_product_get_contract_templates to find the template ID.
-  data_product_create_and_attach_custom_contract - Use this tool to create and attach a custom contract (not from a template) to a data product draft. Read the contract details from the user.
+  Tools for creating, managing, and publishing data products with comprehensive lifecycle management. This service enables creation of data products from URLs or container assets (catalogs/projects), attachment of business domains and contracts (URL-based or template-based), configuration of delivery methods, and publishing to make data products available for consumption. Supports searching existing data products and managing data contracts throughout the product lifecycle.
+  
+  Data Product Tools:
+  1. data_product_create_or_update_url_data_product - Use this tool when user wants to create a URL data product or update an existing draft with a URL asset. Note that this tool creates a URL data product draft and should ask user if he wants to attach business domain and contract to the created draft.
+  2. data_product_get_assets_from_container - Use this tool to get assets from a container. Container can be "catalog" or "project".
+  3. data_product_create_or_update_from_asset_in_container - Use this tool when user wants to create a data product from an asset in container or update an existing draft with an asset from container. Container can be "catalog" or "project". Note that this tool creates a data product draft and should ask user if he wants to attach contract and business domain to the created draft.
+  4. data_product_attach_business_domain - Use this tool to attach business domain to a data product draft. Read the business domain to be attached from the user.
+  5. data_product_attach_url_contract - Use this tool to attach a url contract to a data product draft. Read the contract details to be attached from the user.
+  6. data_product_find_delivery_methods_based_on_connection - Use this tool to find delivery methods available in the catalog based on the connection. This tool lets the user choose from the available delivery methods. If the user does not know the delivery methods available, use this tool to help the user.
+  7. data_product_add_delivery_methods_to_data_product - Use this tool to add delivery methods to a data product draft. Read the delivery method details from the user. This tool should be called after data_product_find_delivery_methods_based_on_connection tool.
+  8. data_product_publish_data_product - Use this tool to publish a data product draft. Make sure to call this tool after all the required fields are filled in the data product draft, like name, domain, contract URL, delivery methods, etc.
+  9. data_product_search_data_products - Use this tool to search all data products to return data products that match the given search query.
+  10. data_product_get_data_contract - Use this tool to get data contract for the specified data product (draft/published (available)).
+  11. data_product_get_contract_templates - Use this tool to get all data contract templates available in the instance.
+  12. data_product_attach_contract_template_to_data_product - Use this tool to attach a contract template to a data product draft. Read the contract template name to be attached from the user. This tool receives the template ID from the context. If template ID is not known, use data_product_get_contract_templates to find the template ID.
+  13. data_product_create_and_attach_custom_contract - Use this tool to create and attach a custom contract (not from a template) to a data product draft. Read the contract details from the user.

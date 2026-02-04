@@ -2,7 +2,9 @@
 
 The IBM Data Intelligence MCP Server provides a modular and scalable implementation of the Model Context Protocol (MCP), purpose-built to integrate with IBM Data Intelligence services. It enables secure and extensible interaction between MCP clients and IBM’s data intelligence capabilities.
 
-For the list of tools supported in this version and sample prompts, refer to [TOOLS_PROMPTS.md](TOOLS_PROMPTS.md)
+For the list of `tools` supported in this version and sample prompts, refer to [TOOLS_PROMPTS.md](TOOLS_PROMPTS.md)
+
+> **Note**: For MCP clients that don't support `MCP prompts template` registration, manual prompt templates are available in the [`PROMPTS_TEMPLATE_SAMPLES/`](PROMPTS_TEMPLATE_SAMPLES/) directory.
 
 ```mermaid
 flowchart LR
@@ -21,7 +23,7 @@ flowchart LR
 Resources:
 - [Integrating Claude with Watsonx Data Intelligence](https://community.ibm.com/community/user/blogs/ramakanta-samal/2025/10/01/integrating-claude-with-watsonx-data-intelligence) A step-by-step guide showing how Claude Desktop connects to the Data Intelligence MCP Server.
 - [Watsonx Orchestrate + Data Intelligence](https://community.ibm.com/community/user/blogs/ramakanta-samal/2025/09/25/data) Demonstrates how Watsonx Orchestrate integrates with the MCP Server for automation.
-- [Ibm Bob + Data Intelligence](https://community.ibm.com/community/user/blogs/xixiang-chen/2025/10/15/integrating-bob-with-watsonx-data-intelligence)  A step-by-step guide showing how IBM Bob connects to the Data Intelligence MCP Server.
+- [IBM Bob + Data Intelligence](https://community.ibm.com/community/user/blogs/xixiang-chen/2025/10/15/integrating-bob-with-watsonx-data-intelligence)  A step-by-step guide showing how IBM Bob connects to the Data Intelligence MCP Server.
 ---
 
 ## Table of Contents

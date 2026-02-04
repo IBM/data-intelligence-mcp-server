@@ -45,8 +45,10 @@ Tools for managing data protection rules.
 
 | Tool Name                     | Description                    | Sample Prompt                                                                                                                | pypi version | CPD version |
 |-------------------------------|--------------------------------|------------------------------------------------------------------------------------------------------------------------------|-------------|-------------|
-| `data_protection_rule_create` | Creates data protection rules. | "create me data protection rule name  sample when the asset contains name test and dataclass contains ssn with action allow" | >=0.1.4 | >=5.2.1 |
-| `data_protection_rule_search` | Search data protection rules.  | "show me all data protection rules with Deny name"                                                                           | >=0.2.0 | >=5.2.1 |
+| `create_data_protection_rule_from_text` | Creates data protection rules using natural language description (SaaS only). Automatically validates referenced objects and provides helpful error messages. Uses a two-step workflow: preview first, then create after user confirmation. | "Create me a data protection rule named sample when the asset contains name test and dataclass contains ssn with action allow" or "Create a deny rule for assets with PII classification in the customer database" | >=0.5.1 | >=5.2.1 |
+| `create_data_protection_rule` | Creates data protection rules with structured parameters and automatic preview (CP4D). Supports conditions based on asset attributes, data classes, business terms, and tags. Uses a two-step workflow: preview first, then create after user confirmation. All conditions are combined with a single operator (AND or OR). | "Create a deny rule when asset contains dataclass ssn and tag sensitive" or "Create an allow rule for assets owned by admin user" | >=0.5.1 | >=5.2.1 |
+| `data_protection_rule_search` | Search data protection rules.  | "Show me all data protection rules with Deny name" or "Find rules related to customer data" | >=0.2.0 | >=5.2.1 |
+| `data_protection_rule_search_governance_artifacts` | Search for governance artifacts (classifications, data classes, or glossary terms/business terms) by query to find existing artifacts in IBM Knowledge Catalog. | "Find all classifications related to Personally Identifiable Information data" or "Look up glossary terms about customer information" or "Search for data classes social security data" or "Check if we already have a classification for sensitive personal data" | >=0.5.1 | >=5.2.1 |
 
 ## Data Quality Service
 
@@ -77,6 +79,7 @@ Tools for working with metadata enrichment assets.
 | `execute_metadata_enrichment_asset_for_selected_assets` | Executes a metadata enrichment by name in the specified project for the specified data assets. | "Execute the metadata enrichment `MDE_HR` for dataset `EMPLOYEE.csv` in the project `HR_GOVERNANCE`." | >=0.4.0 | >=5.2.1 |
 | `execute_data_quality_analysis_for_selected_assets` | Executes data quality analysis for selected assets in a project. | "Execute the data quality analysis for dataset `STAFF.csv` in the project `HR_GOVERNANCE` with category `Sales`." | >=0.4.0 | >=5.2.1 |
 | `execute_metadata_expansion_for_selected_assets` | Execute metadata expansion for selected assets in a project. | "Execute the metadata expansion for dataset `ORG.csv` in the project `HR_GOVERNANCE` with category `Finance`." | >=0.4.0 | >=5.2.1 |
+| `start_metadata_relationship_analysis` | Starts a relationship analysis for a metadata enrichment area (MDE). Supports primary key (PK) and foreign key (FK) analysis at shallow and deep levels, as well as overlap analysis. | "Start a deep primary key analysis for all datasets in MDE area `MDE_HR` in project `HR_GOVERNANCE`" or "Start a foreign key analysis for datasets `EMPLOYEE.csv` and `DEPARTMENT.csv` in MDE area `MDE_HR` in project `HR_GOVERNANCE` with 50% sampling" | >=0.5.1 | >=5.2.1 |
 
 ## Metadata Import Service
 
