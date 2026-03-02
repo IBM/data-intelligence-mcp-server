@@ -1,9 +1,14 @@
+# Copyright [2025] [IBM]
+# Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+# See the LICENSE file in the project root for license information.
+
 from app.core.registry import service_registry
 from app.services.search.models.search_data_source_definition import SearchDataSourceDefinitionRequest, SearchDataSourceDefinitionResponse
 
 from typing import List, Optional
 
 from app.shared.exceptions.base import ServiceError
+from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.services.tool_utils import (
     get_platform_assets_catalog_id, 
@@ -13,6 +18,7 @@ from app.services.tool_utils import (
 from app.shared.utils.helpers import is_uuid
 from app.shared.logging import LOGGER, auto_context
 from app.services.constants import ASSET_TYPE_BASE_ENDPOINT
+from app.shared.utils.utils_tools import format_connections_or_dsds_for_table
 
 @service_registry.tool(
     name="search_data_source_definition",
@@ -104,12 +110,14 @@ async def search_data_source_definition(
         )
         output.append(dsd)
 
-    if not output:
+    if output:
+        ui_message_context.add_table_ui_message(tool_name="search_data_source_definition", formatted_data=format_connections_or_dsds_for_table(output), title="Data source definitions")
+        return output
+    else:
         raise ServiceError(
             "Could not find data source definition(s)."
         )
 
-    return output
 
 @service_registry.tool(
     name="search_data_source_definition",

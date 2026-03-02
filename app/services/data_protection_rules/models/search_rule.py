@@ -1,4 +1,9 @@
+# Copyright [2025] [IBM]
+# Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+# See the LICENSE file in the project root for license information.
+
 from pydantic import BaseModel, Field
+from app.shared.models import BaseResponseModel
 from typing import Union, Literal, List
 
 class SearchDataProtectionRuleRequest(BaseModel):
@@ -12,6 +17,6 @@ class DataProtectionRule(BaseModel):
     modified_on: str
     url: str
 
-class SearchDataProtectionRuleResponse(BaseModel):
+class SearchDataProtectionRuleResponse(BaseResponseModel):
     count: int = Field(description="The number of data protection rules found.")
     data_protection_rules: List[DataProtectionRule]

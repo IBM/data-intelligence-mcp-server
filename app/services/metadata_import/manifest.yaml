@@ -21,5 +21,16 @@ system_instructions: |
      
      This tool creates a draft metadata import in a project. Requires project name, connection name, and scope (list of schema/table paths).
   
+  3. **execute_metadata_import** - Call ONLY when:
+     - User has created the metadata import (via create_metadata_import), OR
+     - User explicitly mentions an existing metadata import name to execute, OR
+     - User requests to run, execute, or start a metadata import
+     
+     This tool executes a pre-configured metadata import asset. It retrieves the asset's details, confirms its existence within the project,
+     and starts the import job. Returns information about the executed job including job ID, run ID, state, and a URL to monitor progress in the UI.
+     The metadata import asset must already exist in the project (either just created or pre-existing).
+     
+     If the provided metadata import name is not found, ask the user if they want to create a new metadata import using the create_metadata_import tool.
+  
   NEVER call create_metadata_import before list_connection_paths when schema discovery is needed.
   ALWAYS confirm the final scope with the user before creating the import.

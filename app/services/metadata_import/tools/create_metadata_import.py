@@ -75,7 +75,7 @@ async def create_metadata_import(input: CreateMetadataImportRequest) -> CreateMe
         scope = ["/"]
 
     project_id = await find_project_id(input.project_name)
-    connection_id = await find_connection_id(input.connection_name, project_id)
+    connection_id = await find_connection_id(input.connection_name, project_id, "project")
 
     # Construct the payload for the service call
     import_name = input.name if input.name else f"{input.project_name}_{input.connection_name}_import_{uuid.uuid4().hex[:2]}"

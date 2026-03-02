@@ -1,4 +1,9 @@
+# Copyright [2025] [IBM]
+# Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+# See the LICENSE file in the project root for license information.
+
 from pydantic import BaseModel, Field
+from app.shared.models import BaseResponseModel
 from typing import List, Literal
 
 
@@ -17,7 +22,7 @@ class GetAssetsFromContainerRequest(BaseModel):
         ..., description="Where to search - either 'project' or 'catalog'. This is a mandatory field."
     )
 
-class GetAssetsFromContainerResponse(BaseModel):
+class GetAssetsFromContainerResponse(BaseResponseModel):
     message: str = Field(
         ..., description="A message showing the number of assets found in the catalog."
     )

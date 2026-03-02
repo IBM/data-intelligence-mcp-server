@@ -2,7 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
+from app.shared.models import BaseResponseModel
 from typing import List, Optional
 
 from app.services.lineage.models.lineage_asset import LineageAsset
@@ -52,9 +54,17 @@ class SearchLineageAssetsRequest(BaseModel):
         None,
         description="Fill this optional value ONLY with the type of asset passed by the user",
     )
+    dates: Optional[str] = Field(
+        None,
+        description="""Two dates in ISO 8601 format separated by comma or space. This optional field should get value:
+            - If user mentions dates when assets should be valid
+            - If user mentions version comparison
+            - Format examples: "2025-01-01T00:00:00Z,2025-12-31T23:59:59Z" or "2025-01-01T00:00:00Z 2025-12-31T23:59:59Z"
+            - Can also be JSON array: '["2025-01-01T00:00:00Z","2025-12-31T23:59:59Z"]'""",
+    )
 
 
-class SearchLineageAssetsResponse(BaseModel):
+class SearchLineageAssetsResponse(BaseResponseModel):
     """Search lineage assets response  model"""
 
     lineage_assets: List[LineageAsset] = Field(

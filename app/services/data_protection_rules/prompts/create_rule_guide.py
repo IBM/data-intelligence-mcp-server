@@ -1,4 +1,4 @@
-# Copyright [2025] [IBM]
+# Copyright [2026] [IBM]
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -45,37 +45,53 @@ def create_rule_guide_prompt(
 
 1. **Analyze the Rule Requirements:**
    - Parse the rule description to extract the action (Deny/Redact/Filter Row/Anonymize/Pseudonymize)
-   - Identify the trigger conditions from the description (user groups, user names, governance artifacts, data assets name or schema, tags)
+   - Identify the trigger conditions from the description (user groups, user roles, user names, governance artifacts, data assets name or schema, tags)
    - Understand what data needs to be protected
    - Identify any governance artifacts needed (data classes, classifications, business terms)
+   - Identify any user-related conditions (user groups, user roles, user names)
 
-2. **Search for Required Governance Artifacts:**
+2. **Search for Required User Identities (if applicable):**
+   - Use the search_user_groups_roles tool with search_type parameter to find and verify user identities:
+     * For user groups: search_user_groups_roles(search_type="group", query="group_name")
+     * For user roles (CP4D only): search_user_groups_roles(search_type="role", query="role_name")
+     * For specific users: search_user_groups_roles(search_type="user", query="user_name_or_email")
+   - Provide the correct identifiers (group_id, role_key, or user_id) for any user-related conditions
+   - If user identities don't exist, inform the user and suggest alternatives or ask them to verify the names
+
+3. **Search for Required Governance Artifacts (if applicable):**
    - If the rule references data classes, classifications, or business terms, use the search_governance_artifacts tool to verify they exist
    - Provide the correct names and IDs for any governance artifacts
    - If artifacts don't exist, suggest creating them first or using alternative artifacts
 
-3. **Create the Rule with Preview:**
+4. **Create the Rule with Preview:**
    - Use create_data_protection_rule_from_text with structured parameters
    - ALWAYS set preview_only=true on the first call to show the preview
    - Display the complete preview to me for review
 
-4. **Confirm and Create:**
+5. **Confirm and Create:**
    - After I review the preview, ask if I want to proceed
    - If I confirm, call the same tool again with preview_only=false to create the rule
    - Provide the rule ID and URL for accessing the created rule
 
 **Expected Output:**
 * Analysis of the rule requirements and trigger conditions
-* List of governance artifacts needed (with verification status)
+* List of user identities needed (with verification status) - user groups, user roles, or user names
+* List of governance artifacts needed (with verification status) - data classes, classifications, business terms
 * Preview of the rule before creation
 * Confirmation prompt before actual creation
 * Final rule details with ID and access URL
 
 **Important Notes:**
-- Trigger conditions can include: user groups, user names, governance artifacts (data classes, classifications, business terms), data assets name or schema, and tags
+- Trigger conditions can include: user groups, user roles (CP4D only), user names, governance artifacts (data classes, classifications, business terms), data assets name or schema, and tags
+- ALWAYS search for user identities BEFORE creating the rule to ensure they exist
+- Use search_user_groups_roles tool with appropriate search_type:
+  * search_type="group" for user groups
+  * search_type="role" for user roles (CP4D only)
+  * search_type="user" for specific users by name or email
 - All conditions in a rule are combined with a single operator (AND or OR)
 - Complex nested logic like "(A AND B) OR C" is not supported
 - For data classes and tags, always use the CONTAINS operator
+- For user groups and user names, always use the CONTAINS operator
 - Available actions: Deny (block access), Redact (mask data), Filter Row (remove rows), Anonymize (remove identifiers), Pseudonymize (replace with pseudonyms)
 - Rules can be created in draft or active state
 - Preview the rule before creation to ensure it matches requirements

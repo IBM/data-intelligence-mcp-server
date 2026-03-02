@@ -4,63 +4,78 @@
 
 import time
 
-from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_result, RetryError
-
+from app.core.auth import get_bss_account_id, get_iam_url, get_user_identifier
 from app.core.registry import service_registry
-from app.services.constants import GEN_AI_ONBOARD_API, JOBS_BASE_ENDPOINT
+from app.services.constants import (
+    CATALOGS_BASE_ENDPOINT,
+    GEN_AI_ONBOARD_API,
+    GROUPS_BASE_ENDPOINT,
+    PROJECTS_BASE_ENDPOINT,
+)
 from app.services.text_to_sql.models.enable_project_for_text_to_sql import (
     EnableProjectForTextToSqlRequest,
     EnableProjectForTextToSqlResponse,
 )
-from app.services.tool_utils import find_project_id
-from app.shared.exceptions.base import ExternalAPIError, ServiceError
+from app.services.tool_utils import find_project_id, get_onboarding_job_run_url
+from app.shared.exceptions.base import ServiceError
 from app.shared.logging.generate_context import auto_context
 from app.shared.logging.utils import LOGGER
 from app.shared.utils.helpers import confirm_uuid
 from app.shared.utils.tool_helper_service import tool_helper_service
 
 
-async def _wait_for_onboarding_job_to_finish(job_id, run_id, project_id):
-    params = {"project_id": project_id}
+async def _is_admin_of_container(container_id, container_type) -> bool:
+    """
+    Check if the current user is an admin of the container.
 
-    @retry(
-        retry=retry_if_result(lambda result: result is True),
-        stop=stop_after_attempt(30),
-        wait=wait_fixed(10),
-        reraise=True,
+    Args:
+        container_id (str): ID of the container to check.
+        container_type (str): Type of the container.
+
+    Returns:
+    bool: True if the current user is an admin of the container, False otherwise.
+    """
+
+    params = {"roles": "admin"}
+    if container_type == "catalog":
+        params["limit"] = 100
+        params["member_type"] = "all"
+
+    response = await tool_helper_service.execute_get_request(
+        url=f"{tool_helper_service.base_url}{CATALOGS_BASE_ENDPOINT if container_type == 'catalog' else PROJECTS_BASE_ENDPOINT}/{container_id}/members",
+        params=params,
+        tool_name="enable_container_for_text_to_sql",
     )
-    async def check_job_status():
-        response = await tool_helper_service.execute_get_request(
-            url=f"{tool_helper_service.base_url}{JOBS_BASE_ENDPOINT}/{job_id}/runs/{run_id}",
-            params=params,
-        )
 
-        run_state = (
-            response.get("entity", {}).get("job_run", {}).get("state", "Running")
-        )
-
-        if run_state.lower() in ["completed", "completedwithwarnings"]:
-            return False
-        elif run_state.lower() in [
-            "failed",
-            "canceled",
-            "paused",
-            "completedwitherrors",
-        ]:
-            raise ExternalAPIError(
-                f"Tool enable_project_for_text_to_sql call finishes unsuccessfully because onboarding job had some failure for job_id: {job_id}, run_id: {run_id} in project: {project_id}. Please check the job status in the UI."
-            )
+    if [
+        member
+        for member in response.get("members", [])
+        if member.get("user_iam_id" if container_type == "catalog" else "id", "")
+        == await get_user_identifier()
+    ]:
         return True
 
-    try:
-        await check_job_status()
-        LOGGER.info(
-            "Onboarding job for project_id: %s completed successfully.", project_id
-        )
-    except RetryError:
-        raise ServiceError(
-            f"Tool enable_project_for_text_to_sql call finishes unsuccessfully because onboarding job is still running for job_id: {job_id}, run_id: {run_id} in project: {project_id}. Please check the job status in the UI."
-        )
+    # Filter group type container admin members
+    group_members = [
+        member.get("access_group_id" if container_type == "catalog" else "id", "")
+        for member in response.get("members", [])
+        if member.get("type", "") == "group" or "access_group_id" in member.keys()
+    ]
+    if not group_members:
+        return False
+
+    # Retrieve user's group memberships
+    response = await tool_helper_service.execute_get_request(
+        url=f"{get_iam_url()}{GROUPS_BASE_ENDPOINT}",
+        params={"account_id": await get_bss_account_id(), "limit": 100},
+        tool_name="enable_container_for_text_to_sql",
+    )
+
+    # Check if any of user's groups are container admin members
+    user_groups = [
+        user_group.get("id", "") for user_group in response.get("groups", [])
+    ]
+    return any([group_id in group_members for group_id in user_groups])
 
 
 @service_registry.tool(
@@ -71,11 +86,16 @@ async def _wait_for_onboarding_job_to_finish(job_id, run_id, project_id):
 async def enable_project_for_text_to_sql(
     input: EnableProjectForTextToSqlRequest,
 ) -> EnableProjectForTextToSqlResponse:
-    project_id = await confirm_uuid(input.project_id_or_name, find_project_id)
     LOGGER.info(
-        "Calling enable_project_for_text_to_sql, project_id: %s",
+        "Calling enable_project_for_text_to_sql, project_id_or_name: %s",
         input.project_id_or_name,
     )
+    project_id = await confirm_uuid(input.project_id_or_name, find_project_id)
+
+    if not await _is_admin_of_container(project_id, "project"):
+        raise ServiceError(
+            f"Tool enable_project_for_text_to_sql failed because user is not admin of project {input.project_id_or_name}"
+        )
 
     params = {
         "container_type": "project",
@@ -94,14 +114,11 @@ async def enable_project_for_text_to_sql(
         json=payload,
     )
 
-    await _wait_for_onboarding_job_to_finish(
-        job_id=response["job_id"],
-        run_id=response["run_id"],
-        project_id=project_id,
-    )
+    job_id = response.get("job_id", "")
+    run_id = response.get("run_id", "")
 
     return EnableProjectForTextToSqlResponse(
-        message=f"Project {project_id} has been enabled for Text to SQL."
+        message=f"UI link to the onboarding job for enabling Project {input.project_id_or_name} for Text To SQL {get_onboarding_job_run_url(project_id, job_id, run_id)}"
     )
 
 

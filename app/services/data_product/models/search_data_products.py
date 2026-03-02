@@ -1,4 +1,9 @@
+# Copyright [2025] [IBM]
+# Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+# See the LICENSE file in the project root for license information.
+
 from pydantic import BaseModel, Field
+from app.shared.models import BaseResponseModel
 from typing import Union, Literal, List
 
 
@@ -25,7 +30,7 @@ class DataProduct(BaseModel):
     data_asset_items: List
 
 
-class SearchDataProductsResponse(BaseModel):
+class SearchDataProductsResponse(BaseResponseModel):
     message: str = "Only maximum 20 products sorted by last updated are returned."
-    count: int = Field(description="The number of data products found. This can be more than 20, but maximum data products returnable is 20.")
-    data_products: List[DataProduct]
+    count: int = Field(default=0, description="The number of data products found. This can be more than 20, but maximum data products returnable is 20.")
+    data_products: List[DataProduct] = Field(default_factory=list, description="List of data products found.")

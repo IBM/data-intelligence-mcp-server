@@ -8,7 +8,9 @@
 Model for adding or editing collaborators to a project.
 """
 from typing import List, Literal, Optional
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel
+from pydantic import Field
+from app.shared.models import BaseResponseModel, field_validator, model_validator
 from typing import cast, Literal as LiteralType
 
 class AddOrEditCollaboratorRequest(BaseModel):
@@ -106,7 +108,7 @@ class CollaboratorMember(BaseModel):
     type: str = Field(default="user", description="Member type: 'user' or 'group'")
 
 
-class AddOrEditCollaboratorResponse(BaseModel):
+class AddOrEditCollaboratorResponse(BaseResponseModel):
     """Response model for adding or editing collaborators."""
     
     project_id: str = Field(..., description="The project ID where collaborators were added")

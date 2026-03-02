@@ -1,3 +1,7 @@
+# Copyright [2025] [IBM]
+# Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+# See the LICENSE file in the project root for license information.
+
 from app.core.registry import service_registry
 from app.services.search.models.search_connection import SearchConnectionRequest, SearchConnectionResponse
 
@@ -6,8 +10,10 @@ from urllib.parse import urlencode
 
 from app.shared.logging import LOGGER, auto_context
 from app.shared.exceptions.base import ServiceError
+from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.helpers import append_context_to_url, is_uuid
+from app.shared.utils.utils_tools import format_connections_or_dsds_for_table
 
 from app.services.constants import (
     AUTH_SCOPE_ALL_STR, 
@@ -54,6 +60,7 @@ CAT_CONNECTION_URL_PREFIX = str(tool_helper_service.ui_base_url) + "/data/catalo
 async def search_connection(
     request: SearchConnectionRequest
 ) -> List[SearchConnectionResponse]:
+    
     # Validate the request
     _validate_connection_request(request)
 
@@ -120,12 +127,13 @@ async def search_connection(
             )
             output.append(connection)
     
-    if not output:
+    if output:
+        ui_message_context.add_table_ui_message(tool_name="search_connection", formatted_data=format_connections_or_dsds_for_table(output), title="Connections")
+        return output
+    else:
         raise ServiceError(
             "Could not find any connections."
         )
-
-    return output
 
 @service_registry.tool(
     name="search_connection",
@@ -262,3 +270,5 @@ def _create_connection_url(conn_id: str, container_id: str, container_type: str)
     else:
         return ""
     return f"{url}?{urlencode(query_params)}"
+
+

@@ -1,11 +1,8 @@
-"""
-Shared models used across all MCP services.
+# Copyright [2026] [IBM]
+# Licensed under the Apache License, Version 2.0 (the "License");
+# See the LICENSE file in the project root for license information.
 
-This package is reserved for truly cross-service models such as:
-- Authentication/authorization models
-- Pagination models
-- Common API response structures
-- Configuration models
+from app.shared.models.base_response import BaseResponseModel
+from pydantic import model_validator, field_validator
 
-Service-specific models should be located within their respective service directories.
-"""
+__all__ = ["BaseResponseModel", "model_validator", "field_validator"]

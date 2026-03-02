@@ -2,7 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
+from app.shared.models import BaseResponseModel
 
 
 class ConvertToLineageIdRequest(BaseModel):
@@ -16,7 +18,7 @@ class ConvertToLineageIdRequest(BaseModel):
     )
 
 
-class ConvertToLineageIdResponse(BaseModel):
+class ConvertToLineageIdResponse(BaseResponseModel):
     lineage_id: str = Field(
         ...,
         description="A unique lineage identifier that can be used with other lineage tools",

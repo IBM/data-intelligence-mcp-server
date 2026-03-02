@@ -9,6 +9,7 @@ from typing import Literal
 from urllib.parse import urlparse
 from app.services.constants import (
     CONNECTIONS_BASE_ENDPOINT,
+    GEN_AI_SETTINGS_BASE_ENDPOINT,
     PROJECTS_BASE_ENDPOINT,
     CATALOGS_BASE_ENDPOINT,
     SPACES_BASE_ENDPOINT,
@@ -70,19 +71,20 @@ async def find_project_id(project_name: str) -> str:
         )
 
 
-async def find_connection_id(connection_name: str, project_id: str) -> str:
+async def find_connection_id(connection_name: str, container_id: str, container_type: str) -> str:
     """
     Find id of connection based on connection name.
 
     Args:
         connection_name (str): The name of the connection which is used to find a connection id,
-        project_id (uuid.UUID): The unique identifier of the project
+        container_id (str): The unique identifier of the container,
+        container_type (ContainerType): The type of the container.
 
     Returns:
         uuid.UUID: Unique identifier of the project.
     """
 
-    params = {"project_id": project_id}
+    params = {f"{container_type}_id": container_id}
 
     response = await tool_helper_service.execute_get_request(
         url=str(tool_helper_service.base_url) + CONNECTIONS_BASE_ENDPOINT,
@@ -103,7 +105,7 @@ async def find_connection_id(connection_name: str, project_id: str) -> str:
         raise ServiceError(
             f"find_connection_id failed to find any connections with the name '{connection_name}'"
         )
-    
+
 async def is_project_exist(project_identifier: str):
     """
     Check if a project exists by ID or name.
@@ -248,7 +250,7 @@ def get_response_context(project_type: str) -> str:
             if project_type == PROJECT_TYPE_CPD
             else RESPONSE_TYPE_DF
         )
-        
+
 def _build_container_from_response(
     response: dict, container_type: str, id_field: str = "guid"
 ):
@@ -569,6 +571,54 @@ async def find_metadata_enrichment_id(
     else:
         raise ServiceError(
             f"The metadata enrichment asset was not found with the name:'{metadata_enrichment_name}'"
+        )
+
+
+async def find_metadata_import_id(
+    metadata_import_name: str, project_id: str
+) -> str:
+    """
+    Find ID of metadata import based on metadata import name.
+
+    Args:
+        metadata_import_name (str): The name of the metadata import asset.
+        project_id (str): The ID of the project containing the metadata import.
+
+    Returns:
+        str: The unique identifier of the metadata import asset.
+
+    Raises:
+        ServiceError: If the metadata import asset is not found.
+    """
+
+    post_url = (
+        str(tool_helper_service.base_url) + ASSET_TYPE_BASE_ENDPOINT + "/metadata_import/search"
+    )
+    query_params = {
+        "project_id": project_id
+    }
+    payload = {
+        "query": f"asset.name:{metadata_import_name}",
+        "limit": 10
+    }
+    response = await tool_helper_service.execute_post_request(
+        url=post_url,
+        params=query_params,
+        json=payload,
+    )
+
+    result_id = None
+    list_of_results = response.get("results", [])
+    for metadata_import in list_of_results:
+        if metadata_import.get("metadata", {}).get("name") == metadata_import_name:
+            result_id = metadata_import.get("metadata", {}).get("asset_id", None)
+            break
+
+    if result_id:
+        return result_id
+    else:
+        raise ServiceError(
+            f"The metadata import asset was not found with the name: '{metadata_import_name}'"
         )
 
 
@@ -921,3 +971,35 @@ async def get_user_info_from_iam_id(iam_id: str, info_type: Literal["name", "ema
         raise ServiceError(
             "Empty IAM ID supplied to retrieve user information"
         )
+
+
+async def check_if_container_is_enabled_for_text_to_sql(
+    container_id, container_type
+) -> bool:
+    """
+    Check if the container is enabled for text to sql.
+
+    Args:
+        container_id (str): The container id.
+        container_type (str): The container type
+    """
+
+    params = {
+        "container_id": container_id,
+        "container_type": container_type,
+    }
+
+    response = await tool_helper_service.execute_get_request(
+        url=str(tool_helper_service.base_url) + GEN_AI_SETTINGS_BASE_ENDPOINT,
+        params=params,
+    )
+
+    return response.get("enable_gen_ai", False) and response.get(
+        "onboard_metadata_for_gen_ai", False
+    )
+
+
+def get_onboarding_job_run_url(project_id, job_id, run_id):
+    return append_context_to_url(
+        f"{tool_helper_service.ui_base_url}/jobs/{job_id}/runs/{run_id}?project_id={project_id}"
+    )

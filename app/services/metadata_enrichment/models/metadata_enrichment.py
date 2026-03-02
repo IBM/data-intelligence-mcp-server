@@ -5,7 +5,9 @@
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
+from app.shared.models import BaseResponseModel
 
 from app.shared.utils.tool_helper_service import tool_helper_service
 
@@ -507,7 +509,7 @@ class MetadataEnrichmentAssetDataScopeUpdateRequest(BaseModel):
     )
 
 
-class MetadataEnrichmentAssetPatchResponse(BaseModel):
+class MetadataEnrichmentAssetPatchResponse(BaseResponseModel):
     id: str = Field(..., description="The unique identifier of this resource.")
     name: str = Field(..., description="The name of the metadata enrichment asset.")
 

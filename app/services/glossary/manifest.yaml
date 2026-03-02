@@ -1,0 +1,18 @@
+service:
+  name: glossary
+  description: "Tools for managing and exploring glossary artifacts including terms, classifications, data classes, policies, and rules. This service enables retrieval of glossary metadata and understanding business context of data assets."
+system_instructions: |
+  Tools for managing and exploring glossary artifacts including terms, classifications, data classes, policies, and rules. This service enables retrieval of glossary metadata and understanding business context of data assets.
+  
+  Glossary Tools:
+
+  Gerneral rules for glossary tools:
+    - Tools support fuzzy name matching for easier discovery
+
+  1. explain_glossary_artifact: Use when:
+    - Get detailed explanation and metadata for a glossary artifact (term, classification, data class, policy, rule, category, or reference data set).
+    - Users want to understand what a specific glossary artifact means or represents
+    - Users want to auto-generate descriptions using AI if metadata descriptions are missing
+  2. get_glossary_artifacts_for_asset: Use when:
+    - Retrieve all business terms and classifications assigned to a specific asset.
+    - Users want to see what business terms or classifications are associated with a data asset

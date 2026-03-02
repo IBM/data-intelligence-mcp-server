@@ -3,7 +3,9 @@
 # See the LICENSE file in the project root for license information.
 
 from typing import List, Optional, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
+from app.shared.models import BaseResponseModel
 
 from app.services.lineage.models.lineage_asset import LineageAsset
 
@@ -41,9 +43,17 @@ class GetLineageGraphRequest(BaseModel):
             - If both are mentioned the value should be both
             - if user mentioned word between the value should ''""",
     )
+    dates: Optional[str] = Field(
+        None,
+        description="""Two dates in ISO 8601 format separated by comma or space. This optional field should get value:
+            - If user mentions dates when assets should be valid
+            - If user mentions version comparison
+            - Format examples: "2025-01-01T00:00:00Z,2025-12-31T23:59:59Z" or "2025-01-01T00:00:00Z 2025-12-31T23:59:59Z"
+            - Can also be JSON array: '["2025-01-01T00:00:00Z","2025-12-31T23:59:59Z"]'""",
+    )
 
 
-class GetLineageGraphResponse(BaseModel):
+class GetLineageGraphResponse(BaseResponseModel):
     lineage_assets: List[LineageAsset] = Field(
         ..., description="List of all assets in the lineage graph"
     )

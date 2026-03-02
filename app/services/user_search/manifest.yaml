@@ -1,0 +1,32 @@
+service:
+  name: user_search
+  description: "Unified tool for searching and retrieving users, user groups, and user roles by partial identifiers (name, email, username, userID). Enables AI agents to quickly find the right identity records for downstream operations like access grants, governance controls, and data protection rules. Supports intelligent fuzzy matching with confidence scores and pagination."
+system_instructions: |
+  Unified tool for searching and retrieving users, user groups, and user roles in watsonx.data intelligence by partial identifiers.
+  
+  This service enables agents to quickly find the right identity record even when the requester doesn't know
+  the exact username, group name, or role name. It uses intelligent fuzzy matching to find the best matches
+  and returns results with confidence scores and match metadata.
+  
+  Unified Search Tool:
+  - search_user_groups_roles - Single unified tool that searches for users, groups, or roles based on the search_type parameter.
+    * search_type="user" - Search for users by name, email, username, or user ID (SaaS and CP4D)
+    * search_type="group" - Search for user groups by group name or group ID (SaaS and CP4D)
+    * search_type="role" - Search for user roles by role name (CP4D only)
+  
+  Primary Use Cases:
+  - "Add Jacob to Project X" → search_user_groups_roles(search_type="user", query="jacob"), use user_id for access grant
+  - "Give marketing analysts read access" → search_user_groups_roles(search_type="group", query="marketing"), apply permissions
+  - "Apply data protection rule to jacob@ibm.com" → search_user_groups_roles(search_type="user", query="jacob@ibm.com")
+  - "Find HR managers group" → search_user_groups_roles(search_type="group", query="HR managers")
+  - "Show me all user roles" → search_user_groups_roles(search_type="role", query=None) (CP4D only)
+  - "Find administrator roles" → search_user_groups_roles(search_type="role", query="admin") (CP4D only)
+  
+  Features:
+  - Exact and fuzzy matching with confidence scores
+  - Pagination support (limit and offset parameters)
+  - Match type and field indicators (exact vs partial, which field matched)
+  - Works in both SaaS and CP4D environments (roles search is CP4D only)
+  - RBAC enforcement (only returns identities caller is permitted to see)
+
+# Made with Bob

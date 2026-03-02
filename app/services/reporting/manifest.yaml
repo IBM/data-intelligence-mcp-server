@@ -1,0 +1,7 @@
+service:
+  name: reporting
+  description: "Tools for generating and executing SQL queries against reporting databases."
+system_instructions: |
+  Reporting service tools:
+  1. reporting_sql_query_generation → generate a SQL query from natural language input for reporting use cases using text-to-SQL service.
+  2. reporting_sql_query_execution → execute a SQL SELECT query against a tenant-specific reporting database with validation.
