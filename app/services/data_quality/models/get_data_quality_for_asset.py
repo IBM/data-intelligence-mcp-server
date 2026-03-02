@@ -1,29 +1,34 @@
-from pydantic import BaseModel, Field
-from typing import Literal
+# Copyright [2026] [IBM]
+# Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+# See the LICENSE file in the project root for license information.
 
-from .data_quality import DataQuality
+from pydantic import BaseModel, Field
+from app.shared.models import BaseResponseModel
+from typing import Literal, Optional
 
 
 class GetDataQualityForAssetRequest(BaseModel):
-    """Request model for get_data_quality_for_asset."""
-
-    asset_id: str = Field(
-        ..., description="UUID of the asset to retrieve quality metrics for."
+    """Request model for getting data quality for an asset."""
+    
+    asset_id_or_name: str = Field(
+        ...,
+        description="Asset UUID or name. Examples: 'customer_data_2023', 'sales_records_q2', 'inventory_management'"
     )
-    asset_name: str = Field(
-        ..., description="Name of the asset (used for display and verification)."
-    )
-    container_id: str = Field(
-        ..., description="UUID of the project or catalog containing the asset."
+    container_id_or_name: str = Field(
+        ...,
+        description="Project or catalog UUID or name. Examples: 'marketing_analytics', 'financial_reports', 'supply_chain'"
     )
     container_type: Literal["catalog", "project"] = Field(
-        ..., description="Type of container - either 'catalog' or 'project'."
+        ...,
+        description="Type of container. Must be either 'catalog' or 'project'. Enum: ['project', 'catalog']"
     )
 
 
-class GetDataQualityForAssetResponse(BaseModel):
-    """Response model for get_data_quality_for_asset."""
-
-    data_quality: DataQuality = Field(
-        ..., description="Object containing quality metrics for the asset."
-    )
+class GetDataQualityForAssetResponse(BaseResponseModel):
+    """Response model for getting data quality for an asset."""
+    
+    overall: str = Field(..., description="Overall quality score (percentage)")
+    consistency: Optional[str] = Field(None, description="Consistency score (percentage)")
+    validity: Optional[str] = Field(None, description="Validity score (percentage)")
+    completeness: Optional[str] = Field(None, description="Completeness score (percentage)")
+    report_url: str = Field(..., description="Link to detailed quality dashboard")

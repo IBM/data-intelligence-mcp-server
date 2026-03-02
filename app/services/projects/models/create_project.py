@@ -1,4 +1,6 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
+from app.shared.models import BaseResponseModel
 from typing import Optional, List
 
 # Copyright [2025] [IBM]
@@ -38,6 +40,6 @@ class CreateProjectRequest(BaseModel):
     )
 
 
-class CreateProjectResponse(BaseModel):
+class CreateProjectResponse(BaseResponseModel):
     name: str = Field(..., description="The project name which is created")
     location: str = Field(..., description="API to access the newly created project.")

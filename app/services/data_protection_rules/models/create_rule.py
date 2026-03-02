@@ -1,7 +1,9 @@
 # Copyright [2025] [IBM]
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel
+from pydantic import Field
+from app.shared.models import BaseResponseModel, model_validator
 from typing import Literal
 
 # ============================================================================
@@ -13,7 +15,7 @@ class Entity(BaseModel):
     name: str = Field(..., description="Display name of the data class")
     global_id: str = Field(..., alias="globalid", description="Global ID of the data class")
 
-class RuleRhsTermResponse(BaseModel):
+class RuleRhsTermResponse(BaseResponseModel):
     """Response model for RHS terms retrieval."""
     entities: list[Entity] = Field(default_factory=list, description="List of entities with name and global ID")
     total_count: int = Field(description="Total number of matching results after filtering")
@@ -232,7 +234,7 @@ class NaturalLanguageCreateRuleRequest(BaseModel):
 # Common Response Model
 # ============================================================================
 
-class CreateRuleResponse(BaseModel):
+class CreateRuleResponse(BaseResponseModel):
     """Response model for rule creation."""
     success: bool
     message: str

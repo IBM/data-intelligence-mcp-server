@@ -1,7 +1,9 @@
 # Copyright [2025] [IBM]
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel
+from pydantic import Field
+from app.shared.models import BaseResponseModel, field_validator
 from enum import Enum
 from typing import Any, List, Literal, Optional, Union
 
@@ -20,7 +22,7 @@ class CreateMetadataImportRequest(BaseModel):
     )
     name: Optional[str] = Field(None, description="Optional custom name for the metadata import. If not provided, a name will be auto-generated.")
 
-class CreateMetadataImportResponse(BaseModel):
+class CreateMetadataImportResponse(BaseResponseModel):
     message: str = Field(..., description="An example output message from create_metadata_import.")
     
     # Data source definition schema

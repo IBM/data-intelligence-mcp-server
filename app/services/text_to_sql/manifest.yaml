@@ -7,4 +7,5 @@ system_instructions: |
   Text-to-SQL Tools:
   1. text_to_sql_create_asset_from_sql_query → create a new asset from a SQL query (only if explicitly requested).
   2. text_to_sql_generate_sql_query → generate a SQL query from a natural language request and schema.
-  2. text_to_sql_enable_project_for_text_to_sql → enable projecct for Text to SQL processing.
+  3. text_to_sql_enable_project_for_text_to_sql → enable project for Text to SQL processing.
+  4. text_to_sql_check_if_onboarding_job_is_completed → check if given project has been successfully enabled for Text to SQL processing.

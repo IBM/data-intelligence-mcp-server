@@ -2,7 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
+from app.shared.models import BaseResponseModel
 
 
 class EnableProjectForTextToSqlRequest(BaseModel):
@@ -11,8 +13,8 @@ class EnableProjectForTextToSqlRequest(BaseModel):
     )
 
 
-class EnableProjectForTextToSqlResponse(BaseModel):
+class EnableProjectForTextToSqlResponse(BaseResponseModel):
     message: str = Field(
         ...,
-        description="Confirmation message indicating that the project has been enabled for Text To SQL.",
+        description="A message indicating the success of the operation with UI link to check onboarding job.",
     )

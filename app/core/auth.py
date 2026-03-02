@@ -54,7 +54,9 @@ async def get_access_token() -> str | None:
     If apikey is provided instead, calls relevant apis for SaaS or CPD
     to get the bearer token
     """
-    headers = get_http_headers()  # {} if not over HTTP / no active request
+    # get_http_headers() never raises exceptions - returns {} if no HTTP context
+    headers = get_http_headers()
+    
     auth = headers.get("authorization", "")
 
     if not auth:
@@ -119,7 +121,14 @@ async def get_bss_account_id() -> str:
     """
     if settings.di_env_mode.upper() == ENV_MODE_SAAS:
         token = await get_token()
-        payload_b64 = token.split(".")[1]
+        
+        token_parts = token.split(".")
+        
+        if len(token_parts) < 2:
+            LOGGER.error(f"Invalid JWT token format - expected 3 parts separated by dots, got {len(token_parts)} parts")
+            raise ExternalAPIError(f"Invalid JWT token format - token has {len(token_parts)} parts instead of 3")
+        
+        payload_b64 = token_parts[1]
         # Add padding if needed for base64 decoding
         padding = len(payload_b64) % 4
         if padding:
@@ -208,12 +217,11 @@ async def get_bearer_token_from_apikey(api_key: str, username: str) -> str:
                 iam_url,
                 headers=headers,
                 data=req_body,
-                content_type="application/x-www-form-urlencoded",
             )
             token = response.get("access_token", "")
             return "Bearer " + token
         else:
-            response = await client.post(iam_url, headers=headers, data=req_body)
+            response = await client.post(iam_url, headers=headers, json=req_body)
             token = response.get("token", "")
             return "Bearer " + token
 

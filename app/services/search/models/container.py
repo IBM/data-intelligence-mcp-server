@@ -6,6 +6,7 @@
 
 from enum import StrEnum
 from pydantic import BaseModel, Field
+from app.shared.models import BaseResponseModel
 from typing import Optional, List
 
 
@@ -35,11 +36,11 @@ class ListContainersRequest(BaseModel):
     )
 
 
-class ListContainersResponse(BaseModel):
+class ListContainersResponse(BaseResponseModel):
     """Response model for listing containers"""
-    containers: List[Container] = Field(..., description="List of containers")
-    total_count: int = Field(..., description="Total number of containers returned")
-    container_type: ContainerType = Field(..., description="Type of containers listed")
+    containers: List[Container] = Field(default=[], description="List of containers")
+    total_count: int = Field(default=0, description="Total number of containers returned")
+    container_type: ContainerType = Field(default=ContainerType.ALL, description="Type of containers listed")
 
 
 class FindContainerRequest(BaseModel):
@@ -54,6 +55,6 @@ class FindContainerRequest(BaseModel):
     )
 
 
-class FindContainerResponse(BaseModel):
+class FindContainerResponse(BaseResponseModel):
     """Response model for finding a container"""
     container: Container = Field(..., description="The found container")

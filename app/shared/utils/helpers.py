@@ -374,3 +374,144 @@ def append_context_to_url(url: str, context: str | None = None) -> str:
 
     # Append the context parameter with the appropriate separator
     return f"{url}{separator}context={context_value}"
+
+
+def is_valid_iso_date(date: str) -> bool:
+    """
+    Check if a given date string complies with ISO-8601 format.
+    
+    Uses datetime.fromisoformat() for common formats with regex fallback for special cases.
+    
+    Supports various ISO-8601 formats including:
+    - Complete date-time: YYYY-MM-DDTHH:MM:SSZ, YYYY-MM-DDTHH:MM:SS+00:00
+    - Date only: YYYY-MM-DD
+    - Year and month with timezone: YYYY-MMZ, YYYY-MM+00:00
+    - Year only with timezone: YYYYZ, YYYY+00:00
+    - Week date with timezone: YYYY-WwwZ, YYYY-Www-DZ (e.g., 2025-W13Z, 2025-W13-1Z)
+    - Ordinal date with timezone: YYYY-DDDZ (e.g., 2025-123Z)
+    - With timezone offsets: +HH:MM, -HH:MM, Z (required for special formats)
+    - With fractional seconds: .SSS, .SSSSSS
+    
+    Args:
+        date (str): The date string to validate
+        
+    Returns:
+        bool: True if the string is a valid ISO-8601 date, False otherwise
+    """
+    if not isinstance(date, str) or not date:
+        return False
+    
+    date = date.strip()
+    
+    # Reject space-separated datetime format (e.g., "2025-10-23 08:54:02")
+    # ISO-8601 requires 'T' as the separator between date and time
+    if ' ' in date and 'T' not in date:
+        return False
+    
+    # Try datetime.fromisoformat() first for common formats
+    # This handles most standard ISO-8601 datetime and date formats
+    try:
+        from datetime import datetime
+        datetime.fromisoformat(date.replace('Z', '+00:00'))
+        return True
+    except (ValueError, AttributeError):
+        pass
+    
+    # Fallback to regex for special ISO-8601 formats not supported by fromisoformat but supported by backend
+    # These include: week dates, ordinal dates, year-month, and year-only formats
+    special_patterns = [
+        # Week date format with day (YYYY-Www-D)
+        r'^\d{4}-W\d{2}-[1-7](?:Z|[+-]\d{2}:\d{2})$',
+        # Week date format without day (YYYY-Www)
+        r'^\d{4}-W\d{2}(?:Z|[+-]\d{2}:\d{2})$',
+        # Ordinal date (YYYY-DDD)
+        r'^\d{4}-\d{3}(?:Z|[+-]\d{2}:\d{2})$',
+        # Year and month (YYYY-MM)
+        r'^\d{4}-\d{2}(?:Z|[+-]\d{2}:\d{2})$',
+        # Year only with timezone (YYYYZ or YYYY+/-HH:MM)
+        r'^\d{4}(?:Z|[+-]\d{2}:\d{2})$',
+    ]
+    
+    # Check if the date matches any of the special patterns
+    for pattern in special_patterns:
+        if re.match(pattern, date):
+            return True
+    
+    return False
+
+def verify_dates(dates=None):
+    """
+    Verify and parse dates parameter into a list of two ISO 8601 dates.
+    
+    Args:
+        dates: Can be None, a JSON string, or a list of two dates
+        
+    Returns:
+        List of two ISO 8601 date strings, or None if dates is None
+    """
+    if dates:
+        if isinstance(dates, str):
+            dates_verified = parse_string_date(dates)
+        elif isinstance(dates, list) and len(dates) == 2:
+            if is_valid_iso_date(dates[0]) and is_valid_iso_date(dates[1]):
+                dates_verified = dates
+            else:
+                dates_verified = None
+        else:
+            dates_verified = None
+        return dates_verified
+    return None
+
+def parse_string_date(dates):
+    """
+    Parse a string containing dates into a list of two ISO 8601 dates.
+    
+    Handles multiple formats:
+    - JSON array: '["2025-10-23T08:54:02.17Z","2025-10-14T06:09:58.423Z"]'
+    - Space-separated: "2025-10-23T08:54:02.17Z 2025-10-14T06:09:58.423Z"
+    - Comma-separated: "2025-10-23T08:54:02.17Z,2025-10-14T06:09:58.423Z"
+    
+    Args:
+        dates: String containing two dates
+        
+    Returns:
+        List of two ISO 8601 date strings
+        
+    Raises:
+        ServiceError: If dates cannot be parsed or don't contain exactly 2 valid dates
+    """
+    # First try JSON parsing
+    try:
+        parsed_dates = json.loads(dates)
+        if isinstance(parsed_dates, list) and len(parsed_dates) == 2:
+            if is_valid_iso_date(parsed_dates[0]) and is_valid_iso_date(parsed_dates[1]):
+                return parsed_dates
+    except json.JSONDecodeError:
+        pass  # Not JSON, try other formats
+    
+    # Try splitting by common separators
+    for separator in [',', ' ', ';', '|']:
+        parts = [p.strip() for p in dates.split(separator) if p.strip()]
+        if len(parts) == 2:
+            if is_valid_iso_date(parts[0]) and is_valid_iso_date(parts[1]):
+                return parts
+    
+    # If we get here, we couldn't parse the dates
+    raise ServiceError(
+        f"dates parameter must contain exactly 2 ISO 8601 dates. "
+        f"Supported formats: JSON array, comma-separated, or space-separated. "
+        f"Received: {dates}"
+    )
+
+def parse_list_of_ids(ids):
+    if isinstance(ids, str):
+        req_ids = "".join(
+            char for char in ids if char.isalnum() or char == ","
+        )
+        try:
+            req_ids = json.loads(req_ids)
+        except Exception:
+            req_ids = [s.strip() for s in req_ids.split(",")]
+    else:
+        req_ids = ids
+    return req_ids

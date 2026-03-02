@@ -2,23 +2,23 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
+from app.shared.models import BaseResponseModel
 
 
 class GenerateSqlQueryRequest(BaseModel):
     """Request model for generating SQL query."""
 
-    project_name: str = Field(
-        ..., description="The name of the project which is used to find a project id."
+    container_id_or_name: str = Field(
+        ..., description="The id or name of the container containing the data to query."
     )
-    connection_name: str = Field(
+    container_type: str = Field(
         ...,
-        description="The name of the connection which is used to find a connection id.",
+        description="Type of the container, either \"catalog\" or \"project\".",
     )
     request: str = Field(..., description="The question the user raised.")
 
 
-class GenerateSqlQueryResponse(BaseModel):
-    project_id: str = Field(..., description="Unique id of the project.")
-    connection_id: str = Field(..., description="Unique id of the connection.")
+class GenerateSqlQueryResponse(BaseResponseModel):
     generated_sql_query: str = Field(..., description="Generated SQL query")

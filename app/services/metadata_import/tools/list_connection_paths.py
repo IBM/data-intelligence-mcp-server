@@ -42,7 +42,7 @@ async def list_connection_paths(
 ) -> ListConnectionPathsResponse:
     
     project_id = await find_project_id(request.project_name)
-    connection_id = await find_connection_id(request.connection_name, project_id)
+    connection_id = await find_connection_id(request.connection_name, project_id, "project")
 
     LOGGER.info(
         "Calling tool 'list_connection_paths' to get connection schemas for connection %s in project %s",

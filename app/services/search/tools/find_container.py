@@ -14,9 +14,11 @@ from app.services.search.models.container import (
     ContainerType,
 )
 from app.shared.logging import LOGGER, auto_context
+from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.utils.helpers import is_uuid_bool
 from app.shared.exceptions.base import ServiceError
 from app.services.tool_utils import find_asset_container_by_id, find_asset_container_by_name
+from app.shared.utils.utils_tools import format_containers_for_table
 
 
 @service_registry.tool(
@@ -79,6 +81,7 @@ async def find_container(
         container.type,
     )
 
+    ui_message_context.add_table_ui_message("find_container", format_containers_for_table([container]), title="Containers")
     return FindContainerResponse(container=container)
 
 

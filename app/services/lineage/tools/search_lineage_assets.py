@@ -19,6 +19,7 @@ from app.services.stubs import caller_context, trigger_interrupt_with_ui
 from app.shared.exceptions.base import ServiceError
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
+from app.shared.utils.helpers import verify_dates
 
 
 def _check_input_parameters(
@@ -169,6 +170,7 @@ async def _call_search_lineage_assets(
     data_quality: QualityScore | None,
     business_terms: list[str] | None,
     business_classifications: list[str] | None,
+    dates: list[str] | None
 ) -> Dict[str, Any]:
     """
     This function returns search lineage assets response.
@@ -214,6 +216,8 @@ async def _call_search_lineage_assets(
         "query": name_query,
         "filters": filters,
     }
+    if dates:
+        payload["lineage_version_datetimes"] = dates
     response = await tool_helper_service.execute_post_request(
         url=str(tool_helper_service.base_url)
         + LINEAGE_BASE_ENDPOINT
@@ -467,14 +471,64 @@ def _transform_lineage_assets(
 
 @service_registry.tool(
     name="lineage_search_lineage_assets",
-    description="""Searches for assets in the Lineage system based on name and optional filters.
+    description="""**REQUIRED FIRST STEP**: Searches for assets by name and returns their lineage IDs.
     
-    This tool finds lineage assets matching the provided name query, with filtering
-    by technology name and asset type. Results are sorted by relevance, with exact matches first.
-    Use filters only if user mentions them. Try to find the best match for filters.
-    Do not shorten the results. Returnes an empty list if no query or filters are given.
-    Method can return an empty list if no assets where found or if user has input no data.
-    If user did not specify a filter do not send 'null' as string - use None or '' instead.""",
+    **CRITICAL**: This tool MUST be called before get_lineage_graph when you have:
+    - Asset names (e.g., "customer_table", "sales_data")
+    - Partial asset names or search patterns
+    - Any non-hexadecimal identifier
+    
+    This tool converts human-readable asset names into the 64-character hexadecimal
+    lineage IDs required by get_lineage_graph. Results include the lineage ID in the
+    'id' field of each asset.
+
+    User can ask to compare the state of the asset between two versions returned by lineage_get_lineage_versions - use
+    the dates fields then. Otherwise the dates field should be none.
+    
+    Workflow:
+    1. Call this tool with asset name → Get lineage ID from results
+    2. Pass the lineage ID to get_lineage_graph → Get lineage graph
+    
+    Args:
+        name_query (str): Search pattern for asset names. Use "*" to match all assets.
+            Exact matches are prioritized over partial matches.
+        is_operational (bool): Filter for operational asset types only. Default: False
+        tag (Optional[str]): Filter assets by specific tag
+        data_quality_operator (Optional[str]): Comparison operator for data quality score
+            ("equals", "greater_than", "greater_than_or_equal", "less_than", "less_than_or_equal")
+        data_quality_value (float): Numerical threshold for data quality filtering (used with data_quality_operator)
+        business_term (Optional[str]): Filter by business glossary term
+        business_classification (Optional[str]): Filter by business classification
+        technology_name (str): Filter by technology name (e.g., "PostgreSQL"). 
+            Only use when explicitly specified by user
+        asset_type (str): Filter by asset type (e.g., "Table", "Column"). 
+            Only use when explicitly specified by user
+        dates (Optional[str]): ISO 8601 dates to validate if assets were available in that version. Used when comparing versions
+    
+    Returns:
+        str: Search results containing:
+            - lineage_assets: List of matching assets with properties:
+                * id: **64-character hexadecimal lineage ID** (use this for get_lineage_graph)
+                * name: Display name of the asset
+                * type: Asset type classification
+                * tags: Associated tags
+                * identity_key: Resource identity key with parent hierarchy
+                * parent_name: Name of the parent asset
+                * parent_type: Type of the parent asset
+            - response_is_complete: Boolean indicating whether all results are included
+    
+    Raises:
+        ExternalServiceError: When the API request fails (non-200 status code)
+        ToolProcessFailedError: When the response is missing expected data
+    
+    Notes:
+        - Returns an empty list if no query or filters are provided
+        - Returns an empty list if no matching assets are found
+        - Use None or empty string for unspecified optional filters (not "null" string)
+        - Apply filters only when explicitly mentioned by the user
+        - **Extract the 'id' field from results to use with get_lineage_graph**
+        - If user wants related assets call get_lineage_graph after this tool
+    """,
 )
 @auto_context
 async def search_lineage_assets(
@@ -491,6 +545,13 @@ async def search_lineage_assets(
     business_classification = clean_str(request.business_classification)
     technology_name = clean_str(request.technology_name)
     asset_type = clean_str(request.asset_type)
+    verified_dates = None
+    if request.dates:
+        verified_dates = verify_dates(dates=request.dates)
+        if verified_dates and len(verified_dates) != 2:
+            raise ServiceError(
+                f"dates parameter must contain exactly 2 ISO 8601 dates, got {len(verified_dates)} dates"
+            )
 
     # Check if at least one parameter is provided
     if _check_input_parameters(
@@ -555,6 +616,7 @@ async def search_lineage_assets(
         data_quality,
         business_terms,
         business_classifications,
+        verified_dates
     )
     lineage_assets = response.get("lineage_assets", [])
     response_count = response.get("total_count", "")
@@ -596,6 +658,7 @@ async def wxo_search_lineage_assets(
     business_classification: Optional[str] = None,
     technology_name: Optional[str] = None,
     asset_type: Optional[str] = None,
+    dates: Optional[str] = None,
 ) -> SearchLineageAssetsResponse:
     """Watsonx Orchestrator compatible version of search_lineage_assets."""
 
@@ -609,6 +672,7 @@ async def wxo_search_lineage_assets(
         business_classification=business_classification,
         technology_name=technology_name,
         asset_type=asset_type,
+        dates=dates
     )
 
     # Call the original search_lineage_assets function

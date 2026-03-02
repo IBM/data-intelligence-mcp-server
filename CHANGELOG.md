@@ -2,7 +2,43 @@
 
 > All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project **adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)**.
 
-## [0.5.1] - Feb 4th, 2026
+## [0.6.0] - Mar 2nd, 2026
+
+### Added
+- **Data Product Hub (DPH)**: 
+  - `data_product_get_data_product_details` - Retrieves comprehensive information about a data product including release details, parts/assets with enriched column schemas, primary keys, and subscription information.
+- **Reporting**: 
+  - `reporting_sql_query_execution` - Execute SQL SELECT queries against tenant-specific reporting database with read-only access and query validation
+  - `reporting_sql_query_generation` - Generate SQL queries from natural language input using text-to-SQL service for reporting use cases
+- **Lineage**: 
+  - `lineage_get_lineage_versions` - Returns list of lineage versions available between two dates for comparison
+- **Data Quality**:
+  - `create_data_quality_rule_from_sql_query` - Create a new data quality rule using a SQL query. Optionally specify a data quality dimension (completeness, validity, consistency).
+  - `find_data_quality_rules` - Find and list data quality rules in a project, optionally filtered by rule name.
+  - `run_data_quality_rule` - Execute a specific data quality rule to validate data and returns rule details with UI URL.
+  - `set_validates_data_quality_of_relation` - Link a data quality rule to a specific column in a data asset to report quality scores for that column.
+- **Glossary**: 
+  - `explain_glossary_artifact` - Retrieves and explains metadata about glossary terms, classifications, data classes, reference data, policies, or rules including their definition, purpose, and related metadata.
+  - `get_glossary_artifacts_for_asset` - Retrieves all business terms and classifications associated with a specific asset.
+- **Metadata Import (MDI)**: 
+  - `execute_metadata_import` - Executes a metadata import asset to start the import job. This initiates the process of importing assets from the configured data source into the project.
+- **Text to SQL**: 
+  - `text_to_sql_check_if_onboarding_job_is_completed` - checks if onboarding job for project completed successfully.
+- **User Search**: 
+  - `search_user_groups_roles` - Unified tool that searches for users, groups, or roles based on search_type parameter ("user", "group", or "role"). Simplifies identity search with a single tool interface. Supports intelligent fuzzy matching with confidence scores and listing all items when no query is provided
+
+### Changed
+- **HTTP Client**: Enhanced `http_client` and `tool_helper_service` to support non-JSON responses and byte payloads
+- **Data Quality**: 
+    - Refactored data quality tools with improved error handling and utility functions in `data_quality_common_utils`
+    - `get_data_quality_for_asset` - Retrieve data quality metrics for specific assets
+- **Lineage**: Enhanced lineage tools with date-based filtering and version comparison support
+
+### Fixed
+- **Search Tool**: Fix the issue where assets created or updated by a service_id cause a crash in `get_asset_details` tool because they do not appear in the user list. Resolve this by skipping traversal from user_profiles to prevent the crash.
+- **Data Quality**: Fixed `_ratio_to_percentage` edge case logic for proper decimal formatting
+
+## [0.5.1] - Jan 30th, 2026
 
 ### Added
 - **Metadata Enrichment (MDE)**: `start_metadata_relationship_analysis` tool to initiate relationship analysis for metadata enrichment assets

@@ -1,4 +1,9 @@
+# Copyright [2025] [IBM]
+# Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+# See the LICENSE file in the project root for license information.
+
 from pydantic import BaseModel, Field
+from app.shared.models import BaseResponseModel
 from typing import Optional, Literal
 
 class SearchConnectionRequest(BaseModel):
@@ -8,7 +13,7 @@ class SearchConnectionRequest(BaseModel):
     datasource_type: Optional[str] = Field(None, description="Datasource type name or UUID to filter connections by.")
     creator: Optional[str] = Field(None, description="Name, username, or ID of the creator of connection to filter connections by.")
 
-class SearchConnectionResponse(BaseModel):
+class SearchConnectionResponse(BaseResponseModel):
     id: str = Field(..., description="Unique id of the connection.")
     name: str = Field(..., description="Name of the connection.")
     url: str = Field(..., description="URL pointing to the connection.")

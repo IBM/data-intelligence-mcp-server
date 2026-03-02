@@ -105,7 +105,9 @@ class ToolHelperService:
         url: str,
         headers: Dict[str, str] = create_default_headers(),
         json: Optional[Dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
+        content: Optional[bytes] = None,
         tool_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
@@ -114,8 +116,10 @@ class ToolHelperService:
         Args:
             url: URL for the request
             headers: Headers for the request
-            payload: JSON data for the request body
+            json: JSON data for the request body
+            data: Optional form data to send in the request body
             params: Query parameters
+            content: Optional raw bytes to send in the request body
             tool_name: Name of the tool making the request (for error messages)
 
         Returns:
@@ -127,7 +131,7 @@ class ToolHelperService:
         headers["Authorization"] = await get_access_token()
         try:
             response_json = await self.http_client.post(
-                url=url, data=json, headers=headers, params=params
+                url=url, json=json, data=data, headers=headers, params=params, content=content
             )
 
             return response_json
@@ -142,7 +146,9 @@ class ToolHelperService:
         url: str,
         headers: Dict[str, str] = create_default_headers(),
         json: Optional[Dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
+        content: Optional[bytes] = None,
         tool_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
@@ -151,8 +157,10 @@ class ToolHelperService:
         Args:
             url: URL for the request
             headers: Headers for the request
-            payload: JSON data for the request body
+            json: JSON data for the request body
+            data: Optional form data to send in the request body
             params: Query parameters
+            content: Optional raw bytes to send in the request body
             tool_name: Name of the tool making the request (for error messages)
 
         Returns:
@@ -164,7 +172,7 @@ class ToolHelperService:
         headers["Authorization"] = await get_access_token()
         try:
             response_json = await self.http_client.put(
-                url=url, data=json, headers=headers, params=params
+                url=url, json=json, data=data, headers=headers, params=params, content=content
             )
 
             return response_json
@@ -179,7 +187,9 @@ class ToolHelperService:
         url: str,
         headers: Dict[str, str] = create_default_headers(content_type=JSON_PATCH_CONTENT_TYPE),
         json: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
+        data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
+        content: Optional[bytes] = None,
         tool_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
@@ -189,7 +199,9 @@ class ToolHelperService:
             url: URL for the request
             headers: Headers for the request
             json: JSON data for the request body (can be dict or list for JSON PATCH operations)
+            data: Optional form data to send in the request body
             params: Query parameters
+            content: Optional raw bytes to send in the request body
             tool_name: Name of the tool making the request (for error messages)
 
         Returns:
@@ -202,7 +214,7 @@ class ToolHelperService:
 
         try:
             response_json = await self.http_client.patch(
-                url=url, data=json, headers=headers, params=params
+                url=url, json=json, data=data, headers=headers, params=params, content=content
             )
 
             return response_json

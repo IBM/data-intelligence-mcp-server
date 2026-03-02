@@ -40,7 +40,7 @@ async def search_asset(
         raise ServiceError(error_msg)
     
     # Validate container_type
-    valid_container_types = ["project", "catalog"]
+    valid_container_types = ["project", "catalog", "project_and_catalog"]
     auth_scope = "catalog"  # Default
     
     if not is_none(request.container_type):
@@ -48,7 +48,8 @@ async def search_asset(
             error_msg = f"Invalid container_type: '{request.container_type}'. Valid values are: {valid_container_types}"
             LOGGER.error(error_msg)
             raise ServiceError(error_msg)
-        auth_scope = request.container_type
+        # Convert project_and_catalog to the format expected by the API
+        auth_scope = "project,catalog" if request.container_type == "project_and_catalog" else request.container_type
 
     LOGGER.info(
         "Starting asset search with prompt: '%s' and container_type: '%s'",
@@ -72,7 +73,7 @@ async def search_asset(
         }
     }
 
-    params = {"auth_scope": request.container_type} if request.container_type else {}
+    params = {"auth_scope": auth_scope}
 
     response = await tool_helper_service.execute_post_request(
         url=str(tool_helper_service.base_url) + GS_BASE_ENDPOINT,

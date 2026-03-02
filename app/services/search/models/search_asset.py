@@ -1,4 +1,9 @@
+# Copyright [2025] [IBM]
+# Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+# See the LICENSE file in the project root for license information.
+
 from pydantic import BaseModel, Field
+from app.shared.models import BaseResponseModel
 from typing import Optional, List
 
 class SearchAssetRequest(BaseModel):
@@ -11,7 +16,7 @@ class SearchAssetRequest(BaseModel):
         examples=["catalog", "project"]
     )
 
-class SearchAssetResponse(BaseModel):
+class SearchAssetResponse(BaseResponseModel):
     """Search assets response model"""
     id: str = Field(..., description="Unique id of the asset")
     name: str = Field(..., description="Name of the asset")
@@ -19,7 +24,7 @@ class SearchAssetResponse(BaseModel):
     project_id: Optional[str] = Field(None, description="Project identifier in which the asset resides")
     url: str = Field(...,description="URL of the asset")
 
-class SearchAssetListResponse(BaseModel):
+class SearchAssetListResponse(BaseResponseModel):
     assets: List[SearchAssetResponse]
     total_count: int
     search_prompt: str

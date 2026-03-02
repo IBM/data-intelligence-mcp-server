@@ -1,3 +1,8 @@
+# Copyright [2025] [IBM]
+# Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+# See the LICENSE file in the project root for license information.
+
+import asyncio
 from typing import Optional
 from app.core.registry import service_registry
 from app.services.search.models.get_asset_details import (
@@ -130,6 +135,36 @@ async def wxo_get_asset_details(
     # Call the original get_asset_details function
     return await get_asset_details(request)
 
+async def _get_user_info(iam_id: str) -> tuple[str, str]:
+    """
+    Helper function to retrieve user name and email from IAM ID.
+    Returns "icp4d-dev" for both name and email if the IAM ID is "icp4d-dev".
+    Returns empty strings if IAM ID is None, empty string, or whitespace.
+    Optimized to make concurrent API calls for name and email.
+    
+    Args:
+        iam_id (str): IAM ID of the user
+        
+    Returns:
+        tuple[str, str]: A tuple containing (name, email)
+    """
+    # Handle None, empty string, or whitespace-only strings
+    if not iam_id or not iam_id.strip():
+        return "", ""
+    
+    # Since the asset is created/updated by service_id 'icp4d-dev' and will not appear in the user list,
+    # skip traversing from user_profiles.
+    if iam_id == "icp4d-dev":
+        return "icp4d-dev", "icp4d-dev"
+    
+    # Make both calls concurrently to optimize performance
+    name, email = await asyncio.gather(
+        get_user_info_from_iam_id(iam_id, "name"),
+        get_user_info_from_iam_id(iam_id, "email")
+    )
+    return name, email
+
+
 async def retrieve_asset_metadata(metadata: dict[str, any]) -> GetAssetDetailsResponse:
     """
     Extracts the full metadata information from asset metadata response
@@ -141,6 +176,16 @@ async def retrieve_asset_metadata(metadata: dict[str, any]) -> GetAssetDetailsRe
     Returns:
         GetAssetDetailsResponse: An object of GetAssetDetailsResponse class with populated attributes
     """
+    
+    # Retrieve user information concurrently for better performance
+    # Use .get() with default values to handle missing fields gracefully
+    owner_id = metadata.get("owner_id", None)
+    creator_id = metadata.get("creator_id", "")
+    
+    (owner_name, owner_email), (creator_name, creator_email) = await asyncio.gather(
+        _get_user_info(owner_id or ""),
+        _get_user_info(creator_id)
+    )
 
     return GetAssetDetailsResponse(
         usage=await retrieve_asset_usage(metadata.get("usage", {})),
@@ -163,9 +208,9 @@ async def retrieve_asset_metadata(metadata: dict[str, any]) -> GetAssetDetailsRe
         space_id=metadata.get("space_id", None),
         created=metadata["created"],
         created_at=metadata["created_at"],
-        owner_id=metadata.get("owner_id", None),
-        owner_name=await get_user_info_from_iam_id(metadata.get("owner_id", ""), "name"),
-        owner_email=await get_user_info_from_iam_id(metadata.get("owner_id", ""), "email"),
+        owner_id=owner_id,
+        owner_name=owner_name,
+        owner_email=owner_email,
         size=metadata["size"],
         version=metadata["version"],
         asset_state=metadata.get("asset_state", "available"),
@@ -175,12 +220,12 @@ async def retrieve_asset_metadata(metadata: dict[str, any]) -> GetAssetDetailsRe
         asset_category=metadata.get("asset_category", "USER"),
         revision_id=metadata.get("revision_id", None),
         number_of_shards=metadata.get("number_of_shards", None),
-        creator_id=metadata["creator_id"],
-        creator_name=await get_user_info_from_iam_id(metadata["creator_id"], "name"),
-        creator_email=await get_user_info_from_iam_id(metadata["creator_id"], "email"),
+        creator_id=creator_id,
+        creator_name=creator_name,
+        creator_email=creator_email,
         is_branched=metadata.get("is_branched", None),
         set_id=metadata.get("set_id", None),
-        is_managed_asset=metadata["is_managed_asset"],
+        is_managed_asset=metadata.get("is_managed_asset", False),
         entity={}
     )
 
@@ -251,17 +296,27 @@ async def retrieve_asset_usage(usage_info: dict[str, any]) -> AssetUsage:
     Returns:
         AssetUsage: An object of AssetUsage class with populated attributes
     """
+    
+    # Retrieve user information concurrently for better performance
+    # Use .get() with default values to handle missing fields gracefully
+    last_updater_id = usage_info.get("last_updater_id", "")
+    last_accessor_id = usage_info.get("last_accessor_id", "")
+    
+    (last_updater_name, last_updater_email), (last_accessor_name, last_accessor_email) = await asyncio.gather(
+        _get_user_info(last_updater_id),
+        _get_user_info(last_accessor_id)
+    )
 
     return AssetUsage(
         last_updated_at=usage_info["last_updated_at"],
-        last_updater_id=usage_info["last_updater_id"],
-        last_updater_name=await get_user_info_from_iam_id(usage_info["last_updater_id"], "name"),
-        last_updater_email=await get_user_info_from_iam_id(usage_info["last_updater_id"], "email"),
+        last_updater_id=last_updater_id,
+        last_updater_name=last_updater_name,
+        last_updater_email=last_updater_email,
         last_update_time=usage_info["last_update_time"],
         last_accessed_at=usage_info["last_accessed_at"],
         last_access_time=usage_info["last_access_time"],
-        last_accessor_id=usage_info["last_accessor_id"],
-        last_accessor_name=await get_user_info_from_iam_id(usage_info["last_accessor_id"], "name"),
-        last_accessor_email=await get_user_info_from_iam_id(usage_info["last_accessor_id"], "email"),
+        last_accessor_id=last_accessor_id,
+        last_accessor_name=last_accessor_name,
+        last_accessor_email=last_accessor_email,
         access_count=usage_info["access_count"]
     )

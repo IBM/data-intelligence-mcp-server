@@ -2,7 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
+from app.shared.models import BaseResponseModel
 
 THE_ID_OF_THE_DATA_PRODUCT_DRAFT = "The ID of the data product draft."
 THE_ID_OF_THE_CONTRACT_TERMS_ASSET = "The ID of the contract terms asset."
@@ -26,7 +28,7 @@ class ContractTemplate(BaseModel):
         ..., description="The name of the contract template."
     )
 
-class GetContractTemplateResponse(BaseModel):
+class GetContractTemplateResponse(BaseResponseModel):
     contract_templates: list[ContractTemplate] = Field(
         ..., description="The contract templates."
     )

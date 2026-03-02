@@ -3,4 +3,8 @@ service:
   description: "This service contains tools to work with data quality of an asset"
 system_instructions: |
   Data Quality service tools:
-  1. data_quality_get_data_quality_for_asset → returns data quality information for an asset (URL provided).
+  1. get_data_quality_for_asset → Retrieve data quality metrics (overall, consistency, validity, completeness) for a specific asset in a project or catalog
+  2. find_data_quality_rules → Find and list data quality rules in a project, optionally filtered by rule name
+  3. run_data_quality_rule → Execute a specific data quality rule to validate data
+  4. create_data_quality_rule_from_sql_query → Create a new data quality rule using a SQL query
+  5. set_validates_data_quality_of_relation → Link a data quality rule to a specific column in a data asset

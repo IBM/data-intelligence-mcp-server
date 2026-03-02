@@ -1,4 +1,9 @@
+# Copyright [2025] [IBM]
+# Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+# See the LICENSE file in the project root for license information.
+
 from pydantic import BaseModel, Field
+from app.shared.models import BaseResponseModel
 from typing import Optional, Literal, List
 
 class GetAssetDetailsRequest(BaseModel):
@@ -41,7 +46,7 @@ class SourceAsset(BaseModel):
     resource_key: Optional[str] = Field(None, description="Resource key of the source asset")
     identity_key: Optional[str] = Field(None, description="Identity key of the source asset")
 
-class GetAssetDetailsResponse(BaseModel):
+class GetAssetDetailsResponse(BaseResponseModel):
     usage: AssetUsage = Field(..., description="Information about asset usage and access")
     rov: Rov = Field(..., description="ROV information including asset collaborators and members")
     sub_container_id: Optional[str] = Field(None, description="Unique id of the sub container the asset resides in")
