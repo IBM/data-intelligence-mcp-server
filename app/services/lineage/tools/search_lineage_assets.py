@@ -20,6 +20,7 @@ from app.shared.exceptions.base import ServiceError
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.helpers import verify_dates
+from app.shared.ui_message.ui_message_context import ui_message_context
 
 
 def _check_input_parameters(
@@ -469,6 +470,55 @@ def _transform_lineage_assets(
     return lineage_assets_model
 
 
+def _format_lineage_assets_for_table(assets: list) -> list:
+    return [
+        {
+            "Name": item.name,
+            "Type": item.type,
+            "Path": item.identity_key,
+        }
+        for item in assets
+    ]
+
+
+def _handle_asset_selection_and_filters(
+    response_count: int,
+    lineage_assets_model: list,
+    filter_not_found_list: list,
+) -> list:
+    """
+    Handles UI table selector for asset selection and displays filter warnings.
+    
+    Args:
+        response_count: Total count of assets found
+        lineage_assets_model: List of LineageAsset objects
+        filter_not_found_list: List of filters that could not be applied
+    
+    Returns:
+        list: Selected assets if user made a selection, otherwise original list
+    """
+    end_lineage_list = lineage_assets_model
+    
+    if response_count > 0:
+        selected_assets = ui_message_context.send_table_selector_msg(
+            tool_name="search_lineage_assets",
+            data=lineage_assets_model,
+            formatted_data=_format_lineage_assets_for_table(lineage_assets_model),
+            title="Assets",
+            unique_keys=["Name", "Path"]
+        )
+        if selected_assets is not None:
+            end_lineage_list = selected_assets
+    
+    if filter_not_found_list:
+        ui_message_context.add_text_ui_message(
+            tool_name="search_lineage_assets",
+            text=f"We could not use filter(s): {', '.join(filter_not_found_list)}"
+        )
+    
+    return end_lineage_list
+
+
 @service_registry.tool(
     name="lineage_search_lineage_assets",
     description="""**REQUIRED FIRST STEP**: Searches for assets by name and returns their lineage IDs.
@@ -624,13 +674,12 @@ async def search_lineage_assets(
     # Create LineageAsset objects with parent information
     lineage_assets_model = _transform_lineage_assets(lineage_assets=lineage_assets)
 
-    # No ui and interrupts in mcp
-    end_lineage_list = lineage_assets_model
-
     response_is_complete = response_count <= 10
-    # add_table_ui_message(tool_name="search_lineage_assets", formatted_data=_format_lineage_assets_for_table(end_lineage_list))
-    # if filter_not_found_list:
-    #    add_custom_message(f"We could not use filter(s): {', '.join(filter_not_found_list)}\n")
+    
+    end_lineage_list = _handle_asset_selection_and_filters(
+        response_count, lineage_assets_model, filter_not_found_list
+    )
+    
     return SearchLineageAssetsResponse(
         lineage_assets=end_lineage_list, response_is_complete=response_is_complete
     )

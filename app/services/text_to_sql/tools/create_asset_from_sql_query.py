@@ -21,6 +21,12 @@ from app.shared.logging.utils import LOGGER
 from app.shared.utils.helpers import append_context_to_url, confirm_uuid
 from app.shared.logging import auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
+from app.shared.ui_message.ui_message_context import ui_message_context
+from app.shared.ui_message.ui_agentic_utils import (
+    ButtonComponent,
+    CardBodyTextComponent,
+    CardComponent,
+)
 
 
 def _validate_sql_query(sql_query: str) -> None:
@@ -93,6 +99,18 @@ def _validate_sql_query(sql_query: str) -> None:
             "Only SELECT queries are allowed for creating query assets. "
             "The query must start with SELECT."
         )
+
+
+def _map_created_asset_to_card(name: str, sql_query: str, url: str) -> CardComponent:
+    return CardComponent(
+        title=name,
+        body=[
+            CardBodyTextComponent(
+                text=ui_message_context.create_markdown_code_snippet(sql_query, "sql")
+            )
+        ],
+        footer=[ButtonComponent(label="View asset", url=url)],
+    )
 
 
 def _build_asset_payload(
@@ -211,6 +229,11 @@ async def create_asset_from_sql_query(
         f"{tool_helper_service.ui_base_url}/data/catalogs/{container_id}/asset/{asset_id}"
         if request.container_type == "catalog"
         else f"{tool_helper_service.ui_base_url}/projects/{container_id}/data-assets/{asset_id}"
+    )
+
+    ui_message_context.add_card_ui_message(
+        "create_asset_from_sql_query",
+        _map_created_asset_to_card(payload["metadata"]["name"], request.sql_query, asset_url),
     )
 
     return CreateAssetFromSqlQueryResponse(asset_url=asset_url)

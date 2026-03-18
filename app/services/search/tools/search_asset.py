@@ -66,8 +66,7 @@ async def search_asset(
                             "search_string": request.search_prompt,
                             "semantic_search_enabled": True,
                         }
-                    },
-                    {"term": {"metadata.artifact_type": "data_asset"}},
+                    }
                 ]
             }
         }

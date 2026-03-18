@@ -19,7 +19,9 @@ from app.services.glossary.models.glossary_artifact import (
     GlossaryArtifact,
     GlossaryArtifactDescription,
 )
-from app.services.glossary.prompts import GLOSSARY_GENERATE_DESCRIPTION_FOR_ASSET
+from app.services.glossary.prompts.generate_artifact_description import (
+    generate_artifact_description_prompt,
+)
 from app.services.glossary.utils import is_empty, normalize_key
 from app.shared.exceptions.base import ExternalAPIError, ServiceError
 from app.shared.logging import LOGGER, auto_context
@@ -136,13 +138,18 @@ async def _prepare_description(
     cleaned_entity = _clean_metadata_for_prompt(entity)
     cleaned_categories = _clean_metadata_for_prompt(categories)
 
-    generation_prompt = (
-        f"{GLOSSARY_GENERATE_DESCRIPTION_FOR_ASSET}\n\n"
-        f"Artifact name: {name}\n"
-        f"Artifact type: {artifact_type}\n\n"
+    # Build metadata string for the prompt
+    metadata_str = (
         f"Useful metadata:\n{json.dumps(cleaned_metadata, indent=2)}\n\n"
         f"Entity information:\n{json.dumps(cleaned_entity, indent=2)}\n\n"
-        f"Categories:\n{json.dumps(cleaned_categories, indent=2)}\n"
+        f"Categories:\n{json.dumps(cleaned_categories, indent=2)}"
+    )
+    
+    # Use the registered prompt function
+    generation_prompt = generate_artifact_description_prompt(
+        artifact_type=artifact_type,
+        artifact_name=name,
+        metadata=metadata_str
     )
 
     # Check if client supports sampling capability

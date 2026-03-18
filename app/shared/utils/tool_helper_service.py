@@ -100,6 +100,58 @@ class ToolHelperService:
             )
             raise self._format_exception(e, HTTPMethod.GET, tool_name)
 
+    async def _execute_request_with_body(
+        self,
+        method: HTTPMethod,
+        url: str,
+        headers: Dict[str, str],
+        json: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
+        data: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        content: Optional[bytes] = None,
+        files: Optional[Dict[str, Any]] = None,
+        tool_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Internal helper for HTTP methods with request body (POST, PUT, PATCH).
+        
+        Args:
+            method: HTTP method enum (POST, PUT, PATCH)
+            url: URL for the request
+            headers: Headers for the request
+            json: JSON data for the request body
+            data: Optional form data to send in the request body
+            params: Query parameters
+            content: Optional raw bytes to send in the request body
+            files: Multipart file uploads
+            tool_name: Name of the tool making the request (for error messages)
+            
+        Returns:
+            Dict[str, Any]: JSON response
+            
+        Raises:
+            ExternalAPIError: If the request fails
+        """
+        headers["Authorization"] = await get_access_token()
+        try:
+            # Get the appropriate HTTP client method
+            client_method = getattr(self.http_client, method.value.lower())
+            response_json = await client_method(
+                url=url,
+                json=json,
+                data=data,
+                headers=headers,
+                params=params,
+                content=content,
+                files=files,
+            )
+            return response_json
+        except ExternalAPIError as e:
+            LOGGER.error(
+                f"{tool_name or 'Request'} to {url} failed with error: {str(e)}"
+            )
+            raise self._format_exception(e, method, tool_name)
+
     async def execute_post_request(
         self,
         url: str,
@@ -108,6 +160,7 @@ class ToolHelperService:
         data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
         content: Optional[bytes] = None,
+        files: Optional[Dict[str, Any]] = None,
         tool_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
@@ -120,6 +173,8 @@ class ToolHelperService:
             data: Optional form data to send in the request body
             params: Query parameters
             content: Optional raw bytes to send in the request body
+            files: Multipart file uploads. Dictionary mapping field names to file-like objects or tuples.
+                   Format: {'field_name': file_object} or {'field_name': ('filename', file_object, 'content_type')}
             tool_name: Name of the tool making the request (for error messages)
 
         Returns:
@@ -128,18 +183,9 @@ class ToolHelperService:
         Raises:
             ExternalAPIError: If the request fails
         """
-        headers["Authorization"] = await get_access_token()
-        try:
-            response_json = await self.http_client.post(
-                url=url, json=json, data=data, headers=headers, params=params, content=content
-            )
-
-            return response_json
-        except ExternalAPIError as e:
-            LOGGER.error(
-                f"{tool_name or 'Request'} to {url} failed with error: {str(e)}"
-            )
-            raise self._format_exception(e, HTTPMethod.POST, tool_name)
+        return await self._execute_request_with_body(
+            HTTPMethod.POST, url, headers, json, data, params, content, files, tool_name
+        )
 
     async def execute_put_request(
         self,
@@ -149,6 +195,7 @@ class ToolHelperService:
         data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
         content: Optional[bytes] = None,
+        files: Optional[Dict[str, Any]] = None,
         tool_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
@@ -161,6 +208,8 @@ class ToolHelperService:
             data: Optional form data to send in the request body
             params: Query parameters
             content: Optional raw bytes to send in the request body
+            files: Multipart file uploads. Dictionary mapping field names to file-like objects or tuples.
+                   Format: {'field_name': file_object} or {'field_name': ('filename', file_object, 'content_type')}
             tool_name: Name of the tool making the request (for error messages)
 
         Returns:
@@ -169,18 +218,9 @@ class ToolHelperService:
         Raises:
             ExternalAPIError: If the request fails
         """
-        headers["Authorization"] = await get_access_token()
-        try:
-            response_json = await self.http_client.put(
-                url=url, json=json, data=data, headers=headers, params=params, content=content
-            )
-
-            return response_json
-        except ExternalAPIError as e:
-            LOGGER.error(
-                f"{tool_name or 'Request'} to {url} failed with error: {str(e)}"
-            )
-            raise self._format_exception(e, HTTPMethod.PUT, tool_name)
+        return await self._execute_request_with_body(
+            HTTPMethod.PUT, url, headers, json, data, params, content, files, tool_name
+        )
 
     async def execute_patch_request(
         self,
@@ -190,6 +230,7 @@ class ToolHelperService:
         data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
         content: Optional[bytes] = None,
+        files: Optional[Dict[str, Any]] = None,
         tool_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
@@ -202,6 +243,8 @@ class ToolHelperService:
             data: Optional form data to send in the request body
             params: Query parameters
             content: Optional raw bytes to send in the request body
+            files: Multipart file uploads. Dictionary mapping field names to file-like objects or tuples.
+                   Format: {'field_name': file_object} or {'field_name': ('filename', file_object, 'content_type')}
             tool_name: Name of the tool making the request (for error messages)
 
         Returns:
@@ -210,19 +253,9 @@ class ToolHelperService:
         Raises:
             ExternalAPIError: If the request fails
         """
-        headers["Authorization"] = await get_access_token()
-
-        try:
-            response_json = await self.http_client.patch(
-                url=url, json=json, data=data, headers=headers, params=params, content=content
-            )
-
-            return response_json
-        except ExternalAPIError as e:
-            LOGGER.error(
-                f"{tool_name or 'Request'} to {url} failed with error: {str(e)}"
-            )
-            raise self._format_exception(e, HTTPMethod.PATCH, tool_name)
+        return await self._execute_request_with_body(
+            HTTPMethod.PATCH, url, headers, json, data, params, content, files, tool_name
+        )
 
     def _format_exception(
         self,

@@ -15,7 +15,7 @@ from app.services.tool_utils import (
     find_datasource_type_asset_id, 
     get_datasource_type_name
 )
-from app.shared.utils.helpers import is_uuid
+from app.shared.utils.helpers import is_uuid, get_closest_match
 from app.shared.logging import LOGGER, auto_context
 from app.services.constants import ASSET_TYPE_BASE_ENDPOINT
 from app.shared.utils.utils_tools import format_connections_or_dsds_for_table
@@ -24,7 +24,7 @@ from app.shared.utils.utils_tools import format_connections_or_dsds_for_table
     name="search_data_source_definition",
     description="""Understand user's request about searching data source definitions aka DSD
                     and return a list of retrieved DSDs. Users can choose to filter the 
-                    results based on the optional input parameters: data source type, 
+                    results based on the optional input parameters: name, data source type, 
                     hostname, port, or physical collection. If no filters are provided, then 
                     all available DSDs are retrieved.
                     Example: Find all dsds.
@@ -35,14 +35,23 @@ from app.shared.utils.utils_tools import format_connections_or_dsds_for_table
                     In this case, hostname parameter will be 'localhost', port parameter will be '0000', physical_collection parameter will be 'db1' and datasource_type parameter will be None.
                     Example: Find data source definitons with hostname someendpoint and bucket testbucket.
                     In this case, hostname parameter will be 'someendpoint', physical_collection parameter will be 'testbucket', and port and datasource_type parameters will be None.
+                    Example: Find dsd azure.
+                    In this case, name parameter will be 'azure' and all other parameters will be None.
+                    Example: Find dsd named c3 with datasource type postgresql.
+                    In this case, name parameter will be 'c3', datasource_type parameter will be 'postgresql', and hostname, port, physical_collection will be None.
                     
                     IMPORTANT CONSTRAINTS:
                     - All possible combinations of input parameters include:
+                        - Only name
                         - Only data source type
                         - Only hostname
                         - Only physical collection (database name, bucket name, or project id)
+                        - Data source type + name
+                        - Physical collection + name
                         - Hostname + port
+                        - Hostname + port + name
                         - Hostname + port + physical collection
+                        - Hostname + port + physical collection + name
                     - Invalid values will result in errors""",
     tags={"search", "data_source_definition"},
     meta={"version": "1.0", "service": "search"}
@@ -52,18 +61,11 @@ async def search_data_source_definition(
     request: SearchDataSourceDefinitionRequest
 ) -> List[SearchDataSourceDefinitionResponse]:
     # Validate the request 
-    if request.port and not request.hostname:
-        error_msg = "Port cannot be provided as a solo filter. Please provide the hostname with it."
-        LOGGER.error(error_msg)
-        raise ServiceError(error_msg)
-
-    if request.datasource_type and (request.hostname or request.port or request.physical_collection):
-        error_msg = "Datasource type filter cannot be provided with endpoint or physical collection filter."
-        LOGGER.error(error_msg)
-        raise ServiceError(error_msg)
+    _validate_search_dsd_request(request)
 
     LOGGER.info(
-        "Starting Data source definition search with datasource_type: '%s', hostname: '%s', port: '%s' and physical_collection: '%s'",
+        "Starting Data source definition search with name: '%s', datasource_type: '%s', hostname: '%s', port: '%s' and physical_collection: '%s'",
+        request.name,
         request.datasource_type,
         request.hostname,
         request.port,
@@ -97,7 +99,13 @@ async def search_data_source_definition(
     )
 
     output = []
+    dsd_id = ""
+    if request.name:
+        dsd_id = find_dsd_by_name(response, request.name)
+
     for result in response.get('results', []):
+        if dsd_id and result["metadata"]["asset_id"] != dsd_id:
+            continue
         datasource_type_id = result["entity"]["ibm_data_source"]["data_source_type_id"]
         datasource_type_name = await get_datasource_type_name(datasource_type_id)
         dsd = SearchDataSourceDefinitionResponse(
@@ -123,37 +131,46 @@ async def search_data_source_definition(
     name="search_data_source_definition",
     description="""Understand user's request about searching data source definitions aka DSD
                     and return a list of retrieved DSDs. Users can choose to filter the
-                    results based on the optional input parameters: data source type,
+                    results based on the optional input parameters: name, data source type,
                     hostname, port, or physical collection. If no filters are provided, then
                     all available DSDs are retrieved.
                     Example: Find all dsds.
                     In this case, all input parameters will be None.
                     Example: Find DSDs with datasource type postgresql.
                     In this case, datasource_type parameter will be 'postgresql', and hostname, port, physical_collection will be None.
-                    Example: Find DSDs with endpoint localhost:0000 and database db1.
+                    Example: Find dsds with endpoint localhost:0000 and database db1.
                     In this case, hostname parameter will be 'localhost', port parameter will be '0000', physical_collection parameter will be 'db1' and datasource_type parameter will be None.
                     Example: Find data source definitons with hostname someendpoint and bucket testbucket.
                     In this case, hostname parameter will be 'someendpoint', physical_collection parameter will be 'testbucket', and port and datasource_type parameters will be None.
+                    Example: Find dsd azure.
+                    In this case, name parameter will be 'azure' and all other parameters will be None.
+                    Example: Find dsd named c3 with datasource type postgresql.
+                    In this case, name parameter will be 'c3', datasource_type parameter will be 'postgresql', and hostname, port, physical_collection will be None.
 
                     IMPORTANT CONSTRAINTS:
                     - All possible combinations of input parameters include:
+                        - Only name
                         - Only data source type
                         - Only hostname
                         - Only physical collection (database name, bucket name, or project id)
+                        - Data source type + name
+                        - Physical collection + name
                         - Hostname + port
+                        - Hostname + port + name
                         - Hostname + port + physical collection
-                        - Datasource type + hostname + port + physical collection
+                        - Hostname + port + physical collection + name
                     - Invalid values will result in errors""",
     tags={"search", "data_source_definition"},
     meta={"version": "1.0", "service": "search"}
 )
 @auto_context
 async def wxo_search_data_source_definition(
-    datasource_type: Optional[str], hostname: Optional[str], port: Optional[str], physical_collection: Optional[str]
+    name: Optional[str], datasource_type: Optional[str], hostname: Optional[str], port: Optional[str], physical_collection: Optional[str]
 ) -> List[SearchDataSourceDefinitionResponse]:
     """Watsonx Orchestrator compatible version that expands SearchDataSourceDefinitionRequest object into individual parameters."""
 
     request = SearchDataSourceDefinitionRequest(
+        name=name,
         datasource_type=datasource_type,
         hostname=hostname,
         port=port,
@@ -163,7 +180,18 @@ async def wxo_search_data_source_definition(
     # Call the original search_data_source_definition function
     return await search_data_source_definition(request)
 
-def retrieve_asset_endpoint_query(hostname: str, port: str, physical_collection: str) -> str:
+def _validate_search_dsd_request(request: SearchDataSourceDefinitionRequest) -> None:
+    if request.port and not request.hostname:
+        error_msg = "Port cannot be provided as a solo filter. Please provide the hostname with it."
+        LOGGER.error(error_msg)
+        raise ServiceError(error_msg)
+
+    if request.datasource_type and (request.hostname or request.port or request.physical_collection):
+        error_msg = "Datasource type filter cannot be provided with endpoint or physical collection filter."
+        LOGGER.error(error_msg)
+        raise ServiceError(error_msg)
+
+def retrieve_asset_endpoint_query(hostname: Optional[str], port: Optional[str], physical_collection: Optional[str]) -> str:
     """
     Format endpoint query parameters for data source definition search.
     
@@ -171,9 +199,9 @@ def retrieve_asset_endpoint_query(hostname: str, port: str, physical_collection:
     hostname, port, and physical collection parameters.
     
     Args:
-        hostname (str): Hostname or IP address of the data source.
-        port (str): Port number of the data source.
-        physical_collection (str): Database name, bucket name, or project ID.
+        hostname (Optional[str]): Hostname or IP address of the data source.
+        port (Optional[str]): Port number of the data source.
+        physical_collection (Optional[str]): Database name, bucket name, or project ID.
     
     Returns:
         str: Formatted query string for the DSD search API.
@@ -190,3 +218,28 @@ def retrieve_asset_endpoint_query(hostname: str, port: str, physical_collection:
         if physical_collection:
             query_str += f"{physical_collection}"
     return query_str
+
+def find_dsd_by_name(response: dict, dsd_name: str) -> str:
+    """
+    Filters the DSD results by the given name.
+
+    Args:
+        response (dict): Results retrieved from DSD search.
+        dsd_name (str): The name of the DSD to to find.
+
+    Returns:
+        str: The ID of the found DSD.
+    """
+    data_source_definitions = [
+        {"name": dsd["metadata"]["name"], "id": dsd["metadata"]["asset_id"]}
+        for dsd in response.get("results", [])
+    ]
+
+    result_id = get_closest_match(data_source_definitions, dsd_name)
+
+    if result_id:
+        return result_id
+    else:
+        raise ServiceError(
+            f"Couldn't find any matching data source definition with name '{dsd_name}'"
+        )

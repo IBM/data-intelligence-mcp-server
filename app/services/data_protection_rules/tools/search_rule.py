@@ -8,12 +8,16 @@ from app.services.data_protection_rules.models.search_rule import (
 )
 from app.shared.exceptions.base import ExternalAPIError, ServiceError
 from app.core.auth import get_access_token
+from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.utils.http_client import get_http_client
 from app.services.constants import JSON_CONTENT_TYPE
 from app.core.settings import settings, ENV_MODE_SAAS
 from app.shared.logging import LOGGER, auto_context
 from app.services.constants import SEARCH_PATH
+from app.shared.utils.tool_helper_service import tool_helper_service
 
+
+TABLE_TITLE_DATA_PROTECTION_RULES="Data protection rules"
 METADATA_NAME = "metadata.name"
 METADAT_DESCRIPTION = "metadata.description"
 
@@ -36,25 +40,17 @@ async def search_rules(
     LOGGER.info(
         f"In the data_protection_rule_search tool, searching data protection rules with query {request.data_protection_rule_search_query}."
     )
-    token = await get_access_token()
 
     payload = get_dps_search_payload(
         data_protection_rule_search_query=request.data_protection_rule_search_query,
     )
 
-    headers = {
-        "Content-Type": JSON_CONTENT_TYPE,
-        "Authorization": token,
-    }
-    client = get_http_client()
-
     try:
-        response = await client.post(
-            url=f"{settings.di_service_url}{SEARCH_PATH}?role=viewer&auth_scope=all",
-            headers=headers,
-            data=payload,
+        response = await tool_helper_service.execute_post_request(
+            url=f"{tool_helper_service.base_url}{SEARCH_PATH}?role=viewer&auth_scope=all",
+            json=payload,
+            tool_name="search_rule"
         )
-
         number_of_responses = response["size"]
         if number_of_responses == 0:
             LOGGER.info(
@@ -65,9 +61,9 @@ async def search_rules(
         data_protection_rules = []
 
         if settings.di_env_mode.upper() == ENV_MODE_SAAS:
-            url_prefix = settings.di_service_url.replace("https://api.", "https://") + "/governance/rules/dataProtection/view/"
+            url_prefix = tool_helper_service.base_url.replace("https://api.", "https://") + "/governance/rules/dataProtection/view/"
         else:
-            url_prefix = settings.di_service_url + "/gov/rules/dataProtection/view/"
+            url_prefix = tool_helper_service.base_url + "/gov/rules/dataProtection/view/"
         for row in response["rows"]:
             data_protection_rules.append(
                 {
@@ -77,6 +73,11 @@ async def search_rules(
                     "url": url_prefix + row.get("artifact_id", "")
                 }
             )
+
+        format_response = format_data_protection_rule_for_table(data_protection_rules)
+        ui_message_context.add_table_ui_message(tool_name="search_data_protection_rule",
+                         formatted_data=format_response, title=TABLE_TITLE_DATA_PROTECTION_RULES)
+        
     except ExternalAPIError as e:
         LOGGER.error(
             f"Failed to run data_protection_rule_search tool. Error while searching data protection rules: {str(e)}"
@@ -94,6 +95,17 @@ async def search_rules(
 
     return SearchDataProtectionRuleResponse(count=number_of_responses, data_protection_rules=data_protection_rules)
 
+def format_data_protection_rule_for_table(data_protection_rules: list[dict]) -> list:
+    """Format data protection rules list by changing keys to Title Case for table display."""
+    return [
+        {
+            "Name": rule.get("name", ""),
+            "Description": rule.get("description", ""),
+            "Modified On": rule.get("modified_on", ""),
+            "URL": rule.get("url", "")
+        }
+        for rule in data_protection_rules
+    ]
 
 @service_registry.tool(
     name="data_protection_rule_search",

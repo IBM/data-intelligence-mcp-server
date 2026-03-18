@@ -173,19 +173,32 @@ def get_full_contract_terms_empty_values() -> dict:
             "kind": None,
             "name": None,
             "version": None,
+            "status": None,
             "domain":{
                 "id": None,
                 "name": None
-            }
+            },
+            "authoritative_definitions": [
+                {
+                    "url": None,
+                    "type": None
+                }
+            ],
         },
         "description":{
             "purpose": None,
             "limitations": None,
             "usage": None,
-            "more_info":[
+            "authoritative_definitions": [
                 {
-                    "type": None,
-                    "url": None
+                    "url": None,
+                    "type": None
+                }
+            ],
+            "custom_properties": [
+                {
+                    "property": None,
+                    "value": None
                 }
             ]
         },
@@ -193,6 +206,11 @@ def get_full_contract_terms_empty_values() -> dict:
             {
                 "user_id": None,
                 "role": None
+            }
+        ],
+        "roles": [
+            {
+            "role": None
             }
         ],
         "price":{
@@ -223,7 +241,7 @@ def get_full_contract_terms_empty_values() -> dict:
     ],
     "custom_properties":[
         {
-            "key": None,
+            "property": None,
             "value": None
         }
     ]
@@ -255,9 +273,9 @@ def get_full_contract_terms_empty_values() -> dict:
     Example customizations (must match schema structure):
          - Update description limitations: {"description": {"limitations": "unlimited"}}
          - Add SLA with properties: {"sla": [{"properties": [{"property": "property1", "value": "value1"}, {"property": "property2", "value": "value2"}]}]}
-         - Add custom properties: {"custom_properties": [{"key": "refresh", "value": "daily"}, {"key": "relevancy", "value": "new"}]}
+         - Add custom properties: {"custom_properties": [{"property": "refresh", "value": "daily"}, {"key": "relevancy", "value": "new"}]}
          - Update overview name: {"overview": {"name": "My Custom Contract"}}
-         - Combine multiple: {"description": {"limitations": "unlimited"}, "custom_properties": [{"key": "refresh", "value": "daily"}]}
+         - Combine multiple: {"description": {"limitations": "unlimited"}, "custom_properties": [{"property": "refresh", "value": "daily"}]}
     
     The deep_merge preserves all template defaults while applying your customizations.
     """,
@@ -350,10 +368,10 @@ async def attach_contract_template_to_data_product(
     Example customizations (must match schema structure):
          - Update description limitations: {"description": {"limitations": "unlimited"}}
          - Add SLA with properties: {"sla": [{"properties": [{"property": "property1", "value": "value1"}, {"property": "property2", "value": "value2"}]}]}
-         - Add custom properties: {"custom_properties": [{"key": "refresh", "value": "daily"}, {"key": "relevancy", "value": "new"}]}
+         - Add custom properties: {"custom_properties": [{"property": "refresh", "value": "daily"}, {"key": "relevancy", "value": "new"}]}
          - Update overview name: {"overview": {"name": "My Custom Contract"}}
-         - Combine multiple: {"description": {"limitations": "unlimited"}, "custom_properties": [{"key": "refresh", "value": "daily"}]}
-    
+         - Combine multiple: {"description": {"limitations": "unlimited"}, "custom_properties": [{"property": "refresh", "value": "daily"}]}
+   
     The deep_merge preserves all template defaults while applying your customizations.
     
     Args:

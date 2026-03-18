@@ -21,6 +21,10 @@ class CreateOrUpdateUrlDataProductRequest(BaseModel):
         default=None,
         description="The ID of the existing data product draft. This field is populated only if we are adding a URL asset item to an existing draft, otherwise this field value is None."
     )
+    force: bool = Field(
+        default=False,
+        description="If True, creates a new draft even if a data product with the same URL already exists. If False (default), returns existing data products that use the specified URL."
+    )
 
 
 class CreateOrUpdateUrlDataProductResponse(BaseResponseModel):

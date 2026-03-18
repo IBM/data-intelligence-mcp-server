@@ -5,7 +5,6 @@ system_instructions: |
   Tools for creating and managing data protection rules to enforce data governance policies. This service enables defining rules based on asset attributes, data classes, and business classifications with configurable actions (allow/deny) to control data access and usage. Supports searching and filtering rules by name or description to maintain compliance and security across the data platform.
   
   Data Protection Rules Tools:
-  1. create_data_protection_rule_from_text - Create a new data protection rule using natural language description (SaaS only).
-  2. create_data_protection_rule - Create a data protection rule with structured parameters and automatic preview (CP4D).
-  3. data_protection_rule_search - Search data protection rule by query filter.
-  4. data_protection_rule_search_governance_artifacts - Search for governance artifacts (classifications, data classes, or business terms) by query to find existing artifacts in IBM Knowledge Catalog.
+  1. create_data_protection_rule - Create a new data protection rule.
+  2. data_protection_rule_search - Search data protection rule by query filter.
+  3. data_protection_rule_search_governance_artifacts - Search for governance artifacts (classifications, data classes, or business terms) by query to find existing artifacts in IBM Knowledge Catalog.

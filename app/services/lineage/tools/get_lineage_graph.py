@@ -19,6 +19,12 @@ from app.shared.exceptions.base import ServiceError
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import append_context_to_url, are_lineage_ids, verify_dates
 from app.shared.utils.tool_helper_service import tool_helper_service
+from app.shared.ui_message.ui_message_context import ui_message_context
+from app.shared.ui_message.ui_agentic_utils import (
+    ButtonComponent,
+    CardBodyTextComponent,
+    CardComponent,
+)
 
 
 class StreamDirection(Enum):
@@ -76,6 +82,18 @@ def _calculate_number_of_hops(hop_up, hop_down) -> str:
     return str(max(hop_up_int, hop_down_int))
 
 
+def _map_lineage_to_card(title: str, asset_names: list[str], url: str) -> CardComponent:
+    body = ", ".join(name for name in asset_names if name)
+    if body:
+        body = f"Lineage for asset(s): {body}"
+    
+    return CardComponent(
+        title=title,
+        body=[CardBodyTextComponent(text=body)],
+        footer=[ButtonComponent(label="View lineage", url=url)],
+    )
+
+
 def _construct_get_lineage_graph_response(
     lineage_ids: List[str],
     lineage_graph_response: Dict[str, Any],
@@ -130,6 +148,20 @@ def _construct_get_lineage_graph_response(
     url = append_context_to_url(
         f"{tool_helper_service.ui_base_url}{LINEAGE_UI_BASE_ENDPOINT}?{urlencode(query_params)}"
     )
+    
+    id_to_name_with_parent = {
+        asset.id: (
+            f"{asset.name} : {asset.parent_name}" if asset.parent_name else asset.name
+        )
+        for asset in lineage_assets_model
+    }
+    asset_names = [id_to_name_with_parent.get(lineage_id) for lineage_id in lineage_ids]
+    
+    ui_message_context.add_card_ui_message(
+        tool_name="get_lineage_graph",
+        card_component=_map_lineage_to_card("View the lineage graph", asset_names, url),
+    )
+    
     return GetLineageGraphResponse(
         lineage_assets=lineage_assets_model, edges_in_view=connections, url=url
     )

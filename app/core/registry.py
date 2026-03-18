@@ -16,6 +16,11 @@ from app.shared.logging.utils import LOGGER
 # Tool name validation pattern: alphanumeric, underscore, hyphen, 1-64 chars
 TOOL_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
 
+# Custom tool tags that should always be loaded regardless of WXO filtering
+CUSTOM_TOOL_TAGS = {"custom", "custom_tool"}
+# Experimental tool tags that should not be used in production environment
+EXPERIMENTAL_TAGS= {"experimental"}
+
 class RegisteredTool(NamedTuple):
     """Holds tool information prior to registration with the MCP server."""
     func: Callable
@@ -61,12 +66,27 @@ class ServiceRegistry:
         is_wxo_func = self._is_wxo_function(func)
         # Skip if wxo mode enabled but not wxo function, or vice versa
         return (settings.wxo and not is_wxo_func) or (not settings.wxo and is_wxo_func)
+    
+    def _is_custom_tool(self, tags: set[str] | None) -> bool:
+        """Check if tool has any custom tag """
+        if not tags:
+            return False
+        return any(custom_tag in tags for custom_tag in CUSTOM_TOOL_TAGS)
+
+    def _is_experimental(self, tags: set[str] | None) -> bool:
+        """Check if tool has experimental tag """
+        if not tags:
+            return False
+        return any(experimental_tag in tags for experimental_tag in EXPERIMENTAL_TAGS)
 
     def _infer_models(self, func: Callable) -> tuple[Any, Any]:
         """Infer input and output models from function signature."""
         sig = inspect.signature(func)
         params = list(sig.parameters.values())  
         input_model = params[0].annotation if params else None
+        if len(params) > 1:
+            LOGGER.info(f"Registering tool with context parameter: {str(func)}")
+            input_model = [params[0].annotation, params[1].annotation]
         output_model = sig.return_annotation if sig.return_annotation is not inspect.Signature.empty else None
         return input_model, output_model
 
@@ -84,7 +104,11 @@ class ServiceRegistry:
         def decorator(func: Callable) -> Callable:
             tool_name = name if name is not None else func.__name__
             self._validate_tool_name(tool_name)
-            if self._should_skip_wxo_filtering(func):
+            """Load the tool based on WXO configuration. Always load custom tools"""
+            if self._should_skip_wxo_filtering(func) and not self._is_custom_tool(tags):
+                return func
+            """Do not load the tool if it's experimental and the experimental setting is not enabled"""
+            if settings.use_experimental == False and self._is_experimental(tags):
                 return func
 
             input_model, output_model = self._infer_models(func)
@@ -221,6 +245,7 @@ class ServiceRegistry:
 
             # Build kwargs and register tool
             kwargs = self._build_tool_kwargs(tool)
+
             mcp_instance.tool(**kwargs)(func_to_register)
             self._registered_count += 1
 

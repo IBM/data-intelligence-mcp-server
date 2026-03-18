@@ -116,7 +116,10 @@ async def create_metadata_import(input: CreateMetadataImportRequest) -> CreateMe
     )
 
     LOGGER.info("Returning user-friendly message: %s", message)
-    return CreateMetadataImportResponse(message=message)
+    return CreateMetadataImportResponse(
+        message=message, 
+        metadata_import_asset_ui_url=mdi_url,
+        metadata_import_name=import_name)
 
 
 @service_registry.tool(

@@ -64,13 +64,13 @@ def create_rule_guide_prompt(
    - If artifacts don't exist, suggest creating them first or using alternative artifacts
 
 4. **Create the Rule with Preview:**
-   - Use create_data_protection_rule_from_text with structured parameters
+   - Use create_data_protection_rule with the rule_json parameter
    - ALWAYS set preview_only=true on the first call to show the preview
    - Display the complete preview to me for review
 
 5. **Confirm and Create:**
    - After I review the preview, ask if I want to proceed
-   - If I confirm, call the same tool again with preview_only=false to create the rule
+   - If I confirm, call create_data_protection_rule again with preview_only=false to create the rule
    - Provide the rule ID and URL for accessing the created rule
 
 **Expected Output:**
