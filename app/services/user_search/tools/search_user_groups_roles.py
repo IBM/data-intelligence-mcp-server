@@ -2,12 +2,15 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Optional, Literal
+from typing import Optional, Literal, Union, List
 from app.core.registry import service_registry
 from app.services.user_search.models.search_user_groups_roles import (
     UnifiedSearchRequest,
     UnifiedSearchResponse,
 )
+from app.services.user_search.models.search_users import UserSearchResult
+from app.services.user_search.models.search_groups import GroupSearchResult
+from app.services.user_search.models.search_roles import RoleSearchResult
 from app.services.user_search.utils.search_utils import (
     search_users_by_query,
     search_groups_by_query,
@@ -16,6 +19,75 @@ from app.services.user_search.utils.search_utils import (
 from app.shared.exceptions.base import ExternalAPIError, ServiceError
 from app.shared.logging import LOGGER, auto_context
 from app.core.settings import settings, ENV_MODE_SAAS
+from app.shared.ui_message.ui_message_context import ui_message_context
+
+TABLE_TITLE_SEARCH_USERS = "Search Users"
+TABLE_TITLE_SEARCH_USER_GROUPS = "Search User Groups"
+TABLE_TITLE_SEARCH_USER_ROLES = "Search User roles"
+
+def format_artifacts_for_table(
+    results: Union[List[UserSearchResult], List[GroupSearchResult], List[RoleSearchResult]]
+) -> List[dict]:
+    """
+    Format search results by changing keys to Title Case for table display.
+    
+    Handles three types of results:
+    - UserSearchResult: Formats user_id, username, display_name, email, state
+    - GroupSearchResult: Formats group_id, group_name, description, state
+    - RoleSearchResult: Formats role_key, role_name, description
+    
+    Args:
+        results: List of search results (users, groups, or roles)
+        
+    Returns:
+        List of dictionaries with Title Case keys for table display
+    """
+    if not results:
+        return []
+    
+    # Determine result type by checking first item
+    first_result = results[0]
+    
+    if isinstance(first_result, UserSearchResult):
+        # Type narrowing for users
+        user_results = [r for r in results if isinstance(r, UserSearchResult)]
+        return [
+            {
+                "User ID": result.user_id,
+                "Username": result.username,
+                "Display Name": result.display_name or "",
+                "Email": result.email or "",
+                "State": result.state,
+            }
+            for result in user_results
+        ]
+    elif isinstance(first_result, GroupSearchResult):
+        # Type narrowing for groups
+        group_results = [r for r in results if isinstance(r, GroupSearchResult)]
+        return [
+            {
+                "Group ID": result.group_id,
+                "Group Name": result.group_name,
+                "Description": result.description or "",
+                "State": result.state,
+            }
+            for result in group_results
+        ]
+    elif isinstance(first_result, RoleSearchResult):
+        # Type narrowing for roles
+        role_results = [r for r in results if isinstance(r, RoleSearchResult)]
+        return [
+            {
+                "Role Key": result.role_key,
+                "Role Name": result.role_name,
+                "Description": result.description or "",
+            }
+            for result in role_results
+        ]
+    else:
+        # Fallback: return empty list if unknown type
+        LOGGER.warning(f"Unknown result type: {type(first_result)}")
+        return []
 
 
 @service_registry.tool(
@@ -72,10 +144,16 @@ async def _execute_search_by_type(request: UnifiedSearchRequest):
     """
     if request.search_type == "user":
         results, total_count = await search_users_by_query(query=request.query)
+        format_response = format_artifacts_for_table(results)
+        ui_message_context.add_table_ui_message(tool_name="search_user_groups_roles",
+                         formatted_data=format_response, title=TABLE_TITLE_SEARCH_USERS)
         return results, total_count, "user", "user_id"
     
     if request.search_type == "group":
         results, total_count = await search_groups_by_query(query=request.query)
+        format_response = format_artifacts_for_table(results)
+        ui_message_context.add_table_ui_message(tool_name="search_user_groups_roles",
+                         formatted_data=format_response, title=TABLE_TITLE_SEARCH_USER_GROUPS)
         return results, total_count, "group", "group_id"
     
     if request.search_type == "role":
@@ -83,6 +161,9 @@ async def _execute_search_by_type(request: UnifiedSearchRequest):
         if settings.di_env_mode.upper() == ENV_MODE_SAAS:
             return None, 0, "role", "role_key"  # Signal SaaS mode
         results, total_count = await search_roles_by_query(query=request.query)
+        format_response = format_artifacts_for_table(results)
+        ui_message_context.add_table_ui_message(tool_name="search_user_groups_roles",
+                         formatted_data=format_response, title=TABLE_TITLE_SEARCH_USER_ROLES)
         return results, total_count, "role", "role_key"
     
     raise ValueError(f"Invalid search_type: {request.search_type}. Must be 'user', 'group', or 'role'.")

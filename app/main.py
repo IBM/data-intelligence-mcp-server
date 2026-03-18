@@ -21,6 +21,7 @@ from fastmcp import FastMCP
 import app.services
 from app.core.registry import prompt_registry, service_registry
 from app.core.settings import settings
+from app.core.middleware import ValidationErrorHandlingMiddleware
 
 # Ensure the project root is in the Python path for module resolution
 project_root = Path(__file__).parent.parent
@@ -98,6 +99,9 @@ def create_server() -> FastMCP:
 
     mcp = FastMCP("WXDI MCP Server", version="1.0.0")
 
+    # Add middleware for enhanced error messages
+    mcp.add_middleware(ValidationErrorHandlingMiddleware())
+
     # Register tools first to get the actual count
     service_registry.register_all(mcp)
     actual_registered_count = service_registry.get_registered_count()
@@ -170,8 +174,7 @@ def main():
             kwargs = {
                 "transport": "streamable-http",
                 "host": args.host,
-                "port": args.port,
-                "stateless_http": True
+                "port": args.port
             }
             
             # Configure uvicorn for high concurrency handling

@@ -81,6 +81,8 @@ FIELD_SEMANTIC_DESCRIPTION_STATUS = "semantic_description_status"
 FIELD_ASSET_LISTS = "asset_lists"
 FIELD_FLIGHT_ASSET_ID = "flight_asset_id"
 FIELD_URL = "url"
+FIELD_FLIGHT_CLIENT_URL = "flight_client_url"
+FIELD_COPY_TEXT = "copy_text"
 
 # ---- API Query Parameters ----
 PARAM_CATALOG_ID = "catalog_id"

@@ -11,3 +11,4 @@ system_instructions: |
   4. execute_data_quality_analysis_for_selected_assets → execute data quality analysis for selected assets in a project.
   5. execute_metadata_expansion_for_selected_assets → execute metadata expansion for selected assets in a project.
   6. start_metadata_relationship_analysis → start a relationship analysis (primary key, foreign key, or overlap analysis) for a metadata enrichment area in a project.
+  7. search_categories → searches all the available categories

@@ -14,7 +14,9 @@ SEARCH_PATH = "/v3/search"
 PROJECTS_BASE_ENDPOINT = "/v2/projects"
 CONNECTIONS_BASE_ENDPOINT = "/v2/connections"
 CAMS_ASSETS_BASE_ENDPOINT = "/v2/assets"
+DATA_PRODUCT_ENDPOINT = "/data_product_exchange/v1/data_products"
 GS_BASE_ENDPOINT = "/v3/search"
+GLOSSARY_API_ENDPOINT = "/v3/glossary_terms/api"
 DATA_QUALITY_BASE_ENDPOINT = "/data_quality/v4"
 DATA_QUALITY_BASE_ENDPOINT_V3 = "/data_quality/v3"
 LINEAGE_BASE_ENDPOINT = "/gov_lineage/v2"
@@ -36,6 +38,16 @@ GROUPS_BASE_ENDPOINT = "/v2/groups"
 
 DPR_RULES = "/v3/enforcement/rules"
 DP_TRANSFORM = "/v4/enforcement-transform"
+
+WORKFLOW_BASE_ENDPOINT = "/v3/workflows"
+WORKFLOW_TASK_ENDPOINT = "/v3/workflow_user_tasks"
+
+GLOSSARY_DATA_CLASS_ENDPOINT = "/v3/data_classes"
+GLOSSARY_BUSINESS_TERMS_ENDPOINT = "/v3/glossary_terms"
+GLOSSARY_ARTIFACT_TYPES_ENDPOINT = "/v3/governance_artifact_types"
+GLOSSARY_DATA_CLASS = "data_class"
+GLOSSARY_BUSINESS_TERM = "glossary_term"
+
 CLOUD_IAM_ENDPOINT = "/identity/token"
 CPD_IAM_ENDPOINT = "/icp4d-api/v1/authorize"
 

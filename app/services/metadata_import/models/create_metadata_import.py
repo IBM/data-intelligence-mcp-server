@@ -24,7 +24,14 @@ class CreateMetadataImportRequest(BaseModel):
 
 class CreateMetadataImportResponse(BaseResponseModel):
     message: str = Field(..., description="An example output message from create_metadata_import.")
-    
+    metadata_import_asset_ui_url: str = Field(
+        ..., 
+        description="The URL to view the created metadata import asset in the UI."
+    )
+    metadata_import_name: str = Field(
+        ..., 
+        description="The name of the created metadata import asset."
+    )
     # Data source definition schema
 class DatasourceDefinitionInfo(BaseModel):
     dataSourceAssetId: str
@@ -92,7 +99,7 @@ class MetadataImportRequest(BaseModel):
     name: str = Field(..., description="The name of the metadata import asset to be created.")
     
     connection_id: str = Field(..., description="The ID of the datasource connection from which asset metadata will be imported.")
-    @field_validator("target_project_id")
+    @field_validator("connection_id")
     def validate_connection_id(cls, v):
         if v == "":
             raise ValueError("connection_id cannot be an empty string or null.")

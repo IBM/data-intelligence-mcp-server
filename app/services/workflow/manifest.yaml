@@ -1,0 +1,39 @@
+service:
+  name: data governance workflow
+  description: "This service contains tools to deal with data governance workflows and glossary entities managed by them."
+system_instructions: |
+  This service helps to inspect workflows and glossary entities like data classes and business terms as workflow objects.
+
+  CRITICAL WORKFLOW FOR TASKS PERTAINING TO WORKFLOW OBJECTS - ALWAYS FOLLOW THIS ORDER:
+
+  For glossary objects like data classes and business terms use **list_data_classes_by_search_term** and **list_business_terms_by_search_term** first to find
+  the artifact_id for each object. NEVER use **get_asset_details** for data classes and business terms, rather call
+  **list_user_tasks_approval_data_for_artifact** to find out more.
+
+  1. **get_workflow_tasks_from_my_inbox** → returns the current user's list of tasks from the workflow task inbox.
+  2. **list_data_classes_by_search_term** → returns a list of all data classes as objects of a data governance workflow pertaining to the search term
+     with the artifact_id included. Use the draft parameter to retrieve data classes waiting for approval and not yet published.
+  3. **list_business_terms_by_search_term** → returns a list of all business terms as objects of a data governance workflow with the artifact_id included. Use
+     the draft parameter to retrieve data classes waiting for approval and not yet published.
+  4. **list_user_tasks_approval_data_for_artifact** -> returns user tasks in a data governance workflow for a specific artifact id along with the final state
+     of the workflow to find out approvers in user task data. Use the draft parameter to specify whether to retrieve user tasks for artifacts not published, resp.
+     not yet published.
+  NEVER call **get_workflow_tasks_from_my_inbox** for data classes and business terms.
+  ALWAYS use **list_data_classes_by_search_term** or **list_business_terms_by_search_term** before calling **list_user_tasks_approval_data_for_artifact**. 
+  NEVER use **list_user_tasks_approval_data_for_artifact** without an artifact_id or to retrieve the user's task inbox.
+
+  TASK DISPLAY REQUIREMENTS FOR get_workflow_tasks_from_my_inbox:
+  - **My assigned tasks** are any and all tasks in my Task inbox, viewable inside "Assigned to you"
+  - **My claimed tasks** are tasks that I have claimed
+  - When listing my tasks, ALWAYS use the **task_title** field (e.g., "Review Business term Ager"), NOT the task_name field (e.g., "Review")
+  - The task_title provides the full context of what the task is about, including the artifact type and name
+  - If task_title is not available, fall back to task_name
+  - Instead of showing "State", show the **current Workflow status**
+  - **NEVER show user ID numbers** - always display the user's **first and last name** when listing:
+    * Author
+    * Updated by
+    * Assigned to
+    * Completed by
+    * Any additional task details involving users
+  - Format user information as "FirstName LastName" instead of user IDs
+

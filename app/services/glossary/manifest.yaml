@@ -1,18 +1,37 @@
 service:
   name: glossary
-  description: "Tools for managing and exploring glossary artifacts including terms, classifications, data classes, policies, and rules. This service enables retrieval of glossary metadata and understanding business context of data assets."
+  description: "Tools for managing and exploring glossary artifacts including terms, classifications, data classes, policies, and rules. This service enables retrieval of glossary metadata, understanding business context of data assets, and bulk importing glossary terms from CSV files."
 system_instructions: |
-  Tools for managing and exploring glossary artifacts including terms, classifications, data classes, policies, and rules. This service enables retrieval of glossary metadata and understanding business context of data assets.
+  Tools for managing and exploring glossary artifacts including terms, classifications, data classes, policies, and rules. This service enables retrieval of glossary metadata, understanding business context of data assets, and bulk importing glossary terms from CSV files.
   
   Glossary Tools:
 
-  Gerneral rules for glossary tools:
+  General rules for glossary tools:
     - Tools support fuzzy name matching for easier discovery
+    - CSV import tools follow IBM watsonx.governance format specifications
 
   1. explain_glossary_artifact: Use when:
     - Get detailed explanation and metadata for a glossary artifact (term, classification, data class, policy, rule, category, or reference data set).
     - Users want to understand what a specific glossary artifact means or represents
     - Users want to auto-generate descriptions using AI if metadata descriptions are missing
+  
   2. get_glossary_artifacts_for_asset: Use when:
     - Retrieve all business terms and classifications assigned to a specific asset.
     - Users want to see what business terms or classifications are associated with a data asset
+  
+  3. get_glossary_csv_schema: Use when:
+    - Users need to understand the CSV format for importing glossary artifacts
+    - You need to generate a CSV from unstructured documents (policies, specifications, etc.)
+    - You need to validate CSV format before importing
+    - Users ask about required columns, allowed values, or CSV constraints
+    - Returns comprehensive schema information including required/optional columns, allowed values, examples, and validation rules
+  
+  4. glossary_csv_import: Use when:
+    - Users want to import glossary terms and categories from CSV files
+    - You need to validate CSV content before importing (use validate_only=true)
+    - Users provide CSV content to be imported into the glossary
+    - Bulk creation of glossary artifacts is needed
+    - Supports both validation-only mode and full import mode
+    - Returns detailed error messages with row numbers for any validation issues
+    - Can import both glossary terms and categories with relationships
+    

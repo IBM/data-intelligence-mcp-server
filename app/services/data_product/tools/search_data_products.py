@@ -149,6 +149,7 @@ async def search_data_products(
         products.append(
             {
                 "data_product_id": entity.get("data_product_version", {}).get("product_id", ""),
+                "data_product_version_id": row.get("artifact_id", ""),
                 "name": metadata.get("name", ""),
                 "description": metadata.get("description", ""),
                 "created_on": metadata.get("created_on", ""),

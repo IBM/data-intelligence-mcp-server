@@ -53,6 +53,7 @@ class SubscribedAsset(BaseModel):
     name: str
     flight_asset_id: Optional[str] = None
     url: Optional[str] = None
+    flight_client_url: Optional[str] = None
 
 
 class DataProductDetails(BaseModel):
@@ -66,8 +67,11 @@ class DataProductDetails(BaseModel):
 
 class GetDataProductDetailsResponse(BaseResponseModel):
     """Response containing data product details and subscription information."""
-    data_product_details: Optional[DataProductDetails] = None
+    data_product_details: DataProductDetails = Field(
+        default_factory=lambda: DataProductDetails(id="", parts_out=[]),
+        description="The data product details including version, state, description, and parts/assets information."
+    )
     data_product_subscription_details: List[SubscribedAsset] = Field(
         default_factory=list,
-        description="List of subscribed assets with flight_asset_id or url for data access"
+        description="The details of the latest successfully delivered subscription including assets with flight_asset_id or url for data access. Only includes the latest subscription with 'succeeded' state - failed subscription deliveries are not returned."
     )

@@ -23,6 +23,7 @@ class SearchDataProductsRequest(BaseModel):
 
 class DataProduct(BaseModel):
     data_product_id: str
+    data_product_version_id: str
     name: str
     description: str
     created_on: str

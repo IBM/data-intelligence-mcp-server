@@ -6,6 +6,7 @@ from typing import Literal, Optional
 
 from app.core.registry import service_registry
 from app.shared.logging import LOGGER, auto_context
+from app.shared.ui_message.ui_message_context import ui_message_context
 
 from app.services.data_quality.models.get_data_quality_for_asset import (
     GetDataQualityForAssetRequest,
@@ -15,6 +16,18 @@ from app.services.data_quality.models.get_data_quality_for_asset import (
 from app.services.data_quality.utils.data_quality_common_utils import (
     get_data_quality_for_asset as get_data_quality_for_asset_util,
 )
+
+
+def _format_data_quality_for_table(response) -> list:
+    return [
+        {
+            "Report URL": ui_message_context.create_markdown_link(response.report_url, "Link"),
+            "Overall": response.overall,
+            "Consistency": response.consistency,
+            "Validity": response.validity,
+            "Completeness": response.completeness,
+        }
+    ]
 
 
 @service_registry.tool(
@@ -64,14 +77,24 @@ async def get_data_quality_for_asset(request: GetDataQualityForAssetRequest) -> 
         container_id_or_name=request.container_id_or_name,
         container_type=request.container_type,
     )
+    
+    report_url = ui_message_context.extend_url_with_context(data_quality.report_url)
 
-    return GetDataQualityForAssetResponse(
+    response = GetDataQualityForAssetResponse(
         overall=data_quality.overall,
         consistency=data_quality.consistency,
         validity=data_quality.validity,
         completeness=data_quality.completeness,
-        report_url=data_quality.report_url,
+        report_url=report_url,
     )
+
+    ui_message_context.add_table_ui_message(
+        tool_name="get_data_quality_for_asset",
+        formatted_data=_format_data_quality_for_table(response),
+        title="Data Quality",
+    )
+
+    return response
 
 
 @service_registry.tool(
@@ -105,3 +128,4 @@ async def wxo_get_data_quality_for_asset(
         container_type=container_type,
     )
     return await get_data_quality_for_asset(request)
+

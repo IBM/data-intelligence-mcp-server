@@ -7,6 +7,7 @@ from app.shared.models import BaseResponseModel
 from typing import Optional
 
 class SearchDataSourceDefinitionRequest(BaseModel):
+    name: Optional[str] = Field(None, description="Name of the data source definition to search for.")
     datasource_type: Optional[str] = Field(None, description="Datasource type name or UUID to filter data source definitions by.")
     hostname: Optional[str] = Field(None, description="Hostname/IP address of the data source to filter data source definitions by.")
     port: Optional[str] = Field(None, description="Port number of the hostname of the data source to filter data source definitions by.")

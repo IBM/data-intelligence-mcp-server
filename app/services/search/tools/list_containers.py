@@ -21,9 +21,11 @@ from app.services.search.models.container import (
     ContainerType,
 )
 from app.shared.logging import LOGGER, auto_context
+from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.helpers import get_project_or_space_type_based_on_context
 from app.services.tool_utils import _build_container_from_response
+from app.shared.utils.utils_tools import format_containers_for_table
 
 def _parse_container_types(container_type_str: str) -> Set[str]:
     """
@@ -188,6 +190,11 @@ async def list_containers(
         len(containers),
         request.container_type,
     )
+
+    if len(containers) > 0:
+        ui_message_context.add_table_ui_message(
+            "list_containers", format_containers_for_table(containers),title="Containers"
+        )
 
     return ListContainersResponse(
         containers=containers,

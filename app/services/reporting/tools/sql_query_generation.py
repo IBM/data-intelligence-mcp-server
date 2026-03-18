@@ -205,7 +205,7 @@ async def sql_query_generation(
     generated_sql_query = _escape_sql_quotes(generated_sql_queries[0].get("sql"))
 
     LOGGER.info(
-        "Successfully generated SQL query via reporting_sql_query_generation"
+        f"Successfully generated SQL query via reporting_sql_query_generation for project {project_id}"
     )
 
     return SqlQueryGenerationResponse(

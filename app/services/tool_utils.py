@@ -70,6 +70,30 @@ async def find_project_id(project_name: str) -> str:
             f"find_project_id failed to find any projects with the name '{project_name}'"
         )
 
+async def find_project_or_catalog_id(container_name: str) -> str:
+    """Find container id by searching projects first, then catalogs.
+    
+    Args:
+        container_name: Name of the container to find.
+        
+    Returns:
+        The container id (either project or catalog).
+        
+    Raises:
+        ServiceError: If container is not found in projects or catalogs.
+    """
+    try:
+        return await find_project_id(project_name=container_name)
+         
+    except Exception:
+        try:
+            container_id = await find_catalog_id(catalog_name=container_name)
+            return container_id
+        except Exception:
+            raise ServiceError(
+            f"_find_project_or_catalog_id failed to find neither project nor catalog with the name '{container_name}'"
+        )
+
 
 async def find_connection_id(connection_name: str, container_id: str, container_type: str) -> str:
     """

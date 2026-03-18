@@ -37,11 +37,15 @@ from app.shared.utils.helpers import confirm_uuid
 
 @service_registry.tool(
     name="create_or_update_metadata_enrichment_asset",
-    description="""Creates a new metadata enrichment asset or updates an existing one within a specified project.
+    description="""Creates a new metadata enrichment (MDE) asset or updates an existing one within a specified project.
 
     This tool automatically detects whether to create or update based on whether an MDE with the given name exists:
     - If MDE exists: UPDATE mode (updates existing MDE with new objectives and categories)
     - If MDE doesn't exist: CREATE mode (creates new MDE)
+
+    If the category_names are not provided, use the 'search_categories' tool to find the list of the available categories.
+    Return the FULL list to the user and ask him to choose one or more categories to be used to create or update the MDE.
+    Do not select categories by your self, the user should select.
 
     CREATE MODE (when MDE doesn't exist):
     - Requires: metadata_enrichment_name, objective_names, category_names, dataset_names
@@ -60,7 +64,7 @@ from app.shared.utils.helpers import confirm_uuid
     Supported objectives are 'profile', 'dq_gen_constraints', 'analyze_quality', 'assign_terms', 
     'analyze_relationships', 'dq_sla_assessment', and 'semantic_expansion'.
     
-    The function assumes that the datasets and categories provided are valid and exist.
+    The function assumes that the datasets provided are valid and exist.
     It does not handle the creation of datasets or categories if they do not already exist.""",
 )
 @auto_context

@@ -18,6 +18,7 @@ from app.services.data_product.utils.data_product_creation_utils import (
     create_part_asset_and_set_relationship,
 )
 from app.services.data_product.utils.common_utils import get_dph_catalog_id_for_user, get_data_product_url
+from app.services.data_product.utils.url_validation_utils import validate_url_not_in_existing_data_products
 from app.services.tool_utils import validate_url
 from app.shared.logging import LOGGER, auto_context
 
@@ -26,6 +27,12 @@ from app.shared.logging import LOGGER, auto_context
     name="data_product_create_or_update_url_data_product",
     description="""
     This tool creates a data product draft from a URL or updates an existing draft to add a URL asset to it.
+    It strictly follows the following rules:
+    - FIRST: Search all data products to check if the URL already exists in any data product's parts_out.
+    - If duplicates are found AND force=False: STOP immediately and return error with duplicate information.
+    - If duplicates are found AND force=True: Proceed with creation despite duplicates.
+    - If no duplicates found: Proceed with creation.
+    
     Example 1 - Create a URL data product draft:
         'Create a URL data product with <name>, <url>,.....'
     Example 2 - Add a URL asset to an existing data product draft:
@@ -52,6 +59,40 @@ async def create_or_update_url_data_product(
         validate_inputs_for_draft_create(request, "url_value", "url_name")
 
     dph_catalog_id = await get_dph_catalog_id_for_user()
+
+    # STRICT VALIDATION: Check for data products containing the URL in parts_out BEFORE any asset creation
+    # Skip validation in the following cases for performance optimization:
+    # 1. If force=True (user explicitly wants to bypass validation)
+    # 2. If this is an UPDATE operation (existing_data_product_draft_id is provided)
+    is_update_operation = not is_data_product_draft_create(request)
+    
+    if is_update_operation:
+        # This is an update operation - skip validation as we're adding to an existing draft
+        LOGGER.info(f"Update operation detected (existing_data_product_draft_id: {request.existing_data_product_draft_id}). Skipping URL validation for performance.")
+    elif not request.force:
+        # This is a CREATE operation and force=False - perform validation
+        LOGGER.info(f"Performing strict URL validation in data products for: {request.url_value}")
+        
+        # Use the new validation utility function that fetches data products using get endpoints
+        existing_products = await validate_url_not_in_existing_data_products(request.url_value, request.force)
+        
+        if existing_products:
+            # URL already exists in data products and force is False - STOP immediately
+            products_info = "\n".join([
+                f"- {dp['name']} (ID: {dp['data_product_id']}, State: {dp['state']}, URL Asset: {dp['url_asset_name']})"
+                for dp in existing_products
+            ])
+            error_message = (
+                f"The URL '{request.url_value}' already exists in the following data product(s):\n{products_info}\n\n"
+                f"Cannot proceed with creation. If you want to create a new data product with this URL anyway, set the 'force' parameter to True."
+            )
+            LOGGER.error(f"URL search validation failed: {error_message}")
+            raise ServiceError(error_message)
+        else:
+            LOGGER.info(f"No existing data products found with URL. Proceeding with creation for URL: {request.url_value}")
+    else:
+        # Force flag is set - skip validation entirely for performance
+        LOGGER.info(f"Force flag is set. Skipping URL validation and proceeding with creation for URL: {request.url_value}")
 
     # step 1: create a URL asset in cams
     url_asset_id = await create_url_asset_in_cams(request, dph_catalog_id)
@@ -224,6 +265,12 @@ def get_patch_data_asset_items_with_delivery_method_to_draft_payload(
     name="data_product_create_or_update_url_data_product",
     description="""
     This tool creates a data product draft from a URL or updates an existing draft to add a URL asset to it.
+    It strictly follows the following rules:
+    - FIRST: Search all data products to check if the URL already exists in any data product's parts_out.
+    - If duplicates are found AND force=False: STOP immediately and return error with duplicate information.
+    - If duplicates are found AND force=True: Proceed with creation despite duplicates.
+    - If no duplicates found: Proceed with creation.
+    
     Example 1 - Create a URL data product draft:
         'Create a URL data product with <name>, <url>,.....'
     Example 2 - Add a URL asset to an existing data product draft:
@@ -237,6 +284,7 @@ def get_patch_data_asset_items_with_delivery_method_to_draft_payload(
         url_value (str): The URL value of the data product. Read the value from user.
         url_name (str): The URL name of the data product. Read the value from user.
         existing_data_product_draft_id (str | None, optional): The ID of the existing data product draft. This field is populated only if we are adding a URL asset item to an existing draft, otherwise this field value is None.
+        force (bool, optional): If True, creates a new draft even if a data product with the same URL already exists. If False (default), stops creation and returns error with existing data products that use the specified URL.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
@@ -247,7 +295,8 @@ async def wxo_create_or_update_url_data_product(
     description: str,
     url_name: str,
     url_value: str,
-    existing_data_product_draft_id: str
+    existing_data_product_draft_id: str,
+    force: bool = False
 ) -> CreateOrUpdateUrlDataProductResponse:
     """Watsonx Orchestrator compatible version that expands CreateOrUpdateUrlDataProductRequest object into individual parameters."""
 
@@ -256,9 +305,9 @@ async def wxo_create_or_update_url_data_product(
         description=description,
         url_name=url_name,
         url_value=url_value,
-        existing_data_product_draft_id=existing_data_product_draft_id
+        existing_data_product_draft_id=existing_data_product_draft_id,
+        force=force
     )
 
     # Call the original create_or_update_url_data_product function
     return await create_or_update_url_data_product(request)
-

@@ -156,4 +156,7 @@ class Settings(BaseSettings):
     # wxo compatibile tools
     wxo: bool = False
 
+    # experimental tools
+    use_experimental: bool = False
+
 settings = Settings()

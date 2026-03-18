@@ -1,0 +1,8 @@
+service:
+  name: connections
+  description: "Tools for creating, moving, copying, editing existing or new connections."
+system_instructions: |
+  Tools for creating, moving, copying, editing existing or new connections.
+
+  Connections Tools:
+  1. copy_connection - Copy an existing connection in a catalog / project to a different catalog / project.

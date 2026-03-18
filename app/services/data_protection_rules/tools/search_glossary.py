@@ -16,7 +16,10 @@ from app.services.constants import JSON_CONTENT_TYPE
 from app.core.settings import settings
 from app.shared.logging import LOGGER, auto_context
 from app.services.constants import SEARCH_PATH
+from app.shared.utils.tool_helper_service import tool_helper_service
+from app.shared.ui_message.ui_message_context import ui_message_context
 
+TABLE_TITLE_SEARCH_GOVERNANCE_ARTIFACTS = "Search governance artifacts"
 
 @service_registry.tool(
     name="data_protection_rule_search_governance_artifacts",
@@ -78,12 +81,16 @@ async def search_governance_artifacts(
             )
         
         # Convert results to GovernanceArtifact objects
-        artifacts = [
+        artifacts: list[GovernanceArtifact] = [
             GovernanceArtifact(name=result["name"], global_id=result["global_id"])
             for result in results
         ]
         
         LOGGER.info(f"Found {len(artifacts)} {request.rhs_type} artifacts.")
+        
+        format_response = format_artifacts_for_table(artifacts)
+        ui_message_context.add_table_ui_message(tool_name="search_governance_artifacts",
+                         formatted_data=format_response, title=TABLE_TITLE_SEARCH_GOVERNANCE_ARTIFACTS)
         
         artifact_names = "\n".join([artifact.name for artifact in artifacts])
         return SearchGovernanceArtifactResponse(
@@ -108,6 +115,16 @@ async def search_governance_artifacts(
         )
 
 
+def format_artifacts_for_table(artifacts: list[GovernanceArtifact]) -> list:
+    """Format artifacts list by changing keys to Title Case for table display."""
+    return [
+        {
+            "Name": result.name,
+            "global_id": result.global_id
+        }
+        for result in artifacts
+    ]
+    
 @service_registry.tool(
     name="data_protection_rule_search_governance_artifacts",
     description="""
@@ -220,10 +237,10 @@ async def search_rhs_terms(rhs_type: str, query: str):
     client = get_http_client()
     
     try:
-        response = await client.post(
-            url=f"{settings.di_service_url}{SEARCH_PATH}?role=viewer&auth_scope=all",
-            headers=headers,
-            data=json_body,
+        response = await tool_helper_service.execute_post_request(
+            url=f"{tool_helper_service.base_url}{SEARCH_PATH}?role=viewer&auth_scope=all",
+            json=json_body,
+            tool_name="data_protection_rule_search_governance_artifacts"
         )
         return response
     except Exception as e:

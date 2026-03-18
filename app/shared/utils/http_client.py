@@ -15,14 +15,13 @@ import httpx
 from app.core.settings import settings
 from app.shared.exceptions.base import ExternalAPIError
 from app.shared.utils.ssl_utils import get_ssl_verify_setting
+from app.shared.utils.http_constants import (
+    APPLICATION_FORM_URL_ENCODED,
+    HTTP_CLIENT_STATS_LOG_MSG,
+)
 from app.services.constants import JSON_CONTENT_TYPE
 
-
-APPLICATION_FORM_URL_ENCODED = "application/x-www-form-urlencoded"
 LOGGER = logging.getLogger(__name__)
-
-# Log message format for HTTP client statistics
-HTTP_CLIENT_STATS_LOG_MSG = "HTTP client stats: total_requests=%d, errors=%d, semaphore_available=%d/%d"
 
 # Global semaphore for controlling concurrent IBM API calls
 # This prevents overwhelming external APIs and connection pool exhaustion
@@ -181,14 +180,75 @@ class AsyncHttpClient:
         
         return await self._make_request(request_func)
 
+    async def _request_with_body(
+        self,
+        method: str,
+        url: str,
+        data: dict[str, Any] | None = None,
+        json: dict[str, Any] | list[dict[str, Any]] | None = None,
+        params: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+        content: bytes | None = None,
+        files: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Internal helper for HTTP methods with request body (POST, PUT, PATCH).
+        
+        Args:
+            method: HTTP method name (POST, PUT, PATCH)
+            url: The URL to make the request to
+            data: Form data (application/x-www-form-urlencoded)
+            json: JSON data (application/json). Can be dict or list for JSON PATCH operations
+            params: Optional query parameters
+            headers: Optional HTTP headers
+            content: Raw bytes for binary uploads
+            files: Multipart file uploads
+            
+        Returns:
+            Dict[str, Any]: JSON response data
+            
+        Raises:
+            ExternalAPIError: If the request fails or returns an error status
+        """
+        # Validate multiple body parameters
+        provided_params = sum([
+            data is not None,
+            json is not None,
+            content is not None,
+            files is not None
+        ])
+        
+        if provided_params > 1:
+            LOGGER.warning(
+                f"Multiple body parameters provided to {method} {url}. "
+                f"Using precedence: files > content > json > data. "
+                f"Provided: data={data is not None}, json={json is not None}, "
+                f"content={content is not None}, files={files is not None}"
+            )
+        
+        async def request_func(client: httpx.AsyncClient) -> httpx.Response:
+            method_func = getattr(client, method.lower())
+            return await method_func(
+                url,
+                json=json,
+                params=params,
+                headers=headers or {},
+                data=data,
+                content=content,
+                files=files,
+            )
+        
+        return await self._make_request(request_func)
+
     async def post(
         self,
         url: str,
         data: dict[str, Any] | None = None,
-        json: dict[str, Any] | None = None,
+        json: dict[str, Any] | list[dict[str, Any]] | None = None,
         params: dict[str, str] | None = None,
         headers: dict[str, str] | None = None,
         content: bytes | None = None,
+        files: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Make async POST request with error handling and semaphore-based concurrency control.
@@ -196,11 +256,14 @@ class AsyncHttpClient:
         Args:
             url: The URL to make the POST request to
             data: Form data (application/x-www-form-urlencoded).
-                  Do not use with json or content.
+                  Do not use with json, content, or files.
             json: JSON data (application/json).
-                  Do not use with data or content.
+                  Do not use with data, content, or files.
             content: Raw bytes for binary uploads (e.g., CSV, Excel files).
-                     Do not use with data or json.
+                     Do not use with data, json, or files.
+            files: Multipart file uploads. Dictionary mapping field names to file-like objects or tuples.
+                   Format: {'field_name': file_object} or {'field_name': ('filename', file_object, 'content_type')}
+                   Do not use with data, json, or content.
             params: Optional query parameters
             headers: Optional HTTP headers
 
@@ -211,26 +274,38 @@ class AsyncHttpClient:
             ExternalAPIError: If the request fails or returns an error status
         
         Warning:
-            Only provide ONE of: data, json, or content.
-            If multiple are provided, precedence is: content > json > data
+            Only provide ONE of: data, json, content, or files.
+            If multiple are provided, precedence is: files > content > json > data
         """
-        # Validate multiple body parameters
-        provided_params = sum([
-            data is not None,
-            json is not None,
-            content is not None
-        ])
-        
-        if provided_params > 1:
-            LOGGER.warning(
-                f"Multiple body parameters provided to POST {url}. "
-                f"Using precedence: content > json > data. "
-                f"Provided: data={data is not None}, json={json is not None}, content={content is not None}"
-            )
-        
+        return await self._request_with_body(
+            "POST", url, data, json, params, headers, content, files
+        )
+
+    async def post_multipart(
+        self,
+        url: str,
+        files: dict[str, tuple[str, bytes, str]],
+        params: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Make async POST request with multipart/form-data for file uploads.
+
+        Args:
+            url: The URL to make the POST request to
+            files: Dictionary of files to upload. Format: {field_name: (filename, content, content_type)}
+            params: Optional query parameters
+            headers: Optional HTTP headers to include (Content-Type will be set automatically)
+
+        Returns:
+            Dict[str, Any]: JSON response data
+
+        Raises:
+            ExternalAPIError: If the request fails or returns an error status
+        """
         async def request_func(client: httpx.AsyncClient) -> httpx.Response:
             return await client.post(
-                url, json=json, params=params, headers=headers or {}, data=data, content=content
+                url, files=files, params=params, headers=headers or {}
             )
         
         return await self._make_request(request_func)
@@ -243,6 +318,7 @@ class AsyncHttpClient:
         params: dict[str, str] | None = None,
         headers: dict[str, str] | None = None,
         content: bytes | None = None,
+        files: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Make async PUT request with error handling and semaphore-based concurrency control.
@@ -250,11 +326,14 @@ class AsyncHttpClient:
         Args:
             url: The URL to make the PUT request to
             data: Form data (application/x-www-form-urlencoded).
-                  Do not use with json or content.
+                  Do not use with json, content, or files.
             json: JSON data (application/json).
-                  Do not use with data or content.
+                  Do not use with data, content, or files.
             content: Raw bytes for binary uploads (e.g., CSV, Excel files).
-                     Do not use with data or json.
+                     Do not use with data, json, or files.
+            files: Multipart file uploads. Dictionary mapping field names to file-like objects or tuples.
+                   Format: {'field_name': file_object} or {'field_name': ('filename', file_object, 'content_type')}
+                   Do not use with data, json, or content.
             params: Optional query parameters
             headers: Optional HTTP headers
 
@@ -265,29 +344,12 @@ class AsyncHttpClient:
             ExternalAPIError: If the request fails or returns an error status
         
         Warning:
-            Only provide ONE of: data, json, or content.
-            If multiple are provided, precedence is: content > json > data
+            Only provide ONE of: data, json, content, or files.
+            If multiple are provided, precedence is: files > content > json > data
         """
-        # Validate multiple body parameters
-        provided_params = sum([
-            data is not None,
-            json is not None,
-            content is not None
-        ])
-        
-        if provided_params > 1:
-            LOGGER.warning(
-                f"Multiple body parameters provided to PUT {url}. "
-                f"Using precedence: content > json > data. "
-                f"Provided: data={data is not None}, json={json is not None}, content={content is not None}"
-            )
-        
-        async def request_func(client: httpx.AsyncClient) -> httpx.Response:
-            return await client.put(
-                url, json=json, params=params, headers=headers or {}, data=data, content=content
-            )
-        
-        return await self._make_request(request_func)
+        return await self._request_with_body(
+            "PUT", url, data, json, params, headers, content, files
+        )
 
     async def patch(
         self,
@@ -297,6 +359,7 @@ class AsyncHttpClient:
         params: dict[str, str] | None = None,
         headers: dict[str, str] | None = None,
         content: bytes | None = None,
+        files: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Make async PATCH request with error handling and semaphore-based concurrency control.
@@ -304,11 +367,14 @@ class AsyncHttpClient:
         Args:
             url: The URL to make the PATCH request to
             data: Form data (application/x-www-form-urlencoded).
-                  Do not use with json or content.
+                  Do not use with json, content, or files.
             json: JSON data (application/json). Can be dict or list for JSON PATCH operations.
-                  Do not use with data or content.
+                  Do not use with data, content, or files.
             content: Raw bytes for binary uploads (e.g., CSV, Excel files).
-                     Do not use with data or json.
+                     Do not use with data, json, or files.
+            files: Multipart file uploads. Dictionary mapping field names to file-like objects or tuples.
+                   Format: {'field_name': file_object} or {'field_name': ('filename', file_object, 'content_type')}
+                   Do not use with data, json, or content.
             params: Optional query parameters
             headers: Optional HTTP headers
 
@@ -319,29 +385,12 @@ class AsyncHttpClient:
             ExternalAPIError: If the request fails or returns an error status
         
         Warning:
-            Only provide ONE of: data, json, or content.
-            If multiple are provided, precedence is: content > json > data
+            Only provide ONE of: data, json, content, or files.
+            If multiple are provided, precedence is: files > content > json > data
         """
-        # Validate multiple body parameters
-        provided_params = sum([
-            data is not None,
-            json is not None,
-            content is not None
-        ])
-        
-        if provided_params > 1:
-            LOGGER.warning(
-                f"Multiple body parameters provided to PATCH {url}. "
-                f"Using precedence: content > json > data. "
-                f"Provided: data={data is not None}, json={json is not None}, content={content is not None}"
-            )
-        
-        async def request_func(client: httpx.AsyncClient) -> httpx.Response:
-            return await client.patch(
-                url, json=json, params=params, headers=headers or {}, data=data, content=content
-            )
-        
-        return await self._make_request(request_func)
+        return await self._request_with_body(
+            "PATCH", url, data, json, params, headers, content, files
+        )
 
     async def close(self) -> None:
         """Close the async HTTP client and clean up resources."""

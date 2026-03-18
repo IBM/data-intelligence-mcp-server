@@ -9,7 +9,7 @@
 from string import Template
 
 from app.core.registry import service_registry
-from app.services.constants import METADATA_IMPORT_BASE_ENDPOINT
+from app.services.constants import METADATA_IMPORT_BASE_ENDPOINT, JOBS_BASE_ENDPOINT
 from app.services.metadata_import.models.execute_metadata_import import (
     ExecuteMetadataImportRequest,
     ExecuteMetadataImportResponse,
@@ -75,7 +75,7 @@ async def find_job_id_in_metadata_import(
 
 
 async def execute_metadata_import_job(
-    job_id: str, project_id: str, metadata_import_id: str
+    job_id: str, project_id: str
 ) -> tuple[str, str]:
     """
     Execute the metadata import job.
@@ -83,8 +83,7 @@ async def execute_metadata_import_job(
     Args:
         job_id (str): The ID of the job in the metadata import.
         project_id (str): The ID of the project containing the metadata import.
-        metadata_import_id (str): The ID of the metadata import asset.
-
+    
     Returns:
         tuple[str, str]: A tuple containing (job_run_id, state).
 
@@ -93,39 +92,22 @@ async def execute_metadata_import_job(
         ExternalAPIError: If an unexpected error occurs while communicating with the external service.
     """
     LOGGER.info(
-        "Executing metadata import job: job_id=%s, project_id=%s, metadata_import_id=%s",
+        "Executing metadata import job: job_id=%s, project_id=%s",
         job_id,
-        project_id,
-        metadata_import_id,
+        project_id
     )
 
-    post_url = f"{tool_helper_service.base_url}{METADATA_IMPORT_BASE_ENDPOINT}/job_runs"
+    post_url = f"{tool_helper_service.base_url}{JOBS_BASE_ENDPOINT}/{job_id}/runs"
     query_params = {
-        "failed_assets_only": False,
-        "job_id": job_id,
         "project_id": project_id,
     }
     
-    payload = {
-        "metadata": {
-            "asset_type": "job",
-            "project_id": project_id
-        },
-        "entity": {
-            "job": {
-                "asset_ref": metadata_import_id
-            }
-        }
-    }
-    
     LOGGER.debug("POST request URL: %s, params: %s", post_url, query_params)
-    LOGGER.debug("Request payload: %s", payload)
 
     try:
         response = await tool_helper_service.execute_post_request(
             url=post_url,
             params=query_params,
-            json=payload,
             tool_name="execute_metadata_import",
         )
         
@@ -161,21 +143,13 @@ async def execute_metadata_import_job(
 
 @service_registry.tool(
     name="execute_metadata_import",
-    description="""Executes a metadata import asset within a specified project.
+    description="""Execute a metadata import job in a project.
 
-    This tool initiates the execution of a pre-configured metadata import asset. It retrieves the asset's details,
-    confirms its existence within the project, and starts the import job. The function returns an ExecuteMetadataImportResponse
-    object containing information about the executed job, including its ID, run ID, state, and a URL to monitor its progress in the UI.
+    ERROR HANDLING:
+    - If project not found: Use 'list_containers' to find available projects or verify the project name
+    - If metadata import asset not found: Use 'create_metadata_import' to create the asset first
 
-    The execution process involves:
-    1. Confirming the project ID based on the provided project name.
-    2. Retrieving the metadata import asset ID using its name within the project.
-    3. Finding the associated job ID for the asset.
-    4. Executing the metadata import job.
-    5. Constructing a URL to the metadata import job UI for monitoring.
-
-    The function assumes the metadata import asset is already defined and valid within the project.
-    It does not handle asset creation.""",
+    Returns: Job ID, run ID, state, and monitoring URL.""",
     tags={"run-metadata-import", "execute-metadata-import", "start-metadata-import"},
     meta={"version": "1.0", "service": "metadata-import"},
 )
@@ -198,7 +172,7 @@ async def execute_metadata_import(
         metadata_import_id, project_id
     )
     job_run_id, state = await execute_metadata_import_job(
-        job_id, project_id, metadata_import_id
+        job_id, project_id
     )
 
     mdi_job_run_url = Template(MDI_UI_JOB_RUN_URL_TEMPLATE).substitute(
@@ -227,21 +201,12 @@ async def execute_metadata_import(
 
 @service_registry.tool(
     name="execute_metadata_import",
-    description="""Executes a metadata import asset within a specified project.
+    description="""Execute a metadata import job in a project.
 
-    This tool initiates the execution of a pre-configured metadata import asset. It retrieves the asset's details,
-    confirms its existence within the project, and starts the import job. The function returns an ExecuteMetadataImportResponse
-    object containing information about the executed job, including its ID, run ID, state, and a URL to monitor its progress in the UI.
-
-    The execution process involves:
-    1. Confirming the project ID based on the provided project name.
-    2. Retrieving the metadata import asset ID using its name within the project.
-    3. Finding the associated job ID for the asset.
-    4. Executing the metadata import job.
-    5. Constructing a URL to the metadata import UI for monitoring.
-
-    The function assumes the metadata import asset is already defined and valid within the project.
-    It does not handle asset creation.""",
+    ERROR HANDLING:
+    - If project not found: Use 'list_containers' to find available projects or verify the project name
+    - If metadata import asset not found: Use 'create_metadata_import' to create the asset first
+    Returns: Job ID, run ID, state, and monitoring URL.""",
     tags={"run-metadata-import", "execute-metadata-import", "start-metadata-import", "wxo"},
     meta={"version": "1.0", "service": "metadata-import"},
 )

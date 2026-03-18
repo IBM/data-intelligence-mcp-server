@@ -2,6 +2,31 @@
 
 > All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project **adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)**.
 
+## [0.7.0] - Mar 18th, 2026
+
+### Added
+- **Workflow**:
+  - `get_my_workflows` - Retrieves workflows initiated by the current user with light and deep dive modes
+  - `get_workflow_tasks_from_my_inbox` - Retrieve tasks from workflow task inbox for the current user
+  - `list_business_terms_by_search_term` - Search business terms in glossary
+  - `list_data_classes_by_search_term` - Search data classes in glossary
+  - `list_user_tasks_approval_data_for_artifact` - Retrieve approval and review user tasks for specific glossary artifact
+- **Connections**: Added a new service to add tools for managing (create, copy, move etc.) connections:
+  - `copy_connection` - Added a new tool for copying existing connections between catalogs or projects.
+- **Glossary**:
+  - `glossary_csv_import` - Import business glossary terms and categories from CSV files following IBM watsonx.governance format with validation and merge options
+  - `get_glossary_csv_schema` - Get detailed information about the CSV schema for importing glossary artifacts
+- **Metadata Enrichment (MDE)**:
+  - `search_categories` - Search for user's categories, mainly used when creating or updating metadata enrichment without providing a category
+
+### Changed
+- **Data Protection Rules (DPS)**: Refactored data protection rule creation logic to simplify the API by consolidating natural language and structured rule creation into a single JSON-based approach:
+- **Data Product Hub (DPH)**:
+  - `data_product_get_data_product_details` - Added `flight_client_url` field to subscription details to provide direct Arrow Flight connection URL for data extraction. Enhanced subscription details to return only the latest successful subscription (sorted by last_updated_at). Added `data_product_version_id` to search_data_products response
+- **Search**:
+  - `search_data_source_definition` - Enhanced the search data source definition tool to filter results by DSD name
+- **HTTP Client**: Support file payloads in http_client & tool helper service for handling non-JSON responses and byte payloads
+
 ## [0.6.0] - Mar 2nd, 2026
 
 ### Added

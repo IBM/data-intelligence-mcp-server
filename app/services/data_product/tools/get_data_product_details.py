@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from typing import Optional, Dict, Any, List, cast
+import re
 
 from app.core.registry import service_registry
 from app.services.data_product.models.get_data_product_details import (
@@ -35,6 +36,8 @@ from app.services.data_product.constants import (
     FIELD_ASSET_ID,
     FIELD_URL,
     FIELD_FLIGHT_ASSET_ID,
+    FIELD_FLIGHT_CLIENT_URL,
+    FIELD_COPY_TEXT,
     FIELD_SELECTED_DATA_CLASS,
     FIELD_NAME,
     FIELD_CONFIDENCE,
@@ -75,48 +78,110 @@ from app.shared.logging import LOGGER, auto_context
 from app.shared.exceptions.base import ServiceError
 
 
+def _extract_flight_client_url_from_copy_text(copy_text_list: List[Dict[str, Any]]) -> Optional[str]:
+    """
+    Extract flight_client_url from copy_text array.
+    
+    Searches through copy_text entries for a flight_client_url value.
+    The flight_client_url can appear in the text field of any copy_text entry.
+    
+    Args:
+        copy_text_list: List of copy_text dictionaries from properties.output
+        
+    Returns:
+        The flight_client_url value if found, None otherwise
+    """
+    for copy_text_entry in copy_text_list:
+        text = copy_text_entry.get("text", "")
+        # Look for flight_client_url in the text using regex
+        # Pattern matches: "flight_client_url": "value" or flight_client_url = "value"
+        match = re.search(r'["\']?flight_client_url["\']?\s*[:=]\s*["\']([^"\']+)["\']', text)
+        if match:
+            return match.group(1)
+    return None
+
+
+def _extract_url_from_item(item: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extract URL value from an ibm_url_definition asset.
+    
+    Args:
+        item: Subscription item dictionary
+        
+    Returns:
+        Dict with 'url' key if found, empty dict otherwise
+    """
+    url_value = (
+        item.get(FIELD_PROPERTIES, {})
+        .get(FIELD_OUTPUT, {})
+        .get(FIELD_OPEN_URL, [{}])[0]
+        .get(FIELD_VALUE)
+    )
+    if url_value:
+        return {FIELD_URL: url_value}
+    
+    LOGGER.warning(f"URL value not found for {ASSET_TYPE_IBM_URL_DEFINITION} asset")
+    return {}
+
+
+def _extract_data_asset_values(item: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extract flight_asset_id and optionally flight_client_url from a data asset.
+    
+    Args:
+        item: Subscription item dictionary
+        
+    Returns:
+        Dict with 'flight_asset_id' and optionally 'flight_client_url', or empty dict if not found
+    """
+    flight_asset_id = (
+        item.get(FIELD_PROPERTIES, {})
+        .get(FIELD_ASSETS_OUT, [{}])[0]
+        .get(FIELD_ASSET_ID)
+    )
+    
+    if not flight_asset_id:
+        asset_type = item.get(FIELD_ASSET, {}).get(FIELD_TYPE)
+        LOGGER.warning(f"flight_asset_id not found for {asset_type} asset")
+        return {}
+    
+    result = {FIELD_FLIGHT_ASSET_ID: flight_asset_id}
+    
+    # Try to extract flight_client_url from copy_text if present
+    copy_text_list = (
+        item.get(FIELD_PROPERTIES, {})
+        .get(FIELD_OUTPUT, {})
+        .get(FIELD_COPY_TEXT, [])
+    )
+    if copy_text_list:
+        flight_client_url = _extract_flight_client_url_from_copy_text(copy_text_list)
+        if flight_client_url:
+            result[FIELD_FLIGHT_CLIENT_URL] = flight_client_url
+    
+    return result
+
+
 def _extract_asset_value_from_item(item: Dict[str, Any]) -> Dict[str, Any]:
     """
     Extract the appropriate value from a subscription item based on asset type.
     
-    For data_asset types, extracts the flight_asset_id.
+    For data_asset types, extracts the flight_asset_id and flight_client_url (if present).
     For ibm_url_definition types, extracts the URL.
     
     Args:
         item: Subscription item dictionary containing asset information
         
     Returns:
-        Dict containing either 'flight_asset_id' or 'url' key with the extracted value,
-        or an empty dict if extraction fails
+        Dict containing 'flight_asset_id' and optionally 'flight_client_url' for data assets,
+        or 'url' for URL definitions, or an empty dict if extraction fails
     """
     asset_type = item.get(FIELD_ASSET, {}).get(FIELD_TYPE)
     
     try:
         if asset_type == ASSET_TYPE_IBM_URL_DEFINITION:
-            # Extract URL from properties.output["Open URL"][0].value
-            url_value = (
-                item.get(FIELD_PROPERTIES, {})
-                .get(FIELD_OUTPUT, {})
-                .get(FIELD_OPEN_URL, [{}])[0]
-                .get(FIELD_VALUE)
-            )
-            if url_value:
-                return {FIELD_URL: url_value}
-            else:
-                LOGGER.warning(f"URL value not found for {ASSET_TYPE_IBM_URL_DEFINITION} asset")
-                return {}
+            return _extract_url_from_item(item)
         else:  # asset_type == "data_asset" or other types
-            # Extract flight_asset_id for data assets
-            flight_asset_id = (
-                item.get(FIELD_PROPERTIES, {})
-                .get(FIELD_ASSETS_OUT, [{}])[0]
-                .get(FIELD_ASSET_ID)
-            )
-            if flight_asset_id:
-                return {FIELD_FLIGHT_ASSET_ID: flight_asset_id}
-            else:
-                LOGGER.warning(f"flight_asset_id not found for {asset_type} asset")
-                return {}
+            return _extract_data_asset_values(item)
     except (KeyError, IndexError, TypeError) as e:
         LOGGER.warning(f"Failed to extract asset value from item: {e}. Item structure may be unexpected.")
         return {}
@@ -387,7 +452,7 @@ async def _get_data_product_subscription_details(
         # Step 1: Find the subscription list for this data product
         # Query for succeeded subscriptions matching the data product ID
         subscriptions_url = (
-            f"{tool_helper_service.base_url}/v2/asset_lists?limit=1&query=asset.id==\"{data_product_id}\"&&state==\"{STATE_SUCCEEDED}\""
+            f"{tool_helper_service.base_url}/v2/asset_lists?limit=1&&sort=-last_updated_at&query=asset.id==\"{data_product_id}\"&&state==\"{STATE_SUCCEEDED}\""
         )
         LOGGER.info(f"Searching for subscriptions: {subscriptions_url}")
         subscriptions_response = await tool_helper_service.execute_get_request(
@@ -573,7 +638,7 @@ async def _process_part_asset(part: Dict[str, Any], params: Dict[str, str]) -> D
        - Release information (version, state, description)
        - Parts/assets with names, descriptions, and enriched column schemas
        - Primary key information (both at part level and column level)
-       - Subscription details (if active subscriptions exist)
+       - Subscription details (only successful subscriptions with 'succeeded' state - failed deliveries are excluded)
     
     **Column Schema Details** - Each column includes:
        - Basic schema: name, data_type, length, nullable, native_type
@@ -589,10 +654,12 @@ async def _process_part_asset(part: Dict[str, Any], params: Dict[str, str]) -> D
     
     **Required Input**: Provide either data_product_id OR data_product_name.
     
-    **Subscription Details**:
-       - For data_asset types: Returns 'flight_asset_id' for data extraction
+    **Subscription Details** (only successful subscriptions returned):
+       - Only includes subscriptions with 'succeeded' state - failed subscription deliveries are not returned
+       - For data_asset types: Returns 'flight_asset_id' and optionally 'flight_client_url' for data extraction
        - For ibm_url_definition types: Returns 'url' for accessing external resources
        - Each subscribed asset includes 'name' and either 'flight_asset_id' or 'url'
+       - If no successful subscriptions exist, the list will be empty
     
     **Usage Tips**:
        - Rich column metadata helps understand data semantics and quality before querying
@@ -639,8 +706,16 @@ async def get_data_product_details(
 
         # Get Data Product Release details
         LOGGER.info(f"Fetching release details for {data_product_id}")
+        
+        # Defensive code: only append @catalog_id if not already present
+        # The data_product_id should ideally be just a GUID, but sometimes it may already include @catalog_id
+        if data_product_id and "@" not in data_product_id:
+            data_product_id_with_catalog = f"{data_product_id}@{catalog_id}"
+        else:
+            data_product_id_with_catalog = data_product_id
+            
         release_url = (
-            f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/releases/{data_product_id}@{catalog_id}"
+            f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/releases/{data_product_id_with_catalog}"
         )
         release_response = await tool_helper_service.execute_get_request(
             url=release_url,
