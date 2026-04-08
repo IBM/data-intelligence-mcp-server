@@ -392,6 +392,31 @@ class AsyncHttpClient:
             "PATCH", url, data, json, params, headers, content, files
         )
 
+    async def delete(
+        self,
+        url: str,
+        params: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Make async DELETE request with error handling and semaphore-based concurrency control.
+
+        Args:
+            url: The URL to make the DELETE request to
+            params: Optional query parameters
+            headers: Optional HTTP headers to include
+
+        Returns:
+            Dict[str, Any]: JSON response data
+
+        Raises:
+            ExternalAPIError: If the request fails or returns an error status
+        """
+        async def request_func(client: httpx.AsyncClient) -> httpx.Response:
+            return await client.delete(url, params=params, headers=headers or {})
+        
+        return await self._make_request(request_func)
+
     async def close(self) -> None:
         """Close the async HTTP client and clean up resources."""
         if self._client:

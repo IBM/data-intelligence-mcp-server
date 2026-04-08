@@ -104,7 +104,7 @@ async def _handle_elicitation(
         data_class_names = [data_class.name for data_class in data_classes]
 
         response = await ctx.elicit(
-            message="Please select one of the classes:\n" + formatted_output,
+            message="Please select one of the classes",
             response_type=data_class_names
         )
         
@@ -142,10 +142,13 @@ def _build_table_response(data_classes: List[DataClass]) -> ListDataClassesRespo
     
     LOGGER.info(f"Generated formatted table for {len(data_classes)} data classes")
     
+    # Always include both raw data and formatted output
+    name_to_artifact_id_map = _build_name_to_artifact_id_map(data_classes)
+    
     return ListDataClassesResponse(
-        data_classes=None,
+        data_classes=data_classes,
         total_count=len(data_classes),
-        name_to_artifact_id_map=None,
+        name_to_artifact_id_map=name_to_artifact_id_map,
         formatted_output=formatted_output
     )
 
@@ -174,6 +177,7 @@ def _build_json_response(data_classes: List[DataClass]) -> ListDataClassesRespon
     description="""
 list_data_classes_by_search_term returns a list of all data classes as objects of a data governance workflow pertaining to the search term
 with the artifact_id included. Always define the draft parameter: if the text refers to future approvals set it true, otherwise false.
+If you find markdown text in the result show it to the user.
 ALWAYS use a request json object to encapsulate the parameters.
     """,
     tags={"workflow", "glossary", "data_classes", "governance"},
@@ -219,7 +223,7 @@ async def list_data_classes_by_search_term(
     description="""Watsonx Orchestrator compatible wrapper for list_data_classes_by_search_term.
 list_data_classes_by_search_term returns a list of all data classes as objects of a data governance workflow pertaining to the search term
 with the artifact_id included. Always define the draft parameter: if the text refers to future approvals set it true, otherwise false.
-Make sure to use a request json object to encapsulate the parameters.
+ALWAYS use a request json object to encapsulate the parameters.
     """,
     tags={"workflow", "wxo", "glossary", "data_classes", "governance"},
     meta={"version": "1.0", "service": "glossary"},

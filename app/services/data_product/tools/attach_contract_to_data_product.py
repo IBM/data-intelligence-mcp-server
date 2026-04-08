@@ -15,6 +15,8 @@ from app.services.data_product.utils.common_utils import add_catalog_id_suffix
 from app.services.tool_utils import validate_url
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.logging import LOGGER, auto_context
+from app.shared.ui_message.ui_message_context import ui_message_context
+from app.shared.utils.utils_tools import format_dict_for_table
 
 
 @service_registry.tool(
@@ -307,6 +309,14 @@ async def attach_contract_template_to_data_product(
         # This helps LLM correctly format contract_terms when adding new fields or updating existing ones
         merged_contract_terms = deep_merge(full_contract_terms_empty_values, template_contract_terms)
         LOGGER.info(f"merged_contract_terms: {merged_contract_terms}")
+        
+        formatted_data = format_dict_for_table(merged_contract_terms)
+        ui_message_context.add_table_ui_message(
+            tool_name="attach_contract_template_to_data_product",
+            formatted_data=formatted_data,
+            title="Contract Terms Schema"
+        )
+        
         result_message = f"Retrieved contract template '{request.contract_template_id}' with the following contract terms:\n\n"
         result_message += f"{merged_contract_terms}\n\n"
         result_message += "Please review these values. To proceed, call this tool again with contract_terms:\n"
@@ -441,6 +451,14 @@ async def create_and_attach_custom_contract(
     # If contract_terms is not provided, this is the first call - display the empty schema
     if request.contract_terms is None:
         LOGGER.info("Displaying empty contract schema to user")
+        
+        formatted_data = format_dict_for_table(full_contract_terms_empty_values)
+        ui_message_context.add_table_ui_message(
+            tool_name="create_and_attach_custom_contract",
+            formatted_data=formatted_data,
+            title="Contract Terms Schema"
+        )
+        
         result_message = "Here is the contract schema with all available fields:\n\n"
         result_message += f"{full_contract_terms_empty_values}\n\n"
         result_message += "Please review the schema and provide values for the fields you want to include in your custom contract.\n"

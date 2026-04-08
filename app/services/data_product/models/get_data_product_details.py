@@ -59,6 +59,7 @@ class SubscribedAsset(BaseModel):
 class DataProductDetails(BaseModel):
     """Complete data product details."""
     id: str
+    url: str
     version: Optional[str] = None
     state: Optional[str] = None
     description: Optional[str] = None
@@ -68,7 +69,7 @@ class DataProductDetails(BaseModel):
 class GetDataProductDetailsResponse(BaseResponseModel):
     """Response containing data product details and subscription information."""
     data_product_details: DataProductDetails = Field(
-        default_factory=lambda: DataProductDetails(id="", parts_out=[]),
+        default_factory=lambda: DataProductDetails(id="", url="", parts_out=[]),
         description="The data product details including version, state, description, and parts/assets information."
     )
     data_product_subscription_details: List[SubscribedAsset] = Field(

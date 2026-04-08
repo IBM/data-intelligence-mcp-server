@@ -170,8 +170,14 @@ class ServiceRegistry:
             return return_type(error=error_message)
         except Exception as e2:
             LOGGER.debug(f"Failed to create error response with just error: {e2}")
+
+        # Strategy 3: Try with just error
+        try:
+            return return_type(error_message)
+        except Exception as e3:
+            LOGGER.debug(f"Failed to create error response with just error: {e3}")
         
-        # Strategy 3: Create with defaults and set fields if they exist
+        # Strategy 4: Create with defaults and set fields if they exist
         try:
             response = return_type()
             if hasattr(response, 'error'):

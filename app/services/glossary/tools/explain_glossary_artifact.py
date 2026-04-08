@@ -287,13 +287,14 @@ async def explain_glossary_artifact(
     response = await tool_helper_service.execute_post_request(
         url=str(tool_helper_service.base_url) + GS_BASE_ENDPOINT,
         json=payload,
+        params={"auth_cache": True},
     )
 
     transformed_data = _transform_global_search_response(response, request.artifact_name)
 
     if not transformed_data:
         raise ServiceError(
-            f"No glossary artifact found with name '{request.artifact_name}'"
+            f"Could not find glossary artifact with name '{request.artifact_name}'"
         )
 
     glossary_artifact = transformed_data["glossary_artifact"]

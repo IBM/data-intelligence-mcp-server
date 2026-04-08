@@ -15,6 +15,8 @@ from app.shared.utils.tool_helper_service import tool_helper_service , create_de
 from typing import List, Dict, Set, Sequence, Optional, Literal, cast
 from app.core.settings import settings
 from app.services.constants import JSON_CONTENT_TYPE
+from urllib.parse import urlparse
+
 
 def create_collaborator_members(users: List[Dict]) -> List[CollaboratorMember]:
     """
@@ -594,12 +596,32 @@ async def search_members(
     # Get configuration based on environment and member type
     is_cpd = settings.di_env_mode.upper() == "CPD"
     url, response_key, search_fields = get_search_config(member_type, is_cpd, account_id)
-    
+
+    parsed = urlparse(url)
+    base_url = f"{parsed.scheme}://{parsed.netloc}"
+    raw_data = []
+
     # Fetch data from API
     try:
-        response = await tool_helper_service.execute_get_request(
-            url=url, tool_name="add_or_edit_collaborator"
-        )
+        while url:
+            response = await tool_helper_service.execute_get_request(
+                url=url, tool_name="add_or_edit_collaborator"
+            )
+            
+            # Extract page data based on response structure
+            if response_key:
+                page_data = response.get(response_key, [])
+            elif isinstance(response, list):
+                page_data = response
+            else:
+                page_data = []
+            
+            raw_data.extend(page_data)
+            
+            # Get next page URL
+            next_url = response.get("next_url") if isinstance(response, dict) else None
+            url = f"{base_url}{next_url}" if next_url else None
+
     except ExternalAPIError as e:
         LOGGER.error(f"API error while fetching {entity_type}s from account: {str(e)}")
         raise ValueError(
@@ -607,13 +629,6 @@ async def search_members(
             f"Please verify you have the necessary permissions to list {entity_type}s."
         )
     
-    # Extract raw data based on response structure
-    if response_key:
-        raw_data = response.get(response_key, [])
-    elif isinstance(response, list):
-        raw_data = response
-    else:
-        raw_data = []
     
     if not raw_data:
         LOGGER.warning(f"No {entity_type}s available in account {account_id}")

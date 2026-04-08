@@ -69,7 +69,7 @@ class ToolHelperService:
         headers: Dict[str, str] = create_default_headers(),
         params: Optional[Dict[str, Any]] = None,
         tool_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, Any] | bytes:
         """
         Execute a GET request with authorization header and handle common error patterns.
 
@@ -162,7 +162,7 @@ class ToolHelperService:
         content: Optional[bytes] = None,
         files: Optional[Dict[str, Any]] = None,
         tool_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, Any] | bytes:
         """
         Execute a POST request with authorization header and handle common error patterns.
 
@@ -197,7 +197,7 @@ class ToolHelperService:
         content: Optional[bytes] = None,
         files: Optional[Dict[str, Any]] = None,
         tool_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, Any] | bytes:
         """
         Execute a PUT request with authorization header and handle common error patterns.
 
@@ -232,7 +232,7 @@ class ToolHelperService:
         content: Optional[bytes] = None,
         files: Optional[Dict[str, Any]] = None,
         tool_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, Any] | bytes:
         """
         Execute a PATCH request with authorization header and handle common error patterns.
 
@@ -256,6 +256,42 @@ class ToolHelperService:
         return await self._execute_request_with_body(
             HTTPMethod.PATCH, url, headers, json, data, params, content, files, tool_name
         )
+        
+    async def execute_delete_request(
+        self,
+        url: str,
+        headers: Dict[str, str] = create_default_headers(),
+        params: Optional[Dict[str, Any]] = None,
+        tool_name: Optional[str] = None,
+    ) -> Dict[str, Any] | bytes:
+        """
+        Execute a DELETE request with authorization header and handle common error patterns.
+
+        Args:
+            url: URL for the request
+            headers: Headers for the request
+            params: Query parameters
+            tool_name: Name of the tool making the request (for error messages)
+
+        Returns:
+            Dict[str, Any]: JSON response
+
+        Raises:
+            ExternalAPIError: If the request fails
+            ServiceError: If the response status code is 404
+        """
+        headers["Authorization"] = await get_access_token()
+        try:
+            response_json = await self.http_client.delete(
+                url=url, headers=headers, params=params
+            )
+
+            return response_json
+        except ExternalAPIError as e:
+            LOGGER.error(
+                f"{tool_name or 'Request'} to {url} failed with error: {str(e)}"
+            )
+            raise self._format_exception(e, HTTPMethod.DELETE, tool_name)
 
     def _format_exception(
         self,
@@ -380,7 +416,7 @@ class ToolHelperService:
         """Raise appropriate error type based on status code."""
         LOGGER.error(f"{error_message}, Full exception: {original_message}")
         
-        if status_code == "404" and method == HTTPMethod.GET:
+        if status_code == "404" and method in [HTTPMethod.GET, HTTPMethod.DELETE]:
             raise ServiceError(error_message)
         
         if status_code == "403":

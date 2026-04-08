@@ -99,11 +99,38 @@ def is_task_claimed(assignee: Optional[str]) -> str:
         assignee: Task assignee (user ID or email)
         
     Returns:
-        "Yes" if claimed, empty string if unclaimed
+        "Yes" if claimed, "❌" string if unclaimed
     """
     if assignee is not None and assignee.strip() != "":
         return "Yes"
-    return ""
+    return "❌"
+
+
+def format_candidates_with_limit(candidates: Optional[List[str]]) -> str:
+    """
+    Format list of candidates with limit of 3 items and ellipsis for more.
+    
+    Args:
+        candidates: List of candidate names (users or groups)
+        
+    Returns:
+        Formatted string with:
+        - First 3 candidates joined by commas
+        - "..." appended if more than 3 candidates
+        - "N/A" if list is empty or None
+    """
+    if not candidates or len(candidates) == 0:
+        return "N/A"
+    
+    # Take first 3 candidates
+    displayed_candidates = candidates[:3]
+    result = ", ".join(displayed_candidates)
+    
+    # Add ellipsis if there are more candidates
+    if len(candidates) > 3:
+        result += "..."
+    
+    return result
 
 
 def build_task_url(base_url: str, task_id: str) -> str:
@@ -181,9 +208,11 @@ def format_tasks_as_table(tasks: List[Task], base_url: str) -> str:
     Returns:
         Markdown table string with columns:
         - Task Title (hyperlinked)
-        - Claimed (Yes or empty)
+        - Claimed (Yes or No)
         - Assigned (time ago)
         - Due Date (with status icons)
+        - Candidate Users (first 3 with ellipsis for more, or "N/A")
+        - Candidate Groups (first 3 with ellipsis for more, or "N/A")
         
     Note:
         If more than 20 tasks are returned, a link to the full task inbox
@@ -193,8 +222,8 @@ def format_tasks_as_table(tasks: List[Task], base_url: str) -> str:
         return "No tasks found in your inbox."
     
     # Build table header
-    table = "| Task Title | Claimed | Assigned | Due Date |\n"
-    table += "|------------|---------|----------|----------|\n"
+    table = "| Task Title | Claimed | Assigned | Due Date | Candidate Users | Candidate Groups |\n"
+    table += "|------------|---------|----------|----------|-----------------|------------------|\n"
     
     # Build table rows
     for task in tasks:
@@ -203,13 +232,15 @@ def format_tasks_as_table(tasks: List[Task], base_url: str) -> str:
         claimed = is_task_claimed(task.assignee)
         assigned = calculate_task_age(task.created_at)
         due_date = format_due_date_with_status(task.due_date)
+        candidate_users = format_candidates_with_limit(task.candidate_users)
+        candidate_groups = format_candidates_with_limit(task.candidate_groups)
         
-        table += f"| {title_link} | {claimed} | {assigned} | {due_date} |\n"
+        table += f"| {title_link} | {claimed} | {assigned} | {due_date} | {candidate_users} | {candidate_groups} |\n"
     
     # Add link to task inbox if more than 20 tasks
     if len(tasks) > 20:
         inbox_url = f"{base_url}{WORKFLOW_TASK_ENDPOINT}"
-        table += f"| [View all tasks in your inbox]({inbox_url}) (list length exceeded) | | | |\n"
+        table += f"| [View all tasks in your inbox]({inbox_url}) (list length exceeded) | | | | | |\n"
     
     return table
 

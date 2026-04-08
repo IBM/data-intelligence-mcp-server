@@ -81,7 +81,7 @@ def format_user_task_state(state: Optional[str]) -> str:
         - "✅ Completed" for completed
         - "👤 Assigned" for assigned
         - "📝 Created" for created
-        - "❓ Unknown" for unknown
+        - "❓ Unclaimed" for unknown
     """
     if is_user_task_completed(state):
         return "✅ Completed"
@@ -90,7 +90,7 @@ def format_user_task_state(state: Optional[str]) -> str:
     elif state == "0":
         return "📝 Created"
     else:
-        return "❓ Unknown"
+        return "❓ Unclaimed"
 
 
 def format_completed_at(completed_at: Optional[str]) -> str:
@@ -207,7 +207,7 @@ def format_user_tasks_as_table(user_tasks: List[UserTask], base_url: str) -> str
         - Candidate Users
     """
     if not user_tasks:
-        return "No user tasks found."
+        return ""
     
     # Build table header
     table = "| Task Name | State | Assignee | Completed At | Candidate Users |\n"
@@ -239,7 +239,7 @@ def format_user_tasks_as_list(user_tasks: List[UserTask], base_url: str) -> str:
         Formatted string with task details
     """
     if not user_tasks:
-        return "No user tasks found."
+        return ""
     
     output = []
     for user_task in user_tasks:

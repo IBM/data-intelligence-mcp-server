@@ -16,7 +16,7 @@ from app.services.data_protection_rules.utils.create_rule_util import (
 from app.shared.logging.generate_context import auto_context
 from app.shared.logging import LOGGER
 from app.shared.exceptions.base import ExternalAPIError
-
+from app.shared.utils.tool_helper_service import tool_helper_service
 # Message templates for natural language rule creation
 REFER_OBJECT_MESSAGE_TEMPLATE = (
     "To create a data protection rule, a referenced object in your request has some issues.\n"
@@ -366,7 +366,7 @@ async def create_data_protection_rule(request: CreateRuleRequest) -> CreateRuleR
             url_prefix = str(settings.di_service_url).replace("https://api.",
                                                               "https://") + "/governance/rules/dataProtection/view/"
         else:
-            url_prefix = str(settings.di_service_url) + "/gov/rules/dataProtection/view/"
+            url_prefix = str(tool_helper_service.ui_base_url) + "/gov/rules/dataProtection/view/"
         
         # Handle successful creation
         if result["success"] and result["guid"]:

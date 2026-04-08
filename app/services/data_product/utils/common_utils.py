@@ -112,6 +112,66 @@ def check_if_date_in_future(date_value: str):
         )
 
 
+def parse_iso_date(date_str: str) -> datetime:
+    """Parse ISO date (YYYY-MM-DD) to datetime in UTC."""
+    try:
+        return datetime.fromisoformat(date_str).replace(tzinfo=timezone.utc)
+    except ValueError as e:
+        raise ServiceError(
+            f"Invalid date format: '{date_str}'. Expected YYYY-MM-DD. Error: {str(e)}"
+        )
+
+
+def calculate_date_one_year_before(date_str: str) -> str:
+    """Calculate date one year before given date (YYYY-MM-DD)."""
+    dt = parse_iso_date(date_str)
+    
+    # Calculate one year before by subtracting from the year
+    # Handle leap year edge case (Feb 29 -> Feb 28 in non-leap years)
+    try:
+        one_year_before = dt.replace(year=dt.year - 1)
+    except ValueError:
+        # This happens when date is Feb 29 and previous year is not a leap year
+        # Set to Feb 28 instead
+        one_year_before = dt.replace(year=dt.year - 1, day=28)
+    
+    return one_year_before.strftime("%Y-%m-%d")
+
+
+def convert_to_iso8601_utc(dt: datetime, end_of_day: bool = False) -> str:
+    """Convert datetime to Elasticsearch ISO 8601 format (YYYY-MM-DDTHH:mm:ss.SSSZ)."""
+    # Ensure UTC timezone
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    
+    # Set time based on end_of_day flag
+    if end_of_day:
+        dt = dt.replace(hour=23, minute=59, second=59, microsecond=999000)
+    else:
+        dt = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # Format to ISO 8601 with milliseconds
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
+def validate_date_range(start_date: str, end_date: str) -> tuple[str, str]:
+    """Validate date range and convert to Elasticsearch ISO 8601 format. Returns (start_iso, end_iso)."""
+    start_dt = parse_iso_date(start_date)
+    end_dt = parse_iso_date(end_date)
+    
+    # Validate range
+    if start_dt > end_dt:
+        raise ServiceError(
+            f"Invalid date range: start date ({start_date}) is after end date ({end_date})"
+        )
+    
+    start_iso = convert_to_iso8601_utc(start_dt, end_of_day=False)
+    end_iso = convert_to_iso8601_utc(end_dt, end_of_day=True)
+    
+    return start_iso, end_iso
+
 @auto_context
 def validate_inputs(request, *fields_to_validate):
     required_fields = fields_to_validate

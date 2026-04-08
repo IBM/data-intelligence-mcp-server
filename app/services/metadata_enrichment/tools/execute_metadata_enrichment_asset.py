@@ -11,11 +11,11 @@ from string import Template
 
 from app.core.registry import service_registry
 from app.services.metadata_enrichment.models.metadata_enrichment import (
-    MDE_UI_URL_TEMPLATE,
     MetadataEnrichmentExecutionRequest,
     MetadataEnrichmentRun,
 )
 from app.services.metadata_enrichment.utils.metadata_enrichment_common_utils import (
+    MDE_UI_URL_TEMPLATE,
     execute_metadata_enrichment_job,
     find_job_id_in_metadata_enrichment,
 )

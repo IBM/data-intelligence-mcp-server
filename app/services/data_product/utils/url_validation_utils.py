@@ -11,216 +11,241 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from app.services.constants import DATA_PRODUCT_ENDPOINT, CAMS_ASSETS_BASE_ENDPOINT
+"""
+URL validation utilities for data product creation.
+
+This module provides functionality to validate that URLs don't already exist
+in data products before creating new ones, preventing duplicate URL data products.
+"""
+
+from typing import List, Dict, Any
+
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.services.data_product.utils.common_utils import get_dph_catalog_id_for_user
 
 
+# Constants for search API
+SEARCH_ENDPOINT = "/v3/search"
+SEARCH_PARAMS = "role=viewer&auth_cache=false&auth_scope=all&type=metadata"
+MAX_RESULTS = 50
+
+
 @auto_context
-async def validate_url_not_in_existing_data_products(url_value: str, force: bool = False) -> list[dict]:
+async def validate_url_not_in_existing_data_products(
+    url_value: str, 
+    force: bool = False
+) -> List[Dict[str, Any]]:
     """
-    Validates that a URL doesn't already exist in any data product's parts_out.
+    Validates that a URL doesn't already exist in any data product.
     
-    Process:
-    1. Get list of all data products and drafts
-    2. Fetch each data product individually by ID to get full details
-    3. Check parts_out for ibm_url_definition assets
-    4. Fetch asset details to compare URL values
+    Uses the v3/search API with a nested query to efficiently search for data products
+    containing the specified URL in their parts_out. This approach directly queries
+    the search index for matching URLs, making it much more efficient than fetching
+    all data products and checking each one.
     
     Args:
-        url_value (str): The URL value to check for duplicates
-        force (bool): If True, returns existing products but doesn't raise error
+        url_value: The URL value to check for duplicates
+        force: If True, skips validation and returns empty list (allows duplicate creation)
         
     Returns:
-        list[dict]: List of existing data products that contain the URL
+        List of dictionaries containing information about existing data products with the URL.
+        Each dictionary contains:
+            - data_product_id: The product ID
+            - name: The data product name
+            - version: The version ID
+            - state: The state (draft or available)
+            - url_asset_name: The name of the URL asset
+            - url: The URL value
+            
+    Raises:
+        Exception: Re-raises any critical errors that prevent validation from running
+        
+    Note:
+        There may be a small delay (seconds to minutes) between creating a data product
+        and it appearing in search results due to search index update latency.
     """
-    LOGGER.info(f"Validating URL not in existing data products: {url_value}")
+    LOGGER.info(f"Starting URL validation for: {url_value}")
     
-    dph_catalog_id = await get_dph_catalog_id_for_user()
+    if force:
+        LOGGER.info("Force flag is True, skipping validation")
+        return []
+    
+    try:
+        dph_catalog_id = await get_dph_catalog_id_for_user()
+        search_payload = _build_search_payload(url_value, dph_catalog_id)
+        
+        LOGGER.info(f"Searching for data products containing URL: {url_value}")
+        search_response = await _execute_search(search_payload)
+        
+        rows = search_response.get("rows", [])
+        LOGGER.info(f"Found {len(rows)} data products containing URL: {url_value}")
+        
+        existing_products = _extract_product_info(rows, url_value)
+        
+        if existing_products:
+            LOGGER.warning(
+                f"Found {len(existing_products)} data products with matching URL '{url_value}'"
+            )
+        else:
+            LOGGER.info(f"No existing data products found with URL: {url_value}")
+            
+        return existing_products
+        
+    except Exception as e:
+        LOGGER.error(f"Critical error during URL validation: {str(e)}")
+        LOGGER.error(f"Exception type: {type(e).__name__}", exc_info=True)
+        # Re-raise critical errors - we cannot proceed without validation
+        raise
+
+
+def _build_search_payload(url_value: str, catalog_id: str) -> Dict[str, Any]:
+    """
+    Builds the search payload for finding data products with a specific URL.
+    
+    Uses a nested query to search directly in parts_out.name for the URL value.
+    This is much more efficient than fetching all data products.
+    
+    Args:
+        url_value: The URL to search for
+        catalog_id: The catalog ID to filter by
+        
+    Returns:
+        Dictionary containing the search payload
+    """
+    return {
+        "_source": [
+            "artifact_id",
+            "metadata.name",
+            "metadata.description",
+            "entity.data_product_version.product_id",
+            "entity.data_product_version.id",
+            "entity.data_product_version.version",
+            "entity.data_product_version.state",
+            "entity.data_product_version.parts_out"
+        ],
+        "query": {
+            "bool": {
+                "must": [
+                    {
+                        "nested": {
+                            "path": "entity.data_product_version.parts_out",
+                            "query": {
+                                "term": {
+                                    "entity.data_product_version.parts_out.name.keyword": url_value
+                                }
+                            }
+                        }
+                    }
+                ],
+                "filter": [
+                    {
+                        "term": {
+                            "metadata.artifact_type": "ibm_data_product_version"
+                        }
+                    },
+                    {
+                        "terms": {
+                            "entity.data_product_version.state": ["available", "draft"]
+                        }
+                    },
+                    {
+                        "term": {
+                            "entity.assets.catalog_id": catalog_id
+                        }
+                    }
+                ]
+            }
+        },
+        "size": MAX_RESULTS
+    }
+
+
+async def _execute_search(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Executes the search request against the v3/search API.
+    
+    Args:
+        payload: The search payload
+        
+    Returns:
+        The search response dictionary
+        
+    Raises:
+        Exception: If the search request fails
+    """
+    search_url = f"{tool_helper_service.base_url}{SEARCH_ENDPOINT}?{SEARCH_PARAMS}"
+    
+    return await tool_helper_service.execute_post_request(
+        url=search_url,
+        json=payload,
+        tool_name="validate_url_not_in_existing_data_products",
+    )
+
+
+def _extract_product_info(rows: List[Dict[str, Any]], url_value: str) -> List[Dict[str, Any]]:
+    """
+    Extracts relevant information from search results.
+    
+    Args:
+        rows: List of search result rows
+        url_value: The URL being searched for
+        
+    Returns:
+        List of dictionaries containing extracted product information
+    """
     existing_products = []
     
-    # Step 1: Get list of all data product IDs (both drafts and released)
-    all_dp_ids = await _get_all_data_product_ids(dph_catalog_id)
-    LOGGER.info(f"Found {len(all_dp_ids)} total data products to check")
-    
-    # Step 2: Fetch each data product individually and check for URL
-    for dp_info in all_dp_ids:
-        dp_id = dp_info.get("id")
-        is_draft = dp_info.get("is_draft", False)
-        
-        if not dp_id:
-            continue
-            
+    for row in rows:
         try:
-            # Step 2a: Get full data product details by ID
-            dp_details = await _get_data_product_details_by_id(dp_id, is_draft)
+            metadata = row.get("metadata", {})
+            entity = row.get("entity", {})
+            dp_version = entity.get("data_product_version", {})
             
-            if not dp_details:
-                LOGGER.warning(f"Could not fetch details for data product {dp_id}")
-                continue
+            dp_id = dp_version.get("product_id")
+            version_id = dp_version.get("id")
+            dp_name = metadata.get("name", "Unknown")
+            state = dp_version.get("state", "unknown")
             
-            # Step 3: Check parts_out for URL assets
-            url_found = await _check_data_product_for_url(
-                dp_details,
-                url_value,
-                dph_catalog_id
+            # Find the URL asset name from parts_out
+            parts_out = dp_version.get("parts_out", [])
+            url_asset_name = _find_url_asset_name(parts_out, url_value)
+            
+            existing_products.append({
+                "data_product_id": dp_id,
+                "name": dp_name,
+                "version": version_id,
+                "state": state,
+                "url_asset_name": url_asset_name,
+                "url": url_value
+            })
+            
+            LOGGER.warning(
+                f"DUPLICATE FOUND! Data product '{dp_name}' "
+                f"(ID: {dp_id}, State: {state}) contains URL '{url_value}'"
             )
             
-            if url_found:
-                existing_products.append(url_found)
-                LOGGER.info(f"Found matching URL in data product: {dp_details.get('name')}")
-                # Return immediately when URL is found - early exit
-                LOGGER.warning("URL already present in data product. Returning immediately.")
-                return existing_products
-                
         except Exception as e:
-            LOGGER.warning(f"Error checking data product {dp_id}: {str(e)}")
+            LOGGER.warning(f"Error processing search result: {str(e)}")
             continue
     
-    # No existing products found with the URL
-    LOGGER.info(f"No existing data products found with URL: {url_value}")
     return existing_products
 
 
-async def _get_all_data_product_ids(dph_catalog_id: str) -> list[dict]:
+def _find_url_asset_name(parts_out: List[Dict[str, Any]], url_value: str) -> str:
     """
-    Step 1: Get list of all data product IDs (both drafts and released).
+    Finds the URL asset name from parts_out that matches the URL value.
     
     Args:
-        dph_catalog_id (str): The catalog ID
+        parts_out: List of parts from the data product
+        url_value: The URL to match
         
     Returns:
-        list[dict]: List of dicts with 'id' and 'is_draft' keys
+        The name of the matching URL asset, or the URL value if not found
     """
-    all_ids = []
-    
-    # Get all draft IDs
-    try:
-        drafts_response = await tool_helper_service.execute_get_request(
-            url=f"{tool_helper_service.base_url}{DATA_PRODUCT_ENDPOINT}/-/drafts",
-            tool_name="validate_url_not_in_existing_data_products",
-        )
-        
-        drafts = drafts_response.get("drafts", [])
-        for draft in drafts:
-            if draft.get("id"):
-                all_ids.append({
-                    "id": draft.get("id"),
-                    "is_draft": True
-                })
-        
-        LOGGER.info(f"Found {len(drafts)} draft data products")
-        
-    except Exception as e:
-        LOGGER.warning(f"Failed to fetch drafts: {str(e)}")
-    
-    # Get all released data product IDs using the new endpoint with state=available&limit=200
-    try:
-        products_response = await tool_helper_service.execute_get_request(
-            url=f"{tool_helper_service.base_url}{DATA_PRODUCT_ENDPOINT}/-/releases?state=available&limit=200",
-            tool_name="validate_url_not_in_existing_data_products",
-        )
-        
-        products = products_response.get("releases", [])
-        for product in products:
-            if product.get("id"):
-                all_ids.append({
-                    "id": product.get("id"),
-                    "is_draft": False
-                })
-        
-        LOGGER.info(f"Found {len(products)} released data products")
-        
-    except Exception as e:
-        LOGGER.warning(f"Failed to fetch released products: {str(e)}")
-    
-    return all_ids
-
-
-async def _get_data_product_details_by_id(dp_id: str, is_draft: bool) -> dict:
-    """
-    Step 2: Fetch individual data product by ID to get full details including parts_out.
-    
-    Args:
-        dp_id (str): The data product ID
-        is_draft (bool): Whether this is a draft or released product
-        
-    Returns:
-        dict: The data product with full details
-    """
-    if is_draft:
-        # For drafts, use the draft endpoint with correct format: /data_products/-/drafts/{draft_id}
-        url = f"{tool_helper_service.base_url}{DATA_PRODUCT_ENDPOINT}/-/drafts/{dp_id}"
-    else:
-        # For released products, use the regular endpoint
-        url = f"{tool_helper_service.base_url}{DATA_PRODUCT_ENDPOINT}/{dp_id}"
-    
-    response = await tool_helper_service.execute_get_request(
-        url=url,
-        tool_name="validate_url_not_in_existing_data_products",
-    )
-    
-    return response
-
-
-async def _check_data_product_for_url(dp_details: dict, url_value: str, dph_catalog_id: str) -> dict | None:
-    """
-    Step 3: Check a data product's parts_out for matching URL.
-    
-    Args:
-        dp_details (dict): The data product details
-        url_value (str): The URL to search for
-        dph_catalog_id (str): The catalog ID
-        
-    Returns:
-        dict | None: Data product info if URL found, None otherwise
-    """
-    parts_out = dp_details.get("parts_out", [])
-    
     for part in parts_out:
-        asset_id = part.get("asset", {}).get("id")
-        asset_type = part.get("asset", {}).get("type")
-        
-        # Only check URL definition assets
-        if asset_type == "ibm_url_definition" and asset_id:
-            try:
-                # Fetch the asset to get the URL value and name
-                asset_url, asset_name = await _get_url_asset_value(asset_id, dph_catalog_id)
-                
-                # Compare URLs
-                if asset_url == url_value:
-                    return {
-                        "data_product_id": dp_details.get("id"),
-                        "name": dp_details.get("name"),
-                        "version": dp_details.get("version"),
-                        "state": dp_details.get("state", "draft"),
-                        "url_asset_name": asset_name,
-                        "url": asset_url
-                    }
-            except Exception as e:
-                LOGGER.warning(f"Error fetching asset {asset_id}: {str(e)}")
-                continue
-    
-    return None
+        if part.get("name") == url_value:
+            return part.get("name", url_value)
+    return url_value
 
-
-async def _get_url_asset_value(asset_id: str, dph_catalog_id: str) -> tuple[str, str]:
-    """
-    Fetch the URL value and name from a URL asset.
-    
-    Args:
-        asset_id (str): The asset ID
-        dph_catalog_id (str): The catalog ID
-        
-    Returns:
-        tuple[str, str]: The URL value and asset name from the asset
-    """
-    asset_response = await tool_helper_service.execute_get_request(
-        url=f"{tool_helper_service.base_url}{CAMS_ASSETS_BASE_ENDPOINT}/{asset_id}?catalog_id={dph_catalog_id}",
-        tool_name="validate_url_not_in_existing_data_products",
-    )
-    
-    asset_url = asset_response.get("entity", {}).get("ibm_url_definition", {}).get("url", "")
-    asset_name = asset_response.get("metadata", {}).get("name", "")
-    return asset_url, asset_name
+# Made with Bob

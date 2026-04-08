@@ -27,23 +27,24 @@ from app.services.tool_utils import (
                     container, and returning the details of the new connection.
                     Users are required to provide the identifier of the existing connection to be copied
                     and the identifier of the target container for the connection to be copied to. If the
-                    users do not provide a source container and type, platform assets catalog is assumed as the
-                    source container and catalog as the source container type. If the users do not provide a
-                    target container type, project is assumed as the target container type.
-                    Example: Create a new connection in AgentTest project from birddb connection in MCPTest catalog.
-                    In this case, connection_name is birddb, source_container is MCPTest, source_container_type is catalog, target_container is AgentTest, and target_container_type is project.
+                    users do not provide a source catalog, platform assets catalog is assumed as the
+                    source catalog. If the users do not provide a target container type, project is assumed 
+                    as the target container type.
+                    Example: Create a new connection in AgentTest project from birddb connection in MCPTest.
+                    In this case, connection_name is birddb, source_catalog is MCPTest, target_container is AgentTest, and target_container_type is project.
                     Example: Copy connection employee to WorkInfo.
-                    In this case, connection_name is employee, target_container is WorkInfo, target_container_type is project, source_container is None, and source_container_type is None.
+                    In this case, connection_name is employee, target_container is WorkInfo, target_container_type is project, source_catalog is None.
                     Example: Create a connection from aws-jobs in workflows catalog.
-                    In this case, connection_name is aws-jobs, target_container is workflows, target_container_type is catalog, source_container is None, and source_container_type is None.
+                    In this case, connection_name is aws-jobs, target_container is workflows, target_container_type is catalog, source_catalog is None.
                     Example: Copy connection test-connection in Test catalog to AgentIssue project.
-                    In this case, connection_name is test-connection, source_container is Test, source_container_type is catalog, target_container is AgentIssue, and target_container_type is project.
+                    In this case, connection_name is test-connection, source_catalog is Test, target_container is AgentIssue, and target_container_type is project.
                     Example: I want to use the BirdDB connection in AgentTest project.
-                    In this case, connection_name is BirdDB, target_container is AgentTest, target_container_type is project, source_container is None, and source_container_type is None.
+                    In this case, connection_name is BirdDB, target_container is AgentTest, target_container_type is project, source_catalog is None.
 
                     IMPORTANT CONSTRAINTS:
                     - connection_name must be provided
                     - target_container must be provided
+                    - connection to be copied can only exist in a catalog
                     """,
     tags={"copy", "connection"},
     meta={"version": "1.0", "service": "connections"}
@@ -54,37 +55,43 @@ async def copy_connection(
 ) -> CopyConnectionResponse:
 
     # Analyze and fix the request parameters
-    source_container = request.source_container or ""
-    source_container_type = request.source_container_type or "catalog"
+    source_catalog = request.source_catalog or ""
     target_container_type = request.target_container_type or "project"
 
     LOGGER.info(
-        "Starting copy connection with connection: '%s', source container: '%s', source container type: '%s', target container: '%s' and target container type: '%s'",
+        "Starting copy connection with connection: '%s', source catalog: '%s', target container: '%s' and target container type: '%s'",
         request.connection_name,
-        source_container,
-        source_container_type,
+        source_catalog,
         request.target_container,
         target_container_type
     )
 
-    source_container_id = await retrieve_container_id(source_container, source_container_type)
+    source_catalog_id = await retrieve_container_id(source_catalog, "catalog")
     target_container_id = await retrieve_container_id(request.target_container, target_container_type)
 
-    connection_id = await find_connection_id(request.connection_name, source_container_id, source_container_type)
+    connection_id = await find_connection_id(request.connection_name, source_catalog_id, "catalog")
 
     headers = {
         "accept": JSON_PLUS_UTF8_ACCEPT_TYPE,
-        "Skip-Enforcement" : "false"
+        "Skip-Enforcement" : "false",
+        "Content-Type": JSON_PLUS_UTF8_ACCEPT_TYPE
     }
     params = {
-        source_container_type + "_id": source_container_id,
-        "target_" + target_container_type + "_id": target_container_id
+        "test": True,
+        "persist": True,
+        target_container_type + "_id": target_container_id,
+        "userfs": False
+    }
+    payload = {
+        "ref_catalog_id": source_catalog_id,
+        "ref_asset_id": connection_id
     }
 
     response = await tool_helper_service.execute_post_request(
-        url=f"{tool_helper_service.base_url}{CONNECTIONS_BASE_ENDPOINT}/{connection_id}/copy",
+        url=f"{tool_helper_service.base_url}{CONNECTIONS_BASE_ENDPOINT}",
         headers=headers,
         params=params,
+        json=payload,
         tool_name="copy_connection"
     )
 
@@ -100,7 +107,7 @@ async def copy_connection(
         )
     else:
         raise ServiceError(
-            f"Could not copy connection {request.connection_name} from {source_container_id} {source_container_type} to {target_container_id} {target_container_type}"
+            f"Could not copy connection {request.connection_name} from {source_catalog_id} catalog to {target_container_id} {target_container_type}"
         )
 
     return output
@@ -108,24 +115,28 @@ async def copy_connection(
 @service_registry.tool(
     name="copy_connection",
     description="""Understand user's request about creating a new connetion from an existing connection,
-                    in other words, copying a connection and returning the details of the new connection.
+                    in other words, copying a connection, or using an existing connection in a different
+                    container, and returning the details of the new connection.
                     Users are required to provide the identifier of the existing connection to be copied
                     and the identifier of the target container for the connection to be copied to. If the
-                    users do not provide a source container and type, platform assets catalog is assumed as the
-                    source container and catalog as the source container type. If the users do not provide a
-                    target container type, project is assumed as the target container type.
-                    Example: Create a new connection in AgentTest project from birddb connection in MCPTest catalog.
-                    In this case, connection_name is birddb, source_container is MCPTest, source_container_type is catalog, target_container is AgentTest, and target_container_type is project.
+                    users do not provide a source catalog, platform assets catalog is assumed as the
+                    source catalog. If the users do not provide a target container type, project is assumed 
+                    as the target container type.
+                    Example: Create a new connection in AgentTest project from birddb connection in MCPTest.
+                    In this case, connection_name is birddb, source_catalog is MCPTest, target_container is AgentTest, and target_container_type is project.
                     Example: Copy connection employee to WorkInfo.
-                    In this case, connection_name is employee, target_container is WorkInfo, target_container_type is project, source_container is None, and source_container_type is None.
+                    In this case, connection_name is employee, target_container is WorkInfo, target_container_type is project, source_catalog is None.
                     Example: Create a connection from aws-jobs in workflows catalog.
-                    In this case, connection_name is aws-jobs, target_container is workflows, target_container_type is catalog, source_container is None, and source_container_type is None.
+                    In this case, connection_name is aws-jobs, target_container is workflows, target_container_type is catalog, source_catalog is None.
                     Example: Copy connection test-connection in Test catalog to AgentIssue project.
-                    In this case, connection_name is test-connection, source_container is Test, source_container_type is catalog, target_container is AgentIssue, and target_container_type is project.
+                    In this case, connection_name is test-connection, source_catalog is Test, target_container is AgentIssue, and target_container_type is project.
+                    Example: I want to use the BirdDB connection in AgentTest project.
+                    In this case, connection_name is BirdDB, target_container is AgentTest, target_container_type is project, source_catalog is None.
 
                     IMPORTANT CONSTRAINTS:
                     - connection_name must be provided
                     - target_container must be provided
+                    - connection to be copied can only exist in a catalog
                     """,
     tags={"copy", "connection"},
     meta={"version": "1.0", "service": "connections"}
@@ -134,16 +145,14 @@ async def copy_connection(
 async def wxo_copy_connection(
     connection_name: str,
     target_container: str,
-    source_container: Optional[str] = None,
-    source_container_type: Optional[Literal["catalog", "project"]] = None,
+    source_catalog: Optional[str] = None,
     target_container_type: Optional[Literal["catalog", "project"]] = None,
 ) -> CopyConnectionResponse:
     """Watsonx Orchestrator compatible version that expands CopyConnectionRequest object into individual parameters."""
 
     request = CopyConnectionRequest(
         connection_name=connection_name,
-        source_container=source_container,
-        source_container_type=source_container_type,
+        source_catalog=source_catalog,
         target_container=target_container,
         target_container_type=target_container_type,
     )

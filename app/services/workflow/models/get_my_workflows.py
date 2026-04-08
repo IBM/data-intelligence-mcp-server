@@ -110,7 +110,7 @@ class GetMyWorkflowsRequest(BaseModel):
         description="Get details for a specific workflow by ID (ignores other filters)"
     )
     format: str = Field(
-        "json",
+        "table",
         description="Output format: 'table' for formatted markdown tables, 'json' for raw data (only applicable when deep_dive=True)"
     )
 

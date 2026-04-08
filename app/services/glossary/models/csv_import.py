@@ -20,7 +20,7 @@ class GlossaryTermCSVRow(BaseModel):
     """
     Schema for a glossary term row in CSV import.
     
-    Based on IBM watsonx.governance CSV import format:
+    Based on IBM watsonx.data intelligence CSV import format:
     https://dataplatform.cloud.ibm.com/docs/content/wsj/governance/csv-import.html
     
     Required columns (marked with *):
@@ -38,8 +38,6 @@ class GlossaryTermCSVRow(BaseModel):
     - Classifications: Classifications assigned to the term
     - Data Classes: Data classes associated with the term
     - Related Terms: Comma-separated list of related term names
-    - Part Of Terms: Terms that this term is part of
-    - Type Of Terms: Terms that this term is a type of
     - Synonyms: Alternative names for the term
     - Abbreviations: Abbreviations for the term
     - Secondary Categories: Additional categories beyond the primary one
@@ -76,8 +74,6 @@ class GlossaryTermCSVRow(BaseModel):
     classifications: Optional[str] = Field(None, alias="Classifications", description="Classifications assigned to the term")
     data_classes: Optional[str] = Field(None, alias="Data Classes", description="Data classes associated with the term")
     related_terms: Optional[str] = Field(None, alias="Related Terms", description="Comma-separated related terms")
-    part_of_terms: Optional[str] = Field(None, alias="Part Of Terms", description="Terms that this term is part of")
-    type_of_terms: Optional[str] = Field(None, alias="Type Of Terms", description="Terms that this term is a type of")
     synonyms: Optional[str] = Field(None, alias="Synonyms", description="Alternative names")
     abbreviations: Optional[str] = Field(None, alias="Abbreviations", description="Abbreviations for the term")
     secondary_categories: Optional[str] = Field(None, alias="Secondary Categories", description="Additional categories")
@@ -209,7 +205,7 @@ class CSVImportRequest(BaseModel):
     
     csv_content: str = Field(
         ...,
-        description="""CSV content as a string. Must follow IBM watsonx.governance format.
+        description="""CSV content as a string. Must follow IBM watsonx.data intelligence format (https://dataplatform.cloud.ibm.com/docs/content/wsj/governance/csv-import.html).
 
 Required columns (marked with *):
 - Name*: Name of the artifact
@@ -228,8 +224,6 @@ Optional columns for Terms - Relationships:
 - Classifications: Classifications assigned to the term
 - Data Classes: Data classes associated with the term
 - Related Terms: Comma-separated related term names
-- Part Of Terms: Terms that this term is part of
-- Type Of Terms: Terms that this term is a type of
 - Synonyms: Alternative names
 - Abbreviations: Abbreviations for the term
 - Secondary Categories: Additional categories beyond the primary one

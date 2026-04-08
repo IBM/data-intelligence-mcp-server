@@ -185,7 +185,8 @@ async def search_connection_global_search() -> List[SearchConnectionResponse]:
         list[SearchConnectionResponse]: A list of all connections found through GS.
     """
     params = {
-        "auth_scope": AUTH_SCOPE_ALL_STR
+        "auth_scope": AUTH_SCOPE_ALL_STR,
+        "auth_cache": True
     }
 
     payload = {

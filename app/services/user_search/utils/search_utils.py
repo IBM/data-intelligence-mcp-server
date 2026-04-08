@@ -190,20 +190,55 @@ async def search_groups_by_query(
 
 
 async def _fetch_cpd_groups() -> List[Dict]:
-    """Fetch all groups from CP4D environment."""
-    url = f"{settings.di_service_url}/usermgmt/v2/groups"
+    """Fetch all groups from CP4D environment with fallback support."""
+    all_groups = []
+    current_offset = 0
+    
+    # Try new API endpoint first (CPD 5.4+) - /usermgmt/v4/groups
+    groups_v4_base_url = f"{settings.di_service_url}/usermgmt/v4/groups"
     
     try:
-        response = await tool_helper_service.execute_get_request(
-            url=url, tool_name="search_groups"
-        )
+        LOGGER.info(f"Attempting to fetch groups using new API: {groups_v4_base_url}")
+        while True:
+            new_url = f"{groups_v4_base_url}?offset={current_offset}&limit={PAGE_LIMIT}&include_groups_count=true&include_default_all_groups=false"
+            response = await tool_helper_service.execute_get_request(
+                url=new_url, tool_name="search_groups"
+            )
+            
+            groups_page = response.get("results", []) if isinstance(response, dict) else []
+            if not groups_page:
+                break
+            
+            all_groups.extend(groups_page)
+            
+            # Check if we have more pages
+            if len(groups_page) < PAGE_LIMIT:
+                break
+            
+            current_offset += PAGE_LIMIT
+        
+        if all_groups:
+            LOGGER.info(f"Successfully fetched {len(all_groups)} groups using new API (v4)")
+            return all_groups
     except ExternalAPIError as e:
-        LOGGER.error(f"API error while fetching groups: {str(e)}")
+        LOGGER.error(f"New API (v4) failed, falling back to legacy endpoint: {str(e)}")
+    
+    # Fall back to legacy API endpoint (pre-CPD 5.4) - /usermgmt/v2/groups
+    legacy_url = f"{settings.di_service_url}/usermgmt/v2/groups"
+    
+    try:
+        LOGGER.info(f"Attempting to fetch groups using legacy API: {legacy_url}")
+        response = await tool_helper_service.execute_get_request(
+            url=legacy_url, tool_name="search_groups"
+        )
+        groups = response.get("results", []) if isinstance(response, dict) else []
+        LOGGER.info(f"Successfully fetched {len(groups)} groups using legacy API (v2)")
+        return groups
+    except ExternalAPIError as e:
+        LOGGER.error(f"Both new (v4) and legacy (v2) API failed: {str(e)}")
         raise ExternalAPIError(
             "Unable to search for groups. Please verify you have the necessary permissions to list groups."
         )
-    
-    return response.get("results", []) if isinstance(response, dict) else []
 
 
 async def _fetch_saas_groups() -> List[Dict]:

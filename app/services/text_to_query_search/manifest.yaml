@@ -1,0 +1,6 @@
+service:
+  name: text_to_query_search
+  description: "Tools for searching using dynamically generated queries based on natural language input."
+system_instructions: |
+  Text-to-Query service tools:
+  1. text_to_query_search → generate a query from a natural language request and schema, then execute the query to retrieve relevant results.

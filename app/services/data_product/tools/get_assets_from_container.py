@@ -49,6 +49,7 @@ async def get_assets_from_container(
         url=f"{tool_helper_service.base_url}/v3/search",
         json=payload,
         tool_name="data_product_get_assets_from_container",
+        params={"auth_cache": True},
     )
     number_of_responses = response["size"]
     if number_of_responses > 0:

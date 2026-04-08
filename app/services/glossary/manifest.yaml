@@ -8,7 +8,7 @@ system_instructions: |
 
   General rules for glossary tools:
     - Tools support fuzzy name matching for easier discovery
-    - CSV import tools follow IBM watsonx.governance format specifications
+    - CSV import tools follow IBM watsonx.data intelligence format specifications: https://dataplatform.cloud.ibm.com/docs/content/wsj/governance/csv-import.html
 
   1. explain_glossary_artifact: Use when:
     - Get detailed explanation and metadata for a glossary artifact (term, classification, data class, policy, rule, category, or reference data set).

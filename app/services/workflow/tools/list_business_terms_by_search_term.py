@@ -30,6 +30,7 @@ from fastmcp.exceptions import ToolError
     description="""
 list_business_terms_by_search_term returns a list of all business terms as objects of a data governance workflow with the artifact_id included.
 Always define the draft parameter: if the text refers to future approvals set it true, otherwise false.
+If you find markdown text in the result show it to the user.
 ALWAYS use a request json object to encapsulate the parameters.
     """,
     tags={"workflow", "glossary", "business_terms", "governance"},
@@ -90,14 +91,15 @@ async def list_business_terms_by_search_term(
                 base_url=str(tool_helper_service.base_url)
             )
             LOGGER.info(f"Generated formatted table for {len(business_terms)} business terms")
+        # Always include both raw data and formatted output
         return ListBusinessTermsResponse(
-            business_terms=None,
+            business_terms=business_terms,
             total_count=len(business_terms),
-            name_to_artifact_id_map=None,
+            name_to_artifact_id_map=name_to_artifact_id_map,
             formatted_output=formatted_output
         )
     else:
-        # format='json' - return raw data only
+        # format='json' - return raw data only (already includes business_terms and map)
         return ListBusinessTermsResponse(
             business_terms=business_terms,
             total_count=len(business_terms),
@@ -111,7 +113,7 @@ async def list_business_terms_by_search_term(
     description="""Watsonx Orchestrator compatible wrapper for list_business_terms_by_search_term.
 list_business_terms_by_search_term returns a list of all business terms as objects of a data governance workflow with the artifact_id included.
 Always define the draft parameter: if the text refers to future approvals set it true, otherwise false.
-Make sure to use a request json object to encapsulate the parameters.
+ALWAYS use a request json object to encapsulate the parameters.
     """,
     tags={"workflow", "wxo", "glossary", "business_terms", "governance"},
     meta={"version": "1.0", "service": "glossary"},

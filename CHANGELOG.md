@@ -2,6 +2,41 @@
 
 > All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project **adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)**.
 
+## [0.8.0] - Apr 8th, 2026
+
+### Added
+- **Data Product Hub (DPH)**:
+  - `data_product_search_data_product_subscriptions` - Search and filter data product subscriptions (asset lists) with query support for filtering by asset ID, name, state, and owner
+  - `data_product_get_data_product_subscription_details` - Retrieve actual content (items) being delivered in a specific subscription including delivery states and access information
+- **Metadata Enrichment (MDE)**:
+  - `execute_term_generation` - Executes term generation on a metadata enrichment area (MDE) in a project
+  - `execute_advanced_profiling` - Executes advanced profiling on a metadata enrichment asset for selected datasets.
+- **Metadata Import (MDI)**:
+  - `search_metadata_import` - Searches the metadata imports (MDI) in a given project. If a name is provided, the tool will use wildcard search otherwise it return all the available MDIs.
+- **Text to Query Search**: 
+  - `dynamic_query_search` - Generates dynamic search queries from natural language and executes them against the search engine.
+
+### Changed
+- **Data Product Hub (DPH)**:
+  - `data_product_search_data_products` - Added creation date filters (`created_date_after` and `created_date_before`) and URL in response for each data product result
+  - `data_product_get_data_product_details` -  Updated the response to also return the url of the data product.
+- **Lineage**:
+  - Enhanced `search_lineage_assets` with improved filtering and search capabilities
+- **Glossary**:
+  - Improved CSV import validation and error handling
+  - Enhanced glossary artifact retrieval with better asset association handling
+- **Workflow**:
+  - Enhanced workflow task formatters with improved display and data handling
+- **Authentication**: Enhanced AWS environment support with improved IAM endpoint handling
+
+### Fixed
+- **Connections**:
+  - `copy_connection` - Fix the tool to create a reference connection that is tested and ready to use, instead of creating a duplicate connection without credentials.
+- **User Search & Projects**: Updated user group API endpoints to support CPD 5.4+ by implementing fallback mechanism:
+  - Primary: Uses new `/usermgmt/v4/groups` endpoint with pagination support
+  - Fallback: Falls back to legacy `/usermgmt/v2/groups` endpoint for backward compatibility
+  - Affects `search_user_groups_roles` tool and `add_or_edit_collaborator` tool
+
 ## [0.7.0] - Mar 18th, 2026
 
 ### Added
@@ -14,13 +49,13 @@
 - **Connections**: Added a new service to add tools for managing (create, copy, move etc.) connections:
   - `copy_connection` - Added a new tool for copying existing connections between catalogs or projects.
 - **Glossary**:
-  - `glossary_csv_import` - Import business glossary terms and categories from CSV files following IBM watsonx.governance format with validation and merge options
+  - `glossary_csv_import` - Import business glossary terms and categories from CSV files following IBM watsonx.data intelligence format with validation and merge options
   - `get_glossary_csv_schema` - Get detailed information about the CSV schema for importing glossary artifacts
 - **Metadata Enrichment (MDE)**:
   - `search_categories` - Search for user's categories, mainly used when creating or updating metadata enrichment without providing a category
 
 ### Changed
-- **Data Protection Rules (DPS)**: Refactored data protection rule creation logic to simplify the API by consolidating natural language and structured rule creation into a single JSON-based approach:
+- **Data Protection Rules (DPS)**: Refactored data protection rule creation logic to simplify the API by consolidating natural language and structured rule creation into a single JSON-based approach
 - **Data Product Hub (DPH)**:
   - `data_product_get_data_product_details` - Added `flight_client_url` field to subscription details to provide direct Arrow Flight connection URL for data extraction. Enhanced subscription details to return only the latest successful subscription (sorted by last_updated_at). Added `data_product_version_id` to search_data_products response
 - **Search**:

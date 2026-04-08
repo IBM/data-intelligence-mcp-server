@@ -5,17 +5,20 @@
 import asyncio
 from functools import partial
 from string import Template
-from typing import Final, Optional
+from typing import Final, Optional, Dict, Any, Callable
 
 from tenacity import RetryError
 
-from app.services.constants import GS_BASE_ENDPOINT
+from app.services.constants import (
+    GS_BASE_ENDPOINT, 
+    ASSET_TYPE_BASE_ENDPOINT,
+    METADATA_ENRICHMENT_BASE_ENDPOINT,
+    CAMS_ASSETS_BASE_ENDPOINT,
+    JOBS_BASE_ENDPOINT,
+    WORKFLOW_BASE_ENDPOINT,
+)
 from app.services.metadata_enrichment.models.metadata_enrichment import (
-    CAMS_ASSET_BASE_URL,
-    JOBS_BASE_URL,
-    MDE_START_SELECTIVE_ASSETS_TEMPLATE,
-    MDE_UI_URL_TEMPLATE,
-    METADATA_ENRICHMENT_SERVICE_URL,
+    ENRICHMENT_OBJECTIVES_MAP,
     DataScopeAssetSelection,
     DataScopeOperation,
     GovernanceScopeCategory,
@@ -29,6 +32,11 @@ from app.services.metadata_enrichment.models.metadata_enrichment import (
     OperationStatusEnum,
     QualityOrigins,
     SuggestedDataQualityCheck,
+    TermGenerationBatchResponse,
+    AssetProcessingResult,
+    MetadataEnrichmentDetails,
+    EnrichmentAssetsInfo,
+    DataAssets, ContainerAssets,
 )
 from app.services.tool_utils import (
     ARTIFACT_TYPE_DATA_ASSET,
@@ -44,12 +52,48 @@ from app.shared.exceptions.base import ExternalAPIError, ServiceError
 from app.shared.logging.utils import LOGGER
 from app.shared.utils.helpers import append_context_to_url, confirm_uuid
 from app.shared.utils.tool_helper_service import tool_helper_service
+from app.core.settings import settings, ENV_MODE_SAAS
+
+UI_BASE_URL = str(tool_helper_service.ui_base_url)
+BASE_URL = str(tool_helper_service.base_url)
 
 TOOL_NAME: Final = "metadata_enrichment_tool"
 DEFAULT_MDE_NAME = "Metadata_Enrichment_for_MCP_Agent"
 ARTIFACT_TYPE_MDE = "metadata_enrichment_area"
 CHECK_MDE_OPERATION_INTERVAL = 5  # sec
 CHECK_MDE_OPERATION_MAX_TRIAL = 5
+
+METADATA_ENRICHMENT_SERVICE_URL = BASE_URL + METADATA_ENRICHMENT_BASE_ENDPOINT
+MDE_START_SELECTIVE_ASSETS_TEMPLATE = (
+    METADATA_ENRICHMENT_SERVICE_URL
+    + "/metadata_enrichment_assets/${mde_id}/start_selective_enrichment"
+)
+MDE_WITH_ID_TEMPLATE = (
+    METADATA_ENRICHMENT_SERVICE_URL
+    + "/metadata_enrichment_assets/${mde_id}"
+)
+CAMS_ASSETS_SERVICE_URL = BASE_URL + CAMS_ASSETS_BASE_ENDPOINT
+JOBS_SERVICE_URL = BASE_URL + JOBS_BASE_ENDPOINT
+MDE_UI_DISPLAY_URL = UI_BASE_URL + "/gov/metadata-enrichments/display"
+MDE_UI_URL_TEMPLATE = (
+    MDE_UI_DISPLAY_URL
+    + "/${mde_id}/structured/columns?project_id=${project_id}&context=df"
+)
+CATEGORY_UI_URL_TEMPLATE = (
+    UI_BASE_URL
+    + "/${governance_base}/categories/${target_category_id}?context=df"
+)
+TASK_INBOX_UI_URL_TEMPLATE = (
+    UI_BASE_URL
+    + "/${governance_base}/workflow/tasks?context=df"
+)
+
+METADATA_ENRICHMENT_AREA_INFO = "metadata_enrichment_area_info"
+AREA_ID = "area_id"
+BATCH_SIZE_MDE = 20
+BATCH_SIZE_TERM_GEN = 1
+GET_WORKFLOWS_FROM_CORRELATION_ID_URL = BASE_URL + WORKFLOW_BASE_ENDPOINT + "/all/query"
+GET_TERMS_IN_WORKFLOW_URL = BASE_URL + WORKFLOW_BASE_ENDPOINT
 
 
 async def find_job_id_in_metadata_enrichment(
@@ -69,7 +113,7 @@ async def find_job_id_in_metadata_enrichment(
         ToolProcessFailedError: If the job ID is not found in the metadata enrichment.
     """
 
-    get_url = f"{CAMS_ASSET_BASE_URL}/{metadata_enrichment_id}"
+    get_url = f"{CAMS_ASSETS_SERVICE_URL}/{metadata_enrichment_id}"
     query_params = {
         "project_id": project_id,
     }
@@ -109,7 +153,7 @@ async def execute_metadata_enrichment_job(job_id: str, project_id: str) -> str:
         ExternalServiceError: If an unexpected error occurs while communicating with the external service.
     """
 
-    post_url = f"{JOBS_BASE_URL}/{job_id}/runs"
+    post_url = f"{JOBS_SERVICE_URL}/{job_id}/runs"
     query_params = {
         "project_id": project_id,
     }
@@ -144,7 +188,7 @@ async def execute_metadata_enrichment_with_assets(
     Execute the metadata enrichment with the job ID
 
     Args:
-        job_id (str): The ID of the job in the metadata enrichment.
+        mde_id (str): The ID of the job in the metadata enrichment.
         project_id (uuid.UUID): The ID of the project you want to execute a metadata enrichment.
         dataset_uuids (list[str]): List of UUIDs of target datasets to be enriched with metadata.
 
@@ -217,6 +261,7 @@ def generate_metadata_enrichment_asset(
     dataset_uuids: list[str],
     category_uuids: list[str],
     objectives: list[MetadataEnrichmentObjective],
+    metadata_import_uuids: Optional[list[str]] = None,
 ) -> MetadataEnrichmentAsset:
     """
     Generates a default MetadataEnrichmentAsset with specified parameters.
@@ -226,12 +271,16 @@ def generate_metadata_enrichment_asset(
         dataset_uuids (list[str]): List of dataset UUIDs for the asset.
         category_uuids (list[str]): List of category UUIDs for governance scope.
         objectives (list[MetadataEnrichmentObjective]): List of objectives of the MetadataEnrichmentAsset.
+        metadata_import_uuids (list[str]): List of MDI UUIDs for the asset.
 
     Returns:
         MetadataEnrichmentAsset: A default configured MetadataEnrichmentAsset.
     """
     mde_asset = MetadataEnrichmentAsset(name=asset_name)
     mde_asset.data_scope.enrichment_assets = dataset_uuids
+    if metadata_import_uuids:
+        metadata_imports = ContainerAssets(metadata_imports=metadata_import_uuids)
+        mde_asset.data_scope.container_assets = metadata_imports
     set_metadata_enrichment_objective(mde_asset, objectives)
     for category_uuid in category_uuids:
         mde_asset.objective.governance_scope.append(
@@ -610,6 +659,7 @@ async def find_metadata_enrichment_id_containing_dataset(
     response = await tool_helper_service.execute_post_request(
         url=str(tool_helper_service.base_url) + GS_BASE_ENDPOINT,
         json={"query": {"bool": {"must": must_match}}},
+        params={"auth_cache": True},
     )
 
     for row in response.get("rows", []):
@@ -619,3 +669,757 @@ async def find_metadata_enrichment_id_containing_dataset(
     raise ServiceError(
         f"Couldn't find any metadata enrichment assets with the dataset '{dataset_id}' in project '{project_id}'"
     )
+
+async def _paginated_post_request(
+    url: str,
+    payload: Dict[str, Any],
+    query_params: Dict[str, Any],
+    result_extractor: Callable[[Dict[str, Any]], list],
+    limit: Optional[int] = None,
+    use_offset: bool = False
+) -> list:
+    """
+    Helper method for paginated POST requests.
+    
+    Args:
+        url: The API endpoint URL
+        payload: The request payload
+        query_params: Query parameters for the request
+        result_extractor: Function to extract results from response
+        limit: Number of items per page (required when use_offset=True)
+        use_offset: Whether to use offset-based pagination (vs bookmark-based)
+        
+    Returns:
+        List of all collected results across all pages
+    """
+    all_results = []
+    response = None
+    offset = 0
+    
+    while response is None or response.get("next") is not None:
+        # Pagination through offset/limit or bookmark
+        if use_offset:
+            query_params["limit"] = limit
+            query_params["offset"] = offset
+        elif response is not None and response.get("next") is not None:
+            payload["bookmark"] = response["next"]["bookmark"]
+        
+        LOGGER.info(f"Executing query with payload: {payload} and query_params: {query_params}")
+        
+        response = await tool_helper_service.execute_post_request(
+            url=url,
+            json=payload,
+            params=query_params,
+        )
+        
+        LOGGER.info("Successfully executed POST request")
+
+        # Extract and collect results
+        page_results = result_extractor(response)
+        all_results.extend(page_results)
+        
+        # Update offset for next iteration if using offset pagination
+        if use_offset and response.get("next") is not None:
+            if limit is not None:
+                offset += limit
+    
+    return all_results
+
+
+def _check_early_termination(
+    batch_number: int,
+    has_any_success: bool,
+    consecutive_full_failures: int,
+    batch_success_count: int,
+    batch_total_count: int
+) -> tuple[bool, int]:
+    """
+    Check if early termination should occur based on failure rate.
+    
+    Args:
+        batch_number: Current batch number
+        has_any_success: Whether any success has been detected
+        consecutive_full_failures: Count of consecutive batches with 100% failure
+        batch_success_count: Number of successful assets in current batch
+        batch_total_count: Total number of assets in current batch
+        
+    Returns:
+        Tuple of (has_any_success, consecutive_full_failures)
+        
+    Raises:
+        ServiceError: If early termination criteria is met (without detailed counts)
+    """
+    # Early termination logic: only check first 2 batches, stop checking after any success
+    if not has_any_success and batch_number <= 2:
+        if batch_success_count > 0:
+            has_any_success = True
+            consecutive_full_failures = 0
+            LOGGER.info("At least one success detected, early termination check disabled")
+        elif batch_success_count == 0 and batch_total_count > 0:
+            consecutive_full_failures += 1
+            LOGGER.warning(f"Batch {batch_number} had 100% failure rate (consecutive failures: {consecutive_full_failures})")
+            
+            if consecutive_full_failures >= 2:
+                error_msg = "Batch processing failed: First 2 consecutive batches had 100% failure rate."
+                LOGGER.error(error_msg)
+                raise ServiceError(error_msg)
+    
+    return has_any_success, consecutive_full_failures
+
+
+async def _run_term_generation_batch(
+    batch_asset_ids: list[str],
+    metadata_enrichment_asset_id: str,
+    query_params: Dict[str, Any]
+) -> tuple[list[str], list[str]]:
+    """
+    Process a single batch of assets for term generation.
+    
+    Args:
+        batch_asset_ids: List of asset IDs to process
+        metadata_enrichment_asset_id: The MDE asset ID
+        query_params: Query parameters for the API request
+        
+    Returns:
+        Tuple of (successful_asset_ids, failed_asset_ids)
+        
+    Raises:
+        ValueError: If the MDE is missing required configuration (term_generation_target_category_id)
+    """
+
+    # Generates terms for all assets/columns in the batch at the MDE level
+    payload = {
+        "data_asset_ids": batch_asset_ids,
+        "columns": None,
+        "include_columns": True
+    }
+
+    try:
+        response = await tool_helper_service.execute_post_request(
+            url=f"{METADATA_ENRICHMENT_SERVICE_URL}/metadata_enrichment_assets/{metadata_enrichment_asset_id}/generate_terms",
+            json=payload,
+            params=query_params,
+        )
+    except Exception as e:
+        # Check if this is the specific validation error for missing target category
+        error_msg = str(e)
+        if "400" in error_msg and "term_generation_target_category_id" in error_msg:
+            raise ValueError(
+                "The Metadata Enrichment Asset is not properly configured. Please add a primary category to the metadata enrichment asset which specifies where the terms should be generated."
+            ) from e
+        # Re-raise other exceptions
+        raise
+    
+    successes = []
+    failures = []
+    
+    for asset_id, asset_result in response.get("asset_results", {}).items():
+        status = asset_result.get("status")
+        if status and 200 <= status < 300:
+            successes.append(asset_id)
+        else:
+            failures.append(asset_id)
+    
+    return successes, failures
+
+
+async def _retry_failed_assets(
+    failed_asset_ids: list[str],
+    metadata_enrichment_asset_id: str,
+    query_params: Dict[str, Any],
+    term_generation_responses: TermGenerationBatchResponse
+) -> None:
+    """
+    Retry failed assets in batches and update the response object.
+    
+    Args:
+        failed_asset_ids: List of asset IDs that failed in initial processing
+        metadata_enrichment_asset_id: The MDE asset ID
+        query_params: Query parameters for the API request
+        term_generation_responses: Response object to update with retry results
+    """
+    LOGGER.info(f"Starting retry phase for {len(failed_asset_ids)} failed assets")
+    
+    retried_asset_ids = set()
+    retry_index = 0
+    retry_batch_number = 0
+    
+    while retry_index < len(failed_asset_ids):
+        retry_batch_end = min(retry_index + BATCH_SIZE_TERM_GEN, len(failed_asset_ids))
+        retry_batch_asset_ids = failed_asset_ids[retry_index:retry_batch_end]
+        retry_batch_number += 1
+        
+        # Filter out already retried assets
+        assets_to_retry = [aid for aid in retry_batch_asset_ids if aid not in retried_asset_ids]
+        
+        if not assets_to_retry:
+            retry_index = retry_batch_end
+            continue
+        
+        LOGGER.info(f"Retry batch {retry_batch_number}: retrying {len(assets_to_retry)} assets")
+        
+        # Process retry batch using helper function
+        retry_successes, retry_failures = await _run_term_generation_batch(
+            batch_asset_ids=assets_to_retry,
+            metadata_enrichment_asset_id=metadata_enrichment_asset_id,
+            query_params=query_params
+        )
+        
+        # Update tracking for retried assets
+        for asset_id in retry_successes:
+            retried_asset_ids.add(asset_id)
+            term_generation_responses.successes.append(AssetProcessingResult(asset_id=asset_id))
+            # Remove from failures list (was added in initial processing)
+            term_generation_responses.failures = [
+                f for f in term_generation_responses.failures if f.asset_id != asset_id
+            ]
+        
+        for asset_id in retry_failures:
+            retried_asset_ids.add(asset_id)
+            # Keep in failures list (already added in initial processing)
+        
+        LOGGER.info(f"Retry batch {retry_batch_number} completed: {len(retry_successes)} successes, {len(retry_failures)} final failures")
+        
+        # Move to next retry batch
+        retry_index = retry_batch_end
+    
+    LOGGER.info(f"Retry phase completed. Final results: {len(term_generation_responses.successes)} total successes, {len(term_generation_responses.failures)} total failures")
+
+async def call_term_generation_on_metadata_enrichment_asset(
+    project_id: str,
+    metadata_enrichment_asset_id: str,
+    data_asset_ids: list[str],
+) -> TermGenerationBatchResponse:
+    """
+    Call term generation on a metadata enrichment asset.
+    Processes asset_ids in batches of 1 with retry logic for failures.
+    
+    Args:
+        project_id: The ID of the project containing the MDE
+        metadata_enrichment_asset_id: The ID of the metadata enrichment asset
+        data_asset_ids: List of data asset IDs to generate terms for
+        
+    Returns:
+        TermGenerationBatchResponse containing lists of successful and failed asset IDs
+        
+    Raises:
+        ServiceError: If the first 2 consecutive batches have 100% failure rate
+    """
+
+    query_params = {
+        "project_id": project_id,
+    }
+
+    total_assets = len(data_asset_ids)
+    current_index = 0
+    term_generation_responses = TermGenerationBatchResponse()
+    
+    # Track failed assets for retry and early termination logic
+    failed_asset_ids = []
+    batch_number = 0
+    consecutive_full_failures = 0
+    has_any_success = False
+
+    # Phase 1: Initial batch processing
+    LOGGER.info(f"Starting initial batch processing for {total_assets} assets")
+    
+    while current_index < total_assets:
+        batch_end = min(current_index + BATCH_SIZE_TERM_GEN, total_assets)
+        batch_asset_ids = data_asset_ids[current_index:batch_end]
+        batch_number += 1
+        
+        LOGGER.info(f"Processing batch {batch_number}: assets {current_index + 1} of {total_assets}")
+        
+        # Process batch using helper function
+        batch_successes, batch_failures = await _run_term_generation_batch(
+            batch_asset_ids=batch_asset_ids,
+            metadata_enrichment_asset_id=metadata_enrichment_asset_id,
+            query_params=query_params
+        )
+        
+        # Update response tracking
+        for asset_id in batch_successes:
+            term_generation_responses.successes.append(AssetProcessingResult(asset_id=asset_id))
+        
+        for asset_id in batch_failures:
+            failed_asset_ids.append(asset_id)
+            term_generation_responses.failures.append(AssetProcessingResult(asset_id=asset_id))
+        
+        # Log batch results
+        LOGGER.info(f"Batch {batch_number} completed: {len(batch_successes)} successes, {len(batch_failures)} failures")
+        
+        # Check early termination using helper function
+        has_any_success, consecutive_full_failures = _check_early_termination(
+            batch_number=batch_number,
+            has_any_success=has_any_success,
+            consecutive_full_failures=consecutive_full_failures,
+            batch_success_count=len(batch_successes),
+            batch_total_count=len(batch_asset_ids)
+        )
+        
+        # Move to next batch
+        current_index = batch_end
+
+    # Phase 2: Retry failed assets once
+    if failed_asset_ids:
+        await _retry_failed_assets(
+            failed_asset_ids=failed_asset_ids,
+            metadata_enrichment_asset_id=metadata_enrichment_asset_id,
+            query_params=query_params,
+            term_generation_responses=term_generation_responses
+        )
+    else:
+        LOGGER.info("No failed assets to retry")
+
+    return term_generation_responses
+
+async def find_data_asset_ids_for_mde_id(metadata_enrichment_id: str, project_id: str) -> list[str]:
+    
+    query_params = {
+        "project_id": project_id,
+    }
+
+    payload = {
+        "query": f"({METADATA_ENRICHMENT_AREA_INFO}.{AREA_ID}:{metadata_enrichment_id}) AND (asset.asset_type:data_asset)",
+        "limit": 200
+    }
+    
+    # Use pagination helper to collect all results
+    def extract_asset_ids(response: Dict[str, Any]) -> list[str]:
+        return [result["metadata"]["asset_id"] for result in response.get("results", [])]
+    
+    data_asset_ids = await _paginated_post_request(
+        url=BASE_URL + ASSET_TYPE_BASE_ENDPOINT + "/asset/search",
+        payload=payload,
+        query_params=query_params,
+        result_extractor=extract_asset_ids
+    )
+    
+    if len(data_asset_ids) == 0:
+        raise ServiceError(
+            f"Couldn't find any data assets for the metadata enrichment asset with id {metadata_enrichment_id} in project {project_id}"
+        )
+
+    return data_asset_ids
+
+async def find_mdes_for_project_id(project_id: str) -> list[str]:
+    
+    query_params = {
+        "project_id": project_id,
+    }
+
+    payload = {
+        "query": "(asset.asset_type:metadata_enrichment_area)",
+        "limit": 200
+    }
+    
+    # Use pagination helper to collect all results
+    def extract_mdes(response: Dict[str, Any]) -> list:
+        return response.get("results", [])
+    
+    mdes = await _paginated_post_request(
+        url=BASE_URL + ASSET_TYPE_BASE_ENDPOINT + "/asset/search",
+        payload=payload,
+        query_params=query_params,
+        result_extractor=extract_mdes
+    )
+    
+    if len(mdes) == 0:
+        raise ServiceError(
+            f"Couldn't find any MDEs in project {project_id}. Please run the create_metadata_enrichment_area_asset tool to create an MDE"
+        )
+
+    return mdes
+
+async def get_workflow_ids_from_project_id(project_id: str) -> list[str]:
+    
+    payload = {
+        "conditions": [
+            {
+                "type": "correlation_id",
+                "values": [project_id]
+            }
+        ]
+    }
+    
+    # Use pagination helper to collect all results
+    def extract_workflow_ids(response: Dict[str, Any]) -> list[str]:
+        return [
+            resource.get("metadata", {}).get("workflow_id")
+            for resource in response.get("resources", [])
+        ]
+    
+    query_params = {
+        "max_number_of_artifacts": 0
+    }
+    
+    workflow_ids = await _paginated_post_request(
+        url=GET_WORKFLOWS_FROM_CORRELATION_ID_URL,
+        payload=payload,
+        query_params=query_params,
+        result_extractor=extract_workflow_ids,
+        limit=1000,
+        use_offset=True
+    )
+    
+    if len(workflow_ids) > 1:
+        raise ServiceError(
+            f"Error as there was greater than one workflow id being returned using the project id {project_id}"
+        )
+
+    LOGGER.info(f"Workflow Ids: {workflow_ids} returned by project Id: {project_id}")
+
+    return workflow_ids
+
+
+async def get_draft_terms_from_workflow_ids(workflow_ids: list[str]):
+    draft_terms_in_workflow: list[str] = []
+    limit = 1000
+    
+    for workflow_id in workflow_ids:
+        offset: int = 0
+        response = None
+        # Loop while there are more pages to fetch
+        while response is None or response.get("next") is not None:
+            query_params = {
+                "limit": limit,
+                "offset": offset
+            }
+            
+            response = await tool_helper_service.execute_get_request(
+                url=GET_TERMS_IN_WORKFLOW_URL + f"/{workflow_id}/artifacts",
+                params=query_params,
+            )
+
+            draft_terms_in_workflow.extend(response.get("resources", []))
+
+            if response.get("next") is not None:
+                # 'next' field only exists if pagination is required
+                offset += limit
+
+    return draft_terms_in_workflow
+
+def _process_data_asset_resource(resource: Dict[str, Any]) -> DataAssets:
+    """
+    Process a single data asset resource and count published terms, draft terms and missing terms.
+    
+    Args:
+        resource: The resource object from /v2/assets/bulk API response
+        
+    Returns:
+        DataAssets object with id, missing terms, published terms and draft terms counts
+    """
+    asset_id: str = resource.get("asset_id")  # type: ignore
+    entity = resource.get("asset", {}).get("entity", {})
+    
+    # Get column_info for published terms
+    column_info = entity.get("column_info", {})
+    
+    # Get ibm_draft_term_assignments for draft terms
+    draft_assignments = entity.get("ibm_draft_term_assignments", {})
+    draft_column_info = draft_assignments.get("column_info", {})
+    
+    published_count = 0
+    draft_count = 0
+    missing_count = 0
+    
+    # Get all unique column keys from both sources
+    all_columns = set(column_info.keys()) | set(draft_column_info.keys())
+    
+    for column_key in all_columns:
+        # Check published terms
+        published_terms = column_info.get(column_key, {}).get("column_terms", [])
+        published_len = len(published_terms)
+        
+        # Check draft terms
+        draft_terms = draft_column_info.get(column_key, {}).get("column_terms", [])
+        draft_len = len(draft_terms)
+        
+        # Count based on the logic:
+        # - If published terms exist, count them
+        # - If draft terms exist, count them
+        # - If both are 0, it's a gap
+        if published_len > 0:
+            published_count += published_len
+        
+        if draft_len > 0:
+            draft_count += draft_len
+        
+        if published_len == 0 and draft_len == 0:
+            missing_count += 1
+    
+    return DataAssets(
+        id=asset_id,
+        missing_terms_count=missing_count,
+        published_terms_count=published_count,
+        draft_terms_count=draft_count
+    )
+
+async def _get_and_process_data_assets_in_batches(
+    asset_ids: list[str],
+    project_id: str,
+    batch_size: int
+) -> tuple[list[DataAssets], list[str]]:
+    """
+    Fetch and process data assets in batches to count terms and gaps.
+    
+    Args:
+        asset_ids: List of data asset IDs to fetch and process
+        project_id: Project ID for the request
+        batch_size: Maximum number of assets per batch
+        
+    Returns:
+        Tuple of (processed_data_assets list, failed_asset_ids list)
+        
+    Raises:
+        ServiceError: If the first 2 consecutive batches have 100% failure rate
+    """
+    # Get assets in batches
+    successful_resources, failed_asset_ids = await _get_assets_in_batches(
+        asset_ids=asset_ids,
+        project_id=project_id,
+        batch_size=batch_size
+    )
+    
+    # Process each successful resource
+    processed_assets = []
+    for resource in successful_resources:
+        try:
+            data_asset = _process_data_asset_resource(resource)
+            processed_assets.append(data_asset)
+        except Exception as e:
+            asset_id = resource.get("asset_id", "unknown")
+            LOGGER.error(f"Failed to process data asset {asset_id}: {str(e)}")
+            failed_asset_ids.append(asset_id)
+    
+    return processed_assets, failed_asset_ids
+
+
+
+async def _process_mde_resource(
+    resource: Dict[str, Any],
+    project_id: str
+) -> MetadataEnrichmentDetails:
+    """
+    Process a single MDE resource and extract metadata enrichment details.
+    
+    Args:
+        resource: The resource object from the API response
+        project_id: The project ID for URL generation
+        
+    Returns:
+        MetadataEnrichmentDetails object with extracted information
+    """
+    asset_id = resource.get("asset_id")
+    
+    metadata_enrichment_area = resource.get("asset", {}).get("entity", {}).get("metadata_enrichment_area", {})
+    enrichment_objectives = metadata_enrichment_area.get("objective", {}).get("enrichment_options", {}).get("structured", {})
+    objective = [ENRICHMENT_OBJECTIVES_MAP.get(key) or key for key, value in enrichment_objectives.items() if value]
+    data_assets = metadata_enrichment_area.get("data_scope", {}).get("enrichment_assets", [])
+    
+    mde_url = Template(MDE_UI_URL_TEMPLATE).substitute(
+        mde_id=asset_id, project_id=project_id
+    )
+
+    target_category_id = metadata_enrichment_area.get("objective", {}).get("term_assignment", {}).get("term_generation_target_category_id", "")
+    target_category_url = Template(CATEGORY_UI_URL_TEMPLATE).substitute(
+        governance_base=get_governance_base_url(), target_category_id=target_category_id
+    )
+    
+    # Fetch and process data assets in batches to get actual term counts
+    data_assets_list, failed_data_assets = await _get_and_process_data_assets_in_batches(
+        asset_ids=data_assets,
+        project_id=project_id,
+        batch_size=BATCH_SIZE_MDE
+    )
+    
+    # Log any failures
+    if failed_data_assets:
+        LOGGER.warning(f"Failed to process {len(failed_data_assets)} data assets for MDE {asset_id}: {failed_data_assets}")
+    
+    # Create EnrichmentAssetsInfo object
+    enrichment_assets_info = EnrichmentAssetsInfo(
+        asset_ids=data_assets_list,
+        asset_count=len(data_assets)
+    )
+    
+    # Create and return MetadataEnrichmentDetails object
+    return MetadataEnrichmentDetails(
+        objective=objective,
+        name=resource.get("asset", {}).get("metadata", {}).get("name", ""),
+        data_assets=enrichment_assets_info,
+        governance_scope=metadata_enrichment_area.get("objective", {}).get("governance_scope", []),
+        mde_url=mde_url,
+        target_category_id=target_category_id,
+        target_category_url=target_category_url,
+    )
+
+async def _get_assets_in_batches(
+    asset_ids: list[str],
+    project_id: str,
+    batch_size: int,
+) -> tuple[list[dict], list[str]]:
+    """
+    Fetch assets in batches with early termination.
+    Returns raw resources and failed asset IDs.
+    
+    Args:
+        asset_ids: List of asset IDs to fetch
+        project_id: Project ID for the request
+        batch_size: Maximum number of assets per batch
+        
+    Returns:
+        Tuple of (successful_resources list, failed_asset_ids list)
+        
+    Raises:
+        ServiceError: If the first 2 consecutive batches have 100% failure rate
+    """
+    successful_resources = []
+    failed_asset_ids = []
+    
+    # Early termination tracking
+    batch_number = 0
+    consecutive_full_failures = 0
+    has_any_success = False
+    total_assets = len(asset_ids)
+    
+    LOGGER.info(f"Starting batch processing for {total_assets} assets")
+    
+    for i in range(0, len(asset_ids), batch_size):
+        batch_asset_ids = asset_ids[i:i + batch_size]
+        batch = ",".join(batch_asset_ids)
+        batch_number += 1
+        
+        LOGGER.info(f"Processing batch {batch_number}: assets {i + 1}-{min(i + batch_size, total_assets)} of {total_assets}")
+        
+        query_params = {
+            "project_id": project_id,
+            "asset_ids": batch
+        }
+
+        response = await tool_helper_service.execute_get_request(
+            url=BASE_URL + "/v2/assets/bulk",
+            params=query_params,
+        )
+
+        # Track batch results
+        batch_successes = 0
+        batch_failures = 0
+        
+        for resource in response.get("resources", []):
+            asset_id = resource.get("asset_id")
+            http_status = resource.get("http_status")
+            
+            if http_status != 200:
+                failed_asset_ids.append(asset_id)
+                batch_failures += 1
+            else:
+                successful_resources.append(resource)
+                batch_successes += 1
+        
+        LOGGER.info(f"Batch {batch_number} completed: {batch_successes} successes, {batch_failures} failures")
+        
+        # Check early termination
+        has_any_success, consecutive_full_failures = _check_early_termination(
+            batch_number=batch_number,
+            has_any_success=has_any_success,
+            consecutive_full_failures=consecutive_full_failures,
+            batch_success_count=batch_successes,
+            batch_total_count=len(batch_asset_ids)
+        )
+    
+    return successful_resources, failed_asset_ids
+
+
+async def _get_and_process_mde_assets_in_batches(
+    asset_ids: list[str],
+    project_id: str,
+    batch_size: int
+) -> tuple[dict[str, MetadataEnrichmentDetails], list[str]]:
+    """
+    Fetch and process MDE assets in batches with early termination.
+    
+    Args:
+        asset_ids: List of asset IDs to fetch and process
+        project_id: Project ID for the request
+        batch_size: Maximum number of assets per batch (default: 20)
+        
+    Returns:
+        Tuple of (mde_details dict, failed_asset_ids list)
+        
+    Raises:
+        ServiceError: If the first 2 consecutive batches have 100% failure rate
+    """
+    # Get full MDEs
+    successful_resources, failed_asset_ids = await _get_assets_in_batches(
+        asset_ids=asset_ids,
+        project_id=project_id,
+        batch_size=batch_size
+    )
+    
+    # Process full MDE to extract relevant data for user message
+    mde_details: dict[str, MetadataEnrichmentDetails] = {}
+    for resource in successful_resources:
+        asset_id = resource.get("asset_id")
+        if asset_id:
+            mde_detail = await _process_mde_resource(resource, project_id)
+            mde_details[asset_id] = mde_detail
+    
+    return mde_details, failed_asset_ids
+
+
+async def process_mdes_for_user_message(
+    mdes: list,
+    project_id: str
+) -> tuple[dict[str, MetadataEnrichmentDetails], list[str]]:
+    """
+    Process metadata enrichment assets for user message generation.
+    
+    Fetches MDE asset details in batches, processes them, and retries any failures.
+    
+    Args:
+        mdes: List of MDE objects to process
+        project_id: Project ID for the request
+        
+    Returns:
+        Tuple of (mde_details dict, still_failed_asset_ids list)
+        
+    Raises:
+        ServiceError: If the first 2 consecutive batches have 100% failure rate
+    """
+    mde_ids = [mde["metadata"]["asset_id"] for mde in mdes]
+
+    # Process all MDEs in batches
+    mde_details, failed_asset_ids = await _get_and_process_mde_assets_in_batches(
+        mde_ids, project_id, BATCH_SIZE_MDE
+    )
+
+    # Retry failed MDEs
+    still_failed_asset_ids = []
+    if failed_asset_ids:
+        LOGGER.info(f"Retrying {len(failed_asset_ids)} failed MDE assets")
+        try:
+            retry_mde_details, still_failed_asset_ids = await _get_and_process_mde_assets_in_batches(
+                failed_asset_ids, project_id, BATCH_SIZE_MDE
+            )
+            # Merge successful retries into main results
+            mde_details.update(retry_mde_details)
+        except ServiceError:
+            # If retry also hits early termination, all failed assets remain failed
+            LOGGER.error("Retry phase hit early termination - all failed assets remain failed")
+            raise
+                
+    LOGGER.info(f"Processed {len(mde_details)} metadata enrichment assets, {len(still_failed_asset_ids)} failed")
+    return mde_details, still_failed_asset_ids
+
+def get_governance_base_url() -> str:
+    """
+    Construct the base URL to the governance catalog depending on the enviroment
+        
+    Returns:
+        The constructed base URL
+    """
+    if settings.di_env_mode.upper() != ENV_MODE_SAAS:
+        return "gov"
+    else:
+        return "governance"
