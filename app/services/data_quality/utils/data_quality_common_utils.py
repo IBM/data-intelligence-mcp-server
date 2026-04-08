@@ -97,7 +97,7 @@ async def _find_data_quality_rules(
         ExternalServiceError: If the search service request fails.
     """
 
-    params = {"auth_scope": "project"}
+    params = {"auth_scope": "project", "auth_cache": True}
     payload = None
     if data_quality_rule_name:
         if exact_match:
@@ -673,7 +673,7 @@ async def find_dataset_column(column_name: str, dataset_id: str, project_id: str
     """
     from app.shared.utils.helpers import get_closest_match
     
-    params = {"auth_scope": "project"}
+    params = {"auth_scope": "project", "auth_cache": True}
     payload = {
         "query": {
             "bool": {

@@ -72,7 +72,7 @@ async def search_asset(
         }
     }
 
-    params = {"auth_scope": auth_scope}
+    params = {"auth_scope": auth_scope, "auth_cache": True}
 
     response = await tool_helper_service.execute_post_request(
         url=str(tool_helper_service.base_url) + GS_BASE_ENDPOINT,

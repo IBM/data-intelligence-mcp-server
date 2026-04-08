@@ -4,6 +4,8 @@ pyyaml>=6
 aiocache>=0.12.3
 PyJWT>=2.8.0
 tenacity>=9.0.0
-sqlglot==29.0.1
+sqlglot==30.2.0
 pandas>=2.2.3
 tabulate>=0.9.0
+
+docling>=2.72.0

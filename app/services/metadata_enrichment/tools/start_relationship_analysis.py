@@ -13,12 +13,14 @@ from typing import Optional
 
 from app.core.registry import service_registry
 from app.services.metadata_enrichment.models.metadata_enrichment import (
-    METADATA_ENRICHMENT_SERVICE_URL,
     RelationshipAnalysisKeyObjectives,
     RelationshipAnalysisOverwrittenConfig,
     RelationshipAnalysisOverwrittenConfigOptions,
     RelationshipAnalysisType,
     StartRelationshipAnalysisRequest,
+)
+from app.services.metadata_enrichment.utils.metadata_enrichment_common_utils import (
+    METADATA_ENRICHMENT_SERVICE_URL,
 )
 from app.services.tool_utils import (
     confirm_list_str,
@@ -31,7 +33,7 @@ from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import confirm_uuid
 from app.shared.utils.tool_helper_service import tool_helper_service
 
-TOOL_NAME = "start_relationship_analysis"
+TOOL_NAME = "start_metadata_relationship_analysis"
 
 
 @service_registry.tool(
@@ -43,7 +45,6 @@ TOOL_NAME = "start_relationship_analysis"
     at both shallow and deep levels, as well as overlap analysis.
 
     Analysis Types:
-    - pk_shallow: Shallow primary key analysis
     - pk_deep: Deep primary key analysis
     - fk_shallow: Shallow foreign key analysis
     - fk_deep: Deep foreign key analysis
@@ -110,25 +111,45 @@ async def start_relationship_analysis(
             for dataset_name in dataset_names
         ]
 
-    # Build overwritten config options if any are provided
+    # Build overwritten config options based on analysis type requirements
+    # API requires ALL common fields to be present if ANY config field is provided
     overwritten_config = None
-    if any([
+
+    # Check if any config field is provided
+    has_any_config = any([
         request.max_number_of_multiple_columns is not None,
         request.min_confidence is not None,
         request.auto_selection is not None,
         request.auto_selection_threshold is not None,
         request.pk_min_confidence is not None,
-    ]):
-        config_options = RelationshipAnalysisOverwrittenConfigOptions(
-            maxNumberOfMultipleColumns=request.max_number_of_multiple_columns,
-            minConfidence=request.min_confidence,
-            autoSelection=request.auto_selection,
-            autoSelectionThreshold=request.auto_selection_threshold,
-            pkMinConfidence=request.pk_min_confidence,
-        )
-        overwritten_config = RelationshipAnalysisOverwrittenConfig(
-            options=config_options
-        )
+        ])
+
+    # Build config dict - API requires ALL common fields when ANY config is provided
+    # Start with defaults for all common fields
+    config_dict = {
+        'max_number_of_multiple_columns': 3,
+        'min_confidence': 0.8,
+        'auto_selection': True,
+        'auto_selection_threshold': 0.9,
+        'pk_min_confidence': 0.9,
+    }
+    if has_any_config:
+
+        # Override with explicitly provided values
+        if request.max_number_of_multiple_columns is not None:
+            config_dict['max_number_of_multiple_columns'] = request.max_number_of_multiple_columns
+        if request.min_confidence is not None:
+            config_dict['min_confidence'] = float(request.min_confidence)
+        if request.auto_selection is not None:
+            config_dict['auto_selection'] = request.auto_selection
+        if request.auto_selection_threshold is not None:
+            config_dict['auto_selection_threshold'] = request.auto_selection_threshold
+        if request.pk_min_confidence is not None:
+            config_dict['pk_min_confidence'] = request.pk_min_confidence
+
+    # Create config options with all required fields
+    config_options = RelationshipAnalysisOverwrittenConfigOptions(**config_dict)
+    overwritten_config = RelationshipAnalysisOverwrittenConfig(options=config_options)
 
     # Build key analysis objectives
     key_objectives = RelationshipAnalysisKeyObjectives(
@@ -141,11 +162,11 @@ async def start_relationship_analysis(
     )
 
     # Prepare API request
-    url = f"{METADATA_ENRICHMENT_SERVICE_URL}/mde_areas/{mde_area_id}/start_relationship_analysis"
+    url = f"{METADATA_ENRICHMENT_SERVICE_URL}/metadata_enrichment_assets/{mde_area_id}/start_relationship_analysis"
     query_params = {"project_id": project_id}
     payload = {
         "key_analysis_objectives": key_objectives.model_dump(
-            exclude_none=True, by_alias=False
+            exclude_none=True, by_alias=True
         )
     }
 
@@ -179,7 +200,6 @@ async def start_relationship_analysis(
     at both shallow and deep levels, as well as overlap analysis.
 
     Analysis Types:
-    - pk_shallow: Shallow primary key analysis
     - pk_deep: Deep primary key analysis
     - fk_shallow: Shallow foreign key analysis
     - fk_deep: Deep foreign key analysis

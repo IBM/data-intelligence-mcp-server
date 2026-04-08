@@ -23,7 +23,7 @@ from app.services.data_product.models.get_data_product_details import (
     ColumnInfo,
     SubscribedAsset,
 )
-from app.services.data_product.utils.common_utils import get_dph_catalog_id_for_user
+from app.services.data_product.utils.common_utils import get_data_product_url, get_dph_catalog_id_for_user
 from app.services.data_product.constants import (
     ASSET_TYPE_IBM_URL_DEFINITION,
     FIELD_ASSET,
@@ -748,6 +748,7 @@ async def get_data_product_details(
         data_product_details = DataProductDetails(
             id=release_response.get(FIELD_ID),
             version=release_response.get(FIELD_VERSION),
+            url=get_data_product_url(release_response.get(FIELD_ASSET, {}).get(FIELD_ID, ""), "available"),
             state=release_response.get(FIELD_STATE),
             description=release_response.get(FIELD_DESCRIPTION),
             parts_out=[PartOut(**part) for part in enriched_parts]

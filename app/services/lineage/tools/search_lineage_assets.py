@@ -11,6 +11,7 @@ from app.services.lineage.models.lineage_asset import LineageAsset, QualityScore
 from app.services.lineage.models.search_lineage_assets import (
     SearchLineageAssetsRequest,
     SearchLineageAssetsResponse,
+    SENTINEL_NO_QUALITY_VALUE,
 )
 
 from app.core.registry import service_registry
@@ -21,6 +22,19 @@ from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.helpers import verify_dates
 from app.shared.ui_message.ui_message_context import ui_message_context
+
+
+def _has_quality_value(value: Optional[float]) -> bool:
+    """
+    Check if a data quality value was explicitly provided by the user.
+    
+    Args:
+        value: The data quality value to check
+        
+    Returns:
+        bool: True if a valid quality value was provided, False if it's the sentinel value
+    """
+    return value is not None and value != SENTINEL_NO_QUALITY_VALUE
 
 
 def _check_input_parameters(
@@ -54,7 +68,7 @@ def _check_input_parameters(
     Returns:
         bool : true if user did not pass at least one parameter
     """
-    if not _is_valid_search_lineage_assets_params(
+    if not _has_search_criteria(
         name_query,
         is_operational,
         tag,
@@ -77,9 +91,9 @@ def _check_input_parameters(
     return False
 
 
-def _is_valid_search_lineage_assets_params(
+def _has_search_criteria(
     name_query: str = "*",
-    is_operational: Optional[bool] = False,
+    is_operational: Optional[bool] = None,
     tag: Optional[str] = None,
     data_quality_operator: Optional[str] = None,
     data_quality_value: Optional[float] = None,
@@ -89,7 +103,10 @@ def _is_valid_search_lineage_assets_params(
     asset_type: str = "",
 ) -> bool:
     """
-    Validates that at least one parameter in search_lineage_assets is different from default or not None.
+    Check if at least one search criterion was provided by the user.
+    
+    This function determines whether the user has provided any meaningful search criteria
+    beyond the defaults. It's used to prompt the user if they haven't specified what to search for.
 
     Args:
         name_query (str): Search text for asset names
@@ -103,7 +120,7 @@ def _is_valid_search_lineage_assets_params(
         asset_type (str): Asset type filter
 
     Returns:
-        bool: True if at least one parameter is different from default or not None, False otherwise
+        bool: True if at least one search criterion is provided, False otherwise
     """
     # Check if name_query is different from default
     if name_query != "*":
@@ -381,6 +398,7 @@ async def _get_business_terms_or_classifications(business: str, type: str) -> li
         url=str(tool_helper_service.base_url) + "/v3/search",
         json=payload,
         tool_name="search_lineage_assets",
+        params={"auth_cache": True},
     )
     name = ""
     business_id = ""
@@ -419,7 +437,19 @@ async def _get_business_terms_or_classifications(business: str, type: str) -> li
 
 
 def _check_quality_filter(data_quality_operator, data_quality_value, filter_not_found_list):
-    if bool(data_quality_operator) ^ (data_quality_value is not None):
+    """
+    Validate that data quality filter parameters are consistent.
+    
+    Both operator and value must be provided together, or neither should be provided.
+    This is set by the model validator (search_lineage_assets.py) to work around
+    MCP framework serialization of optional parameters.
+    
+    Args:
+        data_quality_operator: Comparison operator for quality score
+        data_quality_value: Numerical value for quality score
+        filter_not_found_list: List to append error messages to
+    """
+    if bool(data_quality_operator) ^ _has_quality_value(data_quality_value):
         filter_not_found_list.append("data_quality")
 
 def clean_str(val: Optional[str], default: str = "") -> str:
@@ -546,7 +576,9 @@ def _handle_asset_selection_and_filters(
         tag (Optional[str]): Filter assets by specific tag
         data_quality_operator (Optional[str]): Comparison operator for data quality score
             ("equals", "greater_than", "greater_than_or_equal", "less_than", "less_than_or_equal")
-        data_quality_value (float): Numerical threshold for data quality filtering (used with data_quality_operator)
+        data_quality_value (float): Numerical threshold for data quality filtering (valid range: 0.0-100.0).
+            Used with data_quality_operator. Note: The internal sentinel value -0.01 is reserved
+            and automatically set when no value is provided.
         business_term (Optional[str]): Filter by business glossary term
         business_classification (Optional[str]): Filter by business classification
         technology_name (str): Filter by technology name (e.g., "PostgreSQL"). 
@@ -620,14 +652,12 @@ async def search_lineage_assets(
     filter_not_found_list = []
     _check_quality_filter(data_quality_operator, request.data_quality_value, filter_not_found_list)
 
-    data_quality: QualityScore = (
-        QualityScore(
+    data_quality: Optional[QualityScore] = None
+    if data_quality_operator and _has_quality_value(request.data_quality_value):
+        data_quality = QualityScore(
             operator=data_quality_operator,
             value=str(request.data_quality_value),
         )
-        if data_quality_operator and request.data_quality_value
-        else None
-    )
     technology_filter = (
         await _get_lineage_technology_type(technology_name, filter_not_found_list)
         if technology_name

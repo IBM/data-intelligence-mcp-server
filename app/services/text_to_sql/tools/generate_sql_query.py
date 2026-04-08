@@ -39,7 +39,7 @@ async def generate_sql_query(
         container_id, request.container_type
     )
 
-    payload = {"query": request.request, "raw_output": "true"}
+    payload = {"query": request.request, "raw_output": "true", "add_sql_safety_check": "false"}
 
     LOGGER.info(
         "Calling generate_sql_query, container_id_or_name: %s, container_type: %s, request: %s",

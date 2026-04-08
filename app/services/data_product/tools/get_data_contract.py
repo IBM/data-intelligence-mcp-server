@@ -9,6 +9,8 @@ from app.services.data_product.models.get_data_contract import GetDataContractRe
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.exceptions.base import ServiceError
 from app.shared.logging import LOGGER, auto_context
+from app.shared.ui_message.ui_message_context import ui_message_context
+from app.shared.utils.utils_tools import format_dict_for_table
 
 from typing import Literal
 
@@ -115,6 +117,14 @@ async def get_data_contract(request: GetDataContractRequest) -> GetDataContractR
         response = await _get_draft_contract(request.data_product_id)
     else:
         response = await _get_published_contract(request.data_product_id)
+    
+    formatted_data = format_dict_for_table(response)
+    
+    ui_message_context.add_table_ui_message(
+        tool_name="get_data_contract",
+        formatted_data=formatted_data,
+        title="Data Contract"
+    )
     
     return GetDataContractResponse(data_contract=str(response))
 

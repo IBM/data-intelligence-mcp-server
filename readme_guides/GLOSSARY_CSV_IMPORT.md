@@ -2,7 +2,7 @@
 
 ## Overview
 
-Import business glossary terms and categories from CSV files into IBM watsonx.governance.
+Import business glossary terms and categories from CSV files.
 
 **Key Features:**
 - Validation mode (dry-run before import)
@@ -59,5 +59,5 @@ PD,glossary_term,Risk Management,Probability of default,Credit Risk,Probability 
 
 ## References
 
-- [IBM watsonx.governance CSV Import](https://dataplatform.cloud.ibm.com/docs/content/wsj/governance/csv-import.html)
+- [IBM data intelligence CSV Import](https://dataplatform.cloud.ibm.com/docs/content/wsj/governance/csv-import.html)
 - Tool source: `app/services/glossary/tools/glossary_csv_import.py`

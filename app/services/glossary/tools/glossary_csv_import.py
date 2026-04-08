@@ -23,7 +23,7 @@ from app.shared.logging import LOGGER, auto_context
     name="glossary_csv_import",
     description="""Import business glossary terms and categories from CSV files.
 
-This tool accepts CSV content following IBM watsonx.governance format and either validates or imports glossary artifacts.
+This tool accepts CSV content following IBM watsonx.data intelligence (https://dataplatform.cloud.ibm.com/docs/content/wsj/governance/csv-import.html) format and either validates or imports glossary artifacts.
 
 **Supported Artifact Types:**
 - glossary_term: Business terms with definitions, examples, and relationships
@@ -46,8 +46,6 @@ Optional columns for Terms - Relationships:
 - Classifications: Classifications assigned to the term
 - Data Classes: Data classes associated with the term
 - Related Terms: Comma-separated related term names
-- Part Of Terms: Terms that this term is part of
-- Type Of Terms: Terms that this term is a type of
 - Synonyms: Alternative names
 - Abbreviations: Abbreviations for the term
 - Secondary Categories: Additional categories beyond the primary one
@@ -178,7 +176,7 @@ async def glossary_csv_import(
 
 This is the Watsonx Orchestrator compatible version that accepts parameters directly.
 
-Accepts CSV content following IBM watsonx.governance format and either validates or imports glossary artifacts.
+Accepts CSV content following IBM watsonx.data intelligence (https://dataplatform.cloud.ibm.com/docs/content/wsj/governance/csv-import.html) format and either validates or imports glossary artifacts.
 
 See glossary_csv_import for detailed documentation.""",
 )

@@ -9,7 +9,16 @@ import json
 import jwt
 import base64
 
-from app.services.constants import CLOUD_IAM_ENDPOINT, CPD_IAM_ENDPOINT
+from app.services.constants import (
+    CLOUD_IAM_ENDPOINT,
+    CPD_IAM_ENDPOINT,
+    AWS_IAM_URL,
+    AWS_IAM_TEST_URL,
+    AWS_IAM_ENDPOINT,
+    AWS_DOMAIN_SUFFIX,
+    BEARER_PREFIX,
+    JSON_CONTENT_TYPE,
+)
 from app.shared.exceptions.base import ExternalAPIError
 
 # Application-specific imports
@@ -30,6 +39,9 @@ def get_cloud_iam_url_from_service_url(service_url: str) -> str:
     - https://api.dataplatform.dev.cloud.ibm.com => https://iam.test.cloud.ibm.com
     - https://api.dataplatform.test.cloud.ibm.com => https://iam.cloud.ibm.com
     - https://api.dataplatform.cloud.ibm.com => https://iam.cloud.ibm.com
+    - https://api.dev.aws.data.ibm.com => https://account-iam.platform.test.saas.ibm.com (AWS dev)
+    - https://api.test.aws.data.ibm.com => https://account-iam.platform.test.saas.ibm.com (AWS test)
+    - https://api.*.aws.data.ibm.com => https://account-iam.platform.saas.ibm.com (AWS production regions)
 
     Args:
         service_url: The service URL to map from
@@ -39,7 +51,15 @@ def get_cloud_iam_url_from_service_url(service_url: str) -> str:
     """
     service_url_str = str(service_url).lower()
 
-    if "dev.cloud.ibm.com" in service_url_str:
+    # Check for AWS regions first
+    # AWS dev and test environments use the test IAM URL
+    if f"dev{AWS_DOMAIN_SUFFIX}" in service_url_str or f"test{AWS_DOMAIN_SUFFIX}" in service_url_str:
+        return AWS_IAM_TEST_URL
+    # AWS production regions use the production IAM URL
+    elif AWS_DOMAIN_SUFFIX in service_url_str:
+        return AWS_IAM_URL
+    # Standard cloud.ibm.com environments
+    elif "dev.cloud.ibm.com" in service_url_str:
         return "https://iam.test.cloud.ibm.com"
     elif "test.cloud.ibm.com" in service_url_str or "cloud.ibm.com" in service_url_str:
         return "https://iam.cloud.ibm.com"
@@ -86,7 +106,12 @@ def get_iam_url() -> str:
         elif settings.di_service_url:
             # Calculate IAM URL dynamically based on service URL
             cloud_iam_url = get_cloud_iam_url_from_service_url(settings.di_service_url)
-            return cloud_iam_url + CLOUD_IAM_ENDPOINT
+            service_url_lower = str(settings.di_service_url).lower()
+            # Use AWS-specific endpoint for all AWS environments (dev, test, and production)
+            if AWS_DOMAIN_SUFFIX in service_url_lower:
+                return cloud_iam_url + AWS_IAM_ENDPOINT
+            else:
+                return cloud_iam_url + CLOUD_IAM_ENDPOINT
         else:
             raise ExternalAPIError("DI_SERVICE_URL is not set in env")
     elif settings.di_env_mode.upper() == ENV_MODE_CPD:
@@ -170,8 +195,21 @@ async def get_user_identifier() -> str:
             INVALID_DI_ENV_MODE
         )
 
+def is_aws_environment() -> bool:
+    """Check if the current environment is AWS based on the service URL."""
+    if settings.di_service_url:
+        return AWS_DOMAIN_SUFFIX in str(settings.di_service_url).lower()
+    return False
+
+
 def get_request_body(api_key: str, username: str) -> dict:
     if settings.di_env_mode.upper() == ENV_MODE_SAAS:
+        # AWS environments pass only apikey in body
+        if is_aws_environment():
+            return {
+                "apikey": api_key
+            }
+        # Standard IBM Cloud SaaS includes grant_type
         return {
             "apikey": api_key,
             "grant_type": "urn:ibm:params:oauth:grant-type:apikey",
@@ -189,11 +227,24 @@ def get_request_body(api_key: str, username: str) -> dict:
         )
 
 
-def get_header():
+def get_header() -> dict:
+    """
+    Get headers for authentication request.
+    
+    Returns:
+        dict: Headers for the authentication request
+    """
     if settings.di_env_mode.upper() == ENV_MODE_SAAS:
+        # AWS environments use JSON content type
+        if is_aws_environment():
+            return {
+                "Content-Type": JSON_CONTENT_TYPE,
+                "accept": JSON_CONTENT_TYPE
+            }
+        # Standard IBM Cloud SaaS uses form-urlencoded
         return {"Content-Type": "application/x-www-form-urlencoded"}
     elif settings.di_env_mode.upper() == ENV_MODE_CPD:
-        return {"Content-Type": "application/json"}
+        return {"Content-Type": JSON_CONTENT_TYPE}
     else:
         raise ExternalAPIError(
             INVALID_DI_ENV_MODE
@@ -213,17 +264,29 @@ async def get_bearer_token_from_apikey(api_key: str, username: str) -> str:
 
     try:
         if settings.di_env_mode.upper() == ENV_MODE_SAAS:
-            response = await client.post(
-                iam_url,
-                headers=headers,
-                data=req_body,
-            )
-            token = response.get("access_token", "")
-            return "Bearer " + token
+            # AWS environments use JSON body and return "token" field
+            if is_aws_environment():
+                response = await client.post(
+                    iam_url,
+                    headers=headers,
+                    json=req_body
+                )
+                token = response.get("token", "")
+                return BEARER_PREFIX + token
+            # Standard IBM Cloud SaaS uses form data and returns "access_token" field
+            else:
+                response = await client.post(
+                    iam_url,
+                    headers=headers,
+                    data=req_body,
+                )
+                token = response.get("access_token", "")
+                return BEARER_PREFIX + token
         else:
+            # CPD uses JSON body and returns "token" field
             response = await client.post(iam_url, headers=headers, json=req_body)
             token = response.get("token", "")
-            return "Bearer " + token
+            return BEARER_PREFIX + token
 
     except ExternalAPIError:
         # This will catch HTTP errors (4xx, 5xx) that were raised by raise_for_status()

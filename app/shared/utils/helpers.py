@@ -515,3 +515,53 @@ def parse_list_of_ids(ids):
     else:
         req_ids = ids
     return req_ids
+
+
+def calculate_cosine_similarity(x, y):
+    """
+    Compute cosine similarity between two sets of vectors.
+    
+    Args:
+        x: Array of shape (n_samples_X, n_features)
+        y: Array of shape (n_samples_Y, n_features)
+    
+    Returns:
+        Array of shape (n_samples_X, n_samples_Y) containing similarity scores
+    """
+    import numpy as np
+    
+    # Normalize the vectors (compute L2 norm for each row)
+    x_norm = np.linalg.norm(x, axis=1, keepdims=True)
+    y_norm = np.linalg.norm(y, axis=1, keepdims=True)
+    
+    # Avoid division by zero
+    x_norm = np.where(x_norm == 0, 1, x_norm)
+    y_norm = np.where(y_norm == 0, 1, y_norm)
+    
+    # Normalize vectors
+    x_normalized = x / x_norm
+    y_normalized = y / y_norm
+    
+    # Compute dot product (which equals cosine similarity for normalized vectors)
+    return np.dot(x_normalized, y_normalized.T)
+
+
+def construct_glossary_category_url(category_id: str) -> str:
+    """
+    Construct a URL to a glossary category in the governance catalog.
+    
+    Args:
+        category_id: The category artifact ID
+        
+    Returns:
+        The constructed URL to the category
+    """
+    from app.core.settings import ENV_MODE_SAAS
+    from app.shared.utils.tool_helper_service import tool_helper_service
+    
+    base_url = str(tool_helper_service.ui_base_url)
+    
+    if settings.di_env_mode.upper() != ENV_MODE_SAAS:
+        return f"{base_url}/gov/categories/{category_id}"
+    else:
+        return f"{base_url}/governance/categories/{category_id}"

@@ -5,7 +5,7 @@
 import json
 import asyncio
 import ipaddress
-from typing import Literal
+from typing import Literal, Optional, List, Any
 from urllib.parse import urlparse
 from app.services.constants import (
     CONNECTIONS_BASE_ENDPOINT,
@@ -21,7 +21,9 @@ from app.services.constants import (
     USER_PROFILES_BASE_ENDPOINT,
     FIELD_PREFERENCES,
 )
+from app.services.metadata_enrichment.models.metadata_enrichment import MetadataImportResponse
 from app.shared.exceptions.base import ServiceError
+from app.shared.logging import LOGGER
 from app.shared.utils.helpers import get_closest_match, get_project_or_space_type_based_on_context, append_context_to_url, is_uuid
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.core.auth import get_bss_account_id, get_user_identifier
@@ -51,7 +53,9 @@ async def find_project_id(project_name: str) -> str:
         uuid.UUID: Unique identifier of the project.
     """
 
-    params = {"limit": 100}
+    params = {
+        "limit": 100
+    }
 
     response = await tool_helper_service.execute_get_request(
         url=str(tool_helper_service.base_url) + PROJECTS_BASE_ENDPOINT,
@@ -157,7 +161,10 @@ async def is_project_exist(project_identifier: str):
         (False, "", "")
     """
 
-    params = {"limit": 100}
+    params = {
+        "limit": 100,
+        "auth_cache": True
+    }
 
     response = await tool_helper_service.execute_get_request(
         url=str(tool_helper_service.base_url) + PROJECTS_BASE_ENDPOINT,
@@ -348,7 +355,10 @@ async def find_asset_container_by_id(
         ServiceError: If the container is not found
     """
     if container_type == "project":
-        params = {"bss_account_id": await get_bss_account_id()}
+        params = {
+            "bss_account_id": await get_bss_account_id(),
+            "auth_cache": True
+        }
         project_type = get_project_or_space_type_based_on_context()
         if project_type:
             params["type"] = project_type
@@ -645,6 +655,47 @@ async def find_metadata_import_id(
             f"The metadata import asset was not found with the name: '{metadata_import_name}'"
         )
 
+async def find_all_available_metadata_import(
+    project_id: str,
+    metadata_import_name: Optional[str] = None
+) -> List[MetadataImportResponse]:
+    """
+    Find metadata import based on metadata import name, if not provided, return all available metadata.
+
+    Args:
+        project_id (str): The ID of the project containing the metadata import.
+        metadata_import_name (Optional[str]): The name of the metadata import asset.
+
+    Returns:
+        List[MetadaImportResponse]: The list of the availabe metadata import asset.
+    """
+
+    post_url = (
+        str(tool_helper_service.base_url) + ASSET_TYPE_BASE_ENDPOINT + "/metadata_import/search"
+    )
+    query_params = {
+        "project_id": project_id
+    }
+    payload_query = "*:*"
+    if metadata_import_name:
+        payload_query = f"asset.name:/.*{metadata_import_name}.*/"
+    payload = {
+        "query": payload_query,
+        "limit": 10
+    }
+    LOGGER.info(
+        f"search query payload: {payload}"
+    )
+    response = await tool_helper_service.execute_post_request(
+        url=post_url,
+        params=query_params,
+        json=payload,
+    )
+
+    available_mdi = response.get("results", [])
+
+    return list(map(_map_metadata_import, available_mdi)) if available_mdi else []
+
 
 async def find_asset_id_exact_match(
     asset_name: str,
@@ -764,38 +815,45 @@ def confirm_list_str(list_or_str: list[str] | str) -> list[str]:
     return list_or_str
 
 
-def validate_url(url: str) -> None:
+def validate_url(url: str) -> str:
     """
-    Validates if the provided string is a valid URL with proper format.
-    Validates both the URL structure and the hostname/IP address according to RFC standards.
+    Validates a URL to ensure it uses HTTPS protocol and has proper format.
+    Only HTTPS URLs are allowed. URLs must include the https:// scheme.
     
     Args:
-        url (str): The URL string to validate.
+        url (str): The URL string to validate (must start with https://).
+    
+    Returns:
+        str: The validated URL
     
     Raises:
-        ServiceError: If the URL format is invalid or scheme is not https.
+        ServiceError: If the URL format is invalid, missing scheme, or not HTTPS.
     """
+    validated_url = url.strip() if url else ""
+    
+    if not validated_url:
+        raise ServiceError("URL cannot be empty.")
+    
     try:
-        parsed_url = urlparse(url)
+        # Parse URL
+        parsed_url = urlparse(validated_url)
         
-        # Check if URL has both scheme (https) and netloc (domain)
-        if not parsed_url.scheme or not parsed_url.netloc:
-            raise ServiceError(
-                f"Invalid URL format: '{url}'. URL must include a scheme (https://) and a domain."
-            )
+        # Require scheme to be present
+        if not parsed_url.scheme:
+            raise ServiceError("Invalid URL format: URL must include a scheme (e.g., https://)")
         
-        # Validate that scheme is https only
-        if parsed_url.scheme != 'https':
-            raise ServiceError(
-                f"Invalid URL scheme: '{parsed_url.scheme}'. Only https scheme is supported."
-            )
+        # Enforce HTTPS only
+        if parsed_url.scheme.lower() != 'https':
+            raise ServiceError(f"Invalid URL scheme: Only https scheme is supported, got: {parsed_url.scheme}")
+        
+        # Require netloc (hostname)
+        if not parsed_url.netloc:
+            raise ServiceError("Invalid URL format: URL must include a scheme and hostname/domain")
         
         # Validate hostname/IP address
-        host = parsed_url.hostname  # strips port safely
+        host = parsed_url.hostname
         if not host:
-            raise ServiceError(
-                f"Invalid URL format: '{url}'. Unable to extract valid hostname."
-            )
+            raise ServiceError("Invalid URL format: URL is missing hostname/domain")
         
         try:
             ipaddress.ip_address(host)
@@ -803,6 +861,9 @@ def validate_url(url: str) -> None:
             # Not an IP address, validate as hostname
             # Hostname validation according to RFC 1123
             _validate_host_name(host, url)
+        
+        # Return the validated URL as-is
+        return validated_url
                            
     except ServiceError:
         # Re-raise ServiceError as-is
@@ -855,6 +916,7 @@ async def find_category_id(category_name: str) -> str:
     response = await tool_helper_service.execute_post_request(
         url=str(tool_helper_service.base_url) + GS_BASE_ENDPOINT,
         json={"query": {"bool": {"must": must_match}}},
+        params={"auth_cache": True},
     )
 
     result_id = None
@@ -1026,4 +1088,15 @@ async def check_if_container_is_enabled_for_text_to_sql(
 def get_onboarding_job_run_url(project_id, job_id, run_id):
     return append_context_to_url(
         f"{tool_helper_service.ui_base_url}/jobs/{job_id}/runs/{run_id}?project_id={project_id}"
+    )
+
+def _map_metadata_import(row: Any) -> MetadataImportResponse:
+    metadata = row.get("metadata", [])
+    name = metadata.get("name")
+    asset_id = metadata.get("asset_id")
+    href = row.get("href")
+    return MetadataImportResponse(
+        name=name,
+        asset_id=asset_id,
+        href=href,
     )

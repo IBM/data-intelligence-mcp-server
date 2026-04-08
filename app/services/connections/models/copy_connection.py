@@ -8,8 +8,7 @@ from app.shared.models import BaseResponseModel
 
 class CopyConnectionRequest(BaseModel):
     connection_name: str = Field(..., description="Name of the existing connection to copy.")
-    source_container: Optional[str] = Field(None, description="Name or UUID of the project or catalog that contains the connection to copy.")
-    source_container_type: Optional[Literal["catalog", "project"]] = Field(None, description="The container type of the source container.")
+    source_catalog: Optional[str] = Field(None, description="Name or UUID of the catalog that contains the connection to copy.")
     target_container: str = Field(..., description="Name or UUID of the project or catalog to copy the connection to.")
     target_container_type: Optional[Literal["catalog", "project"]] = Field(None, description="The container type of the target container.")
 

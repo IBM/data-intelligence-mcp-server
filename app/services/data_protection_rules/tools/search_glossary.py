@@ -238,7 +238,7 @@ async def search_rhs_terms(rhs_type: str, query: str):
     
     try:
         response = await tool_helper_service.execute_post_request(
-            url=f"{tool_helper_service.base_url}{SEARCH_PATH}?role=viewer&auth_scope=all",
+            url=f"{tool_helper_service.base_url}{SEARCH_PATH}?role=viewer&auth_scope=all&auth_cache=true",
             json=json_body,
             tool_name="data_protection_rule_search_governance_artifacts"
         )

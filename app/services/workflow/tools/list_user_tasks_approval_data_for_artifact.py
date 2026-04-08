@@ -158,6 +158,7 @@ async def _query_user_tasks_by_artifact(artifact_id: str, draft: bool, max_resul
     description="""
 list_user_tasks_approval_data_for_artifact returns a list user tasks in a data governance workflow for a specific artifact id along with the
 final state of the workflow to find out approvers in user task data.
+If you find markdown text in the result show it to the user.
 Always define the draft parameter: if the text refers to future approvals set it true, otherwise false.
 
 Use the formatted output in your answer.
@@ -206,8 +207,9 @@ async def list_user_tasks_approval_data_for_artifact(
             base_url=str(tool_helper_service.base_url)
         )
         LOGGER.info(f"Generated formatted table for {len(user_tasks)} user tasks")
+        # Always include both raw data and formatted output
         return ListUserTasksResponse(
-            user_tasks=None,
+            user_tasks=user_tasks,
             total_count=len(user_tasks),
             formatted_output=formatted_output
         )
@@ -217,13 +219,14 @@ async def list_user_tasks_approval_data_for_artifact(
             base_url=str(tool_helper_service.base_url)
         )
         LOGGER.info(f"Generated formatted list for {len(user_tasks)} user tasks")
+        # Always include both raw data and formatted output
         return ListUserTasksResponse(
-            user_tasks=None,
+            user_tasks=user_tasks,
             total_count=len(user_tasks),
             formatted_output=formatted_output
         )
     else:
-        # format='json' - return raw data only
+        # format='json' - return raw data only (already includes user_tasks)
         return ListUserTasksResponse(
             user_tasks=user_tasks,
             total_count=len(user_tasks),

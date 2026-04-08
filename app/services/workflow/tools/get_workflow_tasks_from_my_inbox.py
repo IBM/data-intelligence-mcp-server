@@ -17,6 +17,7 @@ from app.services.workflow.utils.task_formatters import format_tasks_as_table, s
 from app.services.workflow.tools.utils import ZERO_MINUTES
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
+from app.core.settings import settings, ENV_MODE_SAAS
 
 from fastmcp.exceptions import ToolError
 
@@ -32,8 +33,11 @@ def transform_base_url_to_ui_url(input_url: str) -> str:
 
     if hostname is None:
         hostname = 'localhost'
-    
-    return f"https://{hostname}/governance/workflow/tasks?taskId="
+
+    if settings.di_env_mode.upper() != ENV_MODE_SAAS:
+        return f"{hostname}/gov/workflow/tasks?taskId="
+    else:
+        return f"{hostname}/governance/workflow/tasks?taskId="
 
 def _convert_variables_to_dict(variables_list) -> dict:
     """
@@ -130,6 +134,8 @@ def _create_task_from_data(task_data: dict) -> Task:
         assignee=entity.get("assignee"),
         form_key=entity.get("form_key"),
         state=metadata.get("state"),
+        candidate_users=entity.get("candidate_users"),
+        candidate_groups=entity.get("candidate_groups"),
         variables=variables_dict
     )
 
@@ -191,6 +197,7 @@ def _build_task_url(task_id: str) -> str:
     This tool fetches tasks assigned to you or tasks you are candidates for in governance workflows.
     
     Use format='json' for raw task data or format='table' (default) for formatted output.
+    If you find markdown text in the result show it to the user.
     ALWAYS render the result as table if called with format='table' parameter
 
     Make sure to use a request json object for the parameters.
@@ -233,13 +240,14 @@ async def get_workflow_tasks_from_my_inbox(
             base_url=transform_base_url_to_ui_url(tool_helper_service.base_url)  # api.xxxxx.com/v3 ... -> xxxxx.com/governance/workflow
         )
         LOGGER.info(f"Generated formatted table for {len(tasks)} tasks")
+        # Always include both raw data and formatted output
         return GetMyTasksResponse(
-            tasks=None,
+            tasks=tasks,
             total_count=len(tasks),
             formatted_output=formatted_output
         )
     else:
-        # format='json' - return raw data only
+        # format='json' - return raw data only (already includes tasks)
         return GetMyTasksResponse(
             tasks=tasks,
             total_count=len(tasks),

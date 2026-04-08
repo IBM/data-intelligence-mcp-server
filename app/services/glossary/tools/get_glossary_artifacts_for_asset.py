@@ -6,7 +6,11 @@ from typing import Dict, List, Literal, Optional
 
 from app.core.registry import service_registry
 from app.services.constants import GS_BASE_ENDPOINT
-from app.services.glossary.constants import METADATA_NAME
+from app.services.glossary.constants import (
+    METADATA_NAME,
+    NO_GLOSSARY_ARTIFACTS_FOUND_MESSAGE,
+    NO_GLOSSARY_ARTIFACTS_FOR_ASSET_IN_CONTAINER_MESSAGE,
+)
 from app.services.glossary.models.glossary_artifact import (
     GetGlossaryArtifactsForAssetRequest,
     GlossaryArtifact,
@@ -14,6 +18,7 @@ from app.services.glossary.models.glossary_artifact import (
 from app.services.tool_utils import find_asset_id, find_catalog_id, find_project_id
 from app.shared.exceptions.base import ServiceError
 from app.shared.logging import LOGGER, auto_context
+from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.utils.helpers import append_context_to_url, confirm_uuid, is_uuid_bool as is_uuid
 from app.shared.utils.tool_helper_service import tool_helper_service
 
@@ -89,6 +94,7 @@ async def _fetch_version_id(name: str) -> Optional[str]:
     response = await tool_helper_service.execute_post_request(
         url=str(tool_helper_service.base_url) + GS_BASE_ENDPOINT,
         json=payload,
+        params={"auth_cache": True},
     )
 
     rows = response.get("rows", [])
@@ -108,7 +114,7 @@ def _format_glossary_artifacts_for_display(artifacts: List[GlossaryArtifact]) ->
         Formatted string representations
     """
     if not artifacts:
-        return "No glossary artifacts found for this asset."
+        return NO_GLOSSARY_ARTIFACTS_FOUND_MESSAGE
     
     result_lines = [f"Found {len(artifacts)} glossary artifact(s):"]
     for artifact in artifacts:
@@ -196,14 +202,28 @@ async def get_glossary_artifacts_for_asset(
 
     rows = response.get("rows", [])
     if not rows:
-        return f"No glossary artifacts found for asset '{request.asset_id_or_name}' in {request.container_type} '{request.container_id_or_name}'"
+        return NO_GLOSSARY_ARTIFACTS_FOR_ASSET_IN_CONTAINER_MESSAGE.format(
+            asset=request.asset_id_or_name,
+            container_type=request.container_type,
+            container=request.container_id_or_name
+        )
     
     metadata = rows[0].get("metadata", {})
     results = _extract_glossary_artifacts_from_metadata(metadata)
 
     if not results:
-        return f"No glossary artifacts found for asset '{request.asset_id_or_name}' in {request.container_type} '{request.container_id_or_name}'"
+        return NO_GLOSSARY_ARTIFACTS_FOR_ASSET_IN_CONTAINER_MESSAGE.format(
+            asset=request.asset_id_or_name,
+            container_type=request.container_type,
+            container=request.container_id_or_name
+        )
 
+    if results:
+        ui_message_context.add_table_ui_message(
+            tool_name="get_glossary_artifacts_for_asset",
+            formatted_data=_format_glossary_artifacts_for_table(results),
+            title="Glossary artifacts",
+        )
     return _format_glossary_artifacts_for_display(results)
 
 
@@ -227,3 +247,12 @@ async def wxo_get_glossary_artifacts_for_asset(
         container_type=container_type,
     )
     return await get_glossary_artifacts_for_asset(request)
+
+def _format_glossary_artifacts_for_table(artifacts: list[GlossaryArtifact]) -> list:
+    return [
+        {
+            "Name": ui_message_context.create_markdown_link(item.url, item.name),
+            "Type": item.artifact_type.replace("_", " ").capitalize(),
+        }
+        for item in artifacts
+    ]

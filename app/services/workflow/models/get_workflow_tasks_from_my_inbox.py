@@ -21,6 +21,8 @@ class Task(BaseModel):
     assignee: Optional[str] = Field(None, description="Current assignee of the task")
     form_key: Optional[str] = Field(None, description="Form key for task form")
     state: Optional[str] = Field(None, description="Current state of the task")
+    candidate_users: Optional[List[str]] = Field(None, description="List of candidate users who can claim the task")
+    candidate_groups: Optional[List[str]] = Field(None, description="List of candidate groups who can claim the task")
     variables: Optional[dict] = Field(None, description="Process variables relevant to the task")
 
 

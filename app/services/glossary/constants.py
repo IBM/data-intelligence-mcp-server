@@ -98,4 +98,8 @@ OPERATION_IMPORT_MODIFY = "IMPORT_MODIFY"
 ARTIFACT_TYPE_GLOSSARY_TERM = "glossary_term"
 ARTIFACT_TYPE_CATEGORY = "category"
 
+
+# Display messages
+NO_GLOSSARY_ARTIFACTS_FOUND_MESSAGE = "No glossary artifacts found for this asset"
+NO_GLOSSARY_ARTIFACTS_FOR_ASSET_IN_CONTAINER_MESSAGE = "No glossary artifacts found for this asset '{asset}' in {container_type} '{container}'"
 CSV_COLUMN_ARTIFACT_TYPE = "Artifact Type"

@@ -28,7 +28,7 @@ from app.services.tool_utils import (
     find_asset_id_exact_match,
     find_category_id,
     find_metadata_enrichment_id,
-    find_project_id,
+    find_project_id, find_metadata_import_id,
 )
 from app.shared.exceptions.base import ServiceError
 from app.shared.logging import LOGGER, auto_context
@@ -73,9 +73,10 @@ async def create_or_update_metadata_enrichment_asset(
 ) -> Union[DataScopeOperation, MetadataEnrichmentAssetPatchResponse]:
 
     LOGGER.info(
-        f"create_or__metadata_enrichment_asset called with project_name: {request.project_name}, "
+        f"create_or_update_metadata_enrichment_asset called with project_name: {request.project_name}, "
         f"asset_name: {request.metadata_enrichment_name}, category_names: {request.category_names}, "
-        f"dataset_names: {request.dataset_names}, objective_names: {request.objective_names}, "
+        f"dataset_names: {request.dataset_names}, metadata_import_names: {request.metadata_import_names}, "
+        f"objective_names: {request.objective_names}, "
         f"description: {request.description}, new_name: {request.new_name}"
     )
 
@@ -120,26 +121,40 @@ async def create_mde(category_ids: list[str], objectives: list[MetadataEnrichmen
             "Please provide at least one category."
         )
 
-    if not request.dataset_names:
+    if not request.dataset_names and not request.metadata_import_names:
         raise ServiceError(
-            "dataset_names is required when creating a new metadata enrichment asset. "
+            "dataset_names or metadata_import_names are required when creating a new metadata enrichment asset."
             "Please provide at least one dataset."
         )
 
-    dataset_names = confirm_list_str(request.dataset_names)
-    dataset_ids = [
-        await confirm_uuid(
-            dataset_name, partial(find_asset_id_exact_match, container_id=project_id)
-        )
-        for dataset_name in dataset_names
-    ]
+    dataset_ids = []
+    if isinstance(request.dataset_names, list) and len(request.dataset_names) > 0 or isinstance(request.dataset_names, str) and len(request.dataset_names) > 0:
+        dataset_names = confirm_list_str(request.dataset_names)
+        dataset_ids = [
+            await confirm_uuid(
+                dataset_name, partial(find_asset_id_exact_match, container_id=project_id)
+            )
+            for dataset_name in dataset_names
+        ]
+        await check_if_datasets_assigned_to_mde(dataset_ids, dataset_names, project_id)
 
-    await check_if_datasets_assigned_to_mde(dataset_ids, dataset_names, project_id)
+
+    metadata_imports_ids = []
+    if request.metadata_import_names:
+        metadata_import_names = confirm_list_str(request.metadata_import_names)
+        metadata_imports_ids = [
+            await confirm_uuid(
+                metadata_import_name,
+                partial(find_metadata_import_id, project_id=project_id)
+            )
+            for metadata_import_name in metadata_import_names
+        ]
     mde_asset = generate_metadata_enrichment_asset(
         asset_name=request.metadata_enrichment_name,
         dataset_uuids=dataset_ids,
         category_uuids=category_ids,
         objectives=objectives,
+        metadata_import_uuids=metadata_imports_ids,
     )
 
     return await call_create_metadata_enrichment_asset(project_id, mde_asset)
@@ -191,6 +206,7 @@ async def wxo_create_or_update_metadata_enrichment_asset(
     objective_names: list[str] | str,
     category_names: Optional[list[str] | str] = None,
     dataset_names: Optional[list[str] | str] = None,
+    metadata_import_names: Optional[list[str] | str] = None,
     description: Optional[str] = None,
     new_name: Optional[str] = None,
 ) -> Union[DataScopeOperation, MetadataEnrichmentAssetPatchResponse]:
@@ -202,6 +218,7 @@ async def wxo_create_or_update_metadata_enrichment_asset(
         objective_names=objective_names,
         category_names=category_names,
         dataset_names=dataset_names,
+        metadata_import_names=metadata_import_names,
         description=description,
         new_name=new_name,
     )

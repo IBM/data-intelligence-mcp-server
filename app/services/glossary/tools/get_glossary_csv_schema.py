@@ -52,7 +52,7 @@ async def get_glossary_csv_schema(
     
     return CSVSchemaInfo(
         description=(
-            "CSV format for importing glossary terms and categories into IBM watsonx.governance. "
+            "CSV format for importing glossary terms and categories."
             "The CSV must follow comma-separated values format with a header row. "
             "Each row represents either a glossary term or a category."
         ),
@@ -72,8 +72,6 @@ async def get_glossary_csv_schema(
             "Classifications": "Classifications assigned (terms: yes, categories: yes)",
             "Data Classes": "Data classes associated (terms only)",
             "Related Terms": "Comma-separated list of related term names (terms only)",
-            "Part Of Terms": "Terms that this term is part of (terms only)",
-            "Type Of Terms": "Terms that this term is a type of (terms only)",
             "Synonyms": "Alternative names, comma-separated (terms only)",
             "Abbreviations": "Abbreviations for the term (terms only)",
             "Secondary Categories": "Additional categories beyond the primary one (terms only)",

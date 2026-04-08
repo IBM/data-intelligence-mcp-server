@@ -613,6 +613,17 @@ def _build_light_mode_response(workflows: List[Workflow]) -> GetMyWorkflowsRespo
     Returns:
         GetMyWorkflowsResponse for light mode
     """
+    # Generate formatted output for better readability
+    formatted_output = None
+    if workflows:
+        # Simple table for light mode
+        formatted_output = "## Workflows\n\n| Workflow ID | Name | State | Created By |\n"
+        formatted_output += "|-------------|------|-------|------------|\n"
+        for wf in workflows:
+            created_by = wf.created_by or "-"
+            formatted_output += f"| {wf.workflow_id} | {wf.name} | {wf.state} | {created_by} |\n"
+        formatted_output += f"\nTotal: {len(workflows)} workflow(s)"
+    
     return GetMyWorkflowsResponse(
         workflows=workflows,
         workflow_requests=None,
@@ -621,13 +632,14 @@ def _build_light_mode_response(workflows: List[Workflow]) -> GetMyWorkflowsRespo
         completed_count=None,
         stalled_count=None,
         at_risk_count=None,
-        formatted_output=None
+        formatted_output=formatted_output
     )
 
 
 def _build_deep_dive_table_response(
     workflow_requests: List[WorkflowRequest],
-    stalled_days: Optional[int]
+    stalled_days: Optional[int],
+    include_tasks: bool
 ) -> GetMyWorkflowsResponse:
     """
     Build response for deep dive mode with table format.
@@ -635,6 +647,7 @@ def _build_deep_dive_table_response(
     Args:
         workflow_requests: List of workflow request objects
         stalled_days: Threshold for stalled detection
+        include_tasks: Whether to include detailed task information in the table
         
     Returns:
         GetMyWorkflowsResponse for deep dive table format
@@ -642,19 +655,23 @@ def _build_deep_dive_table_response(
     formatted_output = format_workflow_requests_as_tables(
         workflows=workflow_requests,
         base_url=str(tool_helper_service.base_url),
-        stalled_days=stalled_days
+        stalled_days=stalled_days,
+        include_tasks=include_tasks
     )
-    LOGGER.info(f"Generated formatted tables for {len(workflow_requests)} workflows")
+    LOGGER.info(f"Generated formatted tables for {len(workflow_requests)} workflows (include_tasks={include_tasks})")
+    
+    # Calculate summary statistics
+    stats = calculate_workflow_statistics(workflow_requests, stalled_days)
     
     return GetMyWorkflowsResponse(
         workflows=None,
-        workflow_requests=None,
+        workflow_requests=workflow_requests,  # Always include raw data
         total_count=len(workflow_requests),
-        active_count=None,
-        completed_count=None,
-        stalled_count=None,
-        at_risk_count=None,
-        formatted_output=formatted_output
+        active_count=stats["active_count"],
+        completed_count=stats["completed_count"],
+        stalled_count=stats["stalled_count"],
+        at_risk_count=stats["at_risk_count"],
+        formatted_output=formatted_output  # Also include formatted output
     )
 
 
@@ -692,6 +709,7 @@ def _build_deep_dive_json_response(
     This tool fetches workflow instances that you have created/initiated, with two modes:
     - Light mode (deep_dive=False): Returns basic workflow information for quick overview
     - Deep dive mode (deep_dive=True): Returns comprehensive analysis with task details, activity tracking, and metrics
+    If you find markdown text in the result show it to the user.
 
     This is different from get_workflow_tasks_from_my_inbox which shows tasks assigned to you by others.
 
@@ -750,7 +768,7 @@ async def get_my_workflows(
     
     # Generate output based on format
     if request.format == "table":
-        return _build_deep_dive_table_response(workflow_requests, request.stalled_days)
+        return _build_deep_dive_table_response(workflow_requests, request.stalled_days, request.include_tasks)
     elif request.format == "json":
         return _build_deep_dive_json_response(workflow_requests, stats)
     else:
