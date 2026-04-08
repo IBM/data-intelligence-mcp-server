@@ -55,8 +55,6 @@
   - `search_categories` - Search for user's categories, mainly used when creating or updating metadata enrichment without providing a category
 
 ### Changed
-- **Authentication**: Enhanced authentication system to support AWS environments (*.aws.data.ibm.com) with region-specific IAM endpoints and API key handling:
-  - Added dynamic IAM URL calculation based on service URL for AWS dev, test, and production regions
 - **Data Protection Rules (DPS)**: Refactored data protection rule creation logic to simplify the API by consolidating natural language and structured rule creation into a single JSON-based approach
 - **Data Product Hub (DPH)**:
   - `data_product_get_data_product_details` - Added `flight_client_url` field to subscription details to provide direct Arrow Flight connection URL for data extraction. Enhanced subscription details to return only the latest successful subscription (sorted by last_updated_at). Added `data_product_version_id` to search_data_products response
