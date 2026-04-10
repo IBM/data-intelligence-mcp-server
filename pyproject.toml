@@ -1,6 +1,6 @@
 [project]
 name = "ibm-watsonx-data-intelligence-mcp-server"
-version = "0.8.0"
+version = "0.8.0.post1"
 description = "MCP Server implementation for IBM Data Intelligence"
 readme = "readme_guides/README_PYPI.md"
 license = "Apache-2.0"
@@ -46,8 +46,7 @@ dependencies = [
     "tenacity>=9.0.0",
     "sqlglot>=27.20.0",
     "pandas>=2.2.3",
-    "tabulate>=0.9.0",
-    "docling>=2.72.0"
+    "tabulate>=0.9.0"
 ]
 
 [project.urls]
