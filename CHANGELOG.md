@@ -2,7 +2,7 @@
 
 > All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project **adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)**.
 
-## [1.0.0] - Apr 24th, 2026
+## [1.0.2] - Apr 24th, 2026
 
 ### Added
 - **Agent Skills**: Introduce skills for Data Intelligence MCP server tools to carry out specialized workflows efficiently and with precision. [See the skills doc](SKILLS_REFERENCE.md) for more details.
