@@ -39,7 +39,7 @@ METADATA_ENRICHMENT_BASE_ENDPOINT = "/metadata_enrichment/v3"
 WORKFLOW_BASE_ENDPOINT = "/v3/workflows"
 
 DPR_RULES = "/v3/enforcement/rules"
-DP_TRANSFORM = "/v4/enforcement-transform"
+DP_TRANSFORM = "/v4/enforcement-transform/utility"
 
 WORKFLOW_BASE_ENDPOINT = "/v3/workflows"
 WORKFLOW_TASK_ENDPOINT = "/v3/workflow_user_tasks"

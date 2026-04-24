@@ -18,18 +18,13 @@ from app.services.metadata_enrichment.models.metadata_enrichment import (
     MetadataEnrichmentAssetPatchResponse,
 )
 from app.services.metadata_enrichment.utils.metadata_enrichment_common_utils import (
-    call_create_metadata_enrichment_asset,
-    call_update_metadata_enrichment_asset,
-    check_if_datasets_assigned_to_mde,
-    generate_metadata_enrichment_asset,
+    get_metadata_enrichment_asset_by_id, create_metadata_enrichment, update_metadata_enrichment,
 )
 from app.services.tool_utils import (
     confirm_list_str,
-    find_asset_id_exact_match,
     find_category_id,
     find_metadata_enrichment_id,
-    find_project_id, find_metadata_import_id,
-)
+    find_project_id, )
 from app.shared.exceptions.base import ServiceError
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import confirm_uuid
@@ -104,85 +99,20 @@ async def create_or_update_metadata_enrichment_asset(
             for category_name in confirm_list_str(request.category_names)
         ]
 
+    primary_category_id = None
+    if request.primary_category_name:
+        primary_category_id = await confirm_uuid(request.primary_category_name, find_category_id)
+
     if metadata_enrichment_id:
-        return await update_mde(category_ids, metadata_enrichment_id, objectives, project_id, request)
+        # Edge case: when updating an MDE in a new chat session, the category name
+        # may be missing because it is not meant to be updated. However, the API
+        # still requires objective.governance_scope.id (category_id), which leads to a 400 response.
+        if not category_ids:
+            mde_response = await get_metadata_enrichment_asset_by_id(project_id, metadata_enrichment_id)
+            category_ids = [cat.id for cat in mde_response.objective.governance_scope]
+        return await update_metadata_enrichment(category_ids, metadata_enrichment_id, objectives, project_id, request, primary_category_id)
     else:
-        return await create_mde(category_ids, objectives, project_id, request)
-
-
-async def create_mde(category_ids: list[str], objectives: list[MetadataEnrichmentObjective], project_id: str,
-                     request: MetadataEnrichmentCreationRequest) -> DataScopeOperation:
-    # CREATE MODE
-    LOGGER.info(f"Creating new MDE '{request.metadata_enrichment_name}'")
-
-    if not request.category_names:
-        raise ServiceError(
-            "category_names is required when creating a new metadata enrichment asset. "
-            "Please provide at least one category."
-        )
-
-    if not request.dataset_names and not request.metadata_import_names:
-        raise ServiceError(
-            "dataset_names or metadata_import_names are required when creating a new metadata enrichment asset."
-            "Please provide at least one dataset."
-        )
-
-    dataset_ids = []
-    if isinstance(request.dataset_names, list) and len(request.dataset_names) > 0 or isinstance(request.dataset_names, str) and len(request.dataset_names) > 0:
-        dataset_names = confirm_list_str(request.dataset_names)
-        dataset_ids = [
-            await confirm_uuid(
-                dataset_name, partial(find_asset_id_exact_match, container_id=project_id)
-            )
-            for dataset_name in dataset_names
-        ]
-        await check_if_datasets_assigned_to_mde(dataset_ids, dataset_names, project_id)
-
-
-    metadata_imports_ids = []
-    if request.metadata_import_names:
-        metadata_import_names = confirm_list_str(request.metadata_import_names)
-        metadata_imports_ids = [
-            await confirm_uuid(
-                metadata_import_name,
-                partial(find_metadata_import_id, project_id=project_id)
-            )
-            for metadata_import_name in metadata_import_names
-        ]
-    mde_asset = generate_metadata_enrichment_asset(
-        asset_name=request.metadata_enrichment_name,
-        dataset_uuids=dataset_ids,
-        category_uuids=category_ids,
-        objectives=objectives,
-        metadata_import_uuids=metadata_imports_ids,
-    )
-
-    return await call_create_metadata_enrichment_asset(project_id, mde_asset)
-
-
-async def update_mde(category_ids: list[str], metadata_enrichment_id: str, objectives: list[MetadataEnrichmentObjective], project_id: str,
-                     request: MetadataEnrichmentCreationRequest) -> MetadataEnrichmentAssetPatchResponse:
-    # UPDATE MODE
-    LOGGER.info(f"Updating existing MDE {metadata_enrichment_id}")
-
-    if request.dataset_names:
-        LOGGER.warning(
-            f"dataset_names provided in UPDATE mode but will be ignored. "
-            f"Datasets cannot be modified after MDE creation. "
-            f"Provided datasets: {request.dataset_names}"
-        )
-
-    new_name = request.new_name if request.new_name else None
-
-    return await call_update_metadata_enrichment_asset(
-        project_id=project_id,
-        metadata_enrichment_id=metadata_enrichment_id,
-        category_ids=category_ids,
-        objectives=objectives,
-        name=new_name,
-        description=request.description,
-    )
-
+        return await create_metadata_enrichment(category_ids, objectives, project_id, request, primary_category_id)
 
 @service_registry.tool(
     name="create_or_update_metadata_enrichment_asset",
@@ -205,7 +135,9 @@ async def wxo_create_or_update_metadata_enrichment_asset(
     metadata_enrichment_name: str,
     objective_names: list[str] | str,
     category_names: Optional[list[str] | str] = None,
+    primary_category_name: Optional[str] = None,
     dataset_names: Optional[list[str] | str] = None,
+    dataset_names_to_remove: Optional[list[str]] = None,
     metadata_import_names: Optional[list[str] | str] = None,
     description: Optional[str] = None,
     new_name: Optional[str] = None,
@@ -217,7 +149,9 @@ async def wxo_create_or_update_metadata_enrichment_asset(
         metadata_enrichment_name=metadata_enrichment_name,
         objective_names=objective_names,
         category_names=category_names,
+        primary_category_name=primary_category_name,
         dataset_names=dataset_names,
+        dataset_names_to_remove=dataset_names_to_remove,
         metadata_import_names=metadata_import_names,
         description=description,
         new_name=new_name,

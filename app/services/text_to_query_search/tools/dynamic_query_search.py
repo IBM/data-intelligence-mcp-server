@@ -8,6 +8,7 @@ from typing import Any, List, Optional
 from app.core.registry import service_registry
 from app.services.constants import GS_BASE_ENDPOINT, TEXT_TO_QUERY_BASE_ENDPOINT
 from app.services.glossary.constants import ContainerType
+from app.services.search.models.search_asset import SearchAssetRequest
 from app.services.search.tools.search_asset import search_asset
 from app.services.text_to_query_search.constants import (
     MAX_SEARCH_RESULTS,
@@ -27,6 +28,9 @@ from app.services.text_to_query_search.utils.entity_resolver import (
 )
 from app.services.text_to_query_search.utils.url_builder import (
     build_artifact_url,
+)
+from app.services.text_to_query_search.utils.source_data_extractor import (
+    extract_source_data,
 )
 from app.services.text_to_query_search.utils.request_validator import (
     validate_request,
@@ -95,7 +99,9 @@ async def search(
 
     try:
         response = await _execute_search_with_query(query_data, validation_response)
-        results = _process_search_results(response)
+        # Extract _source fields from query to pass to processing
+        source_fields = query_data.get("_source", [])
+        results = _process_search_results(response, source_fields)
 
         if results:
             message = (
@@ -129,7 +135,7 @@ async def search(
         return await _fallback_response(request, query_data)
 
 
-def _construct_search_asset(row: Any):
+def _construct_search_asset(row: Any, source_fields: Optional[List[str]] = None):
     asset_id = row["artifact_id"]
 
     metadata = row.get("metadata", {})
@@ -154,6 +160,9 @@ def _construct_search_asset(row: Any):
 
     url = append_context_to_url(url)
 
+    # Extract source data based on requested _source fields
+    source_data = extract_source_data(row, source_fields) if source_fields else None
+
     return GlobalSearchAssetResponse(
         id=asset_id,
         name=artifact_name,
@@ -161,6 +170,7 @@ def _construct_search_asset(row: Any):
         catalog_id=catalog_id,
         project_id=project_id,
         url=url,
+        source_data=source_data,
     )
 
 def _format_search_results_for_table(results: List[GlobalSearchAssetResponse]) -> list:
@@ -346,7 +356,14 @@ async def _fallback_response(
     query: dict | None = None,
 ) -> TextToQuerySearchAssetResponse:
     """Return a fallback response using the basic search_asset function."""
-    response = await search_asset(request)
+    # Create SearchAssetRequest with only compatible fields from the original request
+    search_request = SearchAssetRequest(
+        search_prompt=request.search_prompt,
+        container_type=request.container_type,
+        container_name=request.container_name
+    )
+    
+    response = await search_asset(search_request)
     return TextToQuerySearchAssetResponse(
         generated_query=query or {}, response=response, message=None
     )
@@ -357,7 +374,7 @@ async def _fetch_search_page(query: dict) -> dict:
     return await tool_helper_service.execute_post_request(
         url=str(tool_helper_service.base_url) + GS_BASE_ENDPOINT,
         json=query,
-        params= {"auth_cache": True}
+        params={"auth_cache": True, "tenant_scope": True}
     )
 
 
@@ -450,14 +467,21 @@ async def _execute_search_with_query(query_data: dict, validation_response: dict
     return response
 
 
-def _process_search_results(response: dict) -> List[GlobalSearchAssetResponse]:
-    """Process search response and construct asset list."""
+def _process_search_results(response: dict, source_fields: Optional[List[str]] = None) -> List[GlobalSearchAssetResponse]:
+    """Process search response and construct asset list.
+    
+    Args:
+        response: The search API response
+        source_fields: Optional list of field paths requested in the query's _source parameter.
+                      These fields are extracted and included in the source_data of each asset.
+                      If None, no source data extraction is performed.
+    """
     search_response = response.get("rows", [])
     search_response_all_results = response.get("size", 0)
     LOGGER.info("Search results: %s", search_response)
 
     li: list[GlobalSearchAssetResponse] = (
-        [_construct_search_asset(row) for row in search_response]
+        [_construct_search_asset(row, source_fields) for row in search_response]
         if search_response
         else []
     )

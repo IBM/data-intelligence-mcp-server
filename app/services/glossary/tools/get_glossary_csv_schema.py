@@ -12,31 +12,7 @@ from app.services.glossary.models.csv_import import CSVSchemaInfo
 from app.shared.logging import LOGGER, auto_context
 
 
-@service_registry.tool(
-    name="get_glossary_csv_schema",
-    description="""Get detailed information about the CSV schema for importing glossary artifacts.
-
-This tool returns comprehensive schema information that helps LLMs understand how to:
-1. Generate properly formatted CSV content from unstructured documents
-2. Validate user-provided CSV files before import
-3. Understand constraints and validation rules
-
-The schema includes:
-- Required and optional column names
-- Column descriptions and purposes
-- Allowed values for enumerated fields
-- Validation constraints
-- Example CSV content
-- Best practices for CSV generation
-
-Use this tool when you need to:
-- Generate a CSV from a document (like a policy or specification)
-- Validate CSV format before calling glossary_csv_import
-- Understand what fields are available for glossary artifacts
-- Learn the constraints for each field""",
-)
-@auto_context
-async def get_glossary_csv_schema(
+async def _get_glossary_csv_schema(
     ctx: Optional[Context] = None,
 ) -> CSVSchemaInfo:
     """
@@ -118,26 +94,37 @@ Loss Given Default,glossary_term,Risk Management,The percentage of exposure the 
     name="get_glossary_csv_schema",
     description="""Get detailed information about the CSV schema for importing glossary artifacts.
 
-This is the Watsonx Orchestrator compatible version.
-
-Returns comprehensive schema information that helps understand how to:
+This tool returns comprehensive schema information that helps LLMs understand how to:
 1. Generate properly formatted CSV content from unstructured documents
 2. Validate user-provided CSV files before import
 3. Understand constraints and validation rules
 
-See get_glossary_csv_schema for detailed documentation.""",
+The schema includes:
+- Required and optional column names
+- Column descriptions and purposes
+- Allowed values for enumerated fields
+- Validation constraints
+- Example CSV content
+- Best practices for CSV generation
+
+Use this tool when you need to:
+- Generate a CSV from a document (like a policy or specification)
+- Validate CSV format before calling glossary_csv_import
+- Understand what fields are available for glossary artifacts
+- Learn the constraints for each field""",
+tags={"custom_tool"},
 )
 @auto_context
-async def wxo_get_glossary_csv_schema(
+async def get_glossary_csv_schema(
     ctx: Optional[Context] = None,
 ) -> CSVSchemaInfo:
     """
-    Watsonx Orchestrator compatible version of get_glossary_csv_schema.
-    
+    Wrapper for get_glossary_csv_schema.
+
     Args:
         ctx: Optional MCP context
         
     Returns:
         CSVSchemaInfo with detailed schema information
     """
-    return await get_glossary_csv_schema(ctx=ctx)
+    return await _get_glossary_csv_schema(ctx=ctx)

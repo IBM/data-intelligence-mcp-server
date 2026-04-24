@@ -3,6 +3,7 @@
 # See the LICENSE file in the project root for license information.
 
 import asyncio
+import re
 from typing import Optional
 from app.core.registry import service_registry
 from app.services.search.models.get_asset_details import (
@@ -140,6 +141,7 @@ async def _get_user_info(iam_id: str) -> tuple[str, str]:
     Helper function to retrieve user name and email from IAM ID.
     Returns "icp4d-dev" for both name and email if the IAM ID is "icp4d-dev".
     Returns empty strings if IAM ID is None, empty string, or whitespace.
+    Skips processing for ServiceId patterns (e.g. iam-ServiceId-*, iam-Service_Id-*).
     Optimized to make concurrent API calls for name and email.
     
     Args:
@@ -151,11 +153,13 @@ async def _get_user_info(iam_id: str) -> tuple[str, str]:
     # Handle None, empty string, or whitespace-only strings
     if not iam_id or not iam_id.strip():
         return "", ""
-    
-    # Since the asset is created/updated by service_id 'icp4d-dev' and will not appear in the user list,
+    # Since the asset is created/updated by service_id 'icp4d-dev' or any ServiceId and will not appear in the user list,
     # skip traversing from user_profiles.
-    if iam_id == "icp4d-dev":
-        return "icp4d-dev", "icp4d-dev"
+    # ServiceId pattern matches any occurrence of "service" followed by optional separator and "id" (case-insensitive)
+    # Examples: icp4d-dev, serviceid, ServiceId, Service_Id, service-id etc.
+    service_id_pattern = re.compile(r'service[-_]?id', re.IGNORECASE)
+    if iam_id == "icp4d-dev" or service_id_pattern.search(iam_id):
+        return iam_id, iam_id
     
     # Make both calls concurrently to optimize performance
     name, email = await asyncio.gather(

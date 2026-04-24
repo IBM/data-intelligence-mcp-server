@@ -4,7 +4,7 @@
 
 from pydantic import BaseModel, Field
 from app.shared.models import BaseResponseModel
-from typing import Literal, Optional
+from typing import Dict, Literal
 
 
 class GetDataQualityForAssetRequest(BaseModel):
@@ -25,10 +25,17 @@ class GetDataQualityForAssetRequest(BaseModel):
 
 
 class GetDataQualityForAssetResponse(BaseResponseModel):
-    """Response model for getting data quality for an asset."""
+    """
+    Response model for getting data quality for an asset.
+    
+    Uses a dictionary to store dimension scores, allowing dynamic handling of any
+    data quality dimensions returned by the API without requiring model changes.
+    """
     
     overall: str = Field(..., description="Overall quality score (percentage)")
-    consistency: Optional[str] = Field(None, description="Consistency score (percentage)")
-    validity: Optional[str] = Field(None, description="Validity score (percentage)")
-    completeness: Optional[str] = Field(None, description="Completeness score (percentage)")
+    scores_by_dimension: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Dictionary of dimension names to their scores (percentages). "
+                    "Common dimensions: consistency, validity, completeness, timeliness, accuracy"
+    )
     report_url: str = Field(..., description="Link to detailed quality dashboard")

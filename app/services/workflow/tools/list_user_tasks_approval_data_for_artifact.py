@@ -5,12 +5,12 @@
 # This file has been modified with the assistance of IBM Bob AI tool
 
 """
-Tool for listing user tasks based on artifact id as object of the task.
+Tool for listing user tasks based on artifact id as object of a task.
 
-This module provides functionality to query the workflow API for user tasks.
+This module provides functionality to query workflow API for user tasks.
 """
 
-from typing import List, Dict
+from typing import List, Dict, Optional
 from app.core.registry import service_registry
 from app.services.constants import WORKFLOW_BASE_ENDPOINT, WORKFLOW_TASK_ENDPOINT
 from app.services.workflow.models.list_user_tasks_approval_data_for_artifact import (
@@ -23,10 +23,14 @@ from app.services.workflow.utils.user_task_formatters import (
     format_user_tasks_as_list
 )
 from app.services.workflow.tools.utils import ZERO_MINUTES
+from app.services.workflow.utils.user_mappers import convert_iam_id_to_email, process_candidate_users
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.exceptions.base import ServiceError
 from fastmcp.exceptions import ToolError
+from fastmcp.server.context import Context
+from app.shared.utils.client_detection import supports_rich_text_format
+
 
 async def _retrieve_my_tasklist_from_workflow_inbox(
     #include_assigned: bool,
@@ -66,14 +70,20 @@ async def _retrieve_my_tasklist_from_workflow_inbox(
         for user_task in item_list:
             usertask_metadata = user_task.get("metadata", {})
             usertask_entity = user_task.get("entity", {})
+            
+            # Process IAM ID to email conversions
+            assignee_iam_id = usertask_entity.get("assignee")
+            assignee = await convert_iam_id_to_email(assignee_iam_id, "assignee") if assignee_iam_id else None
+            candidate_users = await process_candidate_users(usertask_entity.get("candidate_users"))
+            
             user_task = UserTask(
                 name=usertask_metadata.get("name"),
                 task_title=usertask_entity.get("task_title"),
                 task_instruction=usertask_entity.get("task_instruction"),
                 state=usertask_entity.get("state"),  # state is in entity, not metadata
-                assignee=usertask_entity.get("assignee"),
+                assignee=assignee,
                 completed_at=usertask_entity.get("completed"),
-                candidate_users=usertask_entity.get("candidate_users")
+                candidate_users=candidate_users
             )
             print("TASK", user_task)
             usertasks.append(user_task)
@@ -89,7 +99,7 @@ async def _retrieve_my_tasklist_from_workflow_inbox(
 
 async def _query_user_tasks_by_artifact(artifact_id: str, draft: bool, max_results: int) -> List[UserTask]:
     """
-    Query the workflow API for user tasks.
+    Query workflow API for user tasks.
 
     Args:
         artifact_id: str: artifact_id as search term
@@ -97,7 +107,7 @@ async def _query_user_tasks_by_artifact(artifact_id: str, draft: bool, max_resul
         max_results: int: Maximum number of data classes to return
 
     Returns:
-        List[UserTask]: List of user tasks related to the specified artifact_id
+        List[UserTask]: List of user tasks related to specified artifact_id
     """
 
     params = {
@@ -135,14 +145,20 @@ async def _query_user_tasks_by_artifact(artifact_id: str, draft: bool, max_resul
             for user_task_in in user_tasks_in:
                 usertask_metadata = user_task_in.get("metadata", {})
                 usertask_entity = user_task_in.get("entity", {})
+                
+                # Process IAM ID to email conversions
+                assignee_iam_id = usertask_entity.get("assignee")
+                assignee = await convert_iam_id_to_email(assignee_iam_id, "assignee") if assignee_iam_id else None
+                candidate_users = await process_candidate_users(usertask_entity.get("candidate_users"))
+                
                 user_task = UserTask(
                     name=usertask_metadata.get("name"),
                     task_title=usertask_entity.get("task_title"),
                     task_instruction=usertask_entity.get("task_instruction"),
                     state=usertask_metadata.get("state"),
-                    assignee=usertask_entity.get("assignee"),
+                    assignee=assignee,
                     completed_at=usertask_entity.get("completed"),
-                    candidate_users=usertask_entity.get("candidate_users")
+                    candidate_users=candidate_users
                 )
                 user_tasks.append(user_task)
 
@@ -152,23 +168,25 @@ async def _query_user_tasks_by_artifact(artifact_id: str, draft: bool, max_resul
         LOGGER.error(f"Error querying workflow user tasks: {str(e)}")
         return []
 
+list_user_tasks_approval_data_for_artifact_description="""
+list_user_tasks_approval_data_for_artifact returns a list user tasks in a data governance workflow for a specific artifact id along with
+final state of the workflow to find out approvers in user task data.
+If you find markdown text in the result show it to the user.
+Always define draft parameter: if text refers to future approvals set it true, otherwise false.
+
+Use formatted output in your answer.
+"""
+
 
 @service_registry.tool(
     name="list_user_tasks_approval_data_for_artifact",
-    description="""
-list_user_tasks_approval_data_for_artifact returns a list user tasks in a data governance workflow for a specific artifact id along with the
-final state of the workflow to find out approvers in user task data.
-If you find markdown text in the result show it to the user.
-Always define the draft parameter: if the text refers to future approvals set it true, otherwise false.
-
-Use the formatted output in your answer.
-    """,
+    description=list_user_tasks_approval_data_for_artifact_description,
     tags={"workflow", "glossary", "user_tasks", "governance"},
     meta={"version": "1.0", "service": "workflow"},
 )
-@auto_context
 async def list_user_tasks_approval_data_for_artifact(
-    request: ListUserTasksRequest
+    request: ListUserTasksRequest,
+    ctx: Context
 ) -> ListUserTasksResponse:
     """
     List workflow user tasks.
@@ -183,19 +201,19 @@ async def list_user_tasks_approval_data_for_artifact(
         f"Listing user tasks with max_results: {request.max_results}, "
         f"format: {request.format}"
     )
-    print("Listing user tasks with max_results:", request.max_results, ", format", request.format)
-
-    user_tasks = []
-    if request.artifact_id is not None:
-        user_tasks = await _query_user_tasks_by_artifact(
-            artifact_id=request.artifact_id,
-            draft=request.draft,
-            max_results=request.max_results
-        )
-    else:
-        user_tasks = await _retrieve_my_tasklist_from_workflow_inbox(
-            max_results=request.max_results
-        )
+    
+    # Auto-detect Claude Code and switch to JSON format if needed
+    # Some clients don't handle markdown tables well, so we default to JSON
+    if not supports_rich_text_format(ctx) and request.format == "table":
+        LOGGER.info("Client without rich text support detected: switching format from 'table' to 'json'")
+        request.format = "json"
+    
+    # Query user tasks by artifact_id (now required parameter)
+    user_tasks = await _query_user_tasks_by_artifact(
+        artifact_id=request.artifact_id,
+        draft=request.draft,
+        max_results=request.max_results
+    )
     
     print("ALL USER TASKS\n", user_tasks)
         
@@ -236,19 +254,13 @@ async def list_user_tasks_approval_data_for_artifact(
 
 @service_registry.tool(
     name="list_user_tasks_approval_data_for_artifact",
-    description="""Watsonx Orchestrator compatible wrapper list_user_tasks_approval_data_for_artifact.
-list_user_tasks_approval_data_for_artifact returns a list user tasks in a data governance workflow for a specific artifact id along with the
-final state of the workflow to find out approvers in user task data.
-Always define the draft parameter: if the text refers to future approvals set it true, otherwise false.
-
-Use the formatted output in your answer.
-    """,
+    description="Watsonx Orchestrator compatible wrapper list_user_tasks_approval_data_for_artifact. " + list_user_tasks_approval_data_for_artifact_description,
     tags={"workflow", "wxo", "glossary", "user_tasks", "governance"},
     meta={"version": "1.0", "service": "workflow"},
 )
 @auto_context
 async def wxo_list_user_tasks_approval_data_for_artifact(
-    artifact_id: str = None,
+    artifact_id: str,
     max_results: int = 50,
     draft: bool = False,
     format: str = "table",

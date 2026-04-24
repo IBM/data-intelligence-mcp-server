@@ -8,16 +8,45 @@ from app.services import tool_utils
 from app.services.tool_utils import find_category_id, find_connection_id, find_metadata_enrichment_id, find_metadata_import_id
 from app.shared.exceptions.base import ServiceError
 from app.services.text_to_query_search.constants import CONTAINER_TYPE_PROJECT_AND_CATALOG
+from app.services.user_search.utils.search_utils import search_users_by_query
+from app.core.auth import get_user_identifier
 
 # Type alias for context requirements
 ContextRequirement = Literal["container_id", "container_id_and_type", None]
+
+
+async def find_user_id(user_name: str) -> str | None:
+    """
+    Find user ID by user name, email, or username using fuzzy matching.    
+    Args:
+        user_name: Name, email, or username to search for
+        
+    Returns:
+        User ID if found, None otherwise
+        
+    Raises:
+        ServiceError: When user is not found
+    """
+    if user_name == "me":
+        return await get_user_identifier()
+    # Search for user by name/email/username
+    results, _ = await search_users_by_query(query=user_name)
+    if results:
+        LOGGER.info(f"Found user '{user_name}' with ID: {results[0].user_id}")
+        return results[0].user_id
+    
+    error_msg = f"User '{user_name}' not found"
+    LOGGER.error(error_msg)
+    raise ServiceError(error_msg)
+
 
 # Mapping of entity types to their context requirements and resolver functions
 ENTITY_RESOLVERS: dict[str, tuple[ContextRequirement, Callable]] = {
     "connection": ("container_id_and_type", find_connection_id),
     "metadata_import": ("container_id", find_metadata_import_id),
     "metadata_enrichment_area": ("container_id", find_metadata_enrichment_id),
-    "category": (None, find_category_id)
+    "category": (None, find_category_id),
+    "user": (None, find_user_id),
 }
 
 

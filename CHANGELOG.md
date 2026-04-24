@@ -2,6 +2,35 @@
 
 > All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project **adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)**.
 
+## [1.0.0] - Apr 24th, 2026
+
+### Added
+- **Agent Skills**: Introduce skills for Data Intelligence MCP server tools to carry out specialized workflows efficiently and with precision. [See the skills doc](SKILLS_REFERENCE.md) for more details.
+  - `onboard-and-enrich`: Walks user through executing a metadata onboarding, data cataloging and metadata enrichment workflow in a project.
+- **Data Product Hub (DPH)**:
+  - `data_product_get_business_domains` - Retrieve all business domains or relevant business domains matching a keyword defined in the data product hub.
+- **Workflow**:
+  - `task_action` - Perform claim, complete or unclaim on a workflow task.
+- **Metadata Enrichment (MDE)**:
+  - `monitor_job_status` - Monitor the status of metadata enrichment jobs in a project
+- **Lineage**:
+  - `lineage_get_lineage_comparison` - Compare lineage graphs between two different versions or time periods to identify changes in data flows
+
+### Changed
+- **Data Product Hub (DPH)**:
+  - `data_product_find_delivery_methods_based_on_connection` - Updated tool input parameters to include container ID and name, and data asset ID. Removed data_product_draft_id and data_asset_name.
+- **Metadata Enrichment (MDE)**:
+  - Switched MDE CRUD API to use legacy API for improved compatibility
+  - Enhanced to allow users to specify a primary category when creating or updating MDE 
+  - Enhanced `create_or_update_metadata_enrichment_asset` tool to support adding and removing assets from metadata enrichment.
+- **Data Quality**:
+  - Added customizable dimensions for data quality assets
+
+### Fixed
+- **Search**: Fixed issue where assets created or updated by service IDs were causing crashes in search tools
+- **Data Product Hub**: Fixed validation errors when attaching contracts to data products
+- **API Improvement**: Added `tenant_scope` query parameter to Global Search calls to avoid retrieval of artifacts from different shared accounts
+
 ## [0.8.0.post1] - Apr 10th, 2026
 - Removed docling from requirements
 

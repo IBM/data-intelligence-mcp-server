@@ -2,13 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-import re
-import sys
-import uuid
 from functools import partial
-from typing import Callable, Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
-from tenacity import RetryError
 
 from app.services.constants import (
     CAMS_ASSETS_BASE_ENDPOINT,
@@ -16,27 +12,7 @@ from app.services.constants import (
     DATA_QUALITY_BASE_ENDPOINT_V3,
     GS_BASE_ENDPOINT,
 )
-from app.services.data_quality.models.create_data_quality_rule_from_sql_query import (
-    CreateDataQualityRuleFromSQLQueryRequest,
-    CreateDataQualityRuleFromSQLQueryResponse,
-)
 from app.services.data_quality.models.data_quality import DataQuality, DataQualityRule
-from app.services.data_quality.models.find_data_quality_rules import (
-    FindDataQualityRulesRequest,
-    FindDataQualityRulesResponse,
-)
-from app.services.data_quality.models.get_data_quality_for_asset import (
-    GetDataQualityForAssetRequest,
-    GetDataQualityForAssetResponse,
-)
-from app.services.data_quality.models.run_data_quality_rule import (
-    RunDataQualityRuleRequest,
-    RunDataQualityRuleResponse,
-)
-from app.services.data_quality.models.set_validates_data_quality_of_relation import (
-    SetValidatesDataQualityOfRelationRequest,
-    SetValidatesDataQualityOfRelationResponse,
-)
 from app.services.tool_utils import (
     ENTITY_ASSETS_PROJECT_ID,
     METADATA_ARTIFACT_TYPE,
@@ -46,8 +22,8 @@ from app.services.tool_utils import (
     find_project_id,
 )
 from app.shared.exceptions.base import ExternalAPIError, ServiceError
-from app.shared.logging import LOGGER, auto_context
-from app.shared.utils.helpers import append_context_to_url, confirm_uuid, is_uuid
+from app.shared.logging import LOGGER
+from app.shared.utils.helpers import append_context_to_url, confirm_uuid
 from app.shared.utils.tool_helper_service import tool_helper_service
 
 DATA_QUALITY_V3_BASE_URL = str(tool_helper_service.base_url) + DATA_QUALITY_BASE_ENDPOINT_V3
@@ -97,7 +73,7 @@ async def _find_data_quality_rules(
         ExternalServiceError: If the search service request fails.
     """
 
-    params = {"auth_scope": "project", "auth_cache": True}
+    params = {"auth_scope": "project", "auth_cache": True, "tenant_scope": True}
     payload = None
     if data_quality_rule_name:
         if exact_match:
@@ -298,38 +274,12 @@ async def _retrieve_data_quality(
 
     dimension_scores = score.get("dimension_scores", [])
 
-    consistency_list = [
-        dimension
-        for dimension in dimension_scores
-        if dimension["dimension"].get("name", "").lower() == "consistency"
-    ]
-    consistency = (
-        _ratio_to_percentage(consistency_list[0]["score"])
-        if len(consistency_list) > 0
-        else None
-    )
-
-    validity_list = [
-        dimension
-        for dimension in dimension_scores
-        if dimension["dimension"].get("name", "").lower() == "validity"
-    ]
-    validity = (
-        _ratio_to_percentage(validity_list[0]["score"])
-        if len(validity_list) > 0
-        else None
-    )
-
-    completeness_list = [
-        dimension
-        for dimension in dimension_scores
-        if dimension["dimension"].get("name", "").lower() == "completeness"
-    ]
-    completeness = (
-        _ratio_to_percentage(completeness_list[0]["score"])
-        if len(completeness_list) > 0
-        else None
-    )
+    # Build scores_by_dimension dictionary dynamically from all available dimension scores
+    scores_by_dimension = {}
+    for dimension in dimension_scores:
+        dimension_name = dimension["dimension"].get("name", "").lower()
+        if dimension_name:
+            scores_by_dimension[dimension_name] = _ratio_to_percentage(dimension["score"])
 
     report_url = (
         f"{tool_helper_service.ui_base_url}/data/catalogs/{container_id}/asset/{asset_id}/data-quality"
@@ -339,9 +289,7 @@ async def _retrieve_data_quality(
 
     return DataQuality(
         overall=_ratio_to_percentage(score["score"]),
-        consistency=consistency,
-        validity=validity,
-        completeness=completeness,
+        scores_by_dimension=scores_by_dimension,
         report_url=report_url,
     )
 
@@ -673,7 +621,7 @@ async def find_dataset_column(column_name: str, dataset_id: str, project_id: str
     """
     from app.shared.utils.helpers import get_closest_match
     
-    params = {"auth_scope": "project", "auth_cache": True}
+    params = {"auth_scope": "project", "auth_cache": True, "tenant_scope": True}
     payload = {
         "query": {
             "bool": {

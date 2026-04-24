@@ -16,7 +16,6 @@ from app.services.glossary.models.glossary_artifact import (
     GlossaryArtifact,
 )
 from app.services.tool_utils import find_asset_id, find_catalog_id, find_project_id
-from app.shared.exceptions.base import ServiceError
 from app.shared.logging import LOGGER, auto_context
 from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.utils.helpers import append_context_to_url, confirm_uuid, is_uuid_bool as is_uuid
@@ -94,7 +93,7 @@ async def _fetch_version_id(name: str) -> Optional[str]:
     response = await tool_helper_service.execute_post_request(
         url=str(tool_helper_service.base_url) + GS_BASE_ENDPOINT,
         json=payload,
-        params={"auth_cache": True},
+        params={"auth_cache": True, "tenant_scope": True},
     )
 
     rows = response.get("rows", [])
@@ -124,16 +123,7 @@ def _format_glossary_artifacts_for_display(artifacts: List[GlossaryArtifact]) ->
     return "\n".join(result_lines)
 
 
-@service_registry.tool(
-    name="get_glossary_artifacts_for_asset",
-    description="""Retrieve all business terms and classifications (these are the only two supported types of glossary artifacts) associated with a specific asset.
-    When a user requests "get/list glossary items" without specifying asset details, prompt them to provide the following required parameters: asset_id_or_name, container_id_or_name, and container_type.
-
-    This tool finds all glossary terms and classification that have been assigned to a particular asset.
-    This helps understand the business context and semantic meaning of the asset.""",
-)
-@auto_context
-async def get_glossary_artifacts_for_asset(
+async def _get_glossary_artifacts_for_asset(
     request: GetGlossaryArtifactsForAssetRequest,
 ) -> str:
     """
@@ -191,7 +181,8 @@ async def get_glossary_artifacts_for_asset(
     params = {
         "role": "viewer",
         "auth_cache": True,
-        "auth_scope": request.container_type
+        "auth_scope": request.container_type,
+        "tenant_scope": True
     }
 
     response = await tool_helper_service.execute_post_request(
@@ -229,24 +220,26 @@ async def get_glossary_artifacts_for_asset(
 
 @service_registry.tool(
     name="get_glossary_artifacts_for_asset",
-    description="""Retrieve all business terms and classifications associated with a specific asset.
+    description="""Retrieve all business terms and classifications (these are the only two supported types of glossary artifacts) associated with a specific asset.
+    When a user requests "get/list glossary items" without specifying asset details, prompt them to provide the following required parameters: asset_id_or_name, container_id_or_name, and container_type.
     
     This tool finds all glossary terms and classification that have been assigned to a particular asset.
     This helps understand the business context and semantic meaning of the asset.""",
+    tags={"custom_tool"},
 )
 @auto_context
-async def wxo_get_glossary_artifacts_for_asset(
+async def get_glossary_artifacts_for_asset(
     asset_id_or_name: str,
     container_id_or_name: str,
     container_type: Literal["catalog", "project"],
 ) -> str:
-    """Watsonx Orchestrator compatible version of get_glossary_artifacts_for_asset."""
+    """Wrapper for get_glossary_artifacts_for_asset."""
     request = GetGlossaryArtifactsForAssetRequest(
         asset_id_or_name=asset_id_or_name,
         container_id_or_name=container_id_or_name,
         container_type=container_type,
     )
-    return await get_glossary_artifacts_for_asset(request)
+    return await _get_glossary_artifacts_for_asset(request)
 
 def _format_glossary_artifacts_for_table(artifacts: list[GlossaryArtifact]) -> list:
     return [

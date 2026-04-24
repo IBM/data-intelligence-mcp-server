@@ -9,9 +9,9 @@ This module contains request and response models for querying the workflow API
 to retrieve workflows pertaining to a specific artifact_id of a glossary object and retrieve all their user tasks.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Dict, Optional
-from app.shared.models import BaseResponseModel, field_validator
+from app.shared.models import BaseResponseModel
 
 
 class UserTask(BaseModel):
@@ -24,14 +24,14 @@ class UserTask(BaseModel):
     assignee: Optional[str] = Field(None, description="User task assignee")
     completed_at: Optional[str] = Field(None, description="When user task has been completed")
     candidate_users: Optional[List[str]] = Field(
-        ..., description="List of potential assignee names for this task"
+        None, description="List of potential assignee names for this task"
     )
 
 
 class ListUserTasksRequest(BaseModel):
     """Request model for listing user tasks."""
 
-    artifact_id: Optional[str] = Field(None, description="Artifact ID as object of a workflow")
+    artifact_id: str = Field(..., description="Artifact ID as object of a workflow")
     draft: bool = Field(..., description="Artifact in draft or published")
     max_results: int = Field(
         50,
@@ -43,6 +43,14 @@ class ListUserTasksRequest(BaseModel):
         "table",
         description="Output format: 'table' for formatted markdown table, 'json' for raw data"
     )
+
+    @field_validator('artifact_id')
+    @classmethod
+    def validate_artifact_id(cls, v: str) -> str:
+        """Validate that artifact_id is not empty or whitespace only."""
+        if not v or not v.strip():
+            raise ValueError('artifact_id cannot be empty or whitespace only')
+        return v.strip()
 
 
 class ListUserTasksResponse(BaseResponseModel):

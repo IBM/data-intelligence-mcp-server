@@ -44,6 +44,7 @@ from app.services.tool_utils import (
                     IMPORTANT CONSTRAINTS:
                     - connection_name must be provided
                     - target_container must be provided
+                    - target_container_type if not provided defaults to "project"
                     - connection to be copied can only exist in a catalog
                     """,
     tags={"copy", "connection"},
@@ -56,18 +57,17 @@ async def copy_connection(
 
     # Analyze and fix the request parameters
     source_catalog = request.source_catalog or ""
-    target_container_type = request.target_container_type or "project"
 
     LOGGER.info(
         "Starting copy connection with connection: '%s', source catalog: '%s', target container: '%s' and target container type: '%s'",
         request.connection_name,
         source_catalog,
         request.target_container,
-        target_container_type
+        request.target_container_type
     )
 
     source_catalog_id = await retrieve_container_id(source_catalog, "catalog")
-    target_container_id = await retrieve_container_id(request.target_container, target_container_type)
+    target_container_id = await retrieve_container_id(request.target_container, request.target_container_type)
 
     connection_id = await find_connection_id(request.connection_name, source_catalog_id, "catalog")
 
@@ -79,7 +79,7 @@ async def copy_connection(
     params = {
         "test": True,
         "persist": True,
-        target_container_type + "_id": target_container_id,
+        request.target_container_type + "_id": target_container_id,
         "userfs": False
     }
     payload = {
@@ -107,7 +107,7 @@ async def copy_connection(
         )
     else:
         raise ServiceError(
-            f"Could not copy connection {request.connection_name} from {source_catalog_id} catalog to {target_container_id} {target_container_type}"
+            f"Could not copy connection {request.connection_name} from {source_catalog_id} catalog to {target_container_id} {request.target_container_type}"
         )
 
     return output
@@ -136,6 +136,7 @@ async def copy_connection(
                     IMPORTANT CONSTRAINTS:
                     - connection_name must be provided
                     - target_container must be provided
+                    - target_container_type if not provided defaults to "project"
                     - connection to be copied can only exist in a catalog
                     """,
     tags={"copy", "connection"},
@@ -146,7 +147,7 @@ async def wxo_copy_connection(
     connection_name: str,
     target_container: str,
     source_catalog: Optional[str] = None,
-    target_container_type: Optional[Literal["catalog", "project"]] = None,
+    target_container_type: Literal["catalog", "project"] = "project",
 ) -> CopyConnectionResponse:
     """Watsonx Orchestrator compatible version that expands CopyConnectionRequest object into individual parameters."""
 

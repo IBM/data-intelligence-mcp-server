@@ -10,7 +10,7 @@ class CopyConnectionRequest(BaseModel):
     connection_name: str = Field(..., description="Name of the existing connection to copy.")
     source_catalog: Optional[str] = Field(None, description="Name or UUID of the catalog that contains the connection to copy.")
     target_container: str = Field(..., description="Name or UUID of the project or catalog to copy the connection to.")
-    target_container_type: Optional[Literal["catalog", "project"]] = Field(None, description="The container type of the target container.")
+    target_container_type: Literal["catalog", "project"] = Field("project", description="The container type of the target container.")
 
 class CopyConnectionResponse(BaseResponseModel):
     id: str = Field(..., description="Unique id of the new connection.")

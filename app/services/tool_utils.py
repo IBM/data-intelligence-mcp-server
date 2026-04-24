@@ -726,7 +726,8 @@ async def find_asset_id_exact_match(
         query_container = ENTITY_ASSETS_PROJECT_ID
     
     query_params = {
-        "query": f"metadata.name:{asset_name} AND {query_container}:{container_id}"
+        "query": f"metadata.name:{asset_name} AND {query_container}:{container_id}",
+        "tenant_scope": True,
     }
     
     # Retry logic to handle indexing delays
@@ -916,7 +917,7 @@ async def find_category_id(category_name: str) -> str:
     response = await tool_helper_service.execute_post_request(
         url=str(tool_helper_service.base_url) + GS_BASE_ENDPOINT,
         json={"query": {"bool": {"must": must_match}}},
-        params={"auth_cache": True},
+        params={"auth_cache": True, "tenant_scope": True},
     )
 
     result_id = None

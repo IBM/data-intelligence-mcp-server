@@ -37,3 +37,6 @@ class ValidationError(MCPServiceError):
 
 class ExternalAPIError(MCPServiceError):
     """External API communication errors like timeouts or HTTP failures."""
+
+class HostedMcpError(MCPServiceError):
+    """Hosted MCP failures."""

@@ -1,0 +1,7 @@
+# Include ALL files and folders in the skills directory
+graft skills
+
+# Exclude unnecessary files
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude .DS_Store

@@ -158,7 +158,7 @@ async def _query_artefacts_by_term(search_term: str, artifact_type: str, max_res
     try:
         response = await tool_helper_service.execute_post_request(
             url=f"{tool_helper_service.base_url}{SEARCH_PATH}",
-            params=params,
+            params={**params, "tenant_scope": True},
             json=payload
         )
 

@@ -4,6 +4,8 @@ The IBM Data Intelligence MCP Server provides a modular and scalable implementat
 
 For the list of `tools` supported in this version and sample prompts, refer to [TOOLS_PROMPTS.md](TOOLS_PROMPTS.md)
 
+For the list of `skills` supported in this version and instructions on how to use them, refer to [SKILLS_REFERENCE.md](SKILLS_REFERENCE.md)
+
 > **Note**: For MCP clients that don't support `MCP prompts template` registration, manual prompt templates are available in the [`PROMPTS_TEMPLATE_SAMPLES/`](PROMPTS_TEMPLATE_SAMPLES/) directory.
 
 ```mermaid
@@ -66,6 +68,18 @@ Use pip/pip3 for standard installation:
 ```bash
 pip install ibm-watsonx-data-intelligence-mcp-server
 ```
+
+#### Skills Setup (Optional)
+
+After installation, you can copy the included skills folder to your location for easy access:
+```bash
+wxdi-setup-skills
+```
+
+This interactive command will:
+- Ask for your confirmation before copying
+- Copy the skills folder to your given location
+- Handle overwrites if the folder already exists
 ---
 ## Quick Install and run - uv
 ### Prerequisites

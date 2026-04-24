@@ -12,6 +12,7 @@ from app.shared.models import BaseResponseModel
 PROJECT_NAME_DESC = "The name of the project."
 CATEGORIES_DESC = "A list of categories to be used for metadata enrichment."
 
+
 class MetadataEnrichmentCreationRequest(BaseModel):
     """
     Unified request model for creating or updating metadata enrichment assets.
@@ -39,12 +40,22 @@ class MetadataEnrichmentCreationRequest(BaseModel):
         - CREATE mode: Required (must be provided)
         - UPDATE mode: Optional (only updates if provided)""",
     )
+    primary_category_name: Optional[str] = Field(
+        None,
+        description="""Identifier of the category that is used to store generated terms."""
+    )
     dataset_names: Optional[list[str] | str] = Field(
         None,
         description="""Dataset names to include in the metadata enrichment asset.
         - CREATE mode: Required (must be provided)
         - UPDATE mode: Ignored with warning (datasets cannot be modified after creation)""",
-    ),
+    )
+    dataset_names_to_remove: Optional[list[str] | str] = Field(
+        None,
+        description="""Dataset names to remove from the metadata enrichment asset.
+        - CREATE mode: Ignored (should not be provided)
+        - UPDATE mode: Optional (only updates if provided)""",
+    )
     metadata_import_names: Optional[list[str] | str] = Field(
         None,
         description="""List of names of metadata imports to import into the metadata enrichment asset."""
@@ -57,6 +68,7 @@ class MetadataEnrichmentCreationRequest(BaseModel):
         None,
         description="New name for the metadata enrichment asset. Only used in UPDATE mode to rename the MDE. Ignored in CREATE mode."
     )
+
 
 class PatchMetadataEnrichmentRequest(BaseModel):
     project_name: str = Field(
@@ -277,6 +289,11 @@ class EnrichmentOptions(BaseModel):
 class GovernanceScopeCategoryTypeEnum(str, Enum):
     CATEGORY = "category"
 
+class TermAssignmentObjective(BaseModel):
+    term_generation_target_category_id: Optional[str] = Field(
+        default=None,
+        description="Identifier of the category that is used to store generated terms."
+    )
 
 class GovernanceScopeCategory(BaseModel):
     id: str = Field(description="Identifier of the category.")
@@ -425,6 +442,10 @@ class MetadataEnrichmentAssetObjective(BaseModel):
         DataQuality(),
         description="Initialization information for the data quality objectives for metadata Enrichment",
     )
+    term_assignment: Optional[TermAssignmentObjective] = Field(
+        default=None,
+        description="Term assignment objective prototype of a metadata enrichment asset",
+    )
 
 
 class MetadataEnrichmentAsset(BaseModel):
@@ -478,6 +499,10 @@ class MetadataEnrichmentAssetObjectivePatch(BaseModel):
     governance_scope: list[GovernanceScopeCategory] = Field(
         [], description=CATEGORIES_DESC
     )
+    term_assignment: TermAssignmentObjective = Field(
+        default=None,
+        description="Term assignment objective patch of a metadata enrichment asset.",
+    )
 
 
 class MetadataEnrichmentAssetPatch(BaseModel):
@@ -493,6 +518,9 @@ class DataScopeAssetSelection(BaseModel):
 
 class MetadataEnrichmentAssetDataScopeUpdateRequest(BaseModel):
     assets_to_add: DataScopeAssetSelection = Field(
+        ..., description="A subset of assets in a metadata enrichment asset."
+    )
+    assets_to_remove: DataScopeAssetSelection = Field(
         ..., description="A subset of assets in a metadata enrichment asset."
     )
 
@@ -538,8 +566,9 @@ class KeyAnalysis(BaseModel):
 
 class TermAssignment(BaseModel):
     """Term assignment configuration for metadata enrichment."""
-    term_generation_target_category_id: str = Field(
-        ..., description="The target category ID for term generation."
+    term_generation_target_category_id: Optional[str] = Field(
+        default=None,
+        description="The target category ID for term generation."
     )
 
 
@@ -554,20 +583,22 @@ class MetadataEnrichmentAssetObjectiveResponse(BaseResponseModel):
     sampling: Sampling = Field(
         ..., description="Sampling options for the metadata enrichment asset."
     )
-    term_assignment: TermAssignment = Field(
-        ..., description="Term assignment configuration."
+    term_assignment: Optional[TermAssignment] = Field(
+        default=None,
+        description="Term assignment configuration."
     )
-    datascope_of_reruns: DatascopeOfRerunsEnum = Field(
-        ..., description="The type of data scope to be used in metadata enrichment job reruns."
+    datascope_of_reruns: str = Field(
+        description="The type of data scope to be used in metadata enrichment job reruns."
     )
 
 
 class MetadataEnrichmentAssetStatusEnum(str, Enum):
     """Status values for metadata enrichment assets."""
     READY = "ready"
-    NOT_READY = "not_ready"
-    IN_PROGRESS = "in_progress"
-    FAILED = "failed"
+    UPDATING = "updating"
+    DELETION_PENDING = "deletion_pending"
+    DELETING = "deleting"
+    INITIALIZING = "initializing"
 
 
 class MetadataEnrichmentAssetResponse(BaseResponseModel):
@@ -590,7 +621,8 @@ class MetadataEnrichmentAssetResponse(BaseResponseModel):
         ..., description="Objective information for the metadata enrichment asset."
     )
     status: MetadataEnrichmentAssetStatusEnum = Field(
-        ..., description="The current status of the metadata enrichment asset."
+        default=MetadataEnrichmentAssetStatusEnum.INITIALIZING,
+        description="The current status of the metadata enrichment asset."
     )
 
 # Human readable map from MDE terminology to match UI terminology
@@ -698,8 +730,15 @@ class MetadataEnrichmentResult(BaseModel):
     )
     failures: Optional[list[str]] = Field(default=None, description="List of metadata enrichment asset IDs that failed to process")
 
+
 class MetadataImportResponse(BaseResponseModel):
     """Response model when metadata import name is not specified."""
     name: str = Field(..., description="Name of the metadata import")
     asset_id: str = Field(..., description="Connection / Asset ID of the metadata import")
     href: str = Field(..., description="URL to the metadata import")
+
+
+class JobRunStatus(BaseModel):
+    """Model representing a job run status."""
+    status: str = Field(..., description="Job run status")
+    run_id: str = Field(..., description="Job Run / Asset ID")

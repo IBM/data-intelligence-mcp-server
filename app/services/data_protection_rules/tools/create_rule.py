@@ -363,8 +363,7 @@ async def create_data_protection_rule(request: CreateRuleRequest) -> CreateRuleR
         
         # Build URL based on environment
         if settings.di_env_mode.upper() == ENV_MODE_SAAS:
-            url_prefix = str(settings.di_service_url).replace("https://api.",
-                                                              "https://") + "/governance/rules/dataProtection/view/"
+            url_prefix = str(tool_helper_service.ui_base_url) + "/governance/rules/dataProtection/view/"
         else:
             url_prefix = str(tool_helper_service.ui_base_url) + "/gov/rules/dataProtection/view/"
         

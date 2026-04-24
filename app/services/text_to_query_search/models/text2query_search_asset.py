@@ -61,6 +61,10 @@ class GlobalSearchAssetResponse(BaseResponseModel):
         None, description="Project identifier in which the asset resides"
     )
     url: str = Field(..., description="URL of the asset")
+    source_data: Optional[dict] = Field(
+        None,
+        description="Additional data from specific _source fields requested in the query (excludes full metadata and entity objects)"
+    )
 
 
 class TextToQuerySearchAssetResponse(BaseResponseModel):

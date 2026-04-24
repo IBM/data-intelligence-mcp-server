@@ -419,7 +419,7 @@ async def _build_subscribed_assets_from_api(
 
 
 async def _get_data_product_subscription_details(
-    data_product_id: str,
+    data_product_version_id: str,
     catalog_id: str,
     parts_out_with_details: Optional[List[Dict[str, Any]]] = None
 ) -> List[SubscribedAsset]:
@@ -435,7 +435,7 @@ async def _get_data_product_subscription_details(
     - Standard: Fetches asset details via individual API calls
     
     Args:
-        data_product_id: The ID of the data product to get subscriptions for
+        data_product_version_id: The ID of the data product version to get subscriptions for
         catalog_id: The catalog ID where the data product resides
         parts_out_with_details: Optional pre-fetched asset details from get_data_product_details.
                                When provided, enables the optimized path that reuses existing data.
@@ -446,13 +446,13 @@ async def _get_data_product_subscription_details(
         - flight_asset_id: ID for data extraction (for data_asset types)
         - url: Direct access URL (for ibm_url_definition types)
     """
-    LOGGER.info(f"Retrieving subscription details for data product {data_product_id}")
+    LOGGER.info(f"Retrieving subscription details for data product {data_product_version_id}")
     
     try:
         # Step 1: Find the subscription list for this data product
         # Query for succeeded subscriptions matching the data product ID
         subscriptions_url = (
-            f"{tool_helper_service.base_url}/v2/asset_lists?limit=1&&sort=-last_updated_at&query=asset.id==\"{data_product_id}\"&&state==\"{STATE_SUCCEEDED}\""
+            f"{tool_helper_service.base_url}/v2/asset_lists?limit=1&&sort=-last_updated_at&query=asset.id==\"{data_product_version_id}\"&&state==\"{STATE_SUCCEEDED}\""
         )
         LOGGER.info(f"Searching for subscriptions: {subscriptions_url}")
         subscriptions_response = await tool_helper_service.execute_get_request(
@@ -557,15 +557,15 @@ async def _search_data_product_by_name(data_product_name: str, catalog_id: str) 
         )
     
     # Extract and validate the asset_id
-    data_product_id = metadata.get(FIELD_ASSET_ID)
-    if not data_product_id:
+    data_product_version_id = metadata.get(FIELD_ASSET_ID)
+    if not data_product_version_id:
         raise ServiceError(
             f"Invalid API response for data product '{data_product_name}': missing asset_id in metadata. "
             f"The search returned results but the asset_id could not be extracted."
         )
     
-    LOGGER.info(f"Got product id: {data_product_id}")
-    return data_product_id
+    LOGGER.info(f"Got product version id: {data_product_version_id}")
+    return data_product_version_id
 
 
 async def _process_part_asset(part: Dict[str, Any], params: Dict[str, str]) -> Dict[str, Any]:
@@ -652,7 +652,7 @@ async def _process_part_asset(part: Dict[str, Any], params: Dict[str, str]) -> D
        - Part-level: primary_keys array shows all primary key combinations (supports composite keys)
        - Column-level: is_primary_key flag on individual columns for easy identification
     
-    **Required Input**: Provide either data_product_id OR data_product_name.
+    **Required Input**: Provide either data_product_version_id OR data_product_name.
     
     **Subscription Details** (only successful subscriptions returned):
        - Only includes subscriptions with 'succeeded' state - failed subscription deliveries are not returned
@@ -683,14 +683,14 @@ async def get_data_product_details(
     """
     LOGGER.info(
         f"In data_product_get_data_product_details tool, retrieving details for "
-        f"data_product_id={request.data_product_id}, data_product_name={request.data_product_name}"
+        f"data_product_version_id={request.data_product_version_id}, data_product_name={request.data_product_name}"
     )
     
     # Validate that at least one identifier is provided
-    if not request.data_product_id and not request.data_product_name:
+    if not request.data_product_version_id and not request.data_product_name:
         raise ServiceError(
-            "Missing required data product id or data product name. "
-            "Please supply either the id or name of a data product for which to get details."
+            "Missing required data product version id or data product name. "
+            "Please supply either the version id or name of a data product for which to get details."
         )
     
     catalog_id = await get_dph_catalog_id_for_user()
@@ -700,22 +700,22 @@ async def get_data_product_details(
         params = {FIELD_CATALOG_ID: catalog_id}
         
         # If name is provided but not ID, search for the data product
-        data_product_id = request.data_product_id
-        if request.data_product_name and not data_product_id:
-            data_product_id = await _search_data_product_by_name(request.data_product_name, catalog_id)
+        data_product_version_id = request.data_product_version_id
+        if request.data_product_name and not data_product_version_id:
+            data_product_version_id = await _search_data_product_by_name(request.data_product_name, catalog_id)
 
         # Get Data Product Release details
-        LOGGER.info(f"Fetching release details for {data_product_id}")
+        LOGGER.info(f"Fetching release details for {data_product_version_id}")
         
         # Defensive code: only append @catalog_id if not already present
-        # The data_product_id should ideally be just a GUID, but sometimes it may already include @catalog_id
-        if data_product_id and "@" not in data_product_id:
-            data_product_id_with_catalog = f"{data_product_id}@{catalog_id}"
+        # The data_product_version_id should ideally be just a GUID, but sometimes it may already include @catalog_id
+        if data_product_version_id and "@" not in data_product_version_id:
+            data_product_version_id_with_catalog = f"{data_product_version_id}@{catalog_id}"
         else:
-            data_product_id_with_catalog = data_product_id
+            data_product_version_id_with_catalog = data_product_version_id
             
         release_url = (
-            f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/releases/{data_product_id_with_catalog}"
+            f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/releases/{data_product_version_id_with_catalog}"
         )
         release_response = await tool_helper_service.execute_get_request(
             url=release_url,
@@ -734,12 +734,12 @@ async def get_data_product_details(
 
         # Get subscription details and add to the response
         # Pass enriched_parts to avoid redundant API calls since we already have the asset details
-        # At this point data_product_id is guaranteed to be a non-empty string:
-        # - Either provided directly via request.data_product_id
+        # At this point data_product_version_id is guaranteed to be a non-empty string:
+        # - Either provided directly via request.data_product_version_id
         # - Or obtained via _search_data_product_by_name() which always returns a string or raises an error
         # Use cast() to inform the type checker without runtime overhead
         subscription_details = await _get_data_product_subscription_details(
-            data_product_id=cast(str, data_product_id),
+            data_product_version_id=cast(str, data_product_version_id),
             catalog_id=catalog_id,
             parts_out_with_details=enriched_parts
         )
@@ -781,11 +781,11 @@ async def get_data_product_details(
     - Primary key information (both at part level and column level)
     - Subscription details (if active subscriptions exist)
     
-    **Required Input**: Provide either data_product_id OR data_product_name.
+    **Required Input**: Provide either data_product_version_id OR data_product_name.
     
     Args:
-        data_product_id: Optional ID of the data product. Provide either this or data_product_name.
-        data_product_name: Optional name of the data product. Provide either this or data_product_id.
+        data_product_version_id: Optional ID of the data product version. Provide either this or data_product_name.
+        data_product_name: Optional name of the data product. Provide either this or data_product_version_id.
     
     Returns:
         GetDataProductDetailsResponse: Object containing data_product_details and data_product_subscription_details
@@ -795,13 +795,13 @@ async def get_data_product_details(
 )
 @auto_context
 async def wxo_get_data_product_details(
-    data_product_id: Optional[str] = None,
+    data_product_version_id: Optional[str] = None,
     data_product_name: Optional[str] = None
 ) -> GetDataProductDetailsResponse:
     """Watsonx Orchestrator compatible version that expands GetDataProductDetailsRequest object into individual parameters."""
 
     request = GetDataProductDetailsRequest(
-        data_product_id=data_product_id,
+        data_product_version_id=data_product_version_id,
         data_product_name=data_product_name,
     )
 

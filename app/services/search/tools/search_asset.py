@@ -12,6 +12,7 @@ from app.services.search.models.search_asset import (
     SearchAssetRequest,
     SearchAssetResponse,
 )
+from app.services.text_to_query_search.utils.entity_resolver import find_container_id
 from app.shared.utils.helpers import is_none, append_context_to_url
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
@@ -51,28 +52,62 @@ async def search_asset(
         # Convert project_and_catalog to the format expected by the API
         auth_scope = "project,catalog" if request.container_type == "project_and_catalog" else request.container_type
 
+    # Resolve container_name to container_id if provided
+    container_id = None
+    if request.container_name and request.container_type:
+        container_id = await find_container_id(request.container_name, request.container_type)
+        LOGGER.info(
+            "Resolved container '%s' (type: %s) to ID: %s",
+            request.container_name,
+            request.container_type,
+            container_id,
+        )
+
     LOGGER.info(
-        "Starting asset search with prompt: '%s' and container_type: '%s'",
+        "Starting asset search with prompt: '%s', container_type: '%s', container_id: '%s'",
         request.search_prompt,
         auth_scope,
+        container_id,
     )
+
+    # Build query with optional container filter
+    must_clauses = [
+        {
+            "gs_user_query": {
+                "search_string": request.search_prompt,
+                "semantic_search_enabled": True,
+            }
+        }
+    ]
+    
+    # Add container filter if container_id is resolved
+    if container_id:
+        if request.container_type == "project":
+            must_clauses.append({"term": {"entity.assets.project_id": container_id}})
+        elif request.container_type == "catalog":
+            must_clauses.append({"term": {"entity.assets.catalog_id": container_id}})
+        elif request.container_type == "project_and_catalog":
+            # For project_and_catalog, use should clause with both options
+            must_clauses.append({
+                "bool": {
+                    "should": [
+                        {"term": {"entity.assets.project_id": container_id}},
+                        {"term": {"entity.assets.catalog_id": container_id}}
+                    ],
+                    "minimum_should_match": 1
+                }
+            })
 
     payload = {
         "query": {
             "bool": {
-                "must": [
-                    {
-                        "gs_user_query": {
-                            "search_string": request.search_prompt,
-                            "semantic_search_enabled": True,
-                        }
-                    }
-                ]
+                "must": must_clauses
             }
-        }
+        },
+        "_source": ["metadata", "entity.assets", "artifact_id"]
     }
 
-    params = {"auth_scope": auth_scope, "auth_cache": True}
+    params = {"auth_scope": auth_scope, "auth_cache": True, "tenant_scope": True}
 
     response = await tool_helper_service.execute_post_request(
         url=str(tool_helper_service.base_url) + GS_BASE_ENDPOINT,
@@ -99,12 +134,14 @@ async def search_asset(
 )
 @auto_context
 async def wxo_search_asset(
-    search_prompt: str, container_type: str = "catalog"
+    search_prompt: str, container_type: str = "catalog", container_name: str | None = None
 ) -> List[SearchAssetResponse]:
     """Watsonx Orchestrator compatible version that expands SearchAssetRequest object into individual parameters."""
     
     request = SearchAssetRequest(
-        search_prompt=search_prompt, container_type=container_type
+        search_prompt=search_prompt,
+        container_type=container_type,
+        container_name=container_name
     )
 
     # Call the original search_asset function
@@ -113,8 +150,10 @@ async def wxo_search_asset(
 
 def _construct_search_asset(row: Any):
     asset_id = row["artifact_id"]
-    catalog_id = row["entity"]["assets"].get("catalog_id", None)
-    project_id = row["entity"]["assets"].get("project_id", None)
+    entity = row.get("entity", {})
+    assets = entity.get("assets", {})
+    catalog_id = assets.get("catalog_id", None)
+    project_id = assets.get("project_id", None)
     base_url = (
         f"{tool_helper_service.ui_base_url}/data/catalogs/{catalog_id}/asset/{asset_id}"
         if catalog_id
@@ -123,9 +162,12 @@ def _construct_search_asset(row: Any):
 
     url = append_context_to_url(base_url)
 
+    metadata = row.get("metadata", {})
+    asset_name = metadata.get("name", "")
+
     return SearchAssetResponse(
         id=asset_id,
-        name=row["metadata"]["name"],
+        name=asset_name,
         catalog_id=catalog_id,
         project_id=project_id,
         url=url,

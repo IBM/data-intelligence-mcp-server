@@ -264,9 +264,65 @@ async def _call_get_lineage_graph(
     return response
 
 
+async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraphResponse:
+    if len(request.lineage_ids) < 1:
+        raise ServiceError("No assets were passed to the tool.")
+
+    are_lineage_ids(request.lineage_ids)
+
+    ultimate_verified: Optional[str] = None
+    if request.ultimate != "between":
+        ultimate_verified = request.ultimate
+
+    dates_verified: Optional[List[str]] = None
+    if request.dates:
+        dates_verified = verify_dates(dates=request.dates)
+        if dates_verified and len(dates_verified) != 2:
+            raise ServiceError(
+                f"dates parameter must contain exactly 2 ISO 8601 dates, got {len(dates_verified)} dates"
+            )
+
+    LOGGER.info(
+        f"get_lineage_graph called with lineage_ids={request.lineage_ids}, hop_up={request.hop_up}, hop_down={request.hop_down}, ultimate={ultimate_verified}"
+    )
+
+    if isinstance(request.lineage_ids, str):
+        lineage_ids = "".join(
+            char for char in request.lineage_ids if char.isalnum() or char == ","
+        )
+        try:
+            lineage_ids = json.loads(lineage_ids)
+        except Exception:
+            lineage_ids = [s.strip() for s in lineage_ids.split(",")]
+    else:
+        lineage_ids = request.lineage_ids
+
+    lineage_graph_response = await _call_get_lineage_graph(
+        lineage_ids, request.hop_up, request.hop_down, ultimate_verified, dates_verified
+    )
+    if not (lineage_graph_response.get("assets_in_view")):
+        raise ServiceError(
+            "call_get_lineage_graph finished successfully but no assets_in_view or/and edges_in_view were found."
+        )
+    return _construct_get_lineage_graph_response(
+        lineage_ids,
+        lineage_graph_response,
+        request.hop_up,
+        request.hop_down,
+        ultimate_verified,
+    )
+
 @service_registry.tool(
     name="lineage_get_lineage_graph",
     description="""Retrieves upstream and downstream lineage graph using 64-character hexadecimal lineage IDs.
+    
+    This tool generates a data lineage graph showing data flow relationships both upstream
+    (data sources) and downstream (data consumers) from the specified assets. The graph depth
+    in each direction is controlled by the hop parameters.
+
+    If user asks for ultimate target or source or both and the returned asset's id is the same as in query - it is the answer.
+    Always return full answer.
+
     Call this tool to get graph information and/or related assets.
     
     **CRITICAL REQUIREMENT**: This tool ONLY accepts 64-character hexadecimal lineage IDs.
@@ -351,80 +407,21 @@ async def _call_get_lineage_graph(
         4. Extract lineage ID from results: "75a06535eb329a6b..."
         5. Call get_lineage_graph(lineage_ids=["75a06535eb329a6b..."], hop_up=50, hop_down=50, ultimate=None, dates=["2025-10-23T08:54:02.17Z","2025-09-12T06:35:27.115Z"])
     """,
+    tags={"custom_tool"},
 )
 @auto_context
-async def get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraphResponse:
-    if len(request.lineage_ids) < 1:
-        raise ServiceError("No assets were passed to the tool.")
-
-    are_lineage_ids(request.lineage_ids)
-
-    ultimate_verified: Optional[str] = None
-    if request.ultimate != "between":
-        ultimate_verified = request.ultimate
-
-    dates_verified: Optional[List[str]] = None
-    if request.dates:
-        dates_verified = verify_dates(dates=request.dates)
-        if dates_verified and len(dates_verified) != 2:
-            raise ServiceError(
-                f"dates parameter must contain exactly 2 ISO 8601 dates, got {len(dates_verified)} dates"
-            )
-
-    LOGGER.info(
-        f"get_lineage_graph called with lineage_ids={request.lineage_ids}, hop_up={request.hop_up}, hop_down={request.hop_down}, ultimate={ultimate_verified}"
-    )
-
-    if isinstance(request.lineage_ids, str):
-        lineage_ids = "".join(
-            char for char in request.lineage_ids if char.isalnum() or char == ","
-        )
-        try:
-            lineage_ids = json.loads(lineage_ids)
-        except Exception:
-            lineage_ids = [s.strip() for s in lineage_ids.split(",")]
-    else:
-        lineage_ids = request.lineage_ids
-
-    lineage_graph_response = await _call_get_lineage_graph(
-        lineage_ids, request.hop_up, request.hop_down, ultimate_verified, dates_verified
-    )
-    if not (lineage_graph_response.get("assets_in_view")):
-        raise ServiceError(
-            "call_get_lineage_graph finished successfully but no assets_in_view or/and edges_in_view were found."
-        )
-    return _construct_get_lineage_graph_response(
-        lineage_ids,
-        lineage_graph_response,
-        request.hop_up,
-        request.hop_down,
-        ultimate_verified,
-    )
-
-@service_registry.tool(
-    name="lineage_get_lineage_graph",
-    description="""Retrieves the upstream and downstream data lineage graph for specific assets.
-    
-    This tool generates a data lineage graph showing data flow relationships both upstream
-    (data sources) and downstream (data consumers) from the specified assets. The graph depth
-    in each direction is controlled by the hop parameters.
-
-    If user asks for ultimate target or source or both and the returned asset's id is the same as in query - it is the answer.
-    Always return full answer.""",
-)
-@auto_context
-async def wxo_get_lineage_graph(
+async def get_lineage_graph(
     lineage_ids: Union[str, List[str]],
     hop_up: str = "3",
     hop_down: str = "3",
     ultimate: Optional[str] = None,
     dates: Optional[str] = None
 ) -> GetLineageGraphResponse:
-    """Watsonx Orchestrator compatible version of get_lineage_graph."""
+    """Wrapper for get_lineage_graph."""
 
     request = GetLineageGraphRequest(
         lineage_ids=lineage_ids, hop_up=hop_up, hop_down=hop_down, ultimate=ultimate, dates=dates
     )
 
     # Call the original get_lineage_graph function
-    return await get_lineage_graph(request)
+    return await _get_lineage_graph(request)

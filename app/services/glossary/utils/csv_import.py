@@ -454,7 +454,7 @@ async def import_single_artifact_type(
         
         LOGGER.info(f"Importing {artifact_type} CSV to {url} with merge_option={merge_option}")
         
-        response = await http_client.post_multipart(
+        response = await http_client.post(
             url=url,
             files=files,
             params=params,

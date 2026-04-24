@@ -15,27 +15,7 @@ from app.services.data_quality.utils.data_quality_common_utils import (
 )
 
 
-@service_registry.tool(
-    name="set_validates_data_quality_of_relation",
-    description="""Establishes a relationship between a data quality rule and a column in a data asset within a project. This relationship is used to report the data quality score for the specified column using the logic defined in the data quality rule. The tool returns details of the data quality rule, including its ID, project ID, UI URL, and name.
-
-Args:
-    project_id_or_name (str): The ID or name of the project containing the data quality rule. Examples: 'customer_analytics_project', 'financial_reporting_2023', 'supply_chain_optimization'
-    data_quality_rule_id_or_name (str): The ID or name of the data quality rule to execute. Examples: 'validate_customer_email_format', 'check_sales_transaction_completeness', 'verify_inventory_data_consistency'
-    data_asset_id_or_name (str): The ID or name of the data asset. Examples: 'customer_data_2023', 'sales_records_q2', 'inventory_management'
-    column_name (str): The name of column. Examples: 'customer_id', 'transaction_date', 'product_category'
-
-Returns:
-    SetValidatesDataQualityOfRelationResponse: The tool returns a DataQualityRule object containing the rule ID, project ID, UI URL, and name of the data quality rule.
-
-Raises:
-    ToolProcessFailedError: If the data quality rule relation set operation fails.
-    ExternalServiceError: If the data quality rule service request fails.""",
-    tags={"update", "data_quality"},
-    meta={"version": "1.0", "service": "data_quality"},
-)
-@auto_context
-async def set_validates_data_quality_of_relation(
+async def _set_validates_data_quality_of_relation(
     request: SetValidatesDataQualityOfRelationRequest,
 ) -> SetValidatesDataQualityOfRelationResponse:
     """
@@ -66,30 +46,34 @@ async def set_validates_data_quality_of_relation(
 
 @service_registry.tool(
     name="set_validates_data_quality_of_relation",
-    description="""Watsonx Orchestrator compatible wrapper for set_validates_data_quality_of_relation.
+    description="""Wrapper for set_validates_data_quality_of_relation.
 
-Establishes a relationship between a data quality rule and a column in a data asset within a project.
+Establishes a relationship between a data quality rule and a column in a data asset within a project. This relationship is used to report the data quality score for the specified column using the logic defined in the data quality rule. The tool returns details of the data quality rule, including its ID, project ID, UI URL, and name.
 
 Args:
-    project_id_or_name (str): The ID or name of the project containing the data quality rule.
-    data_quality_rule_id_or_name (str): The ID or name of the data quality rule to execute.
-    data_asset_id_or_name (str): The ID or name of the data asset.
-    column_name (str): The name of column.
+    project_id_or_name (str): The ID or name of the project containing the data quality rule. Examples: 'customer_analytics_project', 'financial_reporting_2023', 'supply_chain_optimization'
+    data_quality_rule_id_or_name (str): The ID or name of the data quality rule to execute. Examples: 'validate_customer_email_format', 'check_sales_transaction_completeness', 'verify_inventory_data_consistency'
+    data_asset_id_or_name (str): The ID or name of the data asset. Examples: 'customer_data_2023', 'sales_records_q2', 'inventory_management'
+    column_name (str): The name of column. Examples: 'customer_id', 'transaction_date', 'product_category'
 
 Returns:
-    SetValidatesDataQualityOfRelationResponse: DataQualityRule object with rule details.""",
-    tags={"update", "data_quality"},
+    SetValidatesDataQualityOfRelationResponse: The tool returns a DataQualityRule object containing the rule ID, project ID, UI URL, and name of the data quality rule.
+
+Raises:
+    ToolProcessFailedError: If the data quality rule relation set operation fails.
+    ExternalServiceError: If the data quality rule service request fails.""",
+    tags={"update", "data_quality", "custom_tool"},
     meta={"version": "1.0", "service": "data_quality"},
 )
 @auto_context
-async def wxo_set_validates_data_quality_of_relation(
+async def set_validates_data_quality_of_relation(
     project_id_or_name: str,
     data_quality_rule_id_or_name: str,
     data_asset_id_or_name: str,
     column_name: str,
 ) -> SetValidatesDataQualityOfRelationResponse:
     """
-    Watsonx Orchestrator wrapper: builds request model and delegates to main tool.
+    Wrapper that builds request model and delegates to main tool.
     """
     request = SetValidatesDataQualityOfRelationRequest(
         project_id_or_name=project_id_or_name,
@@ -97,4 +81,4 @@ async def wxo_set_validates_data_quality_of_relation(
         data_asset_id_or_name=data_asset_id_or_name,
         column_name=column_name,
     )
-    return await set_validates_data_quality_of_relation(request)
+    return await _set_validates_data_quality_of_relation(request)
