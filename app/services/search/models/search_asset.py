@@ -15,6 +15,10 @@ class SearchAssetRequest(BaseModel):
         description="The container type in which to search assets, defaults to catalog",
         examples=["catalog", "project"]
     )
+    container_name: Optional[str] = Field(
+        default=None,
+        description="Optional container name to resolve to ID and filter results"
+    )
 
 class SearchAssetResponse(BaseResponseModel):
     """Search assets response model"""

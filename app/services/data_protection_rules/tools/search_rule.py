@@ -47,7 +47,7 @@ async def search_rules(
 
     try:
         response = await tool_helper_service.execute_post_request(
-            url=f"{tool_helper_service.base_url}{SEARCH_PATH}?role=viewer&auth_scope=all&auth_cache=true",
+            url=f"{tool_helper_service.base_url}{SEARCH_PATH}?role=viewer&auth_scope=all&auth_cache=true&tenant_scope=true",
             json=payload,
             tool_name="search_rule"
         )
@@ -61,7 +61,7 @@ async def search_rules(
         data_protection_rules = []
 
         if settings.di_env_mode.upper() == ENV_MODE_SAAS:
-            url_prefix = tool_helper_service.base_url.replace("https://api.", "https://") + "/governance/rules/dataProtection/view/"
+            url_prefix = str(tool_helper_service.ui_base_url) + "/governance/rules/dataProtection/view/"
         else:
             url_prefix = str(tool_helper_service.ui_base_url) + "/gov/rules/dataProtection/view/"
         for row in response["rows"]:

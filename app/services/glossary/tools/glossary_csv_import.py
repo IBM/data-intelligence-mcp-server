@@ -12,16 +12,76 @@ from app.services.glossary.models.csv_import import (
     CSVImportRequest,
     CSVImportResult,
     CSVRowError,
-    CSVSchemaInfo,
 )
 from app.services.glossary.utils.csv_validation import validate_csv_content
 from app.services.glossary.utils.csv_import import import_csv_content
 from app.shared.logging import LOGGER, auto_context
 
 
+async def _glossary_csv_import(
+    request: CSVImportRequest,
+    ctx: Optional[Context] = None,
+) -> CSVImportResult:
+    """
+    Import glossary artifacts from CSV content.
+    
+    Args:
+        request: CSV import request with content and options
+        ctx: Optional MCP context
+        
+    Returns:
+        CSVImportResult with import/validation results
+        
+    Raises:
+        ServiceError: If import fails unexpectedly
+    """
+    LOGGER.info(
+        f"glossary_csv_import called with validate_only={request.validate_only}, "
+        f"csv_length={len(request.csv_content)}"
+    )
+    
+    try:
+        if request.validate_only:
+            LOGGER.info("Performing validation only")
+            result = validate_csv_content(request.csv_content)
+        else:
+            LOGGER.info(f"Performing import with merge_option={request.merge_option}")
+            result = await import_csv_content(request.csv_content, merge_option=request.merge_option)
+        
+        LOGGER.info(
+            f"Import completed: success={result.success}, "
+            f"total_rows={result.total_rows}, "
+            f"errors={len(result.errors)}"
+        )
+        
+        return result
+        
+    except Exception as e:
+        LOGGER.error(f"Unexpected error during CSV import: {str(e)}", exc_info=True)
+        return CSVImportResult(
+            success=False,
+            total_rows=0,
+            categories_created=0,
+            terms_created=0,
+            categories_updated=0,
+            terms_updated=0,
+            errors=[CSVRowError(
+                row_number=0,
+                column=None,
+                error_message=f"Unexpected error: {str(e)}",
+                value=None
+            )],
+            process_id=None,
+            import_status=None
+        )
+
+
+
 @service_registry.tool(
     name="glossary_csv_import",
     description="""Import business glossary terms and categories from CSV files.
+
+Wrapper that accepts parameters directly.
 
 This tool accepts CSV content following IBM watsonx.data intelligence (https://dataplatform.cloud.ibm.com/docs/content/wsj/governance/csv-import.html) format and either validates or imports glossary artifacts.
 
@@ -109,87 +169,18 @@ Returns structured errors with:
 - Problematic value
 
 This enables LLMs to generate properly formatted CSVs and validate user-provided CSVs before import.""",
+tags={"custom_tool"},
 )
 @auto_context
 async def glossary_csv_import(
-    request: CSVImportRequest,
-    ctx: Optional[Context] = None,
-) -> CSVImportResult:
-    """
-    Import glossary artifacts from CSV content.
-    
-    Args:
-        request: CSV import request with content and options
-        ctx: Optional MCP context
-        
-    Returns:
-        CSVImportResult with import/validation results
-        
-    Raises:
-        ServiceError: If import fails unexpectedly
-    """
-    LOGGER.info(
-        f"glossary_csv_import called with validate_only={request.validate_only}, "
-        f"csv_length={len(request.csv_content)}"
-    )
-    
-    try:
-        if request.validate_only:
-            LOGGER.info("Performing validation only")
-            result = validate_csv_content(request.csv_content)
-        else:
-            LOGGER.info(f"Performing import with merge_option={request.merge_option}")
-            result = await import_csv_content(request.csv_content, merge_option=request.merge_option)
-        
-        LOGGER.info(
-            f"Import completed: success={result.success}, "
-            f"total_rows={result.total_rows}, "
-            f"errors={len(result.errors)}"
-        )
-        
-        return result
-        
-    except Exception as e:
-        LOGGER.error(f"Unexpected error during CSV import: {str(e)}", exc_info=True)
-        return CSVImportResult(
-            success=False,
-            total_rows=0,
-            categories_created=0,
-            terms_created=0,
-            categories_updated=0,
-            terms_updated=0,
-            errors=[CSVRowError(
-                row_number=0,
-                column=None,
-                error_message=f"Unexpected error: {str(e)}",
-                value=None
-            )],
-            process_id=None,
-            import_status=None
-        )
-
-
-
-@service_registry.tool(
-    name="glossary_csv_import",
-    description="""Import business glossary terms and categories from CSV files.
-
-This is the Watsonx Orchestrator compatible version that accepts parameters directly.
-
-Accepts CSV content following IBM watsonx.data intelligence (https://dataplatform.cloud.ibm.com/docs/content/wsj/governance/csv-import.html) format and either validates or imports glossary artifacts.
-
-See glossary_csv_import for detailed documentation.""",
-)
-@auto_context
-async def wxo_glossary_csv_import(
     csv_content: str,
     validate_only: bool = False,
     merge_option: str = "all",
     ctx: Optional[Context] = None,
 ) -> CSVImportResult:
-    """
-    Watsonx Orchestrator compatible version of glossary_csv_import.
-    
+    """ 
+    Wrapper for glossary_csv_import.
+
     Args:
         csv_content: CSV content as string
         validate_only: If true, only validate without importing
@@ -204,4 +195,4 @@ async def wxo_glossary_csv_import(
         validate_only=validate_only,
         merge_option=merge_option
     )
-    return await glossary_csv_import(request, ctx=ctx)
+    return await _glossary_csv_import(request, ctx=ctx)

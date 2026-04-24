@@ -30,8 +30,8 @@ class SearchDataProductsRequest(BaseModel):
 
 
 class DataProduct(BaseModel):
-    data_product_id: str
-    data_product_version_id: str
+    data_product_group_id: str = Field(description="The identifier for the version chain/group that this data product belongs to. Multiple versions of the same product share this ID.")
+    data_product_version_id: str = Field(description="The unique identifier for this specific data product version. Use this ID for most API operations and tool calls.")
     url: str
     name: str
     description: str

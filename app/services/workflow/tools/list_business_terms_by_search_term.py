@@ -22,23 +22,27 @@ from app.services.workflow.tools.utils import _query_artifact_in_draft_by_term, 
 from app.services.workflow.utils.task_formatters import format_artefacts_as_table, prompt_user_for_artifact_selection
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
+from app.shared.utils.client_detection import supports_rich_text_format
 
 from fastmcp.exceptions import ToolError
+from fastmcp.server.context import Context
 
-@service_registry.tool(
-    name="list_business_terms_by_search_term",
-    description="""
+list_business_terms_by_search_term_description="""
 list_business_terms_by_search_term returns a list of all business terms as objects of a data governance workflow with the artifact_id included.
 Always define the draft parameter: if the text refers to future approvals set it true, otherwise false.
 If you find markdown text in the result show it to the user.
 ALWAYS use a request json object to encapsulate the parameters.
-    """,
+"""
+
+@service_registry.tool(
+    name="list_business_terms_by_search_term",
+    description=list_business_terms_by_search_term_description,
     tags={"workflow", "glossary", "business_terms", "governance"},
     meta={"version": "1.0", "service": "glossary"},
 )
-@auto_context
 async def list_business_terms_by_search_term(
     request: ListBusinessTermsRequest,
+    ctx: Context
 ) -> ListBusinessTermsResponse:
     """
     List glossary business terms by search term.
@@ -53,6 +57,12 @@ async def list_business_terms_by_search_term(
         f"Listing glossary business terms by search term with max_results: {request.max_results}, "
         f"draft mode: {request.draft}, format: {request.format}"
     )
+    
+    # Auto-detect Claude Code and switch to JSON format if needed
+    # Some clients don't handle markdown tables well, so we default to JSON
+    if not supports_rich_text_format(ctx) and request.format == "table":
+        LOGGER.info("Client without rich text support detected: switching format from 'table' to 'json'")
+        request.format = "json"
 
     business_terms = []
     
@@ -110,11 +120,7 @@ async def list_business_terms_by_search_term(
 
 @service_registry.tool(
     name="list_business_terms_by_search_term",
-    description="""Watsonx Orchestrator compatible wrapper for list_business_terms_by_search_term.
-list_business_terms_by_search_term returns a list of all business terms as objects of a data governance workflow with the artifact_id included.
-Always define the draft parameter: if the text refers to future approvals set it true, otherwise false.
-ALWAYS use a request json object to encapsulate the parameters.
-    """,
+    description="Watsonx Orchestrator compatible wrapper for list_business_terms_by_search_term. " + list_business_terms_by_search_term_description,
     tags={"workflow", "wxo", "glossary", "business_terms", "governance"},
     meta={"version": "1.0", "service": "glossary"},
 )

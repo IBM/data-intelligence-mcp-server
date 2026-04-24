@@ -129,7 +129,7 @@ async def search_data_products(
     )
 
     response = await tool_helper_service.execute_post_request(
-        url=f"{tool_helper_service.base_url}/v3/search?role=viewer&auth_scope=ibm_data_product_catalog",
+        url=f"{tool_helper_service.base_url}/v3/search?role=viewer&auth_scope=ibm_data_product_catalog&tenant_scope=true",
         json=payload,
         tool_name="data_product_search_data_products",
     )
@@ -184,8 +184,8 @@ def _extract_product_info(row: dict) -> DataProduct:
     ]
     
     return DataProduct(
-        data_product_id=data_product_version.get("product_id", ""),
-        data_product_version_id=artifact_id,
+        data_product_group_id=data_product_version.get("product_id", ""),  # The grouping identifier (was data_product_id)
+        data_product_version_id=artifact_id,  # The primary identifier for this specific version
         url=url,
         name=metadata.get("name", ""),
         description=metadata.get("description", ""),

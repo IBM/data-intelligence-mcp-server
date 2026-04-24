@@ -169,11 +169,11 @@ async def get_bss_account_id() -> str:
 
 async def get_user_identifier() -> str:
     """
-    Retrieves the user identifier from the JWT token.
+    Retrieves user identifier from JWT token.
 
-    This function extracts the user identifier from the JWT token by decoding the payload.
-    For CPD environments, it returns the "uid" field.
-    For other environments, it returns the "iam_id" field.
+    This function extracts user identifier from JWT token by decoding the payload.
+    For CPD environments, it returns "uid" field.
+    For other environments, it returns "iam_id" field.
 
     Returns:
         str: The user identifier extracted from the token payload.
@@ -194,6 +194,26 @@ async def get_user_identifier() -> str:
         raise ExternalAPIError(
             INVALID_DI_ENV_MODE
         )
+
+async def get_user_email_from_token() -> str:
+    """
+    Retrieves user email from JWT token.
+
+    This function extracts user email from JWT token by decoding the payload.
+    It returns the 'email' field from the token if present.
+
+    Returns:
+        str: The user email extracted from the token payload, or empty string if not found.
+    """
+    token = await get_token()
+    payload_b64 = token.split(".")[1]
+    # Add padding if needed for base64 decoding
+    padding = len(payload_b64) % 4
+    if padding:
+        payload_b64 += '=' * (4 - padding)
+    payload = json.loads(base64.urlsafe_b64decode(payload_b64).decode("utf-8"))
+    
+    return payload.get("email", "")
 
 def is_aws_environment() -> bool:
     """Check if the current environment is AWS based on the service URL."""
@@ -316,3 +336,91 @@ async def get_dph_catalog_id_for_user(bearer_token) -> str:
         raise
     except Exception as e:
         raise ExternalAPIError(f"Failed to get bearer token: {str(e)}")
+
+
+@cached(ttl=3600)  # Cache for 1 hour to avoid repeated API calls
+async def get_user_email_from_iam_id(iam_id: str) -> str:
+    """
+    Retrieve user email address from IAM ID using User Management API.
+    
+    This function first checks if the IAM ID matches the calling user. If so, it retrieves
+    the email from the JWT token directly to avoid unnecessary API calls. Otherwise, it calls
+    the IBM Cloud User Management API to get the email address. It is only applicable for SaaS environments.
+    
+    Args:
+        iam_id: The IAM ID (user ID) to look up
+        
+    Returns:
+        str: The user email address if found, otherwise the original iam_id
+    """
+    # Only applicable for SaaS environment
+    if settings.di_env_mode.upper() != ENV_MODE_SAAS:
+        return iam_id
+    
+    # Skip if iam_id is empty or None
+    if not iam_id:
+        return iam_id
+    
+    try:
+        # Check if the IAM ID is the calling user
+        # If so, get email from token to avoid API call
+        calling_user_id = await get_user_identifier()
+        if iam_id == calling_user_id:
+            email = await get_user_email_from_token()
+            if email:
+                LOGGER.debug(f"Using email from token for calling user {iam_id}: {email}")
+                return email
+            else:
+                LOGGER.warning(f"Email not found in token for calling user {iam_id}, falling back to IAM ID")
+                return iam_id
+        
+        # For other users, get BSS account ID
+        account_id = await get_bss_account_id()
+        
+        if not account_id:
+            LOGGER.warning(f"Unable to get BSS account ID, falling back to iam_id: {iam_id}")
+            return iam_id
+        
+        # Build user management API URL
+        user_management_url = settings.user_management_url
+        api_url = f"{user_management_url}/v2/accounts/{account_id}/users/{iam_id}"
+        
+        LOGGER.debug(f"Fetching user email for IAM ID {iam_id} from {api_url}")
+        
+        # Get access token for authentication
+        access_token = await get_access_token()
+        if not access_token:
+            LOGGER.warning(f"Unable to get access token, falling back to iam_id: {iam_id}")
+            return iam_id
+        
+        # Make API call with configurable timeout
+        client = get_http_client()
+        headers = {
+            "Authorization": access_token,
+            "Content-Type": JSON_CONTENT_TYPE,
+            "accept": JSON_CONTENT_TYPE
+        }
+        
+        try:
+            # Use a shorter timeout for user management API calls (10 seconds)
+            response = await client.get(
+                api_url,
+                headers=headers,
+            )
+            
+            # Extract email from response
+            email = response.get("user_id", "")
+            if email:
+                LOGGER.debug(f"Retrieved email {email} for IAM ID {iam_id}")
+                return email
+            else:
+                LOGGER.warning(f"User management API response missing user_id field for {iam_id}")
+                return iam_id
+                
+        except Exception as api_error:
+            LOGGER.warning(f"Failed to fetch email for IAM ID {iam_id}: {str(api_error)}")
+            return iam_id
+            
+    except Exception as e:
+        LOGGER.warning(f"Error in get_user_email_from_iam_id for {iam_id}: {str(e)}")
+        return iam_id

@@ -92,6 +92,44 @@ def client_supports_sampling(ctx: Optional[Context]) -> bool:
         return False
 
 
+def client_supports_elicitation(ctx: Optional[Context]) -> bool:
+    """
+    Check if the MCP client supports elicitation capability.
+    
+    Inspects the negotiated client capabilities from the MCP session to
+    determine whether elicitation is available, without actually calling
+    ctx.elicit().
+    
+    Args:
+        ctx: Optional MCP Context containing session and client information
+        
+    Returns:
+        True if the client advertises elicitation support, False otherwise
+        
+    Example:
+        >>> from app.shared.logging import auto_context
+        >>>
+        >>> @auto_context
+        >>> async def my_tool(request, ctx=None):
+        ...     if client_supports_elicitation(ctx):
+        ...         response = await ctx.elicit(message="...", response_type=MyModel)
+    """
+    if not ctx:
+        return False
+    
+    try:
+        session = ctx.session
+        if session is None:
+            return False
+        client_params = session.client_params
+        if client_params is None or client_params.capabilities is None:
+            return False
+        return client_params.capabilities.elicitation is not None
+    except Exception:
+        # Any issue accessing capabilities means we can't confirm support
+        return False
+
+
 async def chat_llm_request(
     prompt: str,
     ctx: Optional[Context] = None,

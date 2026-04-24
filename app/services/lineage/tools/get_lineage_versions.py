@@ -12,32 +12,7 @@ from app.shared.utils.helpers import is_valid_iso_date
 from app.shared.utils.tool_helper_service import tool_helper_service
 
 
-@service_registry.tool(
-    name="lineage_get_lineage_versions",
-
-    description="""
-    Returns a list of versions of lineage that user can use for comparison.
-    
-    This tool takes two dates as input and returns a list of lineage versions that are available between the two dates.
-    Data returned by this tool is used by the lineage_comparison tool and lineage_get_lineage_graph tool.
-
-    Args:
-        since (str): starting date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ) Other ISO-8601 formats are also supported,
-            notably: single year ("2025Z"), month ("2025-03Z"), week date format ("2025-W13Z", a week starts with Monday and ends with Sunday)
-
-        until (str): ending date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ) Other ISO-8601 formats are also supported,
-            notably: single year ("2025Z"), month ("2025-03Z"), week date format ("2025-W13Z", a week starts with Monday and ends with Sunday)
-
-    Returns:
-        GetLineageVersionsResponse: An object containing a list of lineage versions that are available between the two dates.
-
-    Raises:
-        ExternalServiceError: If the API request fails (status code != 200)
-        ToolProcessFailedError: If no entities are found for the given IDs
-    """,
-)
-@auto_context
-async def get_lineage_versions(
+async def _get_lineage_versions(
     input: GetLineageVersionsRequest,
 ) -> GetLineageVersionsResponse:
     # Validate input dates
@@ -74,15 +49,32 @@ async def get_lineage_versions(
 
 @service_registry.tool(
     name="lineage_get_lineage_versions",
-    description="Returns a list of versions of lineage that user can use for comparison.",
+    description="""Returns a list of versions of lineage that user can use for comparison.
+    This tool takes two dates as input and returns a list of lineage versions that are available between the two dates.
+    Data returned by this tool is used by the lineage_comparison tool and lineage_get_lineage_graph tool.
+
+    Args:
+        since (str): starting date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ) Other ISO-8601 formats are also supported,
+            notably: single year ("2025Z"), month ("2025-03Z"), week date format ("2025-W13Z", a week starts with Monday and ends with Sunday)
+        until (str): ending date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ) Other ISO-8601 formats are also supported,
+            notably: single year ("2025Z"), month ("2025-03Z"), week date format ("2025-W13Z", a week starts with Monday and ends with Sunday)
+
+    Returns:
+        GetLineageVersionsResponse: An object containing a list of lineage versions that are available between the two dates.
+
+    Raises:
+        ExternalServiceError: If the API request fails (status code != 200)
+        ToolProcessFailedError: If no entities are found for the given IDs
+    """,
+    tags={"custom_tool"},
 )
 @auto_context
-async def wxo_get_lineage_versions(
+async def get_lineage_versions(
     since: str, until: str
 ) -> GetLineageVersionsResponse:
-    """Watsonx Orchestrator compatible version that expands GetLineageVersionsRequest object into individual parameters."""
+    """Wrapper that expands GetLineageVersionsRequest object into individual parameters."""
 
     request = GetLineageVersionsRequest(since=since, until=until)
 
     # Call the original get_lineage_versions function
-    return await get_lineage_versions(request)
+    return await _get_lineage_versions(request)

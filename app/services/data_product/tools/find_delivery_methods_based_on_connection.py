@@ -20,40 +20,45 @@ from app.shared.logging import LOGGER, auto_context
     name="data_product_find_delivery_methods_based_on_connection",
     description="""
     This tool finds delivery methods available for the connection type of the data asset.
-    This is called before `add_delivery_methods_to_data_product()` to find the delivery methods available for the given connection type.
-    Example: 'Find delivery methods for customer asset in the data product draft' - This gets the data product draft ID from context and data asset name (in this case, customer).
+    Finds delivery methods for data asset (data_asset_id) in container_type (ID: container_id).
+    This is called before `add_delivery_methods_to_data_product()` to find the delivery methods available for the given data asset.
+    Example: 'Find delivery methods for customer asset in the data product draft' - This gets the container type ('catalog' or 'project') where this asset is in, the ID of the container, and the data asset ID.
+    If you are not sure about the container ID, use the `list_containers` tool to find it out.
+    If you are not sure about the data asset ID of the requested data asset, use the `search_asset` tool to find it out.
     Prompt user to choose delivery methods from the list of available delivery methods.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
 )
-@add_catalog_id_suffix()
 @auto_context
 async def find_delivery_methods_based_on_connection(
     request: FindDeliveryMethodsBasedOnConnectionRequest, 
 ) -> FindDeliveryMethodsBasedOnConnectionResponse:
     LOGGER.info(
-        f"In the data_product_find_delivery_methods_based_on_connection tool, finding delivery methods for data product draft id: {request.data_product_draft_id}"
+        f"In the data_product_find_delivery_methods_based_on_connection tool, finding delivery methods for data asset {request.data_asset_id} in {request.container_type} (ID: {request.container_id})."
     )
-    validate_inputs(request, "data_asset_name")
+    # validate_inputs(request, "data_asset_name")
     dph_catalog_id = await get_dph_catalog_id_for_user()
 
-    # step 1: get the connection ID from the contract terms of the data product draft
+    if not request.container_id or not request.container_type:
+        error_message = "Container ID and Container Type are required."
+        LOGGER.error(f"Failed to run data_product_find_delivery_methods_based_on_connection tool. {error_message}")
+        raise ServiceError(f"Failed to run data_product_find_delivery_methods_based_on_connection tool. {error_message}")
+    
+    if not request.data_asset_id:
+        error_message = "Data asset ID is required. Find the data asset ID matching the data asset for which we are finding delivery methods. Data asset ID can be found in the response of `search_asset` tool."
+        LOGGER.error(f"Failed to run data_product_find_delivery_methods_based_on_connection tool. {error_message}")
+        raise ServiceError(f"Failed to run data_product_find_delivery_methods_based_on_connection tool. {error_message}")
+   
+    # step 1: get the connection ID from the data asset details
     response = await tool_helper_service.execute_get_request(
-        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/drafts/{request.data_product_draft_id}",
+        url=f"{tool_helper_service.base_url}/v2/assets/{request.data_asset_id}?{request.container_type}_id={request.container_id}",
         tool_name="data_product_find_delivery_methods_based_on_connection",
     )
-    
-    contract_terms = response["contract_terms"]
-    connection_id = None
-    if contract_terms and len(contract_terms) > 0:
-        connection_schema_list = contract_terms[0]["schema"]
-        for connection_schema in connection_schema_list:
-            if connection_schema.get("name", "").lower() == request.data_asset_name.lower():
-                connection_id = connection_schema.get("connection_id")
 
+    connection_id = response.get("attachments", [{}])[0].get("connection_id")
     if not connection_id:
-        error_message = "Asset name is not valid or connection detail is not found for the asset."
+        error_message = "Connection detail could not be found for this data asset. Make sure the asset is a connection asset."
         LOGGER.error(f"Failed to run data_product_find_delivery_methods_based_on_connection tool. {error_message}")
         raise ServiceError(f"Failed to run data_product_find_delivery_methods_based_on_connection tool. {error_message}")
 
@@ -61,7 +66,7 @@ async def find_delivery_methods_based_on_connection(
 
     # step 2: get the datasource type from the connection
     response = await tool_helper_service.execute_get_request(
-        url=f"{tool_helper_service.base_url}/v2/connections/{connection_id}?decrypt_secrets=true&catalog_id={dph_catalog_id}&userfs=false",
+        url=f"{tool_helper_service.base_url}/v2/connections/{connection_id}?decrypt_secrets=true&{request.container_type}_id={request.container_id}&userfs=false",
         tool_name="data_product_find_delivery_methods_based_on_connection",
     )
     datasource_type = response["entity"]["datasource_type"]
@@ -82,6 +87,7 @@ async def find_delivery_methods_based_on_connection(
     return FindDeliveryMethodsBasedOnConnectionResponse(
         delivery_methods=available_delivery_methods
     )
+    
 
 def get_available_delivery_methods(response, datasource_type):
     # this function iterates and finds all available delivery methods for this connection.
@@ -97,35 +103,43 @@ def get_available_delivery_methods(response, datasource_type):
                 DeliveryMethod(
                     delivery_method_id=result["metadata"]["asset_id"],
                     delivery_method_name=result["metadata"]["name"],
+                    delivery_method_description=result["metadata"].get("description", "")
                 )
             )
     return available_delivery_methods
+
 
 @service_registry.tool(
     name="data_product_find_delivery_methods_based_on_connection",
     description="""
     This tool finds delivery methods available for the connection type of the data asset.
-    This is called before `add_delivery_methods_to_data_product()` to find the delivery methods available for the given connection type.
-    Example: 'Find delivery methods for customer asset in the data product draft' - This gets the data product draft ID from context and data asset name (in this case, customer).
+    Finds delivery methods for data asset (data_asset_id) in container_type (ID: container_id).
+    This is called before `add_delivery_methods_to_data_product()` to find the delivery methods available for the given data asset.
+    Example: 'Find delivery methods for customer asset in the data product draft' - This gets the container type ('catalog' or 'project') where this asset is in, the ID of the container, and the data asset ID.
+    If you are not sure about the container ID, use the `list_containers` tool to find it out.
+    If you are not sure about the data asset ID of the requested data asset, use the `search_asset` tool to find it out.
     Prompt user to choose delivery methods from the list of available delivery methods.
     
     Args:
-        data_product_draft_id (str): The ID of the data product draft.
-        data_asset_name (str): The name of the data asset for which we need to find the delivery method options.
+        container_id: The ID of the container (catalog or project) where the data asset is located.
+        container_type: The type of the container (either 'catalog' or 'project').
+        data_asset_id: The ID of the data asset for which delivery methods are being requested.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
 )
 @auto_context
 async def wxo_find_delivery_methods_based_on_connection(
-    data_product_draft_id: str,
-    data_asset_name: str,
+    container_id: str,
+    container_type: str,
+    data_asset_id: str
 ) -> FindDeliveryMethodsBasedOnConnectionResponse:
     """Watsonx Orchestrator compatible version that expands FindDeliveryMethodsBasedOnConnectionRequest object into individual parameters."""
 
     request = FindDeliveryMethodsBasedOnConnectionRequest(
-        data_product_draft_id=data_product_draft_id,
-        data_asset_name=data_asset_name,
+        container_id=container_id,
+        container_type=container_type,
+        data_asset_id=data_asset_id
     )
 
     # Call the original find_delivery_methods_based_on_connection function

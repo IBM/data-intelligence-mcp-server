@@ -2,10 +2,10 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 from datetime import datetime
-from app.shared.models import BaseResponseModel, field_validator
+from app.shared.models import BaseResponseModel
 
 
 class Workflow(BaseModel):
@@ -102,8 +102,7 @@ class GetMyWorkflowsRequest(BaseModel):
     )
     stalled_days: Optional[int] = Field(
         14,
-        description="Threshold for considering a workflow stalled (no activity in X days). Set to None to disable stalled detection (only applicable when deep_dive=True).",
-        ge=1
+        description="Threshold for considering a workflow stalled (no activity in X days). Set to None to disable stalled detection (only applicable when deep_dive=True)."
     )
     workflow_id: Optional[str] = Field(
         None,
@@ -113,6 +112,13 @@ class GetMyWorkflowsRequest(BaseModel):
         "table",
         description="Output format: 'table' for formatted markdown tables, 'json' for raw data (only applicable when deep_dive=True)"
     )
+
+    @field_validator('stalled_days')
+    @classmethod
+    def validate_stalled_days(cls, v):
+        if v is not None and v < 1:
+            raise ValueError('stalled_days must be at least 1 when specified')
+        return v
 
 
 class GetMyWorkflowsResponse(BaseResponseModel):

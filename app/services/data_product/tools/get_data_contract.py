@@ -40,18 +40,18 @@ def _extract_contract_terms_id(response: dict, context: str) -> str:
     return contract_terms_id
 
 
-async def _get_draft_contract(data_product_id: str) -> dict:
+async def _get_draft_contract(data_product_version_id: str) -> dict:
     """Get data contract for a draft data product.
     
     Args:
-        data_product_id: The ID of the draft data product
+        data_product_version_id: The ID of the draft data product version
         
     Returns:
         dict: The contract document response
     """
     # Step 1: get data contract terms ID
     response = await tool_helper_service.execute_get_request(
-        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/drafts/{data_product_id}",
+        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/drafts/{data_product_version_id}",
     )
     contract_terms_id = _extract_contract_terms_id(response, "data product draft")
 
@@ -61,23 +61,23 @@ async def _get_draft_contract(data_product_id: str) -> dict:
         "format_version": "3"
     }
     return await tool_helper_service.execute_get_request(
-        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/drafts/{data_product_id}/contract_terms/{contract_terms_id}/format",
+        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/drafts/{data_product_version_id}/contract_terms/{contract_terms_id}/format",
         params=query_params
     )
 
 
-async def _get_published_contract(data_product_id: str) -> dict:
+async def _get_published_contract(data_product_version_id: str) -> dict:
     """Get data contract for a published data product.
     
     Args:
-        data_product_id: The ID of the published data product
+        data_product_version_id: The ID of the published data product version
         
     Returns:
         dict: The contract document response
     """
     # Step 1: get data product version ID
     response = await tool_helper_service.execute_get_request(
-        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/{data_product_id}"
+        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/{data_product_version_id}"
     )
     release_id = response.get("latest_release", {}).get("id")
 
@@ -86,7 +86,7 @@ async def _get_published_contract(data_product_id: str) -> dict:
         "check_caller_approval": False
     }
     response = await tool_helper_service.execute_get_request(
-        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/{data_product_id}/releases/{release_id}",
+        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/{data_product_version_id}/releases/{release_id}",
         params=query_params
     )
     contract_terms_id = _extract_contract_terms_id(response, "data product")
@@ -96,7 +96,7 @@ async def _get_published_contract(data_product_id: str) -> dict:
         "include_contract_documents": True
     }
     return await tool_helper_service.execute_get_request(
-        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/{data_product_id}/releases/{release_id}/contract_terms/{contract_terms_id}",
+        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/{data_product_version_id}/releases/{release_id}/contract_terms/{contract_terms_id}",
         params=query_params
     )
 
@@ -114,9 +114,9 @@ async def _get_published_contract(data_product_id: str) -> dict:
 @auto_context
 async def get_data_contract(request: GetDataContractRequest) -> GetDataContractResponse:
     if request.data_product_state == "draft":
-        response = await _get_draft_contract(request.data_product_id)
+        response = await _get_draft_contract(request.data_product_version_id)
     else:
-        response = await _get_published_contract(request.data_product_id)
+        response = await _get_published_contract(request.data_product_version_id)
     
     formatted_data = format_dict_for_table(response)
     
@@ -137,7 +137,7 @@ async def get_data_contract(request: GetDataContractRequest) -> GetDataContractR
     This tool should receive data product ID of the specified data product as input from context. Ask for the data product state from the user.
     
     Args:
-        data_product_id: str = The ID of the data product for which we need to get the data contract. Can be a draft or published data product.
+        data_product_version_id: str = The ID of the data product version for which we need to get the data contract. Can be a draft or published data product.
         data_product_state: str = The state of the data product - should be one of 'draft' or 'available'
     Returns:
         str = The data contract.
@@ -146,12 +146,12 @@ async def get_data_contract(request: GetDataContractRequest) -> GetDataContractR
     meta={"version": "1.0", "service": "data_product"}
 )
 @auto_context
-async def wxo_get_data_contract(data_product_id: str,
+async def wxo_get_data_contract(data_product_version_id: str,
         data_product_state: Literal["draft", "available"]) -> GetDataContractResponse:
     """Watsonx Orchestrator compatible version that expands GetDataContractRequest object into individual parameters."""
 
     request = GetDataContractRequest(
-        data_product_id=data_product_id,
+        data_product_version_id=data_product_version_id,
         data_product_state=data_product_state,
     )
 

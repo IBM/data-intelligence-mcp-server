@@ -17,31 +17,7 @@ from app.services.data_quality.utils.data_quality_common_utils import (
 )
 
 
-@service_registry.tool(
-    name="create_data_quality_rule_from_sql_query",
-    description="""Creates a new data quality rule based on a provided SQL query. This tool allows you to define a data quality rule by specifying a SQL query that will be used to evaluate data quality. The tool returns details of the created data quality rule, including its ID, project ID, UI URL, and name.
-
-Args:
-    project_id_or_name (str): The ID or name of the project where the data quality rule will be created. Examples: 'customer_analytics_project', 'financial_reporting_2023', 'supply_chain_optimization'
-    connection_id_or_name (str): The ID or name of the connection to be used for the data quality rule. Examples: 'salesforce_connection', 'aws_redshift_connection', 'postgresql_connection'
-    sql_query (str): The SQL query that defines the data quality rule. Examples: 'SELECT COUNT(*) FROM customers WHERE email IS NOT NULL', "SELECT AVG(transaction_amount) FROM sales WHERE transaction_date > '2023-01-01'", 'SELECT product_id, SUM(quantity) FROM inventory GROUP BY product_id HAVING SUM(quantity) < 10'
-    data_quality_rule_name (str): The name of the data quality rule to be created. Examples: 'validate_customer_email_format', 'check_sales_transaction_completeness', 'verify_inventory_data_consistency'
-    data_quality_dimension_name (str): The name of the data quality dimension associated with the rule. This parameter is optional. Examples: 'completeness', 'validity', 'consistency'
-
-Returns:
-    CreateDataQualityRuleFromSQLQueryResponse: The tool returns a DataQualityRule object containing the rule ID, project ID, UI URL, and name of the created data quality rule.
-
-Raises:
-    ToolProcessFailedError: If the data quality rule creation fails fails.
-    ExternalServiceError: If the data quality rule service request fails.
-
-Note:
-    This tool requires confirmation before execution as it creates a new resource.""",
-    tags={"create", "data_quality"},
-    meta={"version": "1.0", "service": "data_quality"},
-)
-@auto_context
-async def create_data_quality_rule_from_sql_query(
+async def _create_data_quality_rule_from_sql_query(
     request: CreateDataQualityRuleFromSQLQueryRequest,
 ) -> CreateDataQualityRuleFromSQLQueryResponse:
     """
@@ -72,24 +48,31 @@ async def create_data_quality_rule_from_sql_query(
 
 @service_registry.tool(
     name="create_data_quality_rule_from_sql_query",
-    description="""Watsonx Orchestrator compatible wrapper for create_data_quality_rule_from_sql_query.
+    description="""Wrapper for create_data_quality_rule_from_sql_query.
 
-Creates a new data quality rule based on a provided SQL query.
+Creates a new data quality rule based on a provided SQL query. This tool allows you to define a data quality rule by specifying a SQL query that will be used to evaluate data quality. The tool returns details of the created data quality rule, including its ID, project ID, UI URL, and name.
 
 Args:
-    project_id_or_name (str): The ID or name of the project where the data quality rule will be created.
-    connection_id_or_name (str): The ID or name of the connection to be used for the data quality rule.
-    sql_query (str): The SQL query that defines the data quality rule.
-    data_quality_rule_name (str): The name of the data quality rule to be created.
-    data_quality_dimension_name (Optional[str]): The name of the data quality dimension associated with the rule.
+    project_id_or_name (str): The ID or name of the project where the data quality rule will be created. Examples: 'customer_analytics_project', 'financial_reporting_2023', 'supply_chain_optimization'
+    connection_id_or_name (str): The ID or name of the connection to be used for the data quality rule. Examples: 'salesforce_connection', 'aws_redshift_connection', 'postgresql_connection'
+    sql_query (str): The SQL query that defines the data quality rule. Examples: 'SELECT COUNT(*) FROM customers WHERE email IS NOT NULL', "SELECT AVG(transaction_amount) FROM sales WHERE transaction_date > '2023-01-01'", 'SELECT product_id, SUM(quantity) FROM inventory GROUP BY product_id HAVING SUM(quantity) < 10'
+    data_quality_rule_name (str): The name of the data quality rule to be created. Examples: 'validate_customer_email_format', 'check_sales_transaction_completeness', 'verify_inventory_data_consistency'
+    data_quality_dimension_name (Optional[str]): The name of the data quality dimension associated with the rule. This parameter is optional. Examples: 'completeness', 'validity', 'consistency'
 
 Returns:
-    CreateDataQualityRuleFromSQLQueryResponse: DataQualityRule object with rule details.""",
-    tags={"create", "data_quality"},
+    CreateDataQualityRuleFromSQLQueryResponse: The tool returns a DataQualityRule object containing the rule ID, project ID, UI URL, and name of the created data quality rule.
+
+Raises:
+    ToolProcessFailedError: If the data quality rule creation fails fails.
+    ExternalServiceError: If the data quality rule service request fails.
+
+Note:
+    This tool requires confirmation before execution as it creates a new resource.""",
+    tags={"create", "data_quality", "custom_tool"},
     meta={"version": "1.0", "service": "data_quality"},
 )
 @auto_context
-async def wxo_create_data_quality_rule_from_sql_query(
+async def create_data_quality_rule_from_sql_query(
     project_id_or_name: str,
     connection_id_or_name: str,
     sql_query: str,
@@ -97,7 +80,7 @@ async def wxo_create_data_quality_rule_from_sql_query(
     data_quality_dimension_name: Optional[str] = None,
 ) -> CreateDataQualityRuleFromSQLQueryResponse:
     """
-    Watsonx Orchestrator wrapper: builds request model and delegates to main tool.
+    Wrapper that builds request model and delegates to main tool.
     """
     request = CreateDataQualityRuleFromSQLQueryRequest(
         project_id_or_name=project_id_or_name,
@@ -106,4 +89,4 @@ async def wxo_create_data_quality_rule_from_sql_query(
         data_quality_rule_name=data_quality_rule_name,
         data_quality_dimension_name=data_quality_dimension_name,
     )
-    return await create_data_quality_rule_from_sql_query(request)
+    return await _create_data_quality_rule_from_sql_query(request)

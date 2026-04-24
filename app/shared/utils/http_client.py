@@ -281,35 +281,6 @@ class AsyncHttpClient:
             "POST", url, data, json, params, headers, content, files
         )
 
-    async def post_multipart(
-        self,
-        url: str,
-        files: dict[str, tuple[str, bytes, str]],
-        params: dict[str, str] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        """
-        Make async POST request with multipart/form-data for file uploads.
-
-        Args:
-            url: The URL to make the POST request to
-            files: Dictionary of files to upload. Format: {field_name: (filename, content, content_type)}
-            params: Optional query parameters
-            headers: Optional HTTP headers to include (Content-Type will be set automatically)
-
-        Returns:
-            Dict[str, Any]: JSON response data
-
-        Raises:
-            ExternalAPIError: If the request fails or returns an error status
-        """
-        async def request_func(client: httpx.AsyncClient) -> httpx.Response:
-            return await client.post(
-                url, files=files, params=params, headers=headers or {}
-            )
-        
-        return await self._make_request(request_func)
-
     async def put(
         self,
         url: str,

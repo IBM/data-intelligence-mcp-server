@@ -14,7 +14,6 @@ from app.shared.utils.helpers import is_none
 from app.shared.logging import LOGGER
 from app.shared.exceptions.base import ServiceError
 
-
 def _validate_search_prompt(search_prompt: str) -> None:
     """Validate that search prompt is not empty."""
     if not search_prompt or search_prompt.strip() == "":
@@ -68,12 +67,39 @@ def _validate_names_mapping(names_mapping: list[dict] | None) -> None:
             raise ServiceError(error_msg)
 
 
-def validate_request(request: TextToQuerySearchAssetRequest) -> None:
+def _preprocess_current_user_references(request: TextToQuerySearchAssetRequest) -> None:
     """
-    Validate search request parameters.
+    Always add current user details to names_mapping by default if no user entity is provided.
+    This ensures the query generation API always has access to current user context.
     
     Args:
-        request: The search request to validate
+        request: The search request to preprocess (modified in place)
+    """
+    # Check if user mapping already exists in names_mapping
+    if request.names_mapping:
+        user_types = {e.get('type') for e in request.names_mapping}
+        if 'user' in user_types:
+            return
+    
+    # Add default current user mapping
+    user_mapping = {"name": "me", "type": "user"}
+    if request.names_mapping is None:
+        request.names_mapping = [user_mapping]
+    else:
+        request.names_mapping.append(user_mapping)
+    
+    LOGGER.info(f"Added default current user mapping to names_mapping: {user_mapping}")
+
+
+def validate_request(request: TextToQuerySearchAssetRequest) -> None:
+    """
+    Validate and preprocess search request parameters.
+    
+    Preprocessing includes:
+    - Always adding current user details to names_mapping by default (if no user entity provided)
+    
+    Args:
+        request: The search request to validate and preprocess
         
     Raises:
         ServiceError: If any validation fails
@@ -82,5 +108,8 @@ def validate_request(request: TextToQuerySearchAssetRequest) -> None:
     _validate_container_type(request.container_type)
     _validate_artifact_types(request.artifact_types)
     _validate_names_mapping(request.names_mapping)
+    
+    # Preprocess: add default current user mapping
+    _preprocess_current_user_references(request)
 
 # Made with Bob

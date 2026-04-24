@@ -23,7 +23,7 @@ from app.services.glossary.prompts.generate_artifact_description import (
     generate_artifact_description_prompt,
 )
 from app.services.glossary.utils import is_empty, normalize_key
-from app.shared.exceptions.base import ExternalAPIError, ServiceError
+from app.shared.exceptions.base import ServiceError
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import append_context_to_url
 from app.shared.utils.llm_utils import chat_llm_request, client_supports_sampling
@@ -238,22 +238,7 @@ def _transform_global_search_response(
     }
 
 
-@service_registry.tool(
-    name="explain_glossary_artifact",
-    description="""Explain detailed information about a glossary artifact by its name.
-
-    This tool retrieves and explains metadata about a glossary artifact, which could be any of:
-    - Glossary term
-    - Classification
-    - Data class
-    - Reference data
-    - Policy
-    - Rule (Glossary artifact)
-
-    The explanation includes the artifact's definition, purpose, and related metadata.""",
-)
-@auto_context
-async def explain_glossary_artifact(
+async def _explain_glossary_artifact(
     request: ExplainGlossaryArtifactRequest,
     ctx: Optional[Context] = None,
 ) -> GlossaryArtifactDescription:
@@ -287,7 +272,7 @@ async def explain_glossary_artifact(
     response = await tool_helper_service.execute_post_request(
         url=str(tool_helper_service.base_url) + GS_BASE_ENDPOINT,
         json=payload,
-        params={"auth_cache": True},
+        params={"auth_cache": True, "tenant_scope": True},
     )
 
     transformed_data = _transform_global_search_response(response, request.artifact_name)
@@ -327,7 +312,7 @@ async def explain_glossary_artifact(
 
 
 @service_registry.tool(
-    name="wxo_explain_glossary_artifact",
+    name="explain_glossary_artifact",
     description="""Explain detailed information about a glossary artifact by its name.
 
     This tool retrieves and explains metadata about a glossary artifact, which could be any of:
@@ -338,18 +323,15 @@ async def explain_glossary_artifact(
     - Policy
     - Rule (Glossary artifact)
 
-    The explanation includes the artifact's definition, purpose, and related metadata.
-    
-    This is the Watsonx Orchestrator compatible version.""",
+    The explanation includes the artifact's definition, purpose, and related metadata.""",
+    tags={"custom_tool"},
 )
 @auto_context
-async def wxo_explain_glossary_artifact(
+async def explain_glossary_artifact(
     artifact_name: str,
     ctx: Optional[Context] = None,
 ) -> GlossaryArtifactDescription:
     """
-    Watsonx Orchestrator compatible version of explain_glossary_artifact.
-    
     This is a simplified wrapper that doesn't require the full request object.
     
     Args:
@@ -360,4 +342,4 @@ async def wxo_explain_glossary_artifact(
         GlossaryArtifactDescription with artifact details and description
     """
     request = ExplainGlossaryArtifactRequest(artifact_name=artifact_name)
-    return await explain_glossary_artifact(request, ctx=ctx)
+    return await _explain_glossary_artifact(request, ctx=ctx)

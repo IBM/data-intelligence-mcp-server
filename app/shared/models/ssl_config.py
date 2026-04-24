@@ -59,6 +59,8 @@ class SSLConfig(BaseModel):
     def _create_custom_ssl_context(self) -> ssl.SSLContext:
         """Create custom SSL context with certificate validation."""
         context = ssl.create_default_context()
+        # Enforce TLS 1.2 or higher for security (Python 3.10+ uses secure defaults)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
 
         # Load custom CA bundle if provided
         if self.ca_bundle_path:
@@ -88,9 +90,15 @@ class SSLConfig(BaseModel):
     def _create_ca_bundle_ssl_context(self) -> ssl.SSLContext:
         """Create SSL context with custom CA bundle."""
         try:
-            return ssl.create_default_context(cafile=self.ca_bundle_path)
+            context = ssl.create_default_context(cafile=self.ca_bundle_path)
+            # Enforce TLS 1.2 or higher for security (Python 3.10+ uses secure defaults)
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
+            return context
         except Exception:
             # In production, CA bundle loading errors should be handled appropriately
             # For testing, we create a default context without the CA bundle
-            return ssl.create_default_context()
+            context = ssl.create_default_context()
+            # Enforce TLS 1.2 or higher for security (Python 3.10+ uses secure defaults)
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
+            return context
 

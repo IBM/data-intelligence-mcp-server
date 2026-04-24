@@ -3,7 +3,7 @@
 # See the LICENSE file in the project root for license information.
 
 from app.core.registry import service_registry
-from app.services.search.models.search_connection import SearchConnectionRequest, SearchConnectionResponse
+from app.services.search.models.search_connection import SearchConnectionRequest, SearchConnectionResponse, ContainerType
 
 from typing import List, Literal, Optional
 from urllib.parse import urlencode
@@ -36,7 +36,7 @@ CAT_CONNECTION_URL_PREFIX = str(tool_helper_service.ui_base_url) + "/data/catalo
     name="search_connection",
     description="""Understand user's request about searching connections and return a list of 
                     retrieved connections. Users can choose to filter the results based on 
-                    the optional input parameters: container, container type, connection name,
+                    the optional input parameters: container, connection name,
                     data source type, and creator. If no filters are provided, then all available 
                     connections are retrieved.
                     Example: Find all connections.
@@ -50,7 +50,8 @@ CAT_CONNECTION_URL_PREFIX = str(tool_helper_service.ui_base_url) + "/data/catalo
 
                     IMPORTANT CONSTRAINTS:
                     - container_type needs to be provided if container is provided
-                    - container_type must be one of: "catalog", "project"
+                    - container_type must be one of: "catalog", "project", or "all"
+                    - if no container_type is provided, it defaults to "all"
                     - container and container_type must be provided if one or more of connection_name, datasource_type, or creator is provided
                     - Invalid values will result in errors""",
     tags={"search", "connection"},
@@ -72,8 +73,8 @@ async def search_connection(
         request.datasource_type,
         request.creator
     )
-    
-    if not request.container_type:
+
+    if request.container_type == ContainerType.ALL:
         output = await search_connection_global_search()
         if not output:
             raise ServiceError(
@@ -81,7 +82,8 @@ async def search_connection(
         )
         return output
 
-    container_id = await retrieve_container_id(request.container, request.container_type)
+    container = request.container if request.container else ""
+    container_id = await retrieve_container_id(container, request.container_type)
 
     headers = {
         "accept": JSON_PLUS_UTF8_ACCEPT_TYPE,
@@ -139,7 +141,7 @@ async def search_connection(
     name="search_connection",
     description="""Understand user's request about searching connections and return a list of
                     retrieved connections. Users can choose to filter the results based on
-                    the optional input parameters: container, container type, connection name,
+                    the optional input parameters: container, connection name,
                     data source type, and creator. If no filters are provided, then all available
                     connections are retrieved.
                     Example: Find all connections.
@@ -153,7 +155,8 @@ async def search_connection(
 
                     IMPORTANT CONSTRAINTS:
                     - container_type needs to be provided if container is provided
-                    - container_type must be one of: "catalog", "project"
+                    - container_type must be one of: "catalog", "project", or "all"
+                    - if no container_type is provided, it defaults to "all"
                     - container and container_type must be provided if one or more of connection_name, datasource_type, or creator is provided
                     - Invalid values will result in errors""",
     tags={"search", "connection"},
@@ -161,13 +164,14 @@ async def search_connection(
 )
 @auto_context
 async def wxo_search_connection(
-    container: Optional[str], container_type: Optional[Literal["catalog", "project"]], connection_name: Optional[str], datasource_type: Optional[str], creator: Optional[str]
+    container: Optional[str], connection_name: Optional[str], datasource_type: Optional[str], creator: Optional[str], container_type: str = "all",
 ) -> List[SearchConnectionResponse]:
     """Watsonx Orchestrator compatible version that expands SearchConnectionRequest object into individual parameters."""
 
+    container_type_enum = ContainerType(container_type)
     request = SearchConnectionRequest(
         container=container,
-        container_type=container_type,
+        container_type=container_type_enum,
         connection_name=connection_name,
         datasource_type=datasource_type,
         creator=creator
@@ -186,7 +190,8 @@ async def search_connection_global_search() -> List[SearchConnectionResponse]:
     """
     params = {
         "auth_scope": AUTH_SCOPE_ALL_STR,
-        "auth_cache": True
+        "auth_cache": True,
+        "tenant_scope": True
     }
 
     payload = {
@@ -246,13 +251,13 @@ async def search_connection_global_search() -> List[SearchConnectionResponse]:
     return output
 
 def _validate_connection_request(request: SearchConnectionRequest) -> None:
-    if request.container and not request.container_type:
-        error_msg = "Container identifier cannot be provided without container type. Please provide the container type as well."
+    if request.container and request.container_type == ContainerType.ALL:
+        error_msg = "Container identifier cannot be provided with 'all' container type. Please provide either catalog or project as the type."
         LOGGER.error(error_msg)
         raise ServiceError(error_msg)
 
-    if (request.connection_name or request.datasource_type or request.creator) and not (request.container and request.container_type):
-        error_msg = "Cannot filter by name, data source type or creator without container information. Please provide container information."
+    if (request.connection_name or request.datasource_type or request.creator) and not (request.container and request.container_type != ContainerType.ALL):
+        error_msg = "Cannot filter by name, data source type or creator without container information. Please provide container name and type."
         LOGGER.error(error_msg)
         raise ServiceError(error_msg)
 

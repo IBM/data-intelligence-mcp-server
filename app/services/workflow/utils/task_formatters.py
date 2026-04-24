@@ -99,11 +99,11 @@ def is_task_claimed(assignee: Optional[str]) -> str:
         assignee: Task assignee (user ID or email)
         
     Returns:
-        "Yes" if claimed, "❌" string if unclaimed
+        "Yes" if claimed, "-" string if unclaimed
     """
     if assignee is not None and assignee.strip() != "":
         return "Yes"
-    return "❌"
+    return "-"
 
 
 def format_candidates_with_limit(candidates: Optional[List[str]]) -> str:

@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Literal, Optional
+from typing import Literal
 
 from app.core.registry import service_registry
 from app.shared.logging import LOGGER, auto_context
@@ -17,22 +17,69 @@ from app.services.data_quality.utils.data_quality_common_utils import (
     get_data_quality_for_asset as get_data_quality_for_asset_util,
 )
 
+def _format_data_quality_for_table(response: GetDataQualityForAssetResponse) -> list:
+    """
+    Format data quality response into a table.
+    Dynamically includes all dimension scores from the scores_by_dimension dictionary.
+    
+    Args:
+        response: GetDataQualityForAssetResponse model containing data quality metrics
+        
+    Returns:
+        List containing a single formatted dictionary for table display
+    """
+    formatted_row = {
+        "Report URL": ui_message_context.create_markdown_link(response.report_url, "Link"),
+        "Overall": response.overall,
+    }
+    
+    # Add all dimensions dynamically, capitalizing dimension names for display
+    for dimension_name, score in response.scores_by_dimension.items():
+        formatted_row[dimension_name.capitalize()] = score
+    
+    return [formatted_row]
 
-def _format_data_quality_for_table(response) -> list:
-    return [
-        {
-            "Report URL": ui_message_context.create_markdown_link(response.report_url, "Link"),
-            "Overall": response.overall,
-            "Consistency": response.consistency,
-            "Validity": response.validity,
-            "Completeness": response.completeness,
-        }
-    ]
+
+async def _get_data_quality_for_asset(request: GetDataQualityForAssetRequest) -> GetDataQualityForAssetResponse:
+    """
+    Retrieve data quality metrics and information for a specific asset.
+    """
+    LOGGER.info(
+        "Getting data quality for asset: asset_id_or_name=%s container_id_or_name=%s container_type=%s",
+        request.asset_id_or_name,
+        request.container_id_or_name,
+        request.container_type
+    )
+
+    data_quality = await get_data_quality_for_asset_util(
+        asset_id_or_name=request.asset_id_or_name,
+        container_id_or_name=request.container_id_or_name,
+        container_type=request.container_type,
+    )
+    
+    report_url = ui_message_context.extend_url_with_context(data_quality.report_url)
+
+    response = GetDataQualityForAssetResponse(
+        overall=data_quality.overall,
+        scores_by_dimension=data_quality.scores_by_dimension,
+        report_url=report_url,
+    )
+
+    ui_message_context.add_table_ui_message(
+        tool_name="get_data_quality_for_asset",
+        formatted_data=_format_data_quality_for_table(response),
+        title="Data Quality",
+    )
+
+    return response
 
 
 @service_registry.tool(
-    name="get_data_quality_for_asset",
-    description="""Retrieve data quality metrics and information for a specific asset. This tool fetches quality metrics for a data asset, including overall quality score and specific dimensions like consistency, validity, and completeness. This information helps assess the reliability and usability of the data.
+    name="wxo_get_data_quality_for_asset",
+    description="""Watsonx Orchestrator compatible wrapper for get_data_quality_for_asset.
+
+    
+Retrieve data quality metrics and information for a specific asset. This tool fetches quality metrics for a data asset, including overall quality score and specific dimensions like consistency, validity, and completeness. This information helps assess the reliability and usability of the data.
 
 You can pass either IDs or names for both asset and container.
 
@@ -57,75 +104,23 @@ Returns:
 
 Raises:
     ToolProcessFailedError: If quality metrics cannot be retrieved or the service call fails.""",
-    tags={"get", "data_quality"},
+    tags={"get", "data_quality", "custom_tool"},
     meta={"version": "1.0", "service": "data_quality"},
 )
 @auto_context
-async def get_data_quality_for_asset(request: GetDataQualityForAssetRequest) -> GetDataQualityForAssetResponse:
-    """
-    Retrieve data quality metrics and information for a specific asset.
-    """
-    LOGGER.info(
-        "Getting data quality for asset: asset_id_or_name=%s container_id_or_name=%s container_type=%s",
-        request.asset_id_or_name,
-        request.container_id_or_name,
-        request.container_type
-    )
-
-    data_quality = await get_data_quality_for_asset_util(
-        asset_id_or_name=request.asset_id_or_name,
-        container_id_or_name=request.container_id_or_name,
-        container_type=request.container_type,
-    )
-    
-    report_url = ui_message_context.extend_url_with_context(data_quality.report_url)
-
-    response = GetDataQualityForAssetResponse(
-        overall=data_quality.overall,
-        consistency=data_quality.consistency,
-        validity=data_quality.validity,
-        completeness=data_quality.completeness,
-        report_url=report_url,
-    )
-
-    ui_message_context.add_table_ui_message(
-        tool_name="get_data_quality_for_asset",
-        formatted_data=_format_data_quality_for_table(response),
-        title="Data Quality",
-    )
-
-    return response
-
-
-@service_registry.tool(
-    name="get_data_quality_for_asset",
-    description="""Watsonx Orchestrator compatible wrapper for get_data_quality_for_asset.
-    
-Retrieve data quality metrics and information for a specific asset. This tool fetches quality metrics for a data asset, including overall quality score and specific dimensions like consistency, validity, and completeness.
-
-Args:
-    asset_id_or_name (str): Asset UUID or name.
-    container_id_or_name (str): Project or catalog UUID or name.
-    container_type (Literal["project", "catalog"]): Type of container. Must be either 'catalog' or 'project'.
-
-Returns:
-    GetDataQualityForAssetResponse: Quality metrics including overall, consistency, validity, completeness scores and report URL.""",
-    tags={"get", "data_quality"},
-    meta={"version": "1.0", "service": "data_quality"},
-)
-@auto_context
-async def wxo_get_data_quality_for_asset(
+async def get_data_quality_for_asset(
     asset_id_or_name: str,
     container_id_or_name: str,
     container_type: Literal["catalog", "project"],
 ) -> GetDataQualityForAssetResponse:
     """
-    Watsonx Orchestrator wrapper: builds request model and delegates to main tool.
+    Wrapper that builds request model and delegates to main tool.
     """
     request = GetDataQualityForAssetRequest(
         asset_id_or_name=asset_id_or_name,
         container_id_or_name=container_id_or_name,
         container_type=container_type,
     )
-    return await get_data_quality_for_asset(request)
+    return await _get_data_quality_for_asset(request)
+
 

@@ -8,18 +8,21 @@ from typing import List
 
 
 class FindDeliveryMethodsBasedOnConnectionRequest(BaseModel):
-    data_product_draft_id: str = Field(...,
-        description="The ID of the data product draft."
+    container_id: str = Field(...,
+        description="The ID of the container (catalog or project) where the data asset is located."
     )
-    data_asset_name: str = Field(...,
-        description="The name of the data asset for which we need to find the delivery method options."
+    container_type: str = Field(...,
+        description="The type of the container (either 'catalog' or 'project')."
     )
-
+    data_asset_id: str = Field(...,
+        description="The ID of the data asset for which delivery methods are being requested."
+    )
+    
 
 class DeliveryMethod(BaseModel):
     delivery_method_id: str = Field(..., description="The ID of the delivery method.")
     delivery_method_name: str = Field(..., description="The name of the delivery method.")
-
+    delivery_method_description: str = Field(..., description="The description of the delivery method.")
 
 class FindDeliveryMethodsBasedOnConnectionResponse(BaseResponseModel):
     delivery_methods: List[DeliveryMethod] = Field(..., description="List of delivery methods.")

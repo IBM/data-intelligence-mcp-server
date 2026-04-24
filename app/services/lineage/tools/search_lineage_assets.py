@@ -398,7 +398,7 @@ async def _get_business_terms_or_classifications(business: str, type: str) -> li
         url=str(tool_helper_service.base_url) + "/v3/search",
         json=payload,
         tool_name="search_lineage_assets",
-        params={"auth_cache": True},
+        params={"auth_cache": True, "tenant_scope": True},
     )
     name = ""
     business_id = ""
@@ -549,71 +549,7 @@ def _handle_asset_selection_and_filters(
     return end_lineage_list
 
 
-@service_registry.tool(
-    name="lineage_search_lineage_assets",
-    description="""**REQUIRED FIRST STEP**: Searches for assets by name and returns their lineage IDs.
-    
-    **CRITICAL**: This tool MUST be called before get_lineage_graph when you have:
-    - Asset names (e.g., "customer_table", "sales_data")
-    - Partial asset names or search patterns
-    - Any non-hexadecimal identifier
-    
-    This tool converts human-readable asset names into the 64-character hexadecimal
-    lineage IDs required by get_lineage_graph. Results include the lineage ID in the
-    'id' field of each asset.
-
-    User can ask to compare the state of the asset between two versions returned by lineage_get_lineage_versions - use
-    the dates fields then. Otherwise the dates field should be none.
-    
-    Workflow:
-    1. Call this tool with asset name → Get lineage ID from results
-    2. Pass the lineage ID to get_lineage_graph → Get lineage graph
-    
-    Args:
-        name_query (str): Search pattern for asset names. Use "*" to match all assets.
-            Exact matches are prioritized over partial matches.
-        is_operational (bool): Filter for operational asset types only. Default: False
-        tag (Optional[str]): Filter assets by specific tag
-        data_quality_operator (Optional[str]): Comparison operator for data quality score
-            ("equals", "greater_than", "greater_than_or_equal", "less_than", "less_than_or_equal")
-        data_quality_value (float): Numerical threshold for data quality filtering (valid range: 0.0-100.0).
-            Used with data_quality_operator. Note: The internal sentinel value -0.01 is reserved
-            and automatically set when no value is provided.
-        business_term (Optional[str]): Filter by business glossary term
-        business_classification (Optional[str]): Filter by business classification
-        technology_name (str): Filter by technology name (e.g., "PostgreSQL"). 
-            Only use when explicitly specified by user
-        asset_type (str): Filter by asset type (e.g., "Table", "Column"). 
-            Only use when explicitly specified by user
-        dates (Optional[str]): ISO 8601 dates to validate if assets were available in that version. Used when comparing versions
-    
-    Returns:
-        str: Search results containing:
-            - lineage_assets: List of matching assets with properties:
-                * id: **64-character hexadecimal lineage ID** (use this for get_lineage_graph)
-                * name: Display name of the asset
-                * type: Asset type classification
-                * tags: Associated tags
-                * identity_key: Resource identity key with parent hierarchy
-                * parent_name: Name of the parent asset
-                * parent_type: Type of the parent asset
-            - response_is_complete: Boolean indicating whether all results are included
-    
-    Raises:
-        ExternalServiceError: When the API request fails (non-200 status code)
-        ToolProcessFailedError: When the response is missing expected data
-    
-    Notes:
-        - Returns an empty list if no query or filters are provided
-        - Returns an empty list if no matching assets are found
-        - Use None or empty string for unspecified optional filters (not "null" string)
-        - Apply filters only when explicitly mentioned by the user
-        - **Extract the 'id' field from results to use with get_lineage_graph**
-        - If user wants related assets call get_lineage_graph after this tool
-    """,
-)
-@auto_context
-async def search_lineage_assets(
+async def _search_lineage_assets(
     request: SearchLineageAssetsRequest,
 ) -> SearchLineageAssetsResponse:
 
@@ -724,10 +660,71 @@ async def search_lineage_assets(
     Use filters only if user mentions them. Try to find the best match for filters.
     Do not shorten the results. Returnes an empty list if no query or filters are given.
     Method can return an empty list if no assets where found or if user has input no data.
-    If user did not specify a filter do not send 'null' as string - use None or '' instead.""",
+    If user did not specify a filter do not send 'null' as string - use None or '' instead.
+    
+    **REQUIRED FIRST STEP**: Searches for assets by name and returns their lineage IDs.
+    
+    **CRITICAL**: This tool MUST be called before get_lineage_graph when you have:
+    - Asset names (e.g., "customer_table", "sales_data")
+    - Partial asset names or search patterns
+    - Any non-hexadecimal identifier
+    
+    This tool converts human-readable asset names into the 64-character hexadecimal
+    lineage IDs required by get_lineage_graph. Results include the lineage ID in the
+    'id' field of each asset.
+    User can ask to compare the state of the asset between two versions returned by lineage_get_lineage_versions - use
+    the dates fields then. Otherwise the dates field should be none.
+    
+    Workflow:
+    1. Call this tool with asset name → Get lineage ID from results
+    2. Pass the lineage ID to get_lineage_graph → Get lineage graph
+    
+    Args:
+        name_query (str): Search pattern for asset names. Use "*" to match all assets.
+            Exact matches are prioritized over partial matches.
+        is_operational (bool): Filter for operational asset types only. Default: False
+        tag (Optional[str]): Filter assets by specific tag
+        data_quality_operator (Optional[str]): Comparison operator for data quality score
+            ("equals", "greater_than", "greater_than_or_equal", "less_than", "less_than_or_equal")
+        data_quality_value (float): Numerical threshold for data quality filtering (valid range: 0.0-100.0).
+            Used with data_quality_operator. Note: The internal sentinel value -0.01 is reserved
+            and automatically set when no value is provided.
+        business_term (Optional[str]): Filter by business glossary term
+        business_classification (Optional[str]): Filter by business classification
+        technology_name (str): Filter by technology name (e.g., "PostgreSQL"). 
+            Only use when explicitly specified by user
+        asset_type (str): Filter by asset type (e.g., "Table", "Column"). 
+            Only use when explicitly specified by user
+        dates (Optional[str]): ISO 8601 dates to validate if assets were available in that version. Used when comparing versions
+    
+    Returns:
+        str: Search results containing:
+            - lineage_assets: List of matching assets with properties:
+                * id: **64-character hexadecimal lineage ID** (use this for get_lineage_graph)
+                * name: Display name of the asset
+                * type: Asset type classification
+                * tags: Associated tags
+                * identity_key: Resource identity key with parent hierarchy
+                * parent_name: Name of the parent asset
+                * parent_type: Type of the parent asset
+            - response_is_complete: Boolean indicating whether all results are included
+    
+    Raises:
+        ExternalServiceError: When the API request fails (non-200 status code)
+        ToolProcessFailedError: When the response is missing expected data
+    
+    Notes:
+        - Returns an empty list if no query or filters are provided
+        - Returns an empty list if no matching assets are found
+        - Use None or empty string for unspecified optional filters (not "null" string)
+        - Apply filters only when explicitly mentioned by the user
+        - **Extract the 'id' field from results to use with get_lineage_graph**
+        - If user wants related assets call get_lineage_graph after this tool
+    """,
+    tags={"custom_tool"},
 )
 @auto_context
-async def wxo_search_lineage_assets(
+async def search_lineage_assets(
     name_query: str,
     is_operational: Optional[bool] = None,
     tag: Optional[str] = None,
@@ -739,7 +736,7 @@ async def wxo_search_lineage_assets(
     asset_type: Optional[str] = None,
     dates: Optional[str] = None,
 ) -> SearchLineageAssetsResponse:
-    """Watsonx Orchestrator compatible version of search_lineage_assets."""
+    """Wrapper for search_lineage_assets."""
 
     request = SearchLineageAssetsRequest(
         name_query=name_query,
@@ -755,4 +752,4 @@ async def wxo_search_lineage_assets(
     )
 
     # Call the original search_lineage_assets function
-    return await search_lineage_assets(request)
+    return await _search_lineage_assets(request)

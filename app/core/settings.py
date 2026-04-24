@@ -5,7 +5,7 @@
 # This file has been modified with the assistance of IBM Bob AI Tool
 
 import os
-from pydantic import AnyHttpUrl
+from pydantic import AnyHttpUrl, field_validator
 from pydantic_settings import (
     BaseSettings,
     SettingsConfigDict,
@@ -20,11 +20,18 @@ ENV_MODE_CPD = "CPD"
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
+        str_strip_whitespace=True,
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",  # Ignore extra fields like old TOKEN setting
     )
+
+    @field_validator("di_service_url", mode="before")
+    @classmethod
+    def strip_slashes(cls, v: str) -> str:
+        if isinstance(v, str):
+            return v.strip().strip("/")
 
     # HTTP Client Settings
     request_timeout_s: int = 60

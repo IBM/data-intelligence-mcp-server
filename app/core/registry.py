@@ -159,6 +159,12 @@ class ServiceRegistry:
         Returns:
             An instance of return_type with error information, or raises if unable to create
         """
+        # Check if return_type is a typing generic (like List, Dict, etc.)
+        # These cannot be instantiated directly, so create a generic error response
+        import typing
+        if hasattr(typing, 'get_origin') and typing.get_origin(return_type) is not None:
+            return str(error_message)
+        
         # Strategy 1: Try with both error and success fields
         try:
             return return_type(error=error_message, success=False)
@@ -185,8 +191,8 @@ class ServiceRegistry:
             if hasattr(response, 'success'):
                 response.success = False
             return response
-        except Exception as e3:
-            LOGGER.error(f"Failed to create default response: {e3}")
+        except Exception as e4:
+            LOGGER.error(f"Failed to create default response: {e4}")
             raise
 
     def _create_wxo_error_wrapper(self, func: Callable, tool_name: str) -> Callable:

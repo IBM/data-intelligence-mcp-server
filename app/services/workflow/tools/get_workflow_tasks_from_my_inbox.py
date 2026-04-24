@@ -15,10 +15,13 @@ from app.services.constants import WORKFLOW_TASK_ENDPOINT
 from app.services.workflow.models.get_workflow_tasks_from_my_inbox import Task, GetMyTasksRequest, GetMyTasksResponse
 from app.services.workflow.utils.task_formatters import format_tasks_as_table, sort_tasks_by_priority
 from app.services.workflow.tools.utils import ZERO_MINUTES
+from app.services.workflow.utils.user_mappers import convert_iam_id_to_email, process_candidate_users
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
+from app.shared.utils.client_detection import supports_rich_text_format
 from app.core.settings import settings, ENV_MODE_SAAS
 
+from fastmcp.server.context import Context
 from fastmcp.exceptions import ToolError
 
 def transform_base_url_to_ui_url(input_url: str) -> str:
@@ -68,13 +71,21 @@ def _parse_task_title_from_json(task_title_raw: str) -> Optional[str]:
         task_title_raw: Raw task title string in JSON format
         
     Returns:
-        Parsed task title or None if parsing fails
+        Parsed task title or original string if parsing fails
     """
     try:
         task_title_json = json.loads(task_title_raw.strip())
         default_message = task_title_json.get("defaultMessage", "")
-        artifact_name = task_title_json.get("artifactName", "")
-        artifact_type_key = task_title_json.get("§artifactType", "")
+        artifact_name = task_title_json.get("artifactName")
+        artifact_type_key = task_title_json.get("§artifactType")
+        
+        # If defaultMessage is empty, return empty string
+        if not default_message:
+            return ""
+        
+        # Return original raw string if required fields are missing or empty
+        if not artifact_name or not artifact_type_key:
+            return task_title_raw
         
         # Extract artifact type from the translation key
         artifact_type = "artifact"
@@ -92,7 +103,42 @@ def _parse_task_title_from_json(task_title_raw: str) -> Optional[str]:
         return task_title_raw
 
 
-def _create_task_from_data(task_data: dict) -> Task:
+def _extract_task_title(metadata: dict, entity: dict) -> str:
+    """
+    Extract and format task title from metadata and entity.
+    
+    Args:
+        metadata: Task metadata dictionary
+        entity: Task entity dictionary
+        
+    Returns:
+        Formatted task title
+    """
+    task_title_raw = entity.get("task_title", "")
+    task_title = _parse_task_title_from_json(task_title_raw) if task_title_raw else None
+    
+    if task_title is None:
+        task_title = metadata.get("name", "Untitled Task")
+    
+    return task_title
+
+
+def _parse_due_date(due_date_str: str) -> Optional[datetime]:
+    """
+    Parse due date string to datetime object.
+    
+    Args:
+        due_date_str: Due date string from API
+        
+    Returns:
+        datetime object if parsing succeeds, None otherwise
+    """
+    if not due_date_str:
+        return None
+    return datetime.fromisoformat(due_date_str.replace("Z", ZERO_MINUTES))
+
+
+async def _create_task_from_data(task_data: dict) -> Task:
     """
     Create a Task object from raw task data.
     
@@ -105,23 +151,17 @@ def _create_task_from_data(task_data: dict) -> Task:
     metadata = task_data.get("metadata", {})
     entity = task_data.get("entity", {})
     
-    # Convert variables list to dict
-    variables_list = entity.get("variables", [])
-    variables_dict = _convert_variables_to_dict(variables_list)
+    # Extract and process data
+    variables_dict = _convert_variables_to_dict(entity.get("variables", []))
+    task_title = _extract_task_title(metadata, entity)
+    due_date = _parse_due_date(entity.get("due_date"))
     
-    # Parse task_title to extract the formatted title
-    task_title_raw = entity.get("task_title", "")
-    task_title = _parse_task_title_from_json(task_title_raw) if task_title_raw else None
+    # Process IAM ID to email conversions
+    assignee_iam_id = entity.get("assignee")
+    assignee = await convert_iam_id_to_email(assignee_iam_id, "assignee") if assignee_iam_id else None
+    candidate_users = await process_candidate_users(entity.get("candidate_users"))
     
-    # If task_title is still None, fall back to task_name
-    if task_title is None:
-        task_title = metadata.get("name", "Untitled Task")
-    
-    # Parse due_date if present
-    due_date = None
-    if entity.get("due_date"):
-        due_date = datetime.fromisoformat(entity.get("due_date").replace("Z", ZERO_MINUTES))
-    
+    # Build and return Task object
     return Task(
         task_id=metadata.get("task_id"),
         task_name=metadata.get("name", "Untitled Task"),
@@ -131,10 +171,10 @@ def _create_task_from_data(task_data: dict) -> Task:
         created_at=datetime.fromisoformat(metadata.get("created_at").replace("Z", ZERO_MINUTES)),
         due_date=due_date,
         priority=entity.get("priority"),
-        assignee=entity.get("assignee"),
+        assignee=assignee,
         form_key=entity.get("form_key"),
         state=metadata.get("state"),
-        candidate_users=entity.get("candidate_users"),
+        candidate_users=candidate_users,
         candidate_groups=entity.get("candidate_groups"),
         variables=variables_dict
     )
@@ -169,7 +209,11 @@ async def _retrieve_my_tasklist_from_workflow(
 
         # Schema: resources[]->Items->(metadata, entity)
         item_list = response.get('resources', [])
-        return [_create_task_from_data(task_data) for task_data in item_list]
+        tasks = []
+        for task_data in item_list:
+            task = await _create_task_from_data(task_data)
+            tasks.append(task)
+        return tasks
 
     except Exception as e:
         LOGGER.error(f"Error retrieving tasks from workflow: {str(e)}")
@@ -188,10 +232,7 @@ def _build_task_url(task_id: str) -> str:
     """
     return f"{tool_helper_service.base_url}{WORKFLOW_TASK_ENDPOINT}/{task_id}"
 
-
-@service_registry.tool(
-    name="get_workflow_tasks_from_my_inbox",
-    description="""
+get_workflow_tasks_from_my_inbox_description="""
     Retrieve tasks from workflow task inbox for the current user.
 
     This tool fetches tasks assigned to you or tasks you are candidates for in governance workflows.
@@ -201,14 +242,19 @@ def _build_task_url(task_id: str) -> str:
     ALWAYS render the result as table if called with format='table' parameter
 
     Make sure to use a request json object for the parameters.
-    """,
+    """
+
+@service_registry.tool(
+    name="get_workflow_tasks_from_my_inbox",
+    description=get_workflow_tasks_from_my_inbox_description,
     tags={"workflow", "flowable", "tasks", "governance", "glossary"},
     meta={"version": "2.0", "service": "task_inbox"},
 )
 
-@auto_context
+#@auto_context
 async def get_workflow_tasks_from_my_inbox(
     request: GetMyTasksRequest,
+    ctx: Context
 ) -> GetMyTasksResponse:
     """
     Get tasks from workflow task inbox for the current user.
@@ -224,6 +270,12 @@ async def get_workflow_tasks_from_my_inbox(
         f"max_results: {request.max_results}, "
         f"format: {request.format}"
     )
+    
+    # Auto-detect clients that don't support rich text and switch to JSON format if needed
+    # Some clients don't handle markdown tables well, so we default to JSON
+    if not supports_rich_text_format(ctx) and request.format == "table":
+        LOGGER.info("Client without rich text support detected: switching format from 'table' to 'json'")
+        request.format = "json"
 
     tasks = await _retrieve_my_tasklist_from_workflow(
         max_results=request.max_results,
@@ -257,24 +309,7 @@ async def get_workflow_tasks_from_my_inbox(
 
 @service_registry.tool(
     name="get_workflow_tasks_from_my_inbox",
-    description="""Watsonx Orchestrator compatible wrapper for get_workflow_tasks_from_my_inbox
-    Retrieve tasks from workflow task inbox for the current user.
-
-    This tool fetches tasks assigned to you or tasks you are candidates for in governance workflows.
-    
-    Returns tasks in a formatted table showing:
-    - Task Title (clickable link to task)
-    - Claimed status (shows "Yes" if you've claimed the task, empty if unclaimed)
-    - Assigned time (how long ago the task was created, e.g., "2 days ago")
-    - Due date with status indicators:
-      * Normal: "YYYY-MM-DD" (due date more than 48 hours away)
-      * At Risk: "⚠️ YYYY-MM-DD" (due within 48 hours)
-      * Overdue: "❌ YYYY-MM-DD" (past due date)
-    
-    Use format='json' for raw task data or format='table' (default) for formatted output.
-
-    Make sure to use a request json object for the parameters.
-    """,
+    description="Watsonx Orchestrator compatible wrapper for get_workflow_tasks_from_my_inbox. " + get_workflow_tasks_from_my_inbox_description,
     tags={"wxo", "workflow", "flowable", "tasks", "governance", "glossary"},
     meta={"version": "2.0", "service": "task_inbox"},
 )

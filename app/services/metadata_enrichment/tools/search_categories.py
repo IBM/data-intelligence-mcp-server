@@ -69,7 +69,7 @@ async def search_categories() -> List[str]:
             },
         },
     }
-    params = {"auth_scope": auth_scope}
+    params = {"auth_scope": auth_scope, "tenant_scope": True}
 
     response = await tool_helper_service.execute_post_request(
         url=str(tool_helper_service.base_url) + GS_BASE_ENDPOINT,

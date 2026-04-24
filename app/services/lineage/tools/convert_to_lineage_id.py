@@ -15,12 +15,7 @@ from app.shared.utils.helpers import is_uuid
 from app.shared.utils.tool_helper_service import tool_helper_service
 
 
-@service_registry.tool(
-    name="lineage_convert_to_lineage_id",
-    description="Converts asset IDs from container scope into a unique lineage identifier required by other lineage tools.",
-)
-@auto_context
-async def convert_to_lineage_id(
+async def _convert_to_lineage_id(
     input: ConvertToLineageIdRequest,
 ) -> ConvertToLineageIdResponse:
     is_uuid(input.container_id)
@@ -57,14 +52,15 @@ async def convert_to_lineage_id(
 @service_registry.tool(
     name="lineage_convert_to_lineage_id",
     description="Converts asset IDs from container scope into a unique lineage identifier required by other lineage tools.",
+    tags={"custom_tool"},
 )
 @auto_context
-async def wxo_convert_to_lineage_id(
+async def convert_to_lineage_id(
     container_id: str, asset_id: str
 ) -> ConvertToLineageIdResponse:
-    """Watsonx Orchestrator compatible version that expands ConvertToLineageIdRequest object into individual parameters."""
+    """Wrapper that expands ConvertToLineageIdRequest object into individual parameters."""
 
     request = ConvertToLineageIdRequest(container_id=container_id, asset_id=asset_id)
 
     # Call the original convert_to_lineage_id function
-    return await convert_to_lineage_id(request)
+    return await _convert_to_lineage_id(request)

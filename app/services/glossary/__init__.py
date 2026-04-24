@@ -4,16 +4,12 @@
 
 from app.services.glossary.tools.explain_glossary_artifact import (
     explain_glossary_artifact,
-    wxo_explain_glossary_artifact,
 )
 from app.services.glossary.tools.get_glossary_artifacts_for_asset import (
     get_glossary_artifacts_for_asset,
-    wxo_get_glossary_artifacts_for_asset,
 )
 
 __all__ = [
     "explain_glossary_artifact",
-    "wxo_explain_glossary_artifact",
     "get_glossary_artifacts_for_asset",
-    "wxo_get_glossary_artifacts_for_asset",
 ]

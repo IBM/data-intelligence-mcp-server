@@ -32,7 +32,8 @@ VALID_NAMED_ENTITIES: list[str] = [
     "connection",
     "metadata_import",
     "metadata_enrichment_area",
-    "category"
+    "category",
+    "user"
 ]
 
 # Governance artifact types that share the glossary-term URL pattern.
@@ -71,6 +72,8 @@ TOOL_DESCRIPTION = """Understand user's request about searched items and return 
                         - Search for assets and columns in project AgentTest: search_prompt="Search for assets and columns in project AgentTest", container_type="project", container_name="AgentTest", artifact_types=["data_asset", "data_asset_column"]
                         - Search for assets in project AgentsDemo that are sourced from connection testConnName: search_prompt="Search for assets in project AgentsDemo that are sourced from connection testConnName", container_name="AgentsDemo", container_type="project", names_mapping=[{"name": "testConnName", "type": "connection"}]
                         - Search for assets in project AgentsDemo that are from MDI testMDIName: search_prompt="Search for assets in project AgentsDemo that are from MDI testMDIName", container_name="AgentsDemo", container_type="project", names_mapping=[{"name": "testMDIName", "type": "metadata_import"}]
+                        - Show me assets modified by me: search_prompt="Show me assets modified by me"
+                        - Find assets created by user jacob: search_prompt="Find assets created by user jacob", names_mapping=[{"name": "jacob", "type": "user"}]
                        
                        IMPORTANT CONSTRAINTS:
                        - values are wrapped in the request
@@ -81,10 +84,14 @@ TOOL_DESCRIPTION = """Understand user's request about searched items and return 
                        - If the user specified a type of asset, populate the 'artifact_types' parameter with that value. Otherwise, leave the 'artifact_types' parameter as "data_asset".
                             Possible artifact types: [data_asset, data_asset_column, connection, ibm_data_source, data_rule, data_rule_definition, glossary_term, category, job, classification, data_class, data_protection_rule, reference_data ]
                             Use only types specified in the list above.
-                       - If the user mentions named entities (like specific connection names or metadata import area names) that are NOT catalog/project names, use the names_mapping parameter.
+                       - Current user context is ALWAYS sent by default. The tool automatically includes current user details in every query.
+                       - If the user mentions named entities (like specific connection names, metadata import area names, or OTHER user names) that are NOT catalog/project names, use the names_mapping parameter.
                             Format: [{"name": "entityName", "type": "entityType"}]
-                            Supported types: "connection", "metadata_import", "metadata_enrichment_area", "category"
+                            Supported types: "connection", "metadata_import", "metadata_enrichment_area", "category", "user"
                             The tool will automatically resolve these names to IDs and pass them to the query generation API.
+                            For user type, you can specify other users by name (e.g., "jacob", "john.doe") to search for assets related to those specific users.
+                            Example:
+                            - Search for assets created by user jacob: names_mapping=[{"name": "jacob", "type": "user"}]
                        - Invalid values will result in errors
                        - ALWAYS include subset or whole list of found data in your response with all details.
                        - If there's search query included in the response please return it."""

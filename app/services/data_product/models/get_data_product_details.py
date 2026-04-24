@@ -18,13 +18,13 @@ from typing import Optional, List, Dict, Any
 
 
 class GetDataProductDetailsRequest(BaseModel):
-    data_product_id: Optional[str] = Field(
+    data_product_version_id: Optional[str] = Field(
         default=None,
-        description="Optional ID of the data product for which to get the details. Provide either data_product_id or data_product_name."
+        description="Optional ID of the data product version for which to get the details. Provide either data_product_version_id or data_product_name."
     )
     data_product_name: Optional[str] = Field(
         default=None,
-        description="Optional name of the data product for which to get the details. Provide either data_product_id or data_product_name."
+        description="Optional name of the data product for which to get the details. Provide either data_product_version_id or data_product_name."
     )
 
 

@@ -47,6 +47,7 @@ async def attach_business_domain_to_data_product(
     for result in response["results"]:
         if result["metadata"]["name"].lower() == request.domain.lower():
             domain_id = result["metadata"]["asset_id"]
+            break
         available_domains.append(result["metadata"]["name"])
 
     if not domain_id:

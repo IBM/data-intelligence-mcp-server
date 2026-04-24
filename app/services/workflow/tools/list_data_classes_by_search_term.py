@@ -11,6 +11,8 @@ This module provides functionality to query the glossary API for data classes
 and establish their mapping to artifact IDs.
 """
 
+import logging
+
 from typing import List, Dict, Optional
 from app.core.registry import service_registry
 from app.services.constants import SEARCH_PATH, GLOSSARY_DATA_CLASS_ENDPOINT, GLOSSARY_ARTIFACT_TYPES_ENDPOINT, GLOSSARY_DATA_CLASS
@@ -25,6 +27,7 @@ from app.services.workflow.tools.utils import _query_artifact_in_draft_by_term, 
 from app.services.workflow.utils.task_formatters import format_artefacts_as_table, prompt_user_for_artifact_selection
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
+from app.shared.utils.client_detection import supports_rich_text_format
 
 from fastmcp.exceptions import ToolError
 from fastmcp.server.context import Context
@@ -93,12 +96,6 @@ async def _handle_elicitation(
     if len(data_classes) <= 1 or ctx is None:
         return data_classes
 
-    
-    # Generate formatted output for elicitation
-    formatted_output = format_artefacts_as_table(
-        artefacts=data_classes,
-        base_url=str(tool_helper_service.base_url)
-    )
     
     try:
         data_class_names = [data_class.name for data_class in data_classes]
@@ -172,14 +169,16 @@ def _build_json_response(data_classes: List[DataClass]) -> ListDataClassesRespon
         formatted_output=None
     )
 
-@service_registry.tool(
-    name="list_data_classes_by_search_term",
-    description="""
+list_data_classes_by_search_term_description="""
 list_data_classes_by_search_term returns a list of all data classes as objects of a data governance workflow pertaining to the search term
 with the artifact_id included. Always define the draft parameter: if the text refers to future approvals set it true, otherwise false.
 If you find markdown text in the result show it to the user.
 ALWAYS use a request json object to encapsulate the parameters.
-    """,
+"""
+
+@service_registry.tool(
+    name="list_data_classes_by_search_term",
+    description=list_data_classes_by_search_term_description,
     tags={"workflow", "glossary", "data_classes", "governance"},
     meta={"version": "1.0", "service": "glossary"},
 )
@@ -202,6 +201,12 @@ async def list_data_classes_by_search_term(
         f"Listing glossary data classes with max_results: {request.max_results}, "
         f"draft mode: {request.draft}, format: {request.format}"
     )
+    
+    # Auto-detect Claude Code and switch to JSON format if needed
+    # Some clients don't handle markdown tables well, so we default to JSON
+    if not supports_rich_text_format(ctx) and request.format == "table":
+        LOGGER.info("Client without rich text support detected: switching format from 'table' to 'json'")
+        request.format = "json"
 
     # Fetch data classes
     data_classes = await _fetch_data_classes(request)
@@ -220,11 +225,7 @@ async def list_data_classes_by_search_term(
 
 @service_registry.tool(
     name="list_data_classes_by_search_term",
-    description="""Watsonx Orchestrator compatible wrapper for list_data_classes_by_search_term.
-list_data_classes_by_search_term returns a list of all data classes as objects of a data governance workflow pertaining to the search term
-with the artifact_id included. Always define the draft parameter: if the text refers to future approvals set it true, otherwise false.
-ALWAYS use a request json object to encapsulate the parameters.
-    """,
+    description="Watsonx Orchestrator compatible wrapper for list_data_classes_by_search_term. " + list_data_classes_by_search_term_description,
     tags={"workflow", "wxo", "glossary", "data_classes", "governance"},
     meta={"version": "1.0", "service": "glossary"},
 )
@@ -246,9 +247,10 @@ async def wxo_list_data_classes_by_search_term(
     
     # Create a minimal context for the main function
     class MinimalContext:
-        async def elicit(self, message, response_type):
+        def elicit(self, message, response_type):
             # Skip elicitation for wxo version
-            logger.info("Empty elicitation " + str(message) + ", " + str(response_type))
+            logger = logging.getLogger()
+            logger.info("Empty elicitation: " + str(message) + ", " + str(response_type))
             return None
     
     return await list_data_classes_by_search_term(request, MinimalContext())

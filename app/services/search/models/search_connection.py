@@ -5,10 +5,17 @@
 from pydantic import BaseModel, Field
 from app.shared.models import BaseResponseModel
 from typing import Optional, Literal
+from enum import StrEnum
+
+class ContainerType(StrEnum):
+    """Enum for container types"""
+    CATALOG = "catalog"
+    PROJECT = "project"
+    ALL = "all"
 
 class SearchConnectionRequest(BaseModel):
     container: Optional[str] = Field(None, description="Name or UUID of the project or catalog to search the connection within.")
-    container_type: Optional[Literal["catalog", "project"]] = Field(None, description="The container type in which to search connections")
+    container_type: ContainerType = Field(ContainerType.ALL, description="The container type in which to search connections")
     connection_name: Optional[str] = Field(None, description="Name of the connection to filter the connections by.")
     datasource_type: Optional[str] = Field(None, description="Datasource type name or UUID to filter connections by.")
     creator: Optional[str] = Field(None, description="Name, username, or ID of the creator of connection to filter connections by.")

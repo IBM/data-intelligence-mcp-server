@@ -215,5 +215,38 @@ class UIContent(BaseModel):
         component = MessageResponseComponent.create_text_response(text)
         return cls(components=[component])
 
+def escape_markdown_table_cell(value: Any) -> str:
+    """
+    Escape special characters in markdown table cells.
+    
+    Args:
+        value: The cell value to escape
+        
+    Returns:
+        str: The escaped string value
+    """
+    if value is None:
+        return ""
+    
+    # Convert to string
+    text = str(value)
+    
+    # Escape special characters that can break markdown tables
+    # Order matters: backslash first, then others
+    replacements = {
+        '\\': '\\\\',      # Backslash
+        '|': '\\|',        # Pipe (table delimiter)
+        '\n': '<br>',      # Newline
+        '\r': '',          # Carriage return (remove)
+        '\t': '    ',      # Tab (replace with spaces)
+        '\b': '',          # Backspace (remove)
+        '\0': '',          # Null character (remove)
+    }
+    
+    for char, replacement in replacements.items():
+        text = text.replace(char, replacement)
+    
+    return text
+
 
 

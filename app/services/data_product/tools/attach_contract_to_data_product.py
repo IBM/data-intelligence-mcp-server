@@ -165,88 +165,195 @@ def deep_merge(base: dict, override: dict) -> dict:
     return result
 
 
-def get_full_contract_terms_empty_values() -> dict:
-    return {
-        "documents":[
-            
-        ],
-        "overview":{
-            "api_version":None,
-            "kind": None,
-            "name": None,
-            "version": None,
-            "status": None,
-            "domain":{
-                "id": None,
-                "name": None
-            },
-            "authoritative_definitions": [
-                {
-                    "url": None,
-                    "type": None
-                }
-            ],
+def get_contract_terms_schema_documentation() -> str:
+    """
+    Returns a string representation of the contract terms schema for documentation purposes.
+    This shows the agent the structure without including problematic None values.
+    """
+    return """
+Contract Terms Schema Structure:
+{
+    "documents": [],  // Array of document objects
+    
+    "overview": {
+        "api_version": "string",
+        "kind": "string",
+        "name": "string",
+        "version": "string",
+        "status": "string",
+        "domain": {
+            "id": "string",
+            "name": "string"
         },
-        "description":{
-            "purpose": None,
-            "limitations": None,
-            "usage": None,
-            "authoritative_definitions": [
-                {
-                    "url": None,
-                    "type": None
-                }
-            ],
-            "custom_properties": [
-                {
-                    "property": None,
-                    "value": None
-                }
-            ]
-        },
-        "organization":[
+        "authoritative_definitions": [
             {
-                "user_id": None,
-                "role": None
+                "url": "string",
+                "type": "string"
+            }
+        ]
+    },
+    
+    "description": {
+        "purpose": "string",
+        "limitations": "string",
+        "usage": "string",
+        "authoritative_definitions": [
+            {
+                "url": "string",
+                "type": "string"
             }
         ],
-        "roles": [
+        "custom_properties": [
             {
-            "role": None
+                "property": "string",
+                "value": "string"
+            }
+        ]
+    },
+    
+    "team": {
+        "id": "string",
+        "name": "string",
+        "description": "string",
+        "members": [
+            {
+                "user_id": "string",
+                "role": "string"
             }
         ],
-        "price":{
-            "amount": None,
-            "currency": None,
-            "unit": None
-        },
-        "sla":[
+        "tags": [],
+        "custom_properties": [
             {
-                "default_element": None,
-                "properties":[
+                "property": "string",
+                "value": "string"
+            }
+        ],
+        "authoritative_definitions": [
+            {
+                "type": "string",
+                "url": "string"
+            }
+        ]
+    },
+    
+    "roles": [
+        {
+            "role": "string"
+        }
+    ],
+    
+    "price": {
+        "amount": "number",
+        "currency": "string",
+        "unit": "string"
+    },
+    
+    "sla": [
+        {
+            "default_element": "string",
+            "properties": [
                 {
-                    "property": None,
-                    "value": None
-                },
-                {
-                    "property": None,
-                    "value": None
+                    "property": "string",
+                    "value": "string"
                 }
             ]
         }
     ],
-    "support_and_communication":[
+    
+    "support_and_communication": [
         {
-            "channel": None,
-            "url": None
+            "channel": "string",
+            "url": "string"
         }
     ],
-    "custom_properties":[
+    
+    "custom_properties": [
         {
-            "property": None,
-            "value": None
+            "property": "string",
+            "value": "string"
         }
     ]
+}
+
+Example SLA structure:
+"sla": [
+    {
+        "default_element": "Standard SLA Policy",
+        "properties": [
+            {"property": "response_time", "value": "24 hours"},
+            {"property": "uptime", "value": "99.9%"}
+        ]
+    }
+]
+"""
+
+def _is_empty_value(value) -> bool:
+    """Check if a value is considered empty (None, empty list, or empty dict)."""
+    return value is None or value == [] or value == {}
+
+
+def _clean_dict(value: dict) -> dict | None:
+    """Clean a dictionary by recursively removing None and empty values."""
+    cleaned = {
+        k: _clean_value(v)
+        for k, v in value.items()
+        if not _is_empty_value(v)
+    }
+    return cleaned if cleaned else None
+
+
+def _clean_list(value: list) -> list | None:
+    """Clean a list by recursively removing None and empty values."""
+    cleaned_list = [_clean_value(item) for item in value if item is not None]
+    # Remove empty structures from list
+    cleaned_list = [item for item in cleaned_list if not _is_empty_value(item)]
+    return cleaned_list if cleaned_list else None
+
+
+def _clean_value(value):
+    """Recursively clean a value based on its type."""
+    if isinstance(value, dict):
+        return _clean_dict(value)
+    elif isinstance(value, list):
+        return _clean_list(value)
+    else:
+        return value
+
+
+def remove_none_values(obj: dict) -> dict:
+    """
+    Recursively remove None values and empty structures from a dictionary.
+    This prevents backend deserialization errors.
+    
+    Args:
+        obj: Dictionary to clean
+        
+    Returns:
+        Cleaned dictionary with None values and empty structures removed
+    """
+    result = {}
+    for key, value in obj.items():
+        cleaned = _clean_value(value)
+        if not _is_empty_value(cleaned):
+            result[key] = cleaned
+    
+    return result
+
+def get_full_contract_terms_empty_values() -> dict:
+    """
+    Returns a minimal contract terms structure.
+    Use get_contract_terms_schema_documentation() for schema reference.
+    """
+    return {
+        "documents": [],
+        "overview": {},
+        "description": {},
+        "team": {},
+        "roles": [],
+        "price": {},
+        "sla": [],
+        "support_and_communication": [],
+        "custom_properties": []
     }
 
 @service_registry.tool(
@@ -445,14 +552,15 @@ async def create_and_attach_custom_contract(
 ) -> str:
     LOGGER.info(f"In data_product_create_and_attach_custom_contract, creating custom contract for data product draft {request.data_product_draft_id} with contract terms {request.contract_terms_id}")
     
-    # Get the full empty contract terms schema
-    full_contract_terms_empty_values = get_full_contract_terms_empty_values()
-    
-    # If contract_terms is not provided, this is the first call - display the empty schema
+    # If contract_terms is not provided, this is the first call - display the schema documentation
     if request.contract_terms is None:
-        LOGGER.info("Displaying empty contract schema to user")
+        LOGGER.info("Displaying contract schema documentation to user")
         
-        formatted_data = format_dict_for_table(full_contract_terms_empty_values)
+        schema_doc = get_contract_terms_schema_documentation()
+        
+        # Also show a minimal structure for UI table
+        minimal_structure = get_full_contract_terms_empty_values()
+        formatted_data = format_dict_for_table(minimal_structure)
         ui_message_context.add_table_ui_message(
             tool_name="create_and_attach_custom_contract",
             formatted_data=formatted_data,
@@ -460,12 +568,11 @@ async def create_and_attach_custom_contract(
         )
         
         result_message = "Here is the contract schema with all available fields:\n\n"
-        result_message += f"{full_contract_terms_empty_values}\n\n"
+        result_message += schema_doc + "\n\n"
         result_message += "Please review the schema and provide values for the fields you want to include in your custom contract.\n"
         result_message += "Note: Not all fields are mandatory. Only provide values for the fields you need.\n\n"
         result_message += "IMPORTANT: When providing contract_terms, you must follow the exact nested structure shown above.\n"
-        result_message += "For example, to set the name in overview, use: {\"overview\": {\"name\": \"My Product\"}}\n"
-        result_message += "The deep_merge function will combine your values with the schema structure.\n\n"
+        result_message += "For example, to set the name in overview, use: {\"overview\": {\"name\": \"My Product\"}}\n\n"
         result_message += "To proceed:\n"
         result_message += "- Call this tool again WITH contract_terms={...} containing your values (following the structure above)"
         return result_message
@@ -474,11 +581,11 @@ async def create_and_attach_custom_contract(
     if not request.contract_terms:
         return "Empty custom contract is not allowed. Please provide contract_terms with at least some values following the schema structure shown in the first call."
     
-    # Merge user-provided values with the empty schema
-    # This ensures we have the complete structure while only including user-provided values
-    LOGGER.info("Merging user-provided contract terms with empty schema")
-    contract_terms = deep_merge(full_contract_terms_empty_values, request.contract_terms)
-    LOGGER.info(f"Final contract terms: {contract_terms}")
+    # Clean the user-provided contract terms by removing None values and empty structures
+    # This prevents backend deserialization errors
+    LOGGER.info(f"User-provided contract terms: {request.contract_terms}")
+    contract_terms = remove_none_values(request.contract_terms)
+    LOGGER.info(f"Final contract terms after cleaning: {contract_terms}")
     
     # Attach the custom contract to the data product draft
     await tool_helper_service.execute_put_request(
