@@ -7,10 +7,7 @@ from app.services.data_protection_rules.models.search_rule import (
     SearchDataProtectionRuleResponse,
 )
 from app.shared.exceptions.base import ExternalAPIError, ServiceError
-from app.core.auth import get_access_token
 from app.shared.ui_message.ui_message_context import ui_message_context
-from app.shared.utils.http_client import get_http_client
-from app.services.constants import JSON_CONTENT_TYPE
 from app.core.settings import settings, ENV_MODE_SAAS
 from app.shared.logging import LOGGER, auto_context
 from app.services.constants import SEARCH_PATH
@@ -21,20 +18,8 @@ TABLE_TITLE_DATA_PROTECTION_RULES="Data protection rules"
 METADATA_NAME = "metadata.name"
 METADAT_DESCRIPTION = "metadata.description"
 
-@service_registry.tool(
-    name="data_protection_rule_search",
-    description="""
-    This tool searches all data protection rules to return data protection rules that match the given search query.
-    Example: 'Find all data protection rules with Deny name.'
-    In this case, data_protection_rule_search_query is 'Deny', and this tool returns all data protection rules that have Deny in their name or description.
-    Example: 'Show me all data protection rules'
-    In this case, data_protection_rule_search_query is '*'.
-    """,
-    tags={"search", "data_protection_rules"},
-    meta={"version": "1.0", "service": "data_protection_rules"},
-)
-@auto_context
-async def search_rules(
+
+async def _search_rules(
     request: SearchDataProtectionRuleRequest,
 ) -> SearchDataProtectionRuleResponse:
     LOGGER.info(
@@ -120,17 +105,17 @@ def format_data_protection_rule_for_table(data_protection_rules: list[dict]) -> 
     meta={"version": "1.0", "service": "data_protection_rules"},
 )
 @auto_context
-async def wxo_search_rule(
+async def search_rules(
     data_protection_rule_search_query: str
 ) -> SearchDataProtectionRuleResponse:
-    """Watsonx Orchestrator compatible version that expands SearchDataProductsRequest object into individual parameters."""
+    """Wrapper version that expands SearchDataProtectionRuleRequest object into individual parameters."""
 
     request = SearchDataProtectionRuleRequest(
         data_protection_rule_search_query=data_protection_rule_search_query,
     )
 
     # Call the original search_data_protection_rules function
-    return await search_rules(request)
+    return await _search_rules(request)
 
 def get_dps_search_payload(data_protection_rule_search_query: str) -> dict:
     if data_protection_rule_search_query == "*":

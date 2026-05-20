@@ -36,34 +36,7 @@ from app.shared.utils.tool_helper_service import tool_helper_service
 TOOL_NAME = "start_metadata_relationship_analysis"
 
 
-@service_registry.tool(
-    name="start_metadata_relationship_analysis",
-    description="""Starts a relationship analysis for a metadata enrichment area (MDE).
-
-    This tool initiates relationship analysis on datasets within a metadata enrichment area.
-    It supports various analysis types including primary key (PK) and foreign key (FK) analysis
-    at both shallow and deep levels, as well as overlap analysis.
-
-    Analysis Types:
-    - pk_deep: Deep primary key analysis
-    - fk_shallow: Shallow foreign key analysis
-    - fk_deep: Deep foreign key analysis
-    - overlap: Overlap analysis between datasets
-
-    The tool can analyze either all datasets in the MDE area or specific datasets.
-    Optional configuration parameters allow fine-tuning of the analysis behavior.
-
-    The execution process involves:
-    1. Confirming the project ID based on the provided project name.
-    2. Finding the metadata enrichment area ID based on the MDE area name.
-    3. Optionally confirming dataset IDs if specific datasets are provided.
-    4. Building the analysis configuration with optional parameters.
-    5. Executing the relationship analysis via the API.
-
-    Returns a response containing the job run ID and status of the analysis.""",
-)
-@auto_context
-async def start_relationship_analysis(
+async def _start_relationship_analysis(
     request: StartRelationshipAnalysisRequest,
 ) -> dict:
     """
@@ -206,10 +179,20 @@ async def start_relationship_analysis(
     - overlap: Overlap analysis between datasets
 
     The tool can analyze either all datasets in the MDE area or specific datasets.
-    Optional configuration parameters allow fine-tuning of the analysis behavior.""",
+    Optional configuration parameters allow fine-tuning of the analysis behavior.
+
+    The execution process involves:
+    1. Confirming the project ID based on the provided project name.
+    2. Finding the metadata enrichment area ID based on the MDE area name.
+    3. Optionally confirming dataset IDs if specific datasets are provided.
+    4. Building the analysis configuration with optional parameters.
+    5. Executing the relationship analysis via the API.
+
+    Returns a response containing the job run ID and status of the analysis.
+    """,
 )
 @auto_context
-async def wxo_start_relationship_analysis(
+async def start_relationship_analysis(
     project_name: str,
     mde_area_name: str,
     analysis_type: str,
@@ -222,7 +205,7 @@ async def wxo_start_relationship_analysis(
     auto_selection_threshold: Optional[float] = None,
     pk_min_confidence: Optional[float] = None,
 ) -> dict:
-    """Watsonx Orchestrator compatible version that expands StartRelationshipAnalysisRequest into individual parameters."""
+    """Wrapper that expands StartRelationshipAnalysisRequest into individual parameters."""
 
     request = StartRelationshipAnalysisRequest(
         project_name=project_name,
@@ -237,4 +220,4 @@ async def wxo_start_relationship_analysis(
         auto_selection_threshold=auto_selection_threshold,
         pk_min_confidence=pk_min_confidence,
     )
-    return await start_relationship_analysis(request)
+    return await _start_relationship_analysis(request)

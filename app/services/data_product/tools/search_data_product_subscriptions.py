@@ -94,6 +94,45 @@ def _build_response(response_data: Dict[str, Any] | bytes) -> SearchDataProductS
     )
 
 
+async def _search_data_product_subscriptions(
+    request: SearchDataProductSubscriptionsRequest,
+) -> SearchDataProductSubscriptionsResponse:
+    """
+    Search and filter data product subscriptions (asset lists).
+    
+    Fetches asset lists of type "order" which represent data product subscriptions,
+    with optional filtering, sorting, and pagination.
+    """
+    LOGGER.info(
+        f"In data_product_search_data_product_subscriptions tool, "
+        f"query={request.query}, limit={request.limit}, start={request.start}, sort={request.sort}"
+    )
+    
+    try:
+        asset_lists_url = f"{tool_helper_service.base_url}/v2/asset_lists"
+        params = _build_query_params(request)
+        
+        LOGGER.info(f"Fetching asset lists from: {asset_lists_url}")
+        LOGGER.debug(f"Query parameters: {params}")
+        
+        response_data = await tool_helper_service.execute_get_request(
+            url=asset_lists_url,
+            params=params,
+            tool_name="data_product_search_data_product_subscriptions"
+        )
+        
+        return _build_response(response_data)
+        
+    except ServiceError:
+        raise
+    except Exception as e:
+        error_message = f"Exception when searching data product subscriptions: {e!s}"
+        LOGGER.error(error_message)
+        raise ServiceError(
+            f"Failed to search data product subscriptions. {error_message}"
+        )
+
+
 @service_registry.tool(
     name="data_product_search_data_product_subscriptions",
     description="""
@@ -156,60 +195,6 @@ def _build_response(response_data: Dict[str, Any] | bytes) -> SearchDataProductS
     - List of subscriptions with metadata (ID, state, name, owner)
     - Pagination information (next, first links)
     - Total count of results
-    """,
-    tags={"read", "data_product", "subscriptions"},
-    meta={"version": "1.0", "service": "data_product"}
-)
-@auto_context
-async def search_data_product_subscriptions(
-    request: SearchDataProductSubscriptionsRequest,
-) -> SearchDataProductSubscriptionsResponse:
-    """
-    Search and filter data product subscriptions (asset lists).
-    
-    Fetches asset lists of type "order" which represent data product subscriptions,
-    with optional filtering, sorting, and pagination.
-    """
-    LOGGER.info(
-        f"In data_product_search_data_product_subscriptions tool, "
-        f"query={request.query}, limit={request.limit}, start={request.start}, sort={request.sort}"
-    )
-    
-    try:
-        asset_lists_url = f"{tool_helper_service.base_url}/v2/asset_lists"
-        params = _build_query_params(request)
-        
-        LOGGER.info(f"Fetching asset lists from: {asset_lists_url}")
-        LOGGER.debug(f"Query parameters: {params}")
-        
-        response_data = await tool_helper_service.execute_get_request(
-            url=asset_lists_url,
-            params=params,
-            tool_name="data_product_search_data_product_subscriptions"
-        )
-        
-        return _build_response(response_data)
-        
-    except ServiceError:
-        raise
-    except Exception as e:
-        error_message = f"Exception when searching data product subscriptions: {e!s}"
-        LOGGER.error(error_message)
-        raise ServiceError(
-            f"Failed to search data product subscriptions. {error_message}"
-        )
-
-
-@service_registry.tool(
-    name="data_product_search_data_product_subscriptions",
-    description="""
-    Search and filter data product subscriptions (asset lists) from IBM Cloud Data Product Hub.
-    
-    This tool searches asset lists of type "order" which represent data product subscriptions.
-    Returns subscription METADATA including ID, state, name, and owner information.
-    
-    **IMPORTANT**: To find subscriptions for a specific data product, use the asset.id from 
-    data_product_get_data_product_details (NOT the catalog ID!).
     
     Args:
         query: Optional CEL query to filter subscriptions. Examples:
@@ -227,13 +212,13 @@ async def search_data_product_subscriptions(
     meta={"version": "1.0", "service": "data_product"}
 )
 @auto_context
-async def wxo_search_data_product_subscriptions(
+async def search_data_product_subscriptions(
     query: Optional[str] = None,
     limit: Optional[int] = None,
     start: Optional[str] = None,
     sort: Optional[str] = None
 ) -> SearchDataProductSubscriptionsResponse:
-    """Watsonx Orchestrator compatible version that expands SearchDataProductSubscriptionsRequest object into individual parameters."""
+    """Wrapper version that expands SearchDataProductSubscriptionsRequest object into individual parameters."""
     
     request = SearchDataProductSubscriptionsRequest(
         query=query,
@@ -242,6 +227,6 @@ async def wxo_search_data_product_subscriptions(
         sort=sort
     )
     
-    return await search_data_product_subscriptions(request)
+    return await _search_data_product_subscriptions(request)
 
 # Made with Bob

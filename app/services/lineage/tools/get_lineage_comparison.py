@@ -5,6 +5,8 @@
 from typing import Any, Dict, List, Optional, Union
 from app.core.registry import service_registry
 from app.services.constants import LINEAGE_BASE_ENDPOINT
+from app.services.lineage.constants import SERVICE_UNAVAILABLE_MESSAGE
+from app.services.lineage.utils import handle_500_error
 from app.services.lineage.models.get_lineage_comparison import (
     GetLineageComparisonRequest,
     GetLineageComparisonResponse,
@@ -12,7 +14,7 @@ from app.services.lineage.models.get_lineage_comparison import (
     LineageComparisonEdge,
     LineageRequestBodyPart,
 )
-from app.shared.exceptions.base import ServiceError
+from app.shared.exceptions.base import ExternalAPIError, ServiceError
 from app.shared.logging.generate_context import auto_context
 from app.shared.logging.utils import LOGGER
 from app.shared.utils.helpers import parse_list_of_ids, verify_dates
@@ -144,13 +146,7 @@ def _transform_edges(edge_changes: List[Dict[str, Any]]) -> List[LineageComparis
     return lineage_edges_model
 
 
-@service_registry.tool(
-    name="lineage_get_lineage_comparison",
-
-    description=TOOLS_DESCRIPTION,
-)
-@auto_context
-async def get_lineage_comparison(
+async def _get_lineage_comparison(
     request: GetLineageComparisonRequest,
 ) -> GetLineageComparisonResponse:
 
@@ -188,10 +184,21 @@ async def get_lineage_comparison(
             "initial_asset_ids": graph_initial_ids
         }
 
-    response = await tool_helper_service.execute_post_request(
-        url=str(tool_helper_service.base_url) + LINEAGE_BASE_ENDPOINT + "/compare_lineage",
-        json=payload,
-    )
+    try:
+        response = await tool_helper_service.execute_post_request(
+            url=str(tool_helper_service.base_url) + LINEAGE_BASE_ENDPOINT + "/compare_lineage",
+            json=payload,
+        )
+    except ExternalAPIError as e:
+        return handle_500_error(
+            e,
+            lambda: GetLineageComparisonResponse(
+                lineage_assets=[],
+                lineage_edges=[],
+                success=False,
+                error=SERVICE_UNAVAILABLE_MESSAGE
+            )
+        )
 
     LOGGER.info(
         f"payload={payload}, "
@@ -215,14 +222,14 @@ async def get_lineage_comparison(
     description=TOOLS_DESCRIPTION,
 )
 @auto_context
-async def wxo_get_lineage_comparison(
+async def get_lineage_comparison(
     compared_lineage_assets: str,
     base_version: str,
     compared_version: str,
     initial_lineage_assets: Optional[str] = None,
 ) -> GetLineageComparisonResponse:
     """
-    Watsonx Orchestrator compatible version that expands GetLineageComparisonRequest object into individual parameters.
+    Wrapper version that expands GetLineageComparisonRequest object into individual parameters.
     """
     
     # Parse compared assets
@@ -243,6 +250,6 @@ async def wxo_get_lineage_comparison(
     )
 
     # Call the original get_lineage_comparison function
-    return await get_lineage_comparison(request)
+    return await _get_lineage_comparison(request)
 
 # Made with Bob

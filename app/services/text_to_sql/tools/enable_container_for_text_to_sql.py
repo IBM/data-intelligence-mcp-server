@@ -3,6 +3,7 @@
 # See the LICENSE file in the project root for license information.
 
 import time
+from typing import Literal
 
 from app.core.auth import get_bss_account_id, get_iam_url, get_user_identifier
 from app.core.registry import service_registry
@@ -12,11 +13,11 @@ from app.services.constants import (
     GROUPS_BASE_ENDPOINT,
     PROJECTS_BASE_ENDPOINT,
 )
-from app.services.text_to_sql.models.enable_project_for_text_to_sql import (
-    EnableProjectForTextToSqlRequest,
-    EnableProjectForTextToSqlResponse,
+from app.services.text_to_sql.models.enable_container_for_text_to_sql import (
+    EnableContainerForTextToSqlRequest,
+    EnableContainerForTextToSqlResponse,
 )
-from app.services.tool_utils import find_project_id, get_onboarding_job_run_url
+from app.services.tool_utils import find_project_id, find_catalog_id, get_onboarding_job_run_url
 from app.shared.exceptions.base import ServiceError
 from app.shared.logging.generate_context import auto_context
 from app.shared.logging.utils import LOGGER
@@ -38,7 +39,7 @@ async def _is_admin_of_container(container_id, container_type) -> bool:
 
     params = {"roles": "admin"}
     if container_type == "catalog":
-        params["limit"] = 100
+        params["limit"] = "100"
         params["member_type"] = "all"
 
     response = await tool_helper_service.execute_get_request(
@@ -75,35 +76,36 @@ async def _is_admin_of_container(container_id, container_type) -> bool:
     user_groups = [
         user_group.get("id", "") for user_group in response.get("groups", [])
     ]
-    return any([group_id in group_members for group_id in user_groups])
+    return any(group_id in group_members for group_id in user_groups)
 
 
-@service_registry.tool(
-    name="text_to_sql_enable_project_for_text_to_sql",
-    description="This tool enables the specified project for Text To SQL.",
-)
-@auto_context
-async def enable_project_for_text_to_sql(
-    input: EnableProjectForTextToSqlRequest,
-) -> EnableProjectForTextToSqlResponse:
+async def _enable_container_for_text_to_sql(
+    input: EnableContainerForTextToSqlRequest,
+) -> EnableContainerForTextToSqlResponse:
+
     LOGGER.info(
-        "Calling enable_project_for_text_to_sql, project_id_or_name: %s",
-        input.project_id_or_name,
+        "Calling enable_container_for_text_to_sql, container_id_or_name: %s, container_type: %s",
+        input.container_id_or_name,
+        input.container_type,
     )
-    project_id = await confirm_uuid(input.project_id_or_name, find_project_id)
+    container_id = ""
+    if input.container_type == "project":
+        container_id = await confirm_uuid(input.container_id_or_name, find_project_id)
+    elif input.container_type == "catalog":
+        container_id = await confirm_uuid(input.container_id_or_name, find_catalog_id)
 
-    if not await _is_admin_of_container(project_id, "project"):
+    if not await _is_admin_of_container(container_id, input.container_type):
         raise ServiceError(
-            f"Tool enable_project_for_text_to_sql failed because user is not admin of project {input.project_id_or_name}"
+            f"Tool enable_container_for_text_to_sql failed because user is not admin of {input.container_type} {container_id}"
         )
 
     params = {
-        "container_type": "project",
-        "container_id": project_id,
+        "container_type": input.container_type,
+        "container_id": container_id,
     }
 
     payload = {
-        "containers": [{"container_id": project_id, "container_type": "project"}],
+        "containers": [{"container_id": container_id, "container_type": input.container_type}],
         "description": "Onboard the asset containers for text2sql capability",
         "name": f"Onboard for generative AI {time.strftime('%Y-%m-%d %H-%M-%S')}",
     }
@@ -117,22 +119,23 @@ async def enable_project_for_text_to_sql(
     job_id = response.get("job_id", "")
     run_id = response.get("run_id", "")
 
-    return EnableProjectForTextToSqlResponse(
-        message=f"UI link to the onboarding job for enabling Project {input.project_id_or_name} for Text To SQL {get_onboarding_job_run_url(project_id, job_id, run_id)}"
+    return EnableContainerForTextToSqlResponse(
+        message=f"UI link to the onboarding job for enabling {input.container_type} {container_id} for Text To SQL {get_onboarding_job_run_url(container_id, input.container_type, job_id, run_id)}"
     )
 
 
 @service_registry.tool(
-    name="text_to_sql_enable_project_for_text_to_sql",
-    description="This tool enables the specified project for Text To SQL.",
+    name="text_to_sql_enable_container_for_text_to_sql",
+    description="This tool enables the specified project or catalog for Text To SQL.",
 )
 @auto_context
-async def wxo_enable_project_for_text_to_sql(
-    project_id_or_name: str,
-) -> EnableProjectForTextToSqlResponse:
-    """Watsonx Orchestrator compatible version that expands EnableProjectForTextToSqlRequest object into individual parameters."""
+async def enable_container_for_text_to_sql(
+    container_id_or_name: str,
+    container_type: Literal["catalog", "project"] = "project"
+) -> EnableContainerForTextToSqlResponse:
+    """Wrapper version that expands EnableProjectForTextToSqlRequest object into individual parameters."""
 
-    request = EnableProjectForTextToSqlRequest(project_id_or_name=project_id_or_name)
+    request = EnableContainerForTextToSqlRequest(container_id_or_name=container_id_or_name, container_type=container_type)
 
-    # Call the original enable_project_for_text_to_sql function
-    return await enable_project_for_text_to_sql(request)
+    # Call the original enable_container_for_text_to_sql function
+    return await _enable_container_for_text_to_sql(request)

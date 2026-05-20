@@ -18,23 +18,7 @@ from app.shared.utils.tool_helper_service import tool_helper_service
 from app.services.data_product.utils.common_utils import get_dph_default_project_id
 
 
-@service_registry.tool(
-    name="data_product_get_assets_from_container",
-    description="""
-    This tool gets assets from container. The container can be one of "catalog" or "project" - always ask container_type from user.
-    This is also called as the first step to create a data product from asset in container.
-    If you want to create a data product from asset in catalog, call
-        - data_product_get_assets_from_container tool with request.container_type="catalog"
-        - data_product_create_or_update_from_asset_in_container tool with request.container_type="catalog" and other parameters.
-    If you want to create a data product from asset in project, call
-        - data_product_get_assets_from_container tool with request.container_type="project"
-        - data_product_create_or_update_from_asset_in_container tool with request.container_type="project" and other parameters.  
-    """,
-    tags={"create", "data_product"},
-    meta={"version": "1.0", "service": "data_product"},
-)
-@auto_context
-async def get_assets_from_container(
+async def _get_assets_from_container(
     request: GetAssetsFromContainerRequest
 ) -> GetAssetsFromContainerResponse:
     # step 1: get assets from container
@@ -192,12 +176,12 @@ async def get_assets_from_project_payload() -> dict:
     meta={"version": "1.0", "service": "data_product"},
 )
 @auto_context
-async def wxo_get_assets_from_container(
+async def get_assets_from_container(
     container_type: Literal["catalog", "project"]
 ) -> GetAssetsFromContainerResponse:
 
     # Call the original get_assets_from_container function
-    return await get_assets_from_container(
+    return await _get_assets_from_container(
         GetAssetsFromContainerRequest(
             container_type=container_type
             )

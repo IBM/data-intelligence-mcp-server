@@ -22,6 +22,7 @@ from app.services.constants import (
     FIELD_PREFERENCES,
 )
 from app.services.metadata_enrichment.models.metadata_enrichment import MetadataImportResponse
+from app.services.search.models import container
 from app.shared.exceptions.base import ServiceError
 from app.shared.logging import LOGGER
 from app.shared.utils.helpers import get_closest_match, get_project_or_space_type_based_on_context, append_context_to_url, is_uuid
@@ -54,7 +55,8 @@ async def find_project_id(project_name: str) -> str:
     """
 
     params = {
-        "limit": 100
+        "limit": 100,
+        "bss_account_id": await get_bss_account_id()
     }
 
     response = await tool_helper_service.execute_get_request(
@@ -704,6 +706,7 @@ async def find_asset_id_exact_match(
     artifact_type: str = "data_asset",
     max_retries: int = 3,
     retry_delay: float = 2.0,
+    raise_errors: bool = True,
 ) -> str:
     """
     Find id of asset in specified project based on asset name.
@@ -716,6 +719,7 @@ async def find_asset_id_exact_match(
         artifact_type (str): The artifact type of the asset
         max_retries (int): Maximum number of retries if asset not found (default: 3)
         retry_delay (float): Delay in seconds between retries (default: 2.0)
+        raise_errors (bool): Whether to raise an error if asset not found (default: True) or simply return empty
 
     Returns:
         str: Unique identifier of the asset
@@ -726,7 +730,7 @@ async def find_asset_id_exact_match(
         query_container = ENTITY_ASSETS_PROJECT_ID
     
     query_params = {
-        "query": f"metadata.name:{asset_name} AND {query_container}:{container_id}",
+        "query": f"metadata.name:{asset_name} AND {query_container}:{container_id} AND {METADATA_ARTIFACT_TYPE}:{artifact_type}",
         "tenant_scope": True,
     }
     
@@ -758,11 +762,13 @@ async def find_asset_id_exact_match(
                 f"Retrying in {retry_delay}s (attempt {attempt + 1}/{max_retries})"
             )
             await asyncio.sleep(retry_delay)
-    
-    # All retries exhausted
-    raise ServiceError(
-        f"Couldn't find any datasets with the name '{asset_name}' in {container_type} '{container_id}'"
-    )
+
+    if raise_errors:
+        # All retries exhausted
+        raise ServiceError(
+            f"Couldn't find any datasets with the name '{asset_name}' in {container_type} '{container_id}'"
+        )
+    return ""
 
 
 def confirm_list_str(list_or_str: list[str] | str) -> list[str]:
@@ -1086,10 +1092,17 @@ async def check_if_container_is_enabled_for_text_to_sql(
     )
 
 
-def get_onboarding_job_run_url(project_id, job_id, run_id):
-    return append_context_to_url(
-        f"{tool_helper_service.ui_base_url}/jobs/{job_id}/runs/{run_id}?project_id={project_id}"
-    )
+def get_onboarding_job_run_url(container_id, container_type, job_id, run_id):
+    if container_type == "project":
+        return append_context_to_url(
+            f"{tool_helper_service.ui_base_url}/jobs/{job_id}/runs/{run_id}?project_id={container_id}"
+        )
+    elif container_type == "catalog":
+        return append_context_to_url(
+            f"{tool_helper_service.ui_base_url}/data/catalogs/{container_id}/asset/{job_id}"
+        )
+    else:
+        raise ValueError(f"Invalid container type: {container_type}")
 
 def _map_metadata_import(row: Any) -> MetadataImportResponse:
     metadata = row.get("metadata", [])

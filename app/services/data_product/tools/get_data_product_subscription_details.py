@@ -22,51 +22,7 @@ from app.shared.logging import LOGGER, auto_context
 from app.shared.exceptions.base import ServiceError
 
 
-@service_registry.tool(
-    name="data_product_get_data_product_subscription_details",
-    description="""
-    Retrieve the actual content (items) being delivered in a specific data product subscription.
-    
-    **IMPORTANT**: This tool requires a subscription ID. To find subscription IDs, first use
-    the data_product_search_data_product_subscriptions tool.
-    
-    This tool retrieves all items from a specific subscription (asset list) by its ID.
-    Each item represents a subscribed data product with detailed delivery information:
-    - Asset IDs and catalog information
-    - Delivery method details (e.g., Arrow Flight)
-    - Data product delivery state (e.g., succeeded, failed, in_progress)
-    - Output assets (flight descriptors for accessing data)
-    - Copy text for accessing the data
-    
-    Use this tool when you have a subscription ID and want to see:
-    - What data products are being delivered
-    - The delivery status of each item
-    - How to access the delivered data (flight descriptors)
-    
-    Features:
-    - Retrieve all items from a subscription
-    - Detailed delivery state for each item
-    - Access information (flight descriptors, copy text)
-    
-    Returns:
-    - List of items in the subscription with delivery details
-    - Total count of items
-    
-    **Workflow**: 
-    1. Use data_product_search_data_product_subscriptions to find subscriptions
-    2. Use this tool with the subscription ID to get the delivered items
-    
-    **Example Use Case**:
-    After finding a subscription with ID "abc-123-def", use this tool to see:
-    - Which data assets are being delivered
-    - The delivery state of each asset
-    - Flight descriptors or URLs to access the data
-    """,
-    tags={"read", "data_product", "subscriptions"},
-    meta={"version": "1.0", "service": "data_product"}
-)
-@auto_context
-async def get_data_product_subscription_details(
+async def _get_data_product_subscription_details(
     request: GetDataProductSubscriptionDetailsRequest,
 ) -> GetDataProductSubscriptionDetailsResponse:
     """
@@ -139,13 +95,40 @@ async def get_data_product_subscription_details(
     description="""
     Retrieve the actual content (items) being delivered in a specific data product subscription.
     
-    **IMPORTANT**: This tool requires a subscription ID from data_product_search_data_product_subscriptions.
+    **IMPORTANT**: This tool requires a subscription ID. To find subscription IDs, first use
+    the data_product_search_data_product_subscriptions tool.
     
-    Returns detailed information about each item in the subscription including:
-    - Asset IDs and types
-    - Delivery states (succeeded, failed, in_progress)
-    - Access information (flight descriptors, URLs)
-    - Delivery method details
+    This tool retrieves all items from a specific subscription (asset list) by its ID.
+    Each item represents a subscribed data product with detailed delivery information:
+    - Asset IDs and catalog information
+    - Delivery method details (e.g., Arrow Flight)
+    - Data product delivery state (e.g., succeeded, failed, in_progress)
+    - Output assets (flight descriptors for accessing data)
+    - Copy text for accessing the data
+    
+    Use this tool when you have a subscription ID and want to see:
+    - What data products are being delivered
+    - The delivery status of each item
+    - How to access the delivered data (flight descriptors)
+    
+    Features:
+    - Retrieve all items from a subscription
+    - Detailed delivery state for each item
+    - Access information (flight descriptors, copy text)
+    
+    Returns:
+    - List of items in the subscription with delivery details
+    - Total count of items
+    
+    **Workflow**: 
+    1. Use data_product_search_data_product_subscriptions to find subscriptions
+    2. Use this tool with the subscription ID to get the delivered items
+    
+    **Example Use Case**:
+    After finding a subscription with ID "abc-123-def", use this tool to see:
+    - Which data assets are being delivered
+    - The delivery state of each asset
+    - Flight descriptors or URLs to access the data
     
     Args:
         subscription_id: The ID of the subscription (asset list) to retrieve items from.
@@ -158,15 +141,15 @@ async def get_data_product_subscription_details(
     meta={"version": "1.0", "service": "data_product"}
 )
 @auto_context
-async def wxo_get_data_product_subscription_details(
+async def get_data_product_subscription_details(
     subscription_id: str
 ) -> GetDataProductSubscriptionDetailsResponse:
-    """Watsonx Orchestrator compatible version that expands GetDataProductSubscriptionDetailsRequest object into individual parameters."""
+    """Wrapper version that expands GetDataProductSubscriptionDetailsRequest object into individual parameters."""
     
     request = GetDataProductSubscriptionDetailsRequest(
         subscription_id=subscription_id
     )
     
-    return await get_data_product_subscription_details(request)
+    return await _get_data_product_subscription_details(request)
 
 # Made with Bob

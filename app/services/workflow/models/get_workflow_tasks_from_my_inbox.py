@@ -16,6 +16,7 @@ class Task(BaseModel):
     workflow_id: str = Field(..., description="Workflow ID")
     workflow_template_id: str = Field(..., description="Workflow template ID")
     created_at: datetime = Field(..., description="When the task was created")
+    claimed_at: Optional[datetime] = Field(None, description="When the task was claimed")
     due_date: Optional[datetime] = Field(None, description="Task due date if applicable")
     priority: Optional[int] = Field(None, description="Task priority (0-100)")
     assignee: Optional[str] = Field(None, description="Current assignee of the task")

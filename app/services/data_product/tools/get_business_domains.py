@@ -5,22 +5,7 @@ from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.logging import LOGGER, auto_context
 
 
-@service_registry.tool(
-    name="data_product_get_business_domains",
-    description="""
-    This tool gets all business domains listed in the system.
-    Use this tool if user is not sure of the business domain name or if the user asks for the list of business domains.
-    Example: What are the domains available?
-    Call: data_product_get_business_domains with keyword as None.
-    Optionally, user can provide a keyword to search for business domains. In this case, call the tool with the keyword.
-    Example: What are the domains available for customer data?
-    Call: data_product_get_business_domains with keyword as "customer".
-    """,
-    tags={"sample", "data_product"},
-    meta={"version": "1.0", "service": "data_product"}
-)
-@auto_context
-async def get_business_domains(
+async def _get_business_domains(
     request: GetBusinessDomainsRequest
 ) -> GetBusinessDomainsResponse:
     LOGGER.info(
@@ -74,14 +59,13 @@ async def get_business_domains(
     meta={"version": "1.0", "service": "data_product"}
 )
 @auto_context
-async def wxo_get_business_domains(
+async def get_business_domains(
     keyword: str | None = None
 ) -> GetBusinessDomainsResponse:
-    """Watsonx Orchestrator compatible version."""
 
     request = GetBusinessDomainsRequest(
         keyword=keyword
     )
 
-    return await get_business_domains(request)
+    return await _get_business_domains(request)
 

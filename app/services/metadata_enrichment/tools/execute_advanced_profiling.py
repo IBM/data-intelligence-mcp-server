@@ -34,32 +34,7 @@ from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import append_context_to_url, confirm_uuid
 
 
-@service_registry.tool(
-    name="execute_advanced_profiling",
-    description="""Executes advanced profiling on a metadata enrichment asset for selected datasets.
-
-    This tool runs advanced profiling on specified datasets within a metadata enrichment asset.
-    Advanced profiling provides detailed analysis including unique value distributions and 
-    comprehensive data quality metrics.
-
-    The tool supports four sampling presets:
-    - basic: Minimum sample size (1,000 rows, 100 values for classification) - optimized for speed
-    - moderate: Balanced approach (10,000 rows, 100 values for classification) - trade-off between speed and accuracy
-    - comprehensive: Large sample size (100,000 rows, all values for classification) - optimized for accuracy
-    - custom: User-defined sampling configuration via custom_sampling parameter
-
-    The execution process involves:
-    1. Confirming the project ID based on the provided project name.
-    2. Retrieving the metadata enrichment asset ID using its name.
-    3. Looking up dataset IDs from the provided dataset names.
-    4. Configuring sampling based on the selected preset or custom configuration.
-    5. Executing the advanced profiling job with the specified parameters.
-    6. Returning job details and a URL to monitor progress in the UI.
-
-    The function assumes the metadata enrichment asset and datasets exist within the project.""",
-)
-@auto_context
-async def execute_advanced_profiling(
+async def _execute_advanced_profiling(
     request: AdvancedProfilingRequest,
 ) -> AdvancedProfilingResponse:
 
@@ -174,13 +149,13 @@ async def execute_advanced_profiling(
     The function assumes the metadata enrichment asset and datasets exist within the project.""",
 )
 @auto_context
-async def wxo_execute_advanced_profiling(
+async def execute_advanced_profiling(
     project_name: str,
     metadata_enrichment_name: str,
     dataset_names: list[str] | str,
     sampling_preset: str = "basic",
 ) -> AdvancedProfilingResponse:
-    """Watsonx Orchestrator compatible version that expands AdvancedProfilingRequest into individual parameters."""
+    """Wrapper that expands AdvancedProfilingRequest into individual parameters."""
     
     request = AdvancedProfilingRequest(
         project_name=project_name,
@@ -188,4 +163,4 @@ async def wxo_execute_advanced_profiling(
         dataset_names=dataset_names,
         sampling_preset=SamplingPreset(sampling_preset),
     )
-    return await execute_advanced_profiling(request)
+    return await _execute_advanced_profiling(request)

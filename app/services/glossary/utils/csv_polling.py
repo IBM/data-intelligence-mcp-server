@@ -7,7 +7,6 @@
 import asyncio
 from typing import Dict, Any
 
-from app.core.auth import get_access_token
 from app.core.settings import settings
 from app.services.glossary.constants import (
     IMPORT_COMPLETION_STATUSES,
@@ -17,6 +16,7 @@ from app.services.glossary.constants import (
 )
 from app.shared.exceptions.base import ServiceError
 from app.shared.logging import LOGGER
+from app.shared.utils.tool_helper_service import tool_helper_service
 
 
 async def poll_import_status(
@@ -38,20 +38,8 @@ async def poll_import_status(
     Raises:
         ServiceError: If polling fails or times out
     """
-    from app.shared.utils.http_client import get_async_http_client
-    
-    http_client = await get_async_http_client()
-    
     # Build the status URL
     url = f"{settings.di_service_url}{GLOSSARY_IMPORT_STATUS_ENDPOINT}/{process_id}"
-    
-    auth_token = await get_access_token()
-    if not auth_token:
-        raise ServiceError("Failed to obtain authorization token")
-    
-    headers = {
-        'Authorization': auth_token
-    }
     
     start_time = asyncio.get_event_loop().time()
     elapsed = 0
@@ -61,7 +49,14 @@ async def poll_import_status(
     while elapsed < max_wait_seconds:
         try:
             # Poll the status endpoint
-            response = await http_client.get(url=url, headers=headers)
+            response = await tool_helper_service.execute_get_request(
+                url=url,
+                tool_name="glossary_csv_import_polling"
+            )
+            
+            # Type assertion: glossary import status endpoint returns JSON
+            if not isinstance(response, dict):
+                raise ServiceError(f"Unexpected response type from import status endpoint: {type(response)}")
             
             status = response.get('status', 'UNKNOWN')
             LOGGER.info(f"Import status poll: process_id={process_id}, status={status}, elapsed={elapsed:.1f}s")

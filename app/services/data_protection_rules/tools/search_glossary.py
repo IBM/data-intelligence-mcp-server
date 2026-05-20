@@ -13,7 +13,6 @@ from app.shared.exceptions.base import ExternalAPIError, ServiceError
 from app.core.auth import get_access_token
 from app.shared.utils.http_client import get_http_client
 from app.services.constants import JSON_CONTENT_TYPE
-from app.core.settings import settings
 from app.shared.logging import LOGGER, auto_context
 from app.services.constants import SEARCH_PATH
 from app.shared.utils.tool_helper_service import tool_helper_service
@@ -21,24 +20,8 @@ from app.shared.ui_message.ui_message_context import ui_message_context
 
 TABLE_TITLE_SEARCH_GOVERNANCE_ARTIFACTS = "Search governance artifacts"
 
-@service_registry.tool(
-    name="data_protection_rule_search_governance_artifacts",
-    description="""
-    This tool searches for governance artifacts (classifications, data classes, or glossary terms(another name is business term)) by query and returns matching results.
-    Use this tool to search for existing governance artifacts by correct names in IBM Knowledge Catalog.
-    
-    Examples:
-        - "Find all classifications related to Personally Identifiable Information data"
-        - "Look up glossary terms about customer information"
-        - "Look up business terms about account"
-        - "Search for data classes social security data"
-        - "Check if we already have a classification for sensitive personal data"
-    """,
-    tags={"search", "data_protection_rules", "governance"},
-    meta={"version": "1.0", "service": "data_protection_rules"},
-)
-@auto_context
-async def search_governance_artifacts(
+
+async def _search_governance_artifacts(
     request: SearchGovernanceArtifactRequest,
 ) -> SearchGovernanceArtifactResponse:
     """Search for governance artifacts by query and return matching results."""
@@ -142,11 +125,11 @@ def format_artifacts_for_table(artifacts: list[GovernanceArtifact]) -> list:
     meta={"version": "1.0", "service": "data_protection_rules"},
 )
 @auto_context
-async def wxo_search_governance_artifacts(
+async def search_governance_artifacts(
     rhs_type: Literal["classification", "data_class", "glossary_term"],
     query_value: str
 ) -> SearchGovernanceArtifactResponse:
-    """Watsonx Orchestrator compatible version that expands SearchGovernanceArtifactRequest object into individual parameters."""
+    """Wrapper version that expands SearchGovernanceArtifactRequest object into individual parameters."""
     
     request = SearchGovernanceArtifactRequest(
         rhs_type=rhs_type,
@@ -154,7 +137,7 @@ async def wxo_search_governance_artifacts(
     )
     
     # Call the original search_governance_artifacts function
-    return await search_governance_artifacts(request)
+    return await _search_governance_artifacts(request)
 
 
 async def get_rhs_terms_by_query(rhs_type: str, query: str):
@@ -205,13 +188,6 @@ async def search_rhs_terms(rhs_type: str, query: str):
     Returns:
         dict: Search response from the API
     """
-    token = await get_access_token()
-    
-    headers = {
-        "Content-Type": JSON_CONTENT_TYPE,
-        "Authorization": token,
-    }
-    
     json_body = {
         "size": 10000,
         "from": "0",
@@ -233,8 +209,6 @@ async def search_rhs_terms(rhs_type: str, query: str):
             }
         }
     }
-    
-    client = get_http_client()
     
     try:
         response = await tool_helper_service.execute_post_request(

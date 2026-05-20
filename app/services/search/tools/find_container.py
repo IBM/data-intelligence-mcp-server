@@ -4,7 +4,6 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-from typing import Optional
 
 from app.core.registry import service_registry
 from app.services.search.models.container import (
@@ -21,22 +20,7 @@ from app.services.tool_utils import find_asset_container_by_id, find_asset_conta
 from app.shared.utils.utils_tools import format_containers_for_table
 
 
-@service_registry.tool(
-    name="find_container",
-    description="""Find a container (catalog, project or space) with the given ID or name.
-    
-    This tool searches for a specific container by its ID or name.
-    
-    IMPORTANT CONSTRAINTS:
-    - container_id_or_name is required and cannot be empty
-    - container_type must be one of: "catalog", "project", "space"
-    - Defaults to "catalog" if not specified
-    - If ID is provided, performs direct lookup
-    - If name is provided, performs fuzzy matching to find closest match
-    - Returns the found container with its ID, name, type, and URL""",
-)
-@auto_context
-async def find_container(
+async def _find_container(
     request: FindContainerRequest
 ) -> FindContainerResponse:
     """
@@ -46,10 +30,10 @@ async def find_container(
         request: FindContainerRequest containing container_id_or_name and container_type
         
     Returns:
-        FindContainerResponse with the found container
+        FindContainerResponse with the found container or None if not found
         
     Raises:
-        ServiceError: If container is not found or invalid parameters
+        ServiceError: If invalid parameters provided
     """
     if not request.container_id_or_name or request.container_id_or_name.strip() == "":
         error_msg = "container_id_or_name cannot be empty"
@@ -65,24 +49,37 @@ async def find_container(
     # Check if the input is a UUID
     passed_uuid = is_uuid_bool(request.container_id_or_name)
 
-    if passed_uuid:
-        container = await find_asset_container_by_id(
-            request.container_id_or_name, request.container_type.value
-        )
-    else:
-        container = await find_asset_container_by_name(
-            request.container_id_or_name, request.container_type.value
+    try:
+        if passed_uuid:
+            container = await find_asset_container_by_id(
+                request.container_id_or_name, request.container_type.value
+            )
+        else:
+            container = await find_asset_container_by_name(
+                request.container_id_or_name, request.container_type.value
+            )
+
+        LOGGER.info(
+            "Found container: id='%s', name='%s', type='%s'",
+            container.id,
+            container.name,
+            container.type,
         )
 
-    LOGGER.info(
-        "Found container: id='%s', name='%s', type='%s'",
-        container.id,
-        container.name,
-        container.type,
-    )
-
-    ui_message_context.add_table_ui_message("find_container", format_containers_for_table([container]), title="Containers")
-    return FindContainerResponse(container=container)
+        ui_message_context.add_table_ui_message("find_container", format_containers_for_table([container]), title="Containers")
+        return FindContainerResponse(container=container)
+    
+    except ServiceError as e:
+        # If container not found, return response with None container instead of raising error
+        if "Couldn't find any" in str(e):
+            LOGGER.info(
+                "No %s found with identifier '%s'",
+                request.container_type.value,
+                request.container_id_or_name
+            )
+            return FindContainerResponse(container=None)
+        # Re-raise other ServiceErrors
+        raise
 
 
 @service_registry.tool(
@@ -100,11 +97,11 @@ async def find_container(
     - Returns container details including ID, name, type, and URL""",
 )
 @auto_context
-async def wxo_find_container(
+async def find_container(
     container_id_or_name: str,
     container_type: str = "catalog"
 ) -> FindContainerResponse:
-    """Watsonx Orchestrator compatible version that expands FindContainerRequest object into individual parameters."""
+    """Wrapper that expands FindContainerRequest object into individual parameters."""
     
     # Convert string to ContainerType enum
     container_type_enum = ContainerType(container_type)
@@ -114,4 +111,4 @@ async def wxo_find_container(
     )
     
     # Call the original find_container function
-    return await find_container(request)
+    return await _find_container(request)

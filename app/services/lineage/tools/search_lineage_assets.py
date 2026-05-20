@@ -16,8 +16,13 @@ from app.services.lineage.models.search_lineage_assets import (
 
 from app.core.registry import service_registry
 from app.services.constants import LINEAGE_BASE_ENDPOINT
+from app.services.lineage.constants import (
+    SERVICE_UNAVAILABLE_FLAG,
+    SERVICE_UNAVAILABLE_MESSAGE,
+)
+from app.services.lineage.utils import handle_500_error
 from app.services.stubs import caller_context, trigger_interrupt_with_ui
-from app.shared.exceptions.base import ServiceError
+from app.shared.exceptions.base import ExternalAPIError, ServiceError
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.helpers import verify_dates
@@ -47,6 +52,8 @@ def _check_input_parameters(
     business_classification,
     technology_name,
     asset_type,
+    dsd_id,
+    dsd_name,
 ) -> bool:
     """
     Checks if at least one parameter is added and does an interrupt.
@@ -65,6 +72,8 @@ def _check_input_parameters(
         business_classification (Optional[str]): Business classification provided by the user.
         technology_name (str): Fill this optional value ONLY with the name of technology passed by the user.
         asset_type (str): Fill this optional value ONLY with the type of asset passed by the user.
+        dsd_id (str): Fill this optional value ONLY with the ID of Data Source Definition passed by the user.
+        dsd_name (str): Fill this optional value ONLY with the name of Data Source Definition passed by the user.
     Returns:
         bool : true if user did not pass at least one parameter
     """
@@ -78,6 +87,8 @@ def _check_input_parameters(
         business_classification,
         technology_name,
         asset_type,
+        dsd_id,
+        dsd_name,
     ):
 
         name_query = None
@@ -101,6 +112,8 @@ def _has_search_criteria(
     business_classification: Optional[str] = None,
     technology_name: str = "",
     asset_type: str = "",
+    dsd_id: str = "",
+    dsd_name: str = "",
 ) -> bool:
     """
     Check if at least one search criterion was provided by the user.
@@ -118,6 +131,8 @@ def _has_search_criteria(
         business_classification (Optional[str]): Business classification filter
         technology_name (str): Technology name filter
         asset_type (str): Asset type filter
+        dsd_id (str): Data Source Definition ID filter
+        dsd_name (str): Data Source Definition name filter
 
     Returns:
         bool: True if at least one search criterion is provided, False otherwise
@@ -143,7 +158,7 @@ def _has_search_criteria(
         return True
 
     # Check if any of the string parameters are not empty
-    if any([technology_name != "", asset_type != ""]):
+    if any([technology_name != "", asset_type != "", dsd_id != "", dsd_name != ""]):
         return True
 
     # If we get here, all parameters are at their default values
@@ -188,6 +203,8 @@ async def _call_search_lineage_assets(
     data_quality: QualityScore | None,
     business_terms: list[str] | None,
     business_classifications: list[str] | None,
+    dsd_ids: list[str] | None,
+    dsd_names: list[str] | None,
     dates: list[str] | None
 ) -> Dict[str, Any]:
     """
@@ -202,6 +219,8 @@ async def _call_search_lineage_assets(
         data_quality (Optional[QualityScore]): Quality score object.
         business_terms (Optional[list[str]]): List of business terms.
         business_classifications (Optional[list[str]]): List of business classifications.
+        dsd_ids (Optional[list[str]]): List of Data Source Definition IDs.
+        dsd_names (Optional[list[str]]): List of Data Source Definition names.
 
     Returns:
         dict[str, Any]: Response from the lineage service.
@@ -230,20 +249,35 @@ async def _call_search_lineage_assets(
         filters.append(
             _create_asset_filter("business_classification", business_classifications)
         )
+    if dsd_ids:
+        filters.append(_create_asset_filter("data_source_definition_asset_id", dsd_ids))
+    if dsd_names:
+        filters.append(_create_asset_filter("data_source_definition_asset_name", dsd_names))
+    
     payload = {
         "query": name_query,
         "filters": filters,
     }
     if dates:
         payload["lineage_version_datetimes"] = dates
-    response = await tool_helper_service.execute_post_request(
-        url=str(tool_helper_service.base_url)
-        + LINEAGE_BASE_ENDPOINT
-        + "/search_lineage_assets",
-        json=payload,
-        tool_name="search_lineage_assets",
-    )
-    return response
+    try:
+        response = await tool_helper_service.execute_post_request(
+            url=str(tool_helper_service.base_url)
+            + LINEAGE_BASE_ENDPOINT
+            + "/search_lineage_assets",
+            json=payload,
+            tool_name="search_lineage_assets",
+        )
+        return response
+    except ExternalAPIError as e:
+        return handle_500_error(
+            e,
+            lambda: {
+                "lineage_assets": [],
+                "total_count": 0,
+                SERVICE_UNAVAILABLE_FLAG: True
+            }
+        )
 
 
 async def _get_lineage_technology_type(technology_type: str, filters_not_found: Optional[List[str]]) -> str:
@@ -549,97 +583,188 @@ def _handle_asset_selection_and_filters(
     return end_lineage_list
 
 
+def _prepare_cleaned_parameters(request: SearchLineageAssetsRequest) -> dict:
+    """
+    Extract and clean all string parameters from the request.
+    
+    Args:
+        request: The search request containing parameters to clean
+        
+    Returns:
+        dict: Dictionary containing cleaned parameter values
+    """
+    return {
+        "tag": clean_str(request.tag),
+        "data_quality_operator": clean_str(request.data_quality_operator),
+        "business_term": clean_str(request.business_term),
+        "business_classification": clean_str(request.business_classification),
+        "technology_name": clean_str(request.technology_name),
+        "asset_type": clean_str(request.asset_type),
+        "dsd_id": clean_str(request.dsd_id),
+        "dsd_name": clean_str(request.dsd_name),
+    }
+
+
+def _validate_dates(dates: Optional[str]) -> Optional[list]:
+    """
+    Validate and verify the dates parameter.
+    
+    Args:
+        dates: Optional ISO 8601 dates string
+        
+    Returns:
+        Optional[list]: Verified dates list or None
+        
+    Raises:
+        ServiceError: If dates parameter doesn't contain exactly 2 dates
+    """
+    if not dates:
+        return None
+    
+    verified_dates = verify_dates(dates=dates)
+    if verified_dates and len(verified_dates) != 2:
+        raise ServiceError(
+            f"dates parameter must contain exactly 2 ISO 8601 dates, got {len(verified_dates)} dates"
+        )
+    return verified_dates
+
+
+async def _prepare_search_filters(
+    request: SearchLineageAssetsRequest,
+    params: dict,
+    filter_not_found_list: list
+) -> dict:
+    """
+    Prepare all search filters for the lineage assets search.
+    
+    Args:
+        request: The search request
+        params: Cleaned parameters dictionary
+        filter_not_found_list: List to collect filters that were not found
+        
+    Returns:
+        dict: Dictionary containing all prepared filters
+    """
+    _check_quality_filter(params["data_quality_operator"], request.data_quality_value, filter_not_found_list)
+
+    # Prepare data quality filter
+    data_quality = None
+    if params["data_quality_operator"] and _has_quality_value(request.data_quality_value):
+        data_quality = QualityScore(
+            operator=params["data_quality_operator"],
+            value=str(request.data_quality_value),
+        )
+    
+    # Prepare technology filter
+    technology_filter = None
+    if params["technology_name"]:
+        technology_filter = await _get_lineage_technology_type(params["technology_name"], filter_not_found_list)
+    
+    technology_names = [technology_filter] if technology_filter else None
+    
+    # Prepare asset types filter
+    asset_types = None
+    if request.asset_type:
+        asset_type = await _get_lineage_asset_type(params["asset_type"], filter_not_found_list)
+        asset_types = [asset_type]
+    
+    # Prepare simple filters
+    is_operational_list = [request.is_operational] if request.is_operational else None
+    tag_list = [params["tag"]] if params["tag"] else None
+    
+    # Prepare business terms filter
+    business_terms = None
+    if params["business_term"]:
+        business_terms = await _get_business_terms_or_classifications(
+            params["business_term"], "glossary_term"
+        )
+    
+    # Prepare business classifications filter
+    business_classifications = None
+    if params["business_classification"]:
+        business_classifications = await _get_business_terms_or_classifications(
+            params["business_classification"], "classification"
+        )
+    
+    # Prepare DSD filters
+    dsd_ids = [params["dsd_id"]] if params["dsd_id"] else None
+    dsd_names = [params["dsd_name"]] if params["dsd_name"] else None
+    
+    return {
+        "data_quality": data_quality,
+        "technology_names": technology_names,
+        "asset_types": asset_types,
+        "is_operational_list": is_operational_list,
+        "tag_list": tag_list,
+        "business_terms": business_terms,
+        "business_classifications": business_classifications,
+        "dsd_ids": dsd_ids,
+        "dsd_names": dsd_names,
+    }
+
+
 async def _search_lineage_assets(
     request: SearchLineageAssetsRequest,
 ) -> SearchLineageAssetsResponse:
 
     LOGGER.info(
-        f"search_lineage_assets called with name_query={request.name_query}, technology_name={request.technology_name}, asset_type={request.asset_type}"
+        f"search_lineage_assets called with name_query={request.name_query}, technology_name={request.technology_name}, asset_type={request.asset_type}, dsd_id={request.dsd_id}, dsd_name={request.dsd_name}"
     )
 
-    tag = clean_str(request.tag)
-    data_quality_operator = clean_str(request.data_quality_operator)
-    business_term = clean_str(request.business_term)
-    business_classification = clean_str(request.business_classification)
-    technology_name = clean_str(request.technology_name)
-    asset_type = clean_str(request.asset_type)
-    verified_dates = None
-    if request.dates:
-        verified_dates = verify_dates(dates=request.dates)
-        if verified_dates and len(verified_dates) != 2:
-            raise ServiceError(
-                f"dates parameter must contain exactly 2 ISO 8601 dates, got {len(verified_dates)} dates"
-            )
+    # Clean all string parameters
+    params = _prepare_cleaned_parameters(request)
+    
+    # Validate dates parameter
+    verified_dates = _validate_dates(request.dates)
 
     # Check if at least one parameter is provided
     if _check_input_parameters(
         request.name_query,
         request.is_operational,
-        tag,
-        data_quality_operator,
+        params["tag"],
+        params["data_quality_operator"],
         request.data_quality_value,
-        business_term,
-        business_classification,
-        technology_name,
-        asset_type,
+        params["business_term"],
+        params["business_classification"],
+        params["technology_name"],
+        params["asset_type"],
+        params["dsd_id"],
+        params["dsd_name"],
     ):
         return SearchLineageAssetsResponse(lineage_assets=[], response_is_complete=True)
     
+    # Prepare filters
     filter_not_found_list = []
-    _check_quality_filter(data_quality_operator, request.data_quality_value, filter_not_found_list)
-
-    data_quality: Optional[QualityScore] = None
-    if data_quality_operator and _has_quality_value(request.data_quality_value):
-        data_quality = QualityScore(
-            operator=data_quality_operator,
-            value=str(request.data_quality_value),
-        )
-    technology_filter = (
-        await _get_lineage_technology_type(technology_name, filter_not_found_list)
-        if technology_name
-        else None
-    )
-    technology_names = (
-        [technology_filter] if technology_name and technology_filter else None
-    )
-    asset_types = (
-        [await _get_lineage_asset_type(asset_type, filter_not_found_list)]
-        if request.asset_type
-        else None
-    )
-    is_operational_list = [request.is_operational] if request.is_operational else None
-    tag_list = [tag] if tag else None
-    business_terms = (
-        await _get_business_terms_or_classifications(
-            business_term, "glossary_term"
-        )
-        if business_term
-        else None
-    )
-    business_classifications = (
-        await _get_business_terms_or_classifications(
-            business_classification, "classification"
-        )
-        if business_classification
-        else None
-    )
+    filters = await _prepare_search_filters(request, params, filter_not_found_list)
+    
+    # Execute search
     response = await _call_search_lineage_assets(
         request.name_query,
-        technology_names,
-        asset_types,
-        is_operational_list,
-        tag_list,
-        data_quality,
-        business_terms,
-        business_classifications,
+        filters["technology_names"],
+        filters["asset_types"],
+        filters["is_operational_list"],
+        filters["tag_list"],
+        filters["data_quality"],
+        filters["business_terms"],
+        filters["business_classifications"],
+        filters["dsd_ids"],
+        filters["dsd_names"],
         verified_dates
     )
+    
+    # Check if service is unavailable (500 error)
+    if response.get(SERVICE_UNAVAILABLE_FLAG):
+        return SearchLineageAssetsResponse(
+            lineage_assets=[],
+            response_is_complete=True,
+            success=False,
+            error=SERVICE_UNAVAILABLE_MESSAGE
+        )
+    
+    # Process results
     lineage_assets = response.get("lineage_assets", [])
     response_count = response.get("total_count", "")
-
-    # Create LineageAsset objects with parent information
     lineage_assets_model = _transform_lineage_assets(lineage_assets=lineage_assets)
-
     response_is_complete = response_count <= 10
     
     end_lineage_list = _handle_asset_selection_and_filters(
@@ -656,9 +781,9 @@ async def _search_lineage_assets(
     description="""Searches for assets in the Lineage system based on name and optional filters.
     
     This tool finds lineage assets matching the provided name query, with filtering
-    by technology name and asset type. Results are sorted by relevance, with exact matches first.
+    by technology name, asset type, and Data Source Definition (DSD). Results are sorted by relevance, with exact matches first.
     Use filters only if user mentions them. Try to find the best match for filters.
-    Do not shorten the results. Returnes an empty list if no query or filters are given.
+    Do not shorten the results. Returns an empty list if no query or filters are given.
     Method can return an empty list if no assets where found or if user has input no data.
     If user did not specify a filter do not send 'null' as string - use None or '' instead.
     
@@ -691,9 +816,13 @@ async def _search_lineage_assets(
             and automatically set when no value is provided.
         business_term (Optional[str]): Filter by business glossary term
         business_classification (Optional[str]): Filter by business classification
-        technology_name (str): Filter by technology name (e.g., "PostgreSQL"). 
+        technology_name (str): Filter by technology name (e.g., "PostgreSQL").
             Only use when explicitly specified by user
-        asset_type (str): Filter by asset type (e.g., "Table", "Column"). 
+        asset_type (str): Filter by asset type (e.g., "Table", "Column").
+            Only use when explicitly specified by user
+        dsd_id (str): Filter by Data Source Definition ID.
+            Only use when explicitly specified by user
+        dsd_name (str): Filter by Data Source Definition name.
             Only use when explicitly specified by user
         dates (Optional[str]): ISO 8601 dates to validate if assets were available in that version. Used when comparing versions
     
@@ -721,7 +850,6 @@ async def _search_lineage_assets(
         - **Extract the 'id' field from results to use with get_lineage_graph**
         - If user wants related assets call get_lineage_graph after this tool
     """,
-    tags={"custom_tool"},
 )
 @auto_context
 async def search_lineage_assets(
@@ -734,6 +862,8 @@ async def search_lineage_assets(
     business_classification: Optional[str] = None,
     technology_name: Optional[str] = None,
     asset_type: Optional[str] = None,
+    dsd_id: Optional[str] = None,
+    dsd_name: Optional[str] = None,
     dates: Optional[str] = None,
 ) -> SearchLineageAssetsResponse:
     """Wrapper for search_lineage_assets."""
@@ -748,6 +878,8 @@ async def search_lineage_assets(
         business_classification=business_classification,
         technology_name=technology_name,
         asset_type=asset_type,
+        dsd_id=dsd_id,
+        dsd_name=dsd_name,
         dates=dates
     )
 

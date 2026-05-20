@@ -65,21 +65,75 @@ async def search_users_by_query(
 
 
 async def _fetch_cpd_users() -> List[Dict]:
-    """Fetch all users from CP4D environment."""
-    url = f"{settings.di_service_url}/usermgmt/v1/usermgmt/users"
+    """
+    Fetch all users from CP4D environment with pagination and fallback support.
+    
+    Returns:
+        List of user profile dictionaries
+        
+    Raises:
+        ExternalAPIError: If both new and legacy API requests fail
+    """
+    offset = 0
+    all_users = []
+    has_next = True
+    
+    # Try new API endpoint first (CPD 5.x+) - /usermgmt/v2/usermgmt/users
+    users_v2_url = f"{settings.di_service_url}/usermgmt/v2/usermgmt/users"
     
     try:
-        response = await tool_helper_service.execute_get_request(
-            url=url, tool_name="search_users"
-        )
+        LOGGER.info(f"Attempting to fetch users using new API: {users_v2_url}")
+        # Pagination loop for v2 API
+        while has_next:
+            next_url = f"{users_v2_url}?offset={offset}&limit={PAGE_LIMIT}&include_users_count=true"
+            
+            response = await tool_helper_service.execute_get_request(
+                url=next_url, tool_name="search_users"
+            )
+            
+            # Parse response
+            if isinstance(response, dict):
+                # Ensure total_users is an integer (API might return string)
+                total_users = int(response.get("user_count", 0))
+                user_data = response.get("user_data", [])
+            else:
+                # Fallback for direct list response (older API versions)
+                user_data = response if isinstance(response, list) else []
+                total_users = len(user_data)
+            
+            # Add users to result list
+            all_users.extend(user_data)
+            
+            # Update pagination
+            offset += PAGE_LIMIT
+            has_next = offset < total_users if total_users > 0 else False
+        
+        if all_users:
+            LOGGER.info(f"Successfully fetched {len(all_users)} users using new API (v2)")
+            return all_users
+            
     except ExternalAPIError as e:
-        LOGGER.error(f"API error while fetching users: {str(e)}")
+        LOGGER.error(f"New API (v2) failed, falling back to legacy endpoint: {str(e)}")
+    
+    # Fall back to legacy API endpoint (pre-CPD 5.x) - /usermgmt/v1/usermgmt/users
+    legacy_url = f"{settings.di_service_url}/usermgmt/v1/usermgmt/users"
+    
+    try:
+        LOGGER.info(f"Attempting to fetch users using legacy API: {legacy_url}")
+        response = await tool_helper_service.execute_get_request(
+            url=legacy_url, tool_name="search_users"
+        )
+        
+        # Legacy API returns list directly
+        users = response if isinstance(response, list) else []
+        LOGGER.info(f"Successfully fetched {len(users)} users using legacy API (v1)")
+        return users
+        
+    except ExternalAPIError as e:
+        LOGGER.error(f"Both new (v2) and legacy (v1) API failed: {str(e)}")
         raise ExternalAPIError(
             "Unable to search for users. Please verify you have the necessary permissions to list users."
         )
-    
-    # CP4D returns list directly
-    return response if isinstance(response, list) else []
 
 
 async def _fetch_saas_users() -> List[Dict]:

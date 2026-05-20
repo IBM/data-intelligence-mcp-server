@@ -16,22 +16,7 @@ from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.logging import LOGGER, auto_context
 
 
-@service_registry.tool(
-    name="data_product_find_delivery_methods_based_on_connection",
-    description="""
-    This tool finds delivery methods available for the connection type of the data asset.
-    Finds delivery methods for data asset (data_asset_id) in container_type (ID: container_id).
-    This is called before `add_delivery_methods_to_data_product()` to find the delivery methods available for the given data asset.
-    Example: 'Find delivery methods for customer asset in the data product draft' - This gets the container type ('catalog' or 'project') where this asset is in, the ID of the container, and the data asset ID.
-    If you are not sure about the container ID, use the `list_containers` tool to find it out.
-    If you are not sure about the data asset ID of the requested data asset, use the `search_asset` tool to find it out.
-    Prompt user to choose delivery methods from the list of available delivery methods.
-    """,
-    tags={"create", "data_product"},
-    meta={"version": "1.0", "service": "data_product"},
-)
-@auto_context
-async def find_delivery_methods_based_on_connection(
+async def _find_delivery_methods_based_on_connection(
     request: FindDeliveryMethodsBasedOnConnectionRequest, 
 ) -> FindDeliveryMethodsBasedOnConnectionResponse:
     LOGGER.info(
@@ -129,12 +114,12 @@ def get_available_delivery_methods(response, datasource_type):
     meta={"version": "1.0", "service": "data_product"},
 )
 @auto_context
-async def wxo_find_delivery_methods_based_on_connection(
+async def find_delivery_methods_based_on_connection(
     container_id: str,
     container_type: str,
     data_asset_id: str
 ) -> FindDeliveryMethodsBasedOnConnectionResponse:
-    """Watsonx Orchestrator compatible version that expands FindDeliveryMethodsBasedOnConnectionRequest object into individual parameters."""
+    """Wrapper version that expands FindDeliveryMethodsBasedOnConnectionRequest object into individual parameters."""
 
     request = FindDeliveryMethodsBasedOnConnectionRequest(
         container_id=container_id,
@@ -143,5 +128,5 @@ async def wxo_find_delivery_methods_based_on_connection(
     )
 
     # Call the original find_delivery_methods_based_on_connection function
-    return await find_delivery_methods_based_on_connection(request)
+    return await _find_delivery_methods_based_on_connection(request)
     

@@ -38,79 +38,7 @@ def _format_data_products_for_table(data_products: list[dict]) -> list:
     return data_products_table
 
 
-@service_registry.tool(
-    name="data_product_search_data_products",
-    description="""
-    Search for data products in the Data Product Hub with flexible filtering by name, domain, state, and creation date.
-    Please note that the date filter is only for creation date. If the query is about a different date not related to product creation, please do not provide creation dates.
-
-    This tool searches the Data Product Hub catalog and returns matching data products. Multiple filters can be
-    applied simultaneously to refine results (e.g., find products in a specific domain created within a date range).
-    
-    State Filter:
-    - "draft": Returns only unpublished/draft data products
-    - "published": Returns only published data products
-    - None (default): Returns both draft and published data products
-    
-    Date filters are inclusive and can be used independently or together. When only one date is provided,
-    it creates an open-ended filter (e.g., only created_date_after finds all products from that date onwards).
-
-    CRITICAL - Natural Language Date Parsing (only for creation date filters):
-    This tool ONLY accepts dates in YYYY-MM-DD format. When users provide natural language dates,
-    convert them to YYYY-MM-DD before calling this tool using these rules:
-    
-    Temporal Logic (assume current date: February 11, 2026):
-    1. NEVER return future dates - always use most recent PAST occurrence
-    2. "today" → 2026-02-11, "yesterday" → 2026-02-10
-    3. "last week" → created_date_after="2026-02-04", created_date_before="2026-02-11" (7 days)
-    4. "past month" → created_date_after="2026-01-12", created_date_before="2026-02-11" (30 days)
-    5. "this year" → created_date_after="2026-01-01", created_date_before="2026-02-11"
-    6. Day only: "5th" → 2026-02-05 (current month if not passed), "15th" → 2026-01-15 (previous month if passed)
-    7. Month+Day: "Dec 15th" → 2025-12-15 (December 2026 would be future, use 2025)
-    8. Month only: "December" or "in December" → 2025-12-01 to 2025-12-31 (December 2026 would be future, use 2025)
-    9. Month only (already passed this year): "January" → 2026-01-01 to 2026-01-31 (January 2026 is in the past)
-    10. Explicit year: "March 5th 2025" → 2025-03-05
-    11. Leap years: "Feb 29th" → use most recent leap year (2024-02-29)
-
-    Examples:
-        # Basic search
-        search_data_products(product_search_query="Customer")
-        search_data_products()  # All products (default "*")
-        
-        # Domain filtering
-        search_data_products(domain="Finance")
-        
-        # State filtering
-        search_data_products(state_filter="draft")  # Only drafts
-        search_data_products(state_filter="published")  # Only published
-        
-        # Date filtering (ISO format)
-        search_data_products(created_date_after="2026-01-01", created_date_before="2026-01-31")
-        
-        # Natural language conversions (convert before calling):
-        # User: "products from yesterday" →
-        search_data_products(created_date_after="2026-02-10", created_date_before="2026-02-10")
-        
-        # User: "products from last week" →
-        search_data_products(created_date_after="2026-02-04", created_date_before="2026-02-11")
-        
-        # User: "products created in December" (Dec 2026 would be future, use Dec 2025) →
-        search_data_products(created_date_after="2025-12-01", created_date_before="2025-12-31")
-        
-        # User: "products created in January" (Jan 2026 already passed, use Jan 2026) →
-        search_data_products(created_date_after="2026-01-01", created_date_before="2026-01-31")
-        
-        # User: "products from 15th December" →
-        search_data_products(created_date_after="2025-12-15", created_date_before="2025-12-15")
-        
-        # Combined filters
-        search_data_products(product_search_query="Sales", domain="Finance", created_date_after="2026-01-01", state_filter="published")
-    """,
-    tags={"search", "data_product"},
-    meta={"version": "1.0", "service": "data_product"},
-)
-@auto_context
-async def search_data_products(
+async def _search_data_products(
     request: SearchDataProductsRequest,
 ) -> SearchDataProductsResponse:
     LOGGER.info(
@@ -468,14 +396,14 @@ def _add_date_range_filter(
     meta={"version": "1.0", "service": "data_product"},
 )
 @auto_context
-async def wxo_search_data_products(
+async def search_data_products(
     product_search_query: Union[Literal["*"], str],
     domain: Optional[str] = None,
     state_filter: Optional[Union[Literal["draft"], Literal["published"]]] = None,
     created_date_after: Optional[str] = None,
     created_date_before: Optional[str] = None
 ) -> SearchDataProductsResponse:
-    """Watsonx Orchestrator compatible version that expands SearchDataProductsRequest object into individual parameters."""
+    """Wrapper version that expands SearchDataProductsRequest object into individual parameters."""
 
     request = SearchDataProductsRequest(
         product_search_query=product_search_query,
@@ -486,4 +414,4 @@ async def wxo_search_data_products(
     )
 
     # Call the original search_data_products function
-    return await search_data_products(request)
+    return await _search_data_products(request)

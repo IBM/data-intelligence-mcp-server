@@ -10,12 +10,17 @@ from urllib.parse import urlencode
 
 from app.core.registry import service_registry
 from app.services.constants import LINEAGE_BASE_ENDPOINT, LINEAGE_UI_BASE_ENDPOINT
+from app.services.lineage.constants import (
+    SERVICE_UNAVAILABLE_FLAG,
+    SERVICE_UNAVAILABLE_MESSAGE,
+)
+from app.services.lineage.utils import handle_500_error
 from app.services.lineage.models.get_lineage_graph import (
     GetLineageGraphRequest,
     GetLineageGraphResponse,
 )
 from app.services.lineage.tools.search_lineage_assets import _transform_lineage_assets
-from app.shared.exceptions.base import ServiceError
+from app.shared.exceptions.base import ExternalAPIError, ServiceError
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import append_context_to_url, are_lineage_ids, verify_dates
 from app.shared.utils.tool_helper_service import tool_helper_service
@@ -254,14 +259,19 @@ async def _call_get_lineage_graph(
     # but the API expects 'lineage_version_datetimes'
     if dates:
         payload["lineage_version_datetimes"] = dates
-
-    response = await tool_helper_service.execute_post_request(
-        url=str(tool_helper_service.base_url)
-        + LINEAGE_BASE_ENDPOINT
-        + "/query_lineage",
-        json=payload,
-    )
-    return response
+    try:
+        response = await tool_helper_service.execute_post_request(
+            url=str(tool_helper_service.base_url)
+            + LINEAGE_BASE_ENDPOINT
+            + "/query_lineage",
+            json=payload,
+        )
+        return response
+    except ExternalAPIError as e:
+        return handle_500_error(
+            e,
+            lambda: {SERVICE_UNAVAILABLE_FLAG: True}
+        )
 
 
 async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraphResponse:
@@ -300,6 +310,16 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
     lineage_graph_response = await _call_get_lineage_graph(
         lineage_ids, request.hop_up, request.hop_down, ultimate_verified, dates_verified
     )
+    
+    if lineage_graph_response.get(SERVICE_UNAVAILABLE_FLAG):
+        return GetLineageGraphResponse(
+            success=False,
+            error=SERVICE_UNAVAILABLE_MESSAGE,
+            lineage_assets=[],
+            edges_in_view=[],
+            url="",
+        )
+    
     if not (lineage_graph_response.get("assets_in_view")):
         raise ServiceError(
             "call_get_lineage_graph finished successfully but no assets_in_view or/and edges_in_view were found."
@@ -407,7 +427,6 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
         4. Extract lineage ID from results: "75a06535eb329a6b..."
         5. Call get_lineage_graph(lineage_ids=["75a06535eb329a6b..."], hop_up=50, hop_down=50, ultimate=None, dates=["2025-10-23T08:54:02.17Z","2025-09-12T06:35:27.115Z"])
     """,
-    tags={"custom_tool"},
 )
 @auto_context
 async def get_lineage_graph(

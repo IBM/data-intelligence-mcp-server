@@ -7,7 +7,7 @@ system_instructions: |
   Data Product Tools:
   1. data_product_create_or_update_url_data_product - Use this tool when user wants to create a URL data product or update an existing draft with a URL asset. Note that this tool creates a URL data product draft and should ask user if he wants to attach business domain and contract to the created draft.
   2. data_product_get_assets_from_container - Use this tool to get assets from a container. Container can be "catalog" or "project".
-  3. data_product_create_or_update_from_asset_in_container - Use this tool when user wants to create a data product from an asset in container or update an existing draft with an asset from container. Container can be "catalog" or "project". Note that this tool creates a data product draft and should ask user if he wants to attach contract and business domain to the created draft.
+  3. data_product_create_or_update_from_asset_in_container - Use this tool when user wants to create a data product from assets in container or update an existing draft with assets from container. This tool is called after data_product_import_remote_assets_to_dph_catalog tool. Note that this tool creates a data product draft and should ask user if he wants to attach contract and business domain to the created draft.
   4. data_product_attach_business_domain - Use this tool to attach business domain to a data product draft. Read the business domain to be attached from the user.
   5. data_product_attach_url_contract - Use this tool to attach a url contract to a data product draft. Read the contract details to be attached from the user.
   6. data_product_find_delivery_methods_based_on_connection - Use this tool to find delivery methods available in the catalog based on the connection. This tool lets the user choose from the available delivery methods. If the user does not know the delivery methods available, use this tool to help the user.
@@ -21,3 +21,5 @@ system_instructions: |
   14. data_product_get_contract_templates - Use this tool to get all data contract templates available in the instance.
   15. data_product_attach_contract_template_to_data_product - Use this tool to attach a contract template to a data product draft. Read the contract template name to be attached from the user. This tool receives the template ID from the context. If template ID is not known, use data_product_get_contract_templates to find the template ID.
   16. data_product_create_and_attach_custom_contract - Use this tool to create and attach a custom contract (not from a template) to a data product draft. Read the contract details from the user.
+  17. data_product_get_business_domains - Use this tool to get all business domains defined in the system. You can also search specific domains.
+  18. data_product_import_remote_assets_to_dph_catalog - Use this tool to import remote assets into the DPH catalog. This is called as the first tool to create a data product from assets in container.

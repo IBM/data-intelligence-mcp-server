@@ -26,32 +26,7 @@ from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.helpers import is_uuid
 from app.services.constants import CAMS_ASSETS_BASE_ENDPOINT
 
-@service_registry.tool(
-    name="get_asset_details",
-    description="""Understand user's request about getting an asset's details / metadata and return the retrieved metadata.
-                    Possible details that the user could be looking for include: asset usage, rov, member roles, collaborators, sub-container,
-                    asset name, asset description, asset tags, asset type, origin country, resource key, identity key, delete processing state,
-                    delete reason, asset rating, total asset ratings, asset creation time, asset owner, asset size, asset version, asset state,
-                    asset attributes, revision id, entity information (columns etc.) etc.
-                    User could request for all details or specific details. 
-                    Example: Find details for asset dummy_asset in test catalog.
-                    In this case, asset parameter will be 'dummy_asset', catalog parameter will be 'test' and project parameter will be None.
-                    Example: Find metadata for asset testdb in agent project.
-                    In this case, asset parameter will be 'testdb', catalog parameter will be None, and project parameter will be 'agent'.
-                    Example: Find asset attributes of asset dummy_asset in test catalog.
-                    In this case, asset parameter will be 'dummy_asset', catalog parameter will be 'test' and project parameter will be None.
-                    Example: Find creation time of asset testdb in agent project.
-                    In this case, asset parameter will be 'testdb', catalog parameter will be None, and project parameter will be 'agent'.
-                       
-                    IMPORTANT CONSTRAINTS:
-                    - Asset parameter is required, either name or UUID
-                    - One of catalog or project parameters is required to be not null, both cannot be null, both cannot be not null
-                    - Invalid values will result in errors""",
-    tags={"search", "asset_metadata"},
-    meta={"version": "1.0", "service": "search"}
-)
-@auto_context
-async def get_asset_details(
+async def _get_asset_details(
     request: GetAssetDetailsRequest
 ) -> GetAssetDetailsResponse:
     #Validate the request
@@ -110,12 +85,21 @@ async def get_asset_details(
 
 @service_registry.tool(
     name="get_asset_details",
-    description="""Understand user's request about searching an asset's details / metadata and return the retrieved metadata.
+    description="""Understand user's request about getting an asset's details / metadata and return the retrieved metadata.
+                    Possible details that the user could be looking for include: asset usage, rov, member roles, collaborators, sub-container,
+                    asset name, asset description, asset tags, asset type, origin country, resource key, identity key, delete processing state,
+                    delete reason, asset rating, total asset ratings, asset creation time, asset owner, asset size, asset version, asset state,
+                    asset attributes, revision id, entity information (columns etc.) etc.
+                    User could request for all details or specific details. 
                     Example: Find details for asset dummy_asset in test catalog.
                     In this case, asset parameter will be 'dummy_asset', catalog parameter will be 'test' and project parameter will be None.
                     Example: Find metadata for asset testdb in agent project.
                     In this case, asset parameter will be 'testdb', catalog parameter will be None, and project parameter will be 'agent'.
-
+                    Example: Find asset attributes of asset dummy_asset in test catalog.
+                    In this case, asset parameter will be 'dummy_asset', catalog parameter will be 'test' and project parameter will be None.
+                    Example: Find creation time of asset testdb in agent project.
+                    In this case, asset parameter will be 'testdb', catalog parameter will be None, and project parameter will be 'agent'.
+                       
                     IMPORTANT CONSTRAINTS:
                     - Asset parameter is required, either name or UUID
                     - One of catalog or project parameters is required to be not null, both cannot be null, both cannot be not null
@@ -124,17 +108,17 @@ async def get_asset_details(
     meta={"version": "1.0", "service": "search"}
 )
 @auto_context
-async def wxo_get_asset_details(
+async def get_asset_details(
     asset: str, catalog: Optional[str], project: Optional[str]
 ) -> GetAssetDetailsResponse:
-    """Watsonx Orchestrator compatible version that expands GetAssetDetailsRequest object into individual parameters."""
+    """Wrapper that expands GetAssetDetailsRequest object into individual parameters."""
 
     request = GetAssetDetailsRequest(
         asset=asset, catalog=catalog, project=project
     )
 
     # Call the original get_asset_details function
-    return await get_asset_details(request)
+    return await _get_asset_details(request)
 
 async def _get_user_info(iam_id: str) -> tuple[str, str]:
     """

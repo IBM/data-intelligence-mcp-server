@@ -90,51 +90,6 @@ def format_artifacts_for_table(
         return []
 
 
-@service_registry.tool(
-    name="search_user_groups_roles",
-    description="""
-    Unified tool to search and retrieve users, user groups, or user roles in watsonx.data intelligence.
-    
-    This tool enables AI agents to quickly find the right identity record by specifying the search type
-    (user, group, or role) and an optional query. It uses intelligent fuzzy matching to find the best 
-    matches and returns results with confidence scores and match metadata.
-    
-    Search Types:
-    - "user": Search for individual users by name, email, username, or user ID
-    - "group": Search for user groups by group name or group ID
-    - "role": Search for user roles by role name (CP4D only)
-    
-    Features:
-    - Intelligent fuzzy matching with confidence scores
-    - List all items when no query is provided
-    - Works in both SaaS and CP4D environments (roles search is CP4D only)
-    - RBAC enforcement (only returns identities caller is permitted to see)
-    
-    Use Cases:
-        Users:
-        - "Find user jacob" → search_type="user", query="jacob"
-        - "Search for user with email jacob@ibm.com" → search_type="user", query="jacob@ibm.com"
-        - "List all users" → search_type="user", query=None
-        
-        Groups:
-        - "Find group marketing" → search_type="group", query="marketing"
-        - "Search for analysts group" → search_type="group", query="analysts"
-        - "List all groups" → search_type="group", query=None
-        
-        Roles (CP4D only):
-        - "Show me all user roles" → search_type="role", query=None
-        - "Find administrator roles" → search_type="role", query="admin"
-    
-    Examples:
-        - "Add Jacob to Project X" → search_type="user", query="jacob", then use user_id
-        - "Give marketing analysts read access" → search_type="group", query="marketing", then use group_id
-        - "Apply data protection rule to jacob@ibm.com" → search_type="user", query="jacob@ibm.com"
-        - "What roles can I assign?" → search_type="role", query=None (CP4D only)
-    """,
-    tags={"search", "user_search", "identity", "access_management", "unified"},
-    meta={"version": "1.0", "service": "user_search"},
-)
-@auto_context
 async def _execute_search_by_type(request: UnifiedSearchRequest):
     """
     Execute search based on search_type and return results with metadata.
@@ -201,7 +156,7 @@ def _build_success_message(request: UnifiedSearchRequest, total_count: int, enti
     )
 
 
-async def search_user_groups_roles(
+async def _search_user_groups_roles(
     request: UnifiedSearchRequest,
 ) -> UnifiedSearchResponse:
     """
@@ -282,7 +237,6 @@ async def search_user_groups_roles(
     name="search_user_groups_roles",
     description="""
     Unified tool to search and retrieve users, user groups, or user roles in watsonx.data intelligence.
-    (Watsonx Orchestrator compatible version)
     
     This tool enables AI agents to quickly find the right identity record by specifying the search type
     (user, group, or role) and an optional query. It uses intelligent fuzzy matching to find the best 
@@ -292,17 +246,44 @@ async def search_user_groups_roles(
     - "user": Search for individual users by name, email, username, or user ID
     - "group": Search for user groups by group name or group ID
     - "role": Search for user roles by role name (CP4D only)
+    
+    Features:
+    - Intelligent fuzzy matching with confidence scores
+    - List all items when no query is provided
+    - Works in both SaaS and CP4D environments (roles search is CP4D only)
+    - RBAC enforcement (only returns identities caller is permitted to see)
+    
+    Use Cases:
+        Users:
+        - "Find user jacob" → search_type="user", query="jacob"
+        - "Search for user with email jacob@ibm.com" → search_type="user", query="jacob@ibm.com"
+        - "List all users" → search_type="user", query=None
+        
+        Groups:
+        - "Find group marketing" → search_type="group", query="marketing"
+        - "Search for analysts group" → search_type="group", query="analysts"
+        - "List all groups" → search_type="group", query=None
+        
+        Roles (CP4D only):
+        - "Show me all user roles" → search_type="role", query=None
+        - "Find administrator roles" → search_type="role", query="admin"
+    
+    Examples:
+        - "Add Jacob to Project X" → search_type="user", query="jacob", then use user_id
+        - "Give marketing analysts read access" → search_type="group", query="marketing", then use group_id
+        - "Apply data protection rule to jacob@ibm.com" → search_type="user", query="jacob@ibm.com"
+        - "What roles can I assign?" → search_type="role", query=None (CP4D only)
     """,
     tags={"search", "user_search", "identity", "access_management", "unified"},
     meta={"version": "1.0", "service": "user_search"},
 )
 @auto_context
-async def wxo_search_user_groups_roles(
+async def search_user_groups_roles(
     search_type: Literal["user", "group", "role"],
     query: Optional[str] = None
 ) -> UnifiedSearchResponse:
     """
-    Watsonx Orchestrator compatible version that expands UnifiedSearchRequest into individual parameters.
+    Wrapper version that expands UnifiedSearchRequest into individual parameters.
     
     Args:
         search_type: Type of identity to search ("user", "group", or "role")
@@ -316,7 +297,7 @@ async def wxo_search_user_groups_roles(
         query=query
     )
     
-    return await search_user_groups_roles(request)
+    return await _search_user_groups_roles(request)
 
 
 # Made with Bob

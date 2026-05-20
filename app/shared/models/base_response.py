@@ -11,7 +11,7 @@ class BaseResponseModel(BaseModel):
     Base response model with standardized error handling fields.
     
     All response models should inherit from this to ensure consistent
-    error handling across wxo tools.
+    error handling across wrapper tools.
     """
     error: Optional[str] = Field(
         default=None, 

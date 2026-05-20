@@ -20,44 +20,7 @@ from app.shared.logging import LOGGER, auto_context
 from app.services.constants import ASSET_TYPE_BASE_ENDPOINT
 from app.shared.utils.utils_tools import format_connections_or_dsds_for_table
 
-@service_registry.tool(
-    name="search_data_source_definition",
-    description="""Understand user's request about searching data source definitions aka DSD
-                    and return a list of retrieved DSDs. Users can choose to filter the 
-                    results based on the optional input parameters: name, data source type, 
-                    hostname, port, or physical collection. If no filters are provided, then 
-                    all available DSDs are retrieved.
-                    Example: Find all dsds.
-                    In this case, all input parameters will be None.
-                    Example: Find DSDs with datasource type postgresql.
-                    In this case, datasource_type parameter will be 'postgresql', and hostname, port, physical_collection will be None.
-                    Example: Find dsds with endpoint localhost:0000 and database db1.
-                    In this case, hostname parameter will be 'localhost', port parameter will be '0000', physical_collection parameter will be 'db1' and datasource_type parameter will be None.
-                    Example: Find data source definitons with hostname someendpoint and bucket testbucket.
-                    In this case, hostname parameter will be 'someendpoint', physical_collection parameter will be 'testbucket', and port and datasource_type parameters will be None.
-                    Example: Find dsd azure.
-                    In this case, name parameter will be 'azure' and all other parameters will be None.
-                    Example: Find dsd named c3 with datasource type postgresql.
-                    In this case, name parameter will be 'c3', datasource_type parameter will be 'postgresql', and hostname, port, physical_collection will be None.
-                    
-                    IMPORTANT CONSTRAINTS:
-                    - All possible combinations of input parameters include:
-                        - Only name
-                        - Only data source type
-                        - Only hostname
-                        - Only physical collection (database name, bucket name, or project id)
-                        - Data source type + name
-                        - Physical collection + name
-                        - Hostname + port
-                        - Hostname + port + name
-                        - Hostname + port + physical collection
-                        - Hostname + port + physical collection + name
-                    - Invalid values will result in errors""",
-    tags={"search", "data_source_definition"},
-    meta={"version": "1.0", "service": "search"}
-)
-@auto_context
-async def search_data_source_definition(
+async def _search_data_source_definition(
     request: SearchDataSourceDefinitionRequest
 ) -> List[SearchDataSourceDefinitionResponse]:
     # Validate the request 
@@ -164,10 +127,10 @@ async def search_data_source_definition(
     meta={"version": "1.0", "service": "search"}
 )
 @auto_context
-async def wxo_search_data_source_definition(
+async def search_data_source_definition(
     name: Optional[str], datasource_type: Optional[str], hostname: Optional[str], port: Optional[str], physical_collection: Optional[str]
 ) -> List[SearchDataSourceDefinitionResponse]:
-    """Watsonx Orchestrator compatible version that expands SearchDataSourceDefinitionRequest object into individual parameters."""
+    """Wrapper that expands SearchDataSourceDefinitionRequest object into individual parameters."""
 
     request = SearchDataSourceDefinitionRequest(
         name=name,
@@ -178,7 +141,7 @@ async def wxo_search_data_source_definition(
     )
 
     # Call the original search_data_source_definition function
-    return await search_data_source_definition(request)
+    return await _search_data_source_definition(request)
 
 def _validate_search_dsd_request(request: SearchDataSourceDefinitionRequest) -> None:
     if request.port and not request.hostname:

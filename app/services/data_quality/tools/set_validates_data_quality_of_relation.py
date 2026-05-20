@@ -62,7 +62,7 @@ Returns:
 Raises:
     ToolProcessFailedError: If the data quality rule relation set operation fails.
     ExternalServiceError: If the data quality rule service request fails.""",
-    tags={"update", "data_quality", "custom_tool"},
+    tags={"update", "data_quality"},
     meta={"version": "1.0", "service": "data_quality"},
 )
 @auto_context

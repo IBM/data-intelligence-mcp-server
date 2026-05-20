@@ -152,21 +152,7 @@ async def _list_asset_containers(container_type: ContainerType) -> List[Containe
     return all_containers
 
 
-@service_registry.tool(
-    name="list_containers",
-    description="""Lists all available containers - catalogs, projects or spaces.
-    
-    This tool finds all containers (catalogs, projects or spaces) that are available to the current user.
-    
-    IMPORTANT CONSTRAINTS:
-    - container_type supports flexible formats: "catalog", "project", "space", "all"
-    - Also supports combinations: "catalog,project", "projects and catalogs", "catalogs, projects", etc.
-    - Handles both singular and plural forms
-    - Defaults to "all" if not specified
-    - Returns list of containers with their IDs, names, types, and URLs""",
-)
-@auto_context
-async def list_containers(
+async def _list_containers(
     request: ListContainersRequest
 ) -> ListContainersResponse:
     """
@@ -217,14 +203,14 @@ async def list_containers(
     - Returns list of containers with their IDs, names, types, and URLs""",
 )
 @auto_context
-async def wxo_list_containers(
+async def list_containers(
     container_type: str = "all"
 ) -> ListContainersResponse:
-    """Watsonx Orchestrator compatible version that expands ListContainersRequest object into individual parameters."""
+    """Wrapper that expands ListContainersRequest object into individual parameters."""
     
     # Convert string to ContainerType enum
     container_type_enum = ContainerType(container_type)
     request = ListContainersRequest(container_type=container_type_enum)
     
     # Call the original list_containers function
-    return await list_containers(request)
+    return await _list_containers(request)

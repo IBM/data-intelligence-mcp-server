@@ -18,7 +18,6 @@ from app.services.metadata_import.models.create_metadata_import import (
     MetadataImport,
     MetadataImportScope,
 )
-from app.services.metadata_import.tools.list_connection_paths import list_connection_paths, wxo_list_connection_paths
 
 
 def get_metadata_import_service_url() -> str:
@@ -34,14 +33,7 @@ def get_metadata_import_resource_uri(mdi_id: str, project_id: str) -> str:
     return template.substitute(mdi_id=mdi_id, project_id=project_id)
 
 
-@auto_context
-@service_registry.tool(
-    name="create_metadata_import",
-    description="Create a metadata import (MDI) in a project. PREREQUISITE: Must call list_connection_paths FIRST if schemas are not explicitly provided by user.",
-    tags={"creat_metadata_import", "metadata_import"},
-    meta={"version": "1.0", "service": "metadata_import"},
-)
-async def create_metadata_import(input: CreateMetadataImportRequest) -> CreateMetadataImportResponse:
+async def _create_metadata_import(input: CreateMetadataImportRequest) -> CreateMetadataImportResponse:
     """
     Create a metadata import after determining the desired scope of schemas/tables to import.
     Returns:
@@ -125,17 +117,17 @@ async def create_metadata_import(input: CreateMetadataImportRequest) -> CreateMe
 @service_registry.tool(
     name="create_metadata_import",
     description="Create a metadata import (MDI) in a project. PREREQUISITE: Must call list_connection_paths FIRST if schemas are not explicitly provided by user.",
-    tags={"metadata-import", "wxo"},
+    tags={"metadata-import"},
     meta={"version": "1.0", "service": "metadata-import"},
 )
 @auto_context
-async def wxo_create_metadata_import(
+async def create_metadata_import(
     project_name: str,
     connection_name: str,
     scope: Union[List[str], str],
     name: Optional[str] = None
 ) -> CreateMetadataImportResponse:
-    """Watsonx Orchestrator compatible version that expands CreateMetadataImportRequest object into individual parameters."""
+    """Wrapper that expands CreateMetadataImportRequest object into individual parameters."""
     request = CreateMetadataImportRequest(
         project_name=project_name,
         connection_name=connection_name,
@@ -144,5 +136,5 @@ async def wxo_create_metadata_import(
     )
     
     # Call the original create_metadata_import function
-    return await create_metadata_import(request)
+    return await _create_metadata_import(request)
 

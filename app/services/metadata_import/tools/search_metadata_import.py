@@ -11,22 +11,7 @@ from app.shared.logging import auto_context, LOGGER
 from app.shared.utils.helpers import confirm_uuid
 
 
-@service_registry.tool(
-    name="search_metadata_import",
-    description="""Searches for the available metadata import .
-    
-    This function is mainly used when a user want to create or update a metadata enrichment (MDE) and does not provide an asset or want to use a metadata import (MDI).
-    This function can search for all the available metadata imports (MDI) or search a metadata imports by name 
-    - The user must provide a project name or the project ID
-    - Optional: the user can provide the metadata import name to search a specific MDI
-    
-    This function supports wildcard search
-    
-    Return the result in a table in MD format.
-    """,
-)
-@auto_context
-async def search_metadata_import(
+async def _search_metadata_import(
         project: str,
         metadata_import_name: Optional[str] = None,
 ) -> List[MetadataImportResponse]:
@@ -55,8 +40,8 @@ async def search_metadata_import(
     """,
 )
 @auto_context
-async def wxo_search_metadata_import(
+async def search_metadata_import(
         project: str,
         metadata_import_name: Optional[str] = None,
 ) -> List[MetadataImportResponse]:
-    return await search_metadata_import(project, metadata_import_name)
+    return await _search_metadata_import(project, metadata_import_name)

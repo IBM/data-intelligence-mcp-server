@@ -52,3 +52,7 @@ class TaskActionResponse(BaseResponseModel):
     
     status_code: int = Field(..., description="HTTP status code from the action")
     message: Optional[str] = Field(None, description="Status message")
+    retry_metadata: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Optional machine-readable retry metadata for clients/LLMs"
+    )

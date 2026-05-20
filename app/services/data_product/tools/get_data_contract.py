@@ -11,11 +11,12 @@ from app.shared.exceptions.base import ServiceError
 from app.shared.logging import LOGGER, auto_context
 from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.utils.utils_tools import format_dict_for_table
+from app.services.data_product.utils.common_utils import  get_dph_catalog_id_for_user
 
-from typing import Literal
+from typing import Any, Dict, Literal
 
 
-def _extract_contract_terms_id(response: dict, context: str) -> str:
+def _extract_contract_terms_id(response: Dict[str, Any] | bytes, context: str) -> str:
     """Extract and validate contract terms ID from response.
     
     Args:
@@ -28,6 +29,9 @@ def _extract_contract_terms_id(response: dict, context: str) -> str:
     Raises:
         ServiceError: If no contract terms ID is found
     """
+    if isinstance(response, bytes):
+        raise ServiceError(f"Expected dict response but got bytes for {context}.")
+    
     contract_terms = response.get("contract_terms", [])
     if not contract_terms:
         LOGGER.info(f"No contract terms found for {context}.")
@@ -40,14 +44,14 @@ def _extract_contract_terms_id(response: dict, context: str) -> str:
     return contract_terms_id
 
 
-async def _get_draft_contract(data_product_version_id: str) -> dict:
+async def _get_draft_contract(data_product_version_id: str) -> Dict[str, Any] | bytes:
     """Get data contract for a draft data product.
     
     Args:
         data_product_version_id: The ID of the draft data product version
         
     Returns:
-        dict: The contract document response
+        Dict[str, Any] | bytes: The contract document response
     """
     # Step 1: get data contract terms ID
     response = await tool_helper_service.execute_get_request(
@@ -66,57 +70,49 @@ async def _get_draft_contract(data_product_version_id: str) -> dict:
     )
 
 
-async def _get_published_contract(data_product_version_id: str) -> dict:
+async def _get_published_contract(data_product_version_id: str) -> Dict[str, Any] | bytes:
     """Get data contract for a published data product.
     
     Args:
         data_product_version_id: The ID of the published data product version
         
     Returns:
-        dict: The contract document response
+        Dict[str, Any] | bytes: The contract document response
     """
-    # Step 1: get data product version ID
-    response = await tool_helper_service.execute_get_request(
-        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/{data_product_version_id}"
-    )
-    release_id = response.get("latest_release", {}).get("id")
-
-    # Step 2: get data contract terms ID
+    # Step 1: get data contract terms ID
     query_params = {
         "check_caller_approval": False
     }
     response = await tool_helper_service.execute_get_request(
-        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/{data_product_version_id}/releases/{release_id}",
+        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/releases/{data_product_version_id}",
         params=query_params
     )
     contract_terms_id = _extract_contract_terms_id(response, "data product")
 
-    # Step 3: get contract document
+    # Step 2: get contract document
     query_params = {
         "include_contract_documents": True
     }
     return await tool_helper_service.execute_get_request(
-        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/{data_product_version_id}/releases/{release_id}/contract_terms/{contract_terms_id}",
+        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/releases/{data_product_version_id}/contract_terms/{contract_terms_id}",
         params=query_params
     )
 
 
-@service_registry.tool(
-    name="data_product_get_data_contract",
-    description="""
-    This tool is used to get data contract for the specified data product (draft/published (available)).
-    Example: 'Get me data contract for <data product name>'
-    This tool should receive data product ID of the specified data product as input from context. Ask for the data product state from the user.
-    """,
-    tags={"sample", "data_product"},
-    meta={"version": "1.0", "service": "data_product"}
-)
-@auto_context
-async def get_data_contract(request: GetDataContractRequest) -> GetDataContractResponse:
+async def _get_data_contract(request: GetDataContractRequest) -> GetDataContractResponse:
+    data_product_version_id = request.data_product_version_id
+    
+    if "@" not in data_product_version_id:
+        dph_catalog_id = await get_dph_catalog_id_for_user()
+        data_product_version_id = f"{data_product_version_id}@{dph_catalog_id}"
+    
     if request.data_product_state == "draft":
-        response = await _get_draft_contract(request.data_product_version_id)
+        response = await _get_draft_contract(data_product_version_id)
     else:
-        response = await _get_published_contract(request.data_product_version_id)
+        response = await _get_published_contract(data_product_version_id)
+    
+    if isinstance(response, bytes):
+        raise ServiceError("Expected dict response but got bytes for data contract.")
     
     formatted_data = format_dict_for_table(response)
     
@@ -134,7 +130,7 @@ async def get_data_contract(request: GetDataContractRequest) -> GetDataContractR
     description="""
     This tool is used to get data contract for the specified data product (draft/published (available)).
     Example: 'Get me data contract for <data product name>'
-    This tool should receive data product ID of the specified data product as input from context. Ask for the data product state from the user.
+    This tool should receive data product version ID of the specified data product as input from context. Ask for the data product state from the user.
     
     Args:
         data_product_version_id: str = The ID of the data product version for which we need to get the data contract. Can be a draft or published data product.
@@ -142,17 +138,17 @@ async def get_data_contract(request: GetDataContractRequest) -> GetDataContractR
     Returns:
         str = The data contract.
     """,
-    tags={"read", "data_product"},
+    tags={"read", "data_product", "sample"},
     meta={"version": "1.0", "service": "data_product"}
 )
 @auto_context
-async def wxo_get_data_contract(data_product_version_id: str,
+async def get_data_contract(data_product_version_id: str,
         data_product_state: Literal["draft", "available"]) -> GetDataContractResponse:
-    """Watsonx Orchestrator compatible version that expands GetDataContractRequest object into individual parameters."""
+    """Wrapper version that expands GetDataContractRequest object into individual parameters."""
 
     request = GetDataContractRequest(
         data_product_version_id=data_product_version_id,
         data_product_state=data_product_state,
     )
 
-    return await get_data_contract(request)
+    return await _get_data_contract(request)

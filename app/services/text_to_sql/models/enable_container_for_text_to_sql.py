@@ -4,16 +4,16 @@
 
 from pydantic import BaseModel
 from pydantic import Field
+from typing import Literal
 from app.shared.models import BaseResponseModel
 
 
-class EnableProjectForTextToSqlRequest(BaseModel):
-    project_id_or_name: str = Field(
-        ..., description="Id or name of the project to onboard."
-    )
+class EnableContainerForTextToSqlRequest(BaseModel):
+    container_id_or_name: str = Field(..., description="Name or UUID of the container to onboard.")
+    container_type: Literal["catalog", "project"] = Field("project", description="The container type of the container to onboard, project by default.")
 
 
-class EnableProjectForTextToSqlResponse(BaseResponseModel):
+class EnableContainerForTextToSqlResponse(BaseResponseModel):
     message: str = Field(
         ...,
         description="A message indicating the success of the operation with UI link to check onboarding job.",

@@ -22,12 +22,7 @@ from app.shared.utils.helpers import confirm_uuid
 from app.shared.utils.tool_helper_service import tool_helper_service
 
 
-@service_registry.tool(
-    name="text_to_sql_generate_sql_query",
-    description="Generate the SQL query which addresses the request of the user and utilises the specified container.",
-)
-@auto_context
-async def generate_sql_query(
+async def _generate_sql_query(
     request: GenerateSqlQueryRequest,
 ) -> GenerateSqlQueryResponse:
     container_id = await confirm_uuid(
@@ -101,10 +96,10 @@ async def generate_sql_query(
     description="Generate the SQL query which addresses the request of the user and utilises the specified container.",
 )
 @auto_context
-async def wxo_generate_sql_query(
+async def generate_sql_query(
     request: str, container_id_or_name: str, container_type: str
 ) -> GenerateSqlQueryResponse:
-    """Watsonx Orchestrator compatible version that expands GenerateSqlQueryRequest object into individual parameters."""
+    """Wrapper version that expands GenerateSqlQueryRequest object into individual parameters."""
 
     req = GenerateSqlQueryRequest(
         request=request,
@@ -113,4 +108,4 @@ async def wxo_generate_sql_query(
     )
 
     # Call the original generate_sql_query function
-    return await generate_sql_query(req)
+    return await _generate_sql_query(req)

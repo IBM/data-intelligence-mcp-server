@@ -5,15 +5,15 @@
 # This file has been modified with the assistance of IBM Bob AI tool
 
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 import warnings
-import json
 
 from app.core.registry import service_registry
 from app.services.constants import WORKFLOW_TASK_ENDPOINT
 from app.services.workflow.models.get_workflow_tasks_from_my_inbox import Task, GetMyTasksRequest, GetMyTasksResponse
 from app.services.workflow.utils.task_formatters import format_tasks_as_table, sort_tasks_by_priority
+from app.services.workflow.utils.task_utils import _convert_variables_to_dict, _parse_task_title_from_json
 from app.services.workflow.tools.utils import ZERO_MINUTES
 from app.services.workflow.utils.user_mappers import convert_iam_id_to_email, process_candidate_users
 from app.shared.logging import LOGGER, auto_context
@@ -41,67 +41,6 @@ def transform_base_url_to_ui_url(input_url: str) -> str:
         return f"{hostname}/gov/workflow/tasks?taskId="
     else:
         return f"{hostname}/governance/workflow/tasks?taskId="
-
-def _convert_variables_to_dict(variables_list) -> dict:
-    """
-    Convert variables from list format to dictionary.
-    
-    Args:
-        variables_list: Variables in list or dict format
-        
-    Returns:
-        Dictionary mapping variable names to values
-    """
-    if isinstance(variables_list, dict):
-        return variables_list
-    
-    variables_dict = {}
-    if isinstance(variables_list, list):
-        for var in variables_list:
-            if isinstance(var, dict) and 'name' in var and 'value' in var:
-                variables_dict[var['name']] = var['value']
-    return variables_dict
-
-
-def _parse_task_title_from_json(task_title_raw: str) -> Optional[str]:
-    """
-    Parse task title from JSON template format.
-    
-    Args:
-        task_title_raw: Raw task title string in JSON format
-        
-    Returns:
-        Parsed task title or original string if parsing fails
-    """
-    try:
-        task_title_json = json.loads(task_title_raw.strip())
-        default_message = task_title_json.get("defaultMessage", "")
-        artifact_name = task_title_json.get("artifactName")
-        artifact_type_key = task_title_json.get("§artifactType")
-        
-        # If defaultMessage is empty, return empty string
-        if not default_message:
-            return ""
-        
-        # Return original raw string if required fields are missing or empty
-        if not artifact_name or not artifact_type_key:
-            return task_title_raw
-        
-        # Extract artifact type from the translation key
-        artifact_type = "artifact"
-        if "glossary_term" in artifact_type_key:
-            artifact_type = "Business term"
-        elif "data_class" in artifact_type_key:
-            artifact_type = "Data class"
-        elif "category" in artifact_type_key:
-            artifact_type = "Category"
-        
-        # Replace placeholders in the template
-        return default_message.replace("{artifactType}", artifact_type).replace("{artifactName}", artifact_name)
-    except (json.JSONDecodeError, KeyError, AttributeError) as e:
-        LOGGER.debug(f"Failed to parse task_title JSON: {e}")
-        return task_title_raw
-
 
 def _extract_task_title(metadata: dict, entity: dict) -> str:
     """
@@ -154,12 +93,22 @@ async def _create_task_from_data(task_data: dict) -> Task:
     # Extract and process data
     variables_dict = _convert_variables_to_dict(entity.get("variables", []))
     task_title = _extract_task_title(metadata, entity)
+    claimed_at = _parse_due_date(entity.get("claimed_at"))  # Reuse _parse_due_date for datetime parsing
     due_date = _parse_due_date(entity.get("due_date"))
     
     # Process IAM ID to email conversions
     assignee_iam_id = entity.get("assignee")
     assignee = await convert_iam_id_to_email(assignee_iam_id, "assignee") if assignee_iam_id else None
     candidate_users = await process_candidate_users(entity.get("candidate_users"))
+    
+    # Parse created_at with proper null handling
+    created_at_str = metadata.get("created_at")
+    if created_at_str:
+        created_at = datetime.fromisoformat(created_at_str.replace("Z", ZERO_MINUTES))
+    else:
+        # Fallback to current time if created_at is missing
+        created_at = datetime.now(timezone.utc)
+        LOGGER.warning(f"Task {metadata.get('task_id')} missing created_at, using current time")
     
     # Build and return Task object
     return Task(
@@ -168,7 +117,8 @@ async def _create_task_from_data(task_data: dict) -> Task:
         task_title=task_title,
         workflow_id=metadata.get("workflow_id", ""),
         workflow_template_id=metadata.get("workflow_type_id", ""),
-        created_at=datetime.fromisoformat(metadata.get("created_at").replace("Z", ZERO_MINUTES)),
+        created_at=created_at,
+        claimed_at=claimed_at,
         due_date=due_date,
         priority=entity.get("priority"),
         assignee=assignee,
@@ -216,7 +166,8 @@ async def _retrieve_my_tasklist_from_workflow(
         return tasks
 
     except Exception as e:
-        LOGGER.error(f"Error retrieving tasks from workflow: {str(e)}")
+        # Log the exception type and details for debugging
+        LOGGER.error(f"Error retrieving tasks from workflow: {type(e).__name__}: {str(e)}")
         return []
 
 
@@ -244,15 +195,7 @@ get_workflow_tasks_from_my_inbox_description="""
     Make sure to use a request json object for the parameters.
     """
 
-@service_registry.tool(
-    name="get_workflow_tasks_from_my_inbox",
-    description=get_workflow_tasks_from_my_inbox_description,
-    tags={"workflow", "flowable", "tasks", "governance", "glossary"},
-    meta={"version": "2.0", "service": "task_inbox"},
-)
-
-#@auto_context
-async def get_workflow_tasks_from_my_inbox(
+async def _get_workflow_tasks_from_my_inbox(
     request: GetMyTasksRequest,
     ctx: Context
 ) -> GetMyTasksResponse:
@@ -309,20 +252,21 @@ async def get_workflow_tasks_from_my_inbox(
 
 @service_registry.tool(
     name="get_workflow_tasks_from_my_inbox",
-    description="Watsonx Orchestrator compatible wrapper for get_workflow_tasks_from_my_inbox. " + get_workflow_tasks_from_my_inbox_description,
-    tags={"wxo", "workflow", "flowable", "tasks", "governance", "glossary"},
+    description=get_workflow_tasks_from_my_inbox_description,
+    tags={"workflow", "flowable", "tasks", "governance", "glossary"},
     meta={"version": "2.0", "service": "task_inbox"},
 )
 @auto_context
-async def wxo_get_workflow_tasks_from_my_inbox(
+async def get_workflow_tasks_from_my_inbox(
     max_results: int = 50,
     format: str = "table",
+    ctx: Context = None,
 ) -> GetMyTasksResponse:
-    """Watsonx Orchestrator compatible version of get_workflow_tasks_from_my_inbox."""
+    """Wrapper version of get_workflow_tasks_from_my_inbox."""
     
     request = GetMyTasksRequest(
         max_results=max_results,
         format=format
     )
     
-    return await get_workflow_tasks_from_my_inbox(request)
+    return await _get_workflow_tasks_from_my_inbox(request, ctx)

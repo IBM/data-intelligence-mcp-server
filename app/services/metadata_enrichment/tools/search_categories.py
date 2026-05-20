@@ -29,14 +29,7 @@ def _format_categories_for_table(categories_data: List[str]) -> List[dict]:
     ]
 
 
-@service_registry.tool(
-    name="search_categories",
-    description="""Searches for user's categories.
-                    This function is mainly used when a user want to create or update a metadata enrichment (MDE) and does not provide a category.
-                    This function should be used to retrieve the list of categories and surface them back to the user so he can choose one of them""",
-)
-@auto_context
-async def search_categories() -> List[str]:
+async def _search_categories() -> List[str]:
     auth_scope = "category"
     LOGGER.info("Starting searching categories...")
     payload = {
@@ -101,6 +94,6 @@ async def search_categories() -> List[str]:
                     This function should be used to retrieve the list of categories and surface them back to the user so he can choose one of them""",
 )
 @auto_context
-async def wxo_search_categories() -> List[str]:
+async def search_categories() -> List[str]:
 
-    return await search_categories()
+    return await _search_categories()

@@ -18,8 +18,8 @@ from app.services.workflow.models.list_business_terms_by_search_term import (
     ListBusinessTermsRequest,
     ListBusinessTermsResponse
 )
-from app.services.workflow.tools.utils import _query_artifact_in_draft_by_term, _query_artefacts_by_term
-from app.services.workflow.utils.task_formatters import format_artefacts_as_table, prompt_user_for_artifact_selection
+from app.services.workflow.tools.utils import _query_artifact_in_draft_by_term, _query_artifacts_by_term
+from app.services.workflow.utils.task_formatters import format_artifacts_as_table, prompt_user_for_artifact_selection
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.client_detection import supports_rich_text_format
@@ -34,13 +34,7 @@ If you find markdown text in the result show it to the user.
 ALWAYS use a request json object to encapsulate the parameters.
 """
 
-@service_registry.tool(
-    name="list_business_terms_by_search_term",
-    description=list_business_terms_by_search_term_description,
-    tags={"workflow", "glossary", "business_terms", "governance"},
-    meta={"version": "1.0", "service": "glossary"},
-)
-async def list_business_terms_by_search_term(
+async def _list_business_terms_by_search_term(
     request: ListBusinessTermsRequest,
     ctx: Context
 ) -> ListBusinessTermsResponse:
@@ -73,7 +67,7 @@ async def list_business_terms_by_search_term(
             max_results=request.max_results
         )
     else:
-        business_terms = await _query_artefacts_by_term(
+        business_terms = await _query_artifacts_by_term(
             search_term=request.search_term,
             artifact_type="glossary_term",
             max_results=request.max_results
@@ -91,13 +85,13 @@ async def list_business_terms_by_search_term(
         # Use prompt for user selection when multiple artifacts are returned
         if len(business_terms) > 1:
             formatted_output = prompt_user_for_artifact_selection(
-                artefacts=business_terms,
+                artifacts=business_terms,
                 base_url=str(tool_helper_service.base_url)
             )
             LOGGER.info(f"Generated user selection prompt for {len(business_terms)} business terms")
         else:
-            formatted_output = format_artefacts_as_table(
-                artefacts=business_terms,
+            formatted_output = format_artifacts_as_table(
+                artifacts=business_terms,
                 base_url=str(tool_helper_service.base_url)
             )
             LOGGER.info(f"Generated formatted table for {len(business_terms)} business terms")
@@ -120,18 +114,19 @@ async def list_business_terms_by_search_term(
 
 @service_registry.tool(
     name="list_business_terms_by_search_term",
-    description="Watsonx Orchestrator compatible wrapper for list_business_terms_by_search_term. " + list_business_terms_by_search_term_description,
-    tags={"workflow", "wxo", "glossary", "business_terms", "governance"},
+    description=list_business_terms_by_search_term_description,
+    tags={"workflow", "glossary", "business_terms", "governance"},
     meta={"version": "1.0", "service": "glossary"},
 )
 @auto_context
-async def wxo_list_business_terms_by_search_term(
+async def list_business_terms_by_search_term(
     search_term: str,
     max_results: int = 50,
     draft: bool = False,
     format: str = "table",
+    ctx: Context = None,
 ) -> ListBusinessTermsResponse:
-    """Watsonx Orchestrator compatible version of list_business_terms_by_search_term."""
+    """Wrapper version of list_business_terms_by_search_term."""
     
     request = ListBusinessTermsRequest(
         search_term=search_term,
@@ -140,4 +135,4 @@ async def wxo_list_business_terms_by_search_term(
         format=format
     )
     
-    return await list_business_terms_by_search_term(request)
+    return await _list_business_terms_by_search_term(request, ctx)

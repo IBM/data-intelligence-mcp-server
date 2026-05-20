@@ -20,6 +20,7 @@ class Workflow(BaseModel):
     created_by: Optional[str] = Field(None, description="User who created the workflow")
     business_key: Optional[str] = Field(None, description="Business key associated with the workflow")
     variables: Optional[dict] = Field(None, description="Process variables")
+    tasks: Optional[List['TaskDetail']] = Field(None, description="Detailed task information (only included when include_tasks=True)")
 
 
 class TaskDetail(BaseModel):

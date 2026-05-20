@@ -59,7 +59,7 @@ async def _run_data_quality_rule(
     Raises:
         ToolProcessFailedError: If the data quality rule run fails.
         ExternalServiceError: If the data quality rule service request fails.""",
-    tags={"run", "data_quality", "custom_tool"},
+    tags={"run", "data_quality"},
     meta={"version": "1.0", "service": "data_quality"},
 )
 @auto_context

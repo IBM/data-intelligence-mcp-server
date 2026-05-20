@@ -75,8 +75,8 @@ async def _get_data_quality_for_asset(request: GetDataQualityForAssetRequest) ->
 
 
 @service_registry.tool(
-    name="wxo_get_data_quality_for_asset",
-    description="""Watsonx Orchestrator compatible wrapper for get_data_quality_for_asset.
+    name="get_data_quality_for_asset",
+    description="""Wrapper for get_data_quality_for_asset.
 
     
 Retrieve data quality metrics and information for a specific asset. This tool fetches quality metrics for a data asset, including overall quality score and specific dimensions like consistency, validity, and completeness. This information helps assess the reliability and usability of the data.
@@ -104,7 +104,7 @@ Returns:
 
 Raises:
     ToolProcessFailedError: If quality metrics cannot be retrieved or the service call fails.""",
-    tags={"get", "data_quality", "custom_tool"},
+    tags={"get", "data_quality"},
     meta={"version": "1.0", "service": "data_quality"},
 )
 @auto_context

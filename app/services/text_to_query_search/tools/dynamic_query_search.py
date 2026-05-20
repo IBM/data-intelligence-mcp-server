@@ -40,17 +40,13 @@ from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.exceptions.base import ExternalAPIError
 from app.shared.ui_message.ui_message_context import ui_message_context
+from app.shared.utils.utils_tools import format_search_results_for_table
 
 # Maximum number of retry attempts for query generation
 MAX_QUERY_GENERATION_ATTEMPTS = 2
 
 
-@service_registry.tool(
-    name="dynamic_query_search",
-    description=TOOL_DESCRIPTION,
-)
-@auto_context
-async def search(
+async def _search(
     request: TextToQuerySearchAssetRequest
 ) -> TextToQuerySearchAssetResponse:
     validate_request(request)
@@ -116,7 +112,7 @@ async def search(
             )
 
             # Add UI table message for search results
-            formatted_results = _format_search_results_for_table(results)
+            formatted_results = format_search_results_for_table(results)
             ui_message_context.add_table_ui_message(
                 tool_name="dynamic_query_search",
                 formatted_data=formatted_results,
@@ -172,40 +168,6 @@ def _construct_search_asset(row: Any, source_fields: Optional[List[str]] = None)
         url=url,
         source_data=source_data,
     )
-
-def _format_search_results_for_table(results: List[GlobalSearchAssetResponse]) -> list:
-    """
-    Format search results for UI table display.
-    
-    Args:
-        results: List of GlobalSearchAssetResponse objects
-        
-    Returns:
-        List of dictionaries with formatted data for table display
-    """
-    formatted_data = []
-    for item in results:
-        # Determine container type and ID
-        if item.project_id:
-            container_type = "project"
-            container_id = item.project_id
-        elif item.catalog_id:
-            container_type = "catalog"
-            container_id = item.catalog_id
-        else:
-            container_type = "-"
-            container_id = "-"
-        
-        formatted_data.append({
-            "Name": ui_message_context.create_markdown_link(item.url, item.name) if item.url else item.name,
-            "Artifact Type": item.asset_type or "-",
-            "Container Type": container_type,
-            "Container ID": container_id,
-        })
-    
-    return formatted_data
-
-
 
 async def _call_text_to_query_api(
     search_prompt: str,
@@ -501,14 +463,14 @@ def _process_search_results(response: dict, source_fields: Optional[List[str]] =
     description=TOOL_DESCRIPTION,
 )
 @auto_context
-async def wxo_search(
+async def search(
     search_prompt: str,
     container_type: Optional[str],
     container_name: Optional[str],
     artifact_types: Optional[list[str]],
     names_mapping: Optional[list[dict]] = None,
 ) -> TextToQuerySearchAssetResponse:
-    """Watsonx Orchestrator compatible version of dynamic_query_search."""
+    """Wrapper version of dynamic_query_search."""
 
     request = TextToQuerySearchAssetRequest(
         search_prompt=search_prompt,
@@ -519,6 +481,6 @@ async def wxo_search(
     )
 
     # Call the original search function
-    return await search(request)
+    return await _search(request)
 
 #Made with Bob

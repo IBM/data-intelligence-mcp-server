@@ -54,7 +54,7 @@ class CreateAndAttachCustomContractRequest(BaseModel):
     contract_terms_id: str = Field(
         ..., description=THE_ID_OF_THE_CONTRACT_TERMS_ASSET
     )
-    contract_terms: Optional[dict] = Field(
+    contract_terms: Optional[dict] | None = Field(
         None, description="Custom contract terms values to create and attach to the data product. Must follow the exact nested structure from the schema. If None, the empty schema will be shown. If provided with values, the contract will be created and attached (empty dict not allowed for custom contracts)."
     )
     

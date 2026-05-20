@@ -164,12 +164,7 @@ def _build_asset_payload(
     }
 
 
-@service_registry.tool(
-    name="text_to_sql_create_asset_from_sql_query",
-    description="Create a new asset in the specified project and connection if provided based on the provided SQL query if creation of new asset was made explicitly.",
-)
-@auto_context
-async def create_asset_from_sql_query(
+async def _create_asset_from_sql_query(
     request: CreateAssetFromSqlQueryRequest,
 ) -> CreateAssetFromSqlQueryResponse:
     """
@@ -244,14 +239,14 @@ async def create_asset_from_sql_query(
     description="Create a new asset in the specified project and connection if provided based on the provided SQL query if creation of new asset was made explicitly.",
 )
 @auto_context
-async def wxo_create_asset_from_sql_query(
+async def create_asset_from_sql_query(
     sql_query: str,
     container_id_or_name: str,
     container_type: str,
     connection_id_or_name: str,
     asset_name: str | None = None,
 ) -> CreateAssetFromSqlQueryResponse:
-    """Watsonx Orchestrator compatible version that expands CreateAssetFromSqlQueryRequest object into individual parameters."""
+    """Wrapper version that expands CreateAssetFromSqlQueryRequest object into individual parameters."""
 
     request = CreateAssetFromSqlQueryRequest(
         sql_query=sql_query,
@@ -262,4 +257,4 @@ async def wxo_create_asset_from_sql_query(
     )
 
     # Call the original create_asset_from_sql_query function
-    return await create_asset_from_sql_query(request)
+    return await _create_asset_from_sql_query(request)

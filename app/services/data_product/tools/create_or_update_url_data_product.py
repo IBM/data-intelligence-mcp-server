@@ -76,28 +76,7 @@ async def _validate_duplicate_url(
         raise ServiceError(error_msg)
 
 
-@service_registry.tool(
-    name="data_product_create_or_update_url_data_product",
-    description="""
-    This tool creates a data product draft from a URL or updates an existing draft to add a URL asset to it.
-    It strictly follows the following rules:
-    - FIRST: Search all data products to check if the URL already exists in any data product's parts_out.
-    - If duplicates are found AND force=False: STOP immediately and return error with duplicate information.
-    - If duplicates are found AND force=True: Proceed with creation despite duplicates.
-    - If no duplicates found: Proceed with creation.
-    
-    Example 1 - Create a URL data product draft:
-        'Create a URL data product with <name>, <url>,.....'
-    Example 2 - Add a URL asset to an existing data product draft:
-        In this case, request.existing_data_product_draft_id is NOT null/None.
-        Identifies the data product draft by request.existing_data_product_draft_id and adds the URL asset to the data product draft.
-        'Add a URL asset to data product draft <url>,.....'
-    """,
-    tags={"create", "data_product"},
-    meta={"version": "1.0", "service": "data_product"},
-)
-@auto_context
-async def create_or_update_url_data_product(
+async def _create_or_update_url_data_product(
     request: CreateOrUpdateUrlDataProductRequest,
 ) -> CreateOrUpdateUrlDataProductResponse:
     LOGGER.info(
@@ -318,7 +297,7 @@ def get_patch_data_asset_items_with_delivery_method_to_draft_payload(
     meta={"version": "1.0", "service": "data_product"},
 )
 @auto_context
-async def wxo_create_or_update_url_data_product(
+async def create_or_update_url_data_product(
     name: str,
     description: str,
     url_name: str,
@@ -326,10 +305,10 @@ async def wxo_create_or_update_url_data_product(
     existing_data_product_draft_id: str | None = None,
     force: bool = False
 ) -> CreateOrUpdateUrlDataProductResponse:
-    """Watsonx Orchestrator compatible version that expands CreateOrUpdateUrlDataProductRequest object into individual parameters."""
+    """Wrapper version that expands CreateOrUpdateUrlDataProductRequest object into individual parameters."""
 
     # Convert empty string to None for proper handling
-    # WXO requires string type, but empty string should be treated as None
+    # Wrapper requires string type, but empty string should be treated as None
     draft_id = existing_data_product_draft_id if existing_data_product_draft_id else None
 
     request = CreateOrUpdateUrlDataProductRequest(
@@ -342,4 +321,4 @@ async def wxo_create_or_update_url_data_product(
     )
 
     # Call the original create_or_update_url_data_product function
-    return await create_or_update_url_data_product(request)
+    return await _create_or_update_url_data_product(request)

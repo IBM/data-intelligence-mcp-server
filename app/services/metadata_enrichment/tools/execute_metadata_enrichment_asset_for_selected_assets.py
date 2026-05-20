@@ -30,27 +30,7 @@ from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import confirm_uuid
 
 
-@service_registry.tool(
-    name="execute_metadata_enrichment_asset_for_selected_assets",
-    description="""Executes a metadata enrichment asset for selected datasets within a specified project.
-
-    This tool initiates the execution of a pre-configured metadata enrichment asset, applying it to multiple datasets.
-    It retrieves the asset's details, confirms its existence within the project, and starts the enrichment job for the specified datasets.
-    The function returns a MetadataEnrichmentRun object containing information about the executed job,
-    including its ID, run ID, and a URL to monitor its progress in the UI.
-    
-    The execution process involves:
-    1. Confirming the project ID based on the provided project name.
-    2. Retrieving the metadata enrichment asset ID using its name within the project.
-    3. Confirming the UUIDs of the datasets to be enriched, matching them exactly within the project.
-    4. Executing the metadata enrichment job with the selected datasets.
-    5. Constructing a URL to the metadata enrichment UI for monitoring.
-    
-    The function assumes the metadata enrichment asset is already defined and valid within the project,
-    and the datasets specified exist. It does not handle asset creation or validation of dataset names beyond exact matching.""",
-)
-@auto_context
-async def execute_metadata_enrichment_asset_for_selected_assets(
+async def _execute_metadata_enrichment_asset_for_selected_assets(
     request: MetadataEnrichmentExecutionRequest,
 ) -> MetadataEnrichmentRun:
 
@@ -109,16 +89,16 @@ async def execute_metadata_enrichment_asset_for_selected_assets(
     and the datasets specified exist. It does not handle asset creation or validation of dataset names beyond exact matching.""",
 )
 @auto_context
-async def wxo_execute_metadata_enrichment_asset_for_selected_assets(
+async def execute_metadata_enrichment_asset_for_selected_assets(
     project_name: str,
     metadata_enrichment_name: str,
     dataset_names: list[str] | str,
 ) -> MetadataEnrichmentRun:
-    """Watsonx Orchestrator compatible version that MetadataEnrichmentExecutionRequest expands object into individual parameters."""
+    """Wrapper that MetadataEnrichmentExecutionRequest expands object into individual parameters."""
 
     request = MetadataEnrichmentExecutionRequest(
         project_name=project_name,
         metadata_enrichment_name=metadata_enrichment_name,
         dataset_names=dataset_names,
     )
-    return await execute_metadata_enrichment_asset_for_selected_assets(request)
+    return await _execute_metadata_enrichment_asset_for_selected_assets(request)

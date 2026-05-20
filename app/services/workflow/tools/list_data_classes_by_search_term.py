@@ -12,8 +12,7 @@ and establish their mapping to artifact IDs.
 """
 
 import logging
-
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Literal
 from app.core.registry import service_registry
 from app.services.constants import SEARCH_PATH, GLOSSARY_DATA_CLASS_ENDPOINT, GLOSSARY_ARTIFACT_TYPES_ENDPOINT, GLOSSARY_DATA_CLASS
 
@@ -22,9 +21,9 @@ from app.services.workflow.models.list_data_classes_by_search_term import (
     ListDataClassesResponse,
     DataClass
 )
-from app.services.workflow.models.artefact import Artefact
-from app.services.workflow.tools.utils import _query_artifact_in_draft_by_term, _query_artefacts_by_term
-from app.services.workflow.utils.task_formatters import format_artefacts_as_table, prompt_user_for_artifact_selection
+from app.services.workflow.models.artifact import Artifact
+from app.services.workflow.tools.utils import _query_artifact_in_draft_by_term, _query_artifacts_by_term
+from app.services.workflow.utils.task_formatters import format_artifacts_as_table, prompt_user_for_artifact_selection
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.client_detection import supports_rich_text_format
@@ -38,9 +37,7 @@ from mcp.server.elicitation import (
     CancelledElicitation,
 )
 
-from pydantic import BaseModel, Field
-class ElicitationResponse(BaseModel):
-    class_nr: Optional[int] = Field(default=None)
+from pydantic import BaseModel, Field, create_model
 
 async def _fetch_data_classes(request: ListDataClassesRequest) -> List[DataClass]:
     """
@@ -59,7 +56,7 @@ async def _fetch_data_classes(request: ListDataClassesRequest) -> List[DataClass
             max_results=request.max_results
         )
     else:
-        return await _query_artefacts_by_term(
+        return await _query_artifacts_by_term(
             search_term=request.search_term,
             artifact_type="data_class",
             max_results=request.max_results
@@ -96,25 +93,40 @@ async def _handle_elicitation(
     if len(data_classes) <= 1 or ctx is None:
         return data_classes
 
-    
     try:
         data_class_names = [data_class.name for data_class in data_classes]
 
+        # Create a Literal type from the data class names for enum constraint
+        SelectionLiteral = Literal[tuple(data_class_names)]
+        
+        # Dynamically create the elicitation model with the first option as default
+        DynamicElicitationModel = create_model(
+            'DynamicElicitationModel',
+            selected_class=(SelectionLiteral, data_class_names[0])
+        )
+
+        # Use the dynamic model for elicitation
         response = await ctx.elicit(
-            message="Please select one of the classes",
-            response_type=data_class_names
+            message=f"Please select one of the {len(data_class_names)} data classes",
+            response_type=DynamicElicitationModel
         )
         
         LOGGER.info(f"Elicitation response: {str(response)}")
         
         if response is not None and response.action == 'accept':
-            idx = data_class_names.index(response.data)
-            LOGGER.info(f"Elicitation accepted: {str(idx)}")
+            selected_class_name = response.data.selected_class
+            LOGGER.info(f"Elicitation accepted: {selected_class_name}")
             
-            if idx >= 0 and idx < len(data_classes):
-                return data_classes[idx:idx+1]
+            # Find the index of the selected class
+            try:
+                idx = data_class_names.index(selected_class_name)
+                if idx >= 0 and idx < len(data_classes):
+                    return data_classes[idx:idx+1]
+            except ValueError:
+                LOGGER.warning(f"Selected class '{selected_class_name}' not found in data classes")
+                return data_classes
         else:
-            LOGGER.info("Elicitation declined")
+            LOGGER.info("Elicitation declined or no selection made")
             
     except Exception as elicit_e:
         LOGGER.warning(f"Failed to call elicitation: {str(elicit_e)}")
@@ -132,8 +144,8 @@ def _build_table_response(data_classes: List[DataClass]) -> ListDataClassesRespo
     Returns:
         ListDataClassesResponse with formatted table output
     """
-    formatted_output = format_artefacts_as_table(
-        artefacts=data_classes,
+    formatted_output = format_artifacts_as_table(
+        artifacts=data_classes,
         base_url=str(tool_helper_service.base_url)
     )
     
@@ -176,14 +188,8 @@ If you find markdown text in the result show it to the user.
 ALWAYS use a request json object to encapsulate the parameters.
 """
 
-@service_registry.tool(
-    name="list_data_classes_by_search_term",
-    description=list_data_classes_by_search_term_description,
-    tags={"workflow", "glossary", "data_classes", "governance"},
-    meta={"version": "1.0", "service": "glossary"},
-)
 # explicit context for MCP elicitation, no autocontext
-async def list_data_classes_by_search_term(
+async def _list_data_classes_by_search_term(
     request: ListDataClassesRequest,
     ctx: Context
 ) -> ListDataClassesResponse:
@@ -201,6 +207,7 @@ async def list_data_classes_by_search_term(
         f"Listing glossary data classes with max_results: {request.max_results}, "
         f"draft mode: {request.draft}, format: {request.format}"
     )
+    print("CONTEXT", ctx)
     
     # Auto-detect Claude Code and switch to JSON format if needed
     # Some clients don't handle markdown tables well, so we default to JSON
@@ -225,18 +232,19 @@ async def list_data_classes_by_search_term(
 
 @service_registry.tool(
     name="list_data_classes_by_search_term",
-    description="Watsonx Orchestrator compatible wrapper for list_data_classes_by_search_term. " + list_data_classes_by_search_term_description,
-    tags={"workflow", "wxo", "glossary", "data_classes", "governance"},
+    description=list_data_classes_by_search_term_description,
+    tags={"workflow", "glossary", "data_classes", "governance"},
     meta={"version": "1.0", "service": "glossary"},
 )
 @auto_context
-async def wxo_list_data_classes_by_search_term(
+async def list_data_classes_by_search_term(
     search_term: str,
     max_results: int = 50,
     draft: bool = False,
     format: str = "table",
+    ctx: Context = None
 ) -> ListDataClassesResponse:
-    """Watsonx Orchestrator compatible version of list_data_classes_by_search_term."""
+    """Wrapper version of list_data_classes_by_search_term."""
     
     request = ListDataClassesRequest(
         search_term=search_term,
@@ -245,12 +253,18 @@ async def wxo_list_data_classes_by_search_term(
         format=format
     )
     
-    # Create a minimal context for the main function
+    # Use the real context if available, otherwise use minimal context
+    if ctx is not None:
+        return await _list_data_classes_by_search_term(request, ctx)
+    
+    # Fallback for wxo version or when context is not available
     class MinimalContext:
+        request_context = None
+        
         def elicit(self, message, response_type):
-            # Skip elicitation for wxo version
+            # Skip elicitation for wrapper version
             logger = logging.getLogger()
             logger.info("Empty elicitation: " + str(message) + ", " + str(response_type))
             return None
     
-    return await list_data_classes_by_search_term(request, MinimalContext())
+    return await _list_data_classes_by_search_term(request, MinimalContext())

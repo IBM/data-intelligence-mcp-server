@@ -76,12 +76,7 @@ async def _check_if_project_is_enabled_for_text_to_sql(project_id: str) -> None:
         )
 
 
-@service_registry.tool(
-    name="reporting_sql_query_generation",
-    description="Generate a SQL query from a natural language input for a given project using a text-to-SQL service for reporting-related use cases. The tool verifies reporting service connectivity, resolves the project ID, and generates the SQL query based on the project context and SQL dialect.",
-)
-@auto_context
-async def sql_query_generation(
+async def _sql_query_generation(
     request: SqlQueryGenerationRequest,
 ) -> SqlQueryGenerationResponse:
     """
@@ -221,14 +216,14 @@ async def sql_query_generation(
     description="Generate a SQL query from a natural language input for a given project using a text-to-SQL service for reporting-related use cases. The tool verifies reporting service connectivity, resolves the project ID, and generates the SQL query based on the project context and SQL dialect.",
 )
 @auto_context
-async def wxo_sql_query_generation(
+async def sql_query_generation(
     project_name: str,
     query: str,
     instructions: list | None = None,
     raw_output: bool = False,
 ) -> SqlQueryGenerationResponse:
     """
-    Watsonx Orchestrator compatible version that expands SqlQueryGenerationRequest object into individual parameters.
+    Wrapper that expands SqlQueryGenerationRequest object into individual parameters.
 
     Args:
         project_name (str): Name of the project containing the data model for SQL generation.
@@ -250,4 +245,4 @@ async def wxo_sql_query_generation(
     )
 
     # Call the original sql_query_generation function
-    return await sql_query_generation(req)
+    return await _sql_query_generation(req)

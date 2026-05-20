@@ -17,21 +17,21 @@ from app.shared.utils.helpers import is_none, append_context_to_url
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.exceptions.base import ServiceError
+from app.shared.ui_message.ui_message_context import ui_message_context
+from app.shared.utils.utils_tools import format_search_results_for_table
+
+def _add_ui_message_if_results(results: List[SearchAssetResponse]) -> None:
+    """Add UI message if search results exist."""
+    if results:
+        formatted_results = format_search_results_for_table(results)
+        ui_message_context.add_table_ui_message(
+            tool_name="search_asset",
+            formatted_data=formatted_results,
+            title="Search Results"
+        )
 
 
-@service_registry.tool(
-    name="search_asset",
-    description="""Understand user's request about searching data assets and return list of retrieved assets.
-                       This function takes a user's search prompt as input and may take container type: project or catalog. Default container type to catalog.
-                       It then returns list of asset that has been found.
-                       
-                       IMPORTANT CONSTRAINTS:
-                       - search_prompt cannot be empty
-                       - container_type must be one of: "catalog", "project"
-                       - Invalid values will result in errors""",
-)
-@auto_context
-async def search_asset(
+async def _search_asset(
     request: SearchAssetRequest, ctx=None
 ) -> List[SearchAssetResponse]:
     # Validate search_prompt is not empty
@@ -116,9 +116,11 @@ async def search_asset(
     )
 
     search_response = response.get("rows", [])
-    li = list(map(_construct_search_asset, search_response)) if search_response else []
+    results = list(map(_construct_search_asset, search_response)) if search_response else []
 
-    return li
+    _add_ui_message_if_results(results)
+
+    return results
 
 
 @service_registry.tool(
@@ -133,10 +135,10 @@ async def search_asset(
                        - Invalid values will result in errors""",
 )
 @auto_context
-async def wxo_search_asset(
+async def search_asset(
     search_prompt: str, container_type: str = "catalog", container_name: str | None = None
 ) -> List[SearchAssetResponse]:
-    """Watsonx Orchestrator compatible version that expands SearchAssetRequest object into individual parameters."""
+    """Wrapper that expands SearchAssetRequest object into individual parameters."""
     
     request = SearchAssetRequest(
         search_prompt=search_prompt,
@@ -145,7 +147,7 @@ async def wxo_search_asset(
     )
 
     # Call the original search_asset function
-    return await search_asset(request)
+    return await _search_asset(request)
 
 
 def _construct_search_asset(row: Any):

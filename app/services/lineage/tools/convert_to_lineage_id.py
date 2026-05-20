@@ -52,7 +52,6 @@ async def _convert_to_lineage_id(
 @service_registry.tool(
     name="lineage_convert_to_lineage_id",
     description="Converts asset IDs from container scope into a unique lineage identifier required by other lineage tools.",
-    tags={"custom_tool"},
 )
 @auto_context
 async def convert_to_lineage_id(
