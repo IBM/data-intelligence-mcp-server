@@ -11,7 +11,9 @@ This module provides functionality to claim, complete, or unclaim workflow tasks
 3. Performing the specified action on the task
 """
 
+import json
 import re
+from enum import Enum
 from typing import List, Dict, Optional, Any, Type, Literal
 from pydantic import BaseModel, Field, create_model
 from app.core.registry import service_registry
@@ -22,6 +24,7 @@ from app.services.workflow.models.task_action import (
     TaskActionResponse,
     FormProperty
 )
+from app.services.workflow.utils.task_utils import _parse_task_title_from_json
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.llm_utils import client_supports_elicitation
 from app.shared.utils.tool_helper_service import tool_helper_service
@@ -33,6 +36,34 @@ from fastmcp.server.context import Context
 class ElicitationNotSupportedError(Exception):
     """Raised when the MCP client does not support elicitation."""
     pass
+
+
+REJECTION_COMMENT_MIN_LENGTH = 4
+_PENDING_REJECTION_ACTIONS: Dict[str, str] = {}
+
+def _get_task_display_name(task_data: Dict[str, Any]) -> str:
+    """
+    Extract the best display name for a task, preferring title over name.
+    
+    Args:
+        task_data: Task data dictionary from API response
+        
+    Returns:
+        Task display name (title if available, otherwise name, otherwise "Unknown Task")
+    """
+    entity = task_data.get("entity", {})
+    metadata = task_data.get("metadata", {})
+    
+    # Try to get task_title from entity first
+    task_title_raw = entity.get("task_title", "")
+    if task_title_raw:
+        task_title = _parse_task_title_from_json(task_title_raw)
+        if task_title:
+            return task_title
+    
+    # Fall back to metadata name
+    return metadata.get("name", "Unknown Task")
+
 
 
 async def _get_task_details(task_id: str) -> Dict[str, Any]:
@@ -122,6 +153,41 @@ def _transform_form_properties(form_properties: List[Dict[str, Any]]) -> List[Fo
     return simplified_properties
 
 
+def _sanitize_enum_member_name(enum_value_id: str, index: int) -> str:
+    """Create a valid, stable Enum member name for a runtime-generated choice."""
+    sanitized = re.sub(r"[^A-Za-z0-9]+", "_", enum_value_id).strip("_").upper()
+    if not sanitized:
+        sanitized = f"VALUE_{index}"
+    elif sanitized[0].isdigit():
+        sanitized = f"VALUE_{sanitized}"
+    return sanitized
+
+
+def _build_runtime_multi_select_type(field_name: str, enum_ids: List[str]) -> Any:
+    """
+    Build a runtime enum class for elicitation schema generation.
+
+    Returns a dynamically created enum class object (typed as `type`), not an
+    enum instance. Using `Enum(...)` instead of a dynamically constructed
+    Literal produces a stable JSON schema with explicit enum choices for MCP
+    clients.
+    """
+    members: Dict[str, str] = {}
+    for index, enum_id in enumerate(enum_ids):
+        member_name = _sanitize_enum_member_name(enum_id, index)
+        while member_name in members:
+            member_name = f"{member_name}_{index}"
+        members[member_name] = enum_id
+
+    enum_type = Enum(f"{field_name.title().replace('_', '')}Choices", members)
+    LOGGER.debug(
+        "Generated runtime Enum for elicitation field '%s' with values=%s",
+        field_name,
+        list(members.values())
+    )
+    return enum_type
+
+
 def _resolve_action_field_type(action_prop: Dict[str, Any]) -> type:
     """
     Resolve the Python type for the special 'action' field on complete actions.
@@ -130,12 +196,16 @@ def _resolve_action_field_type(action_prop: Dict[str, Any]) -> type:
         action_prop: The form property dict whose id is "action"
 
     Returns:
-        A Literal type if enum_values exist, otherwise str
+        A runtime Enum type if enum_values exist, otherwise str
     """
     enum_ids = _extract_enum_value_ids(action_prop)
     if enum_ids:
-        LOGGER.info(f"Added 'action' field for complete action with dynamic choices from enum_values: {enum_ids}")
-        return Literal[tuple(enum_ids)]
+        action_type = _build_runtime_multi_select_type("action", enum_ids)
+        LOGGER.info(
+            "Added 'action' field for complete action with runtime enum choices from enum_values: %s",
+            enum_ids
+        )
+        return action_type
     LOGGER.info("Added 'action' field for complete action (no enum_values found, falling back to string)")
     return str
 
@@ -176,23 +246,210 @@ def _resolve_property_type(prop: Dict[str, Any]) -> type:
     Determine the Python type for a single form property.
 
     If the property carries enum_values and is of an enum/string type,
-    a Literal type is returned; otherwise the raw type is mapped to a
+    a runtime Enum type is returned; otherwise the raw type is mapped to a
     standard Python type.
 
     Args:
         prop: Form property dictionary
 
     Returns:
-        Python type (Literal, str, int, float, bool, …)
+        Python type (Enum, str, int, float, bool, …)
     """
+    prop_id = str(prop.get("id", "unknown"))
     prop_type = prop.get("type", "string")
     enum_ids = _extract_enum_value_ids(prop)
 
     if enum_ids and prop_type.lower() in ("enum", "string"):
-        LOGGER.debug(f"Property '{prop.get('id')}' uses dynamic Literal from enum_values: {enum_ids}")
-        return Literal[tuple(enum_ids)]
+        resolved_type = _build_runtime_multi_select_type(prop_id, enum_ids)
+        LOGGER.debug(
+            "Property '%s' uses runtime Enum from enum_values=%s",
+            prop_id,
+            enum_ids
+        )
+        return resolved_type
 
-    return _map_property_type_to_python_type(prop_type)
+    resolved_type = _map_property_type_to_python_type(prop_type)
+    LOGGER.debug(
+        "Property '%s' resolved to python type '%s' from prop_type='%s'",
+        prop_id,
+        getattr(resolved_type, "__name__", str(resolved_type)),
+        prop_type
+    )
+    return resolved_type
+
+
+def _form_supports_rejection_comment_validation(form_properties: List[Dict[str, Any]]) -> bool:
+    """
+    Determine whether the task form can express a rejection action with a comment.
+
+    Args:
+        form_properties: Raw form property dictionaries from the task
+
+    Returns:
+        True when the form contains both an action field with reject-like choices
+        and a comment field.
+    """
+    action_prop = next(
+        (prop for prop in form_properties if isinstance(prop, dict) and prop.get("id") == "action"),
+        None
+    )
+    if not action_prop:
+        return False
+
+    has_comment_field = any(
+        isinstance(prop, dict) and prop.get("id") == "comment"
+        for prop in form_properties
+    )
+    if not has_comment_field:
+        return False
+
+    return any(
+        _is_reject_like_action_value(enum_id)
+        for enum_id in _extract_enum_value_ids(action_prop)
+    )
+
+
+def _is_reject_like_action_value(action_value: Any) -> bool:
+    """
+    Determine whether a submitted action value semantically represents rejection.
+
+    Args:
+        action_value: Submitted or configured action value
+
+    Returns:
+        True when the value is a reject-like action identifier.
+    """
+    if action_value is None:
+        return False
+
+    normalized = re.sub(r"[^a-z0-9]+", "", str(action_value).strip().lower())
+    return "reject" in normalized if normalized else False
+
+
+def _build_rejection_comment_retry_metadata(action_value: Any) -> Dict[str, str]:
+    """
+    Build machine-readable retry metadata for rejection comment recovery.
+
+    Args:
+        action_value: The already-selected reject-like action value
+
+    Returns:
+        Metadata that helps clients/LLMs retry with only the missing comment.
+    """
+    return {
+        "retry_reason": "rejection_comment_too_short",
+        "missing_field": "comment",
+        "preserved_action": str(action_value),
+        "min_length": str(REJECTION_COMMENT_MIN_LENGTH),
+    }
+
+
+def _store_pending_rejection_action(task_id: str, action_value: Any) -> None:
+    """Store the reject-like action so a follow-up retry can omit it."""
+    _PENDING_REJECTION_ACTIONS[task_id] = str(action_value)
+
+
+def _pop_pending_rejection_action(task_id: str) -> Optional[str]:
+    """Remove and return a previously stored reject-like action."""
+    return _PENDING_REJECTION_ACTIONS.pop(task_id, None)
+
+
+def _peek_pending_rejection_action(task_id: str) -> Optional[str]:
+    """Return a previously stored reject-like action without clearing it."""
+    return _PENDING_REJECTION_ACTIONS.get(task_id)
+
+
+def _restore_pending_rejection_action(
+    task_id: str,
+    form_values: Optional[Dict[str, Any]]
+) -> Optional[Dict[str, Any]]:
+    """
+    Restore a previously stored reject-like action when retry input contains only comment.
+
+    Args:
+        task_id: Task identifier used as retry-state key
+        form_values: User-supplied retry values
+
+    Returns:
+        Updated form values with restored action when applicable.
+    """
+    if not form_values:
+        return form_values
+
+    if form_values.get("action"):
+        return form_values
+
+    if "comment" not in form_values:
+        return form_values
+
+    pending_action = _peek_pending_rejection_action(task_id)
+    if not pending_action:
+        return form_values
+
+    restored_values = dict(form_values)
+    restored_values["action"] = pending_action
+    return restored_values
+
+
+def _build_rejection_comment_retry_message(action_value: Any) -> str:
+    """
+    Build a targeted retry message when only a rejection justification comment is missing.
+
+    Args:
+        action_value: The already-selected reject-like action value
+
+    Returns:
+        Retry guidance focused only on providing a sufficient comment.
+    """
+    return (
+        f"The requested action '{action_value}' is a rejection action. "
+        f"The task's state is unchanged.\n\n"
+        f"Please ask the user for a justification comment and retry the task completion "
+        f"using the same action:\n"
+        f"- comment (string): User-provided justification comment. Minimum length: "
+        f"{REJECTION_COMMENT_MIN_LENGTH} characters.\n\n"
+        f"Do not invent, generate, assume, summarize, or paraphrase the comment yourself. "
+        f"The comment must come from the user. If no user-provided comment is available yet, "
+        f"request it explicitly instead of filling form_values yourself.\n\n"
+        f"You do not need to provide the action '{action_value}' again; only a user-provided "
+        f"sufficient comment in form_values is needed, and I will fill in the action "
+        f"'{action_value}'."
+    )
+
+
+def _validate_rejection_comment(
+    task_id: str,
+    form_values: Optional[Dict[str, Any]]
+) -> Optional[TaskActionResponse]:
+    """
+    Validate the hard-coded rejection comment rule for task completion.
+
+    Args:
+        task_id: Task identifier used for retry-state persistence
+        form_values: User-provided form values
+
+    Returns:
+        None when valid or not applicable, otherwise a retry response with metadata.
+    """
+    if not form_values:
+        return None
+
+    action_value = form_values.get("action")
+    if not _is_reject_like_action_value(action_value):
+        _pop_pending_rejection_action(task_id)
+        return None
+
+    comment_value = form_values.get("comment")
+    comment_text = "" if comment_value is None else str(comment_value).strip()
+    if len(comment_text) >= REJECTION_COMMENT_MIN_LENGTH:
+        return None
+
+    _store_pending_rejection_action(task_id, action_value)
+    return TaskActionResponse(
+        status_code=400,
+        message=_build_rejection_comment_retry_message(action_value),
+        retry_metadata=_build_rejection_comment_retry_metadata(action_value)
+    )
 
 
 def _build_property_field(prop: Dict[str, Any], is_complete_action: bool) -> Optional[tuple]:
@@ -219,8 +476,16 @@ def _build_property_field(prop: Dict[str, Any], is_complete_action: bool) -> Opt
     prop_name = prop.get("name", prop_id)
     description = prop.get("description", prop_name)
     python_type = _resolve_property_type(prop)
+    LOGGER.debug(
+        "Building elicitation field '%s': flowable_type='%s', resolved_type='%s', writable=%s",
+        prop_id,
+        prop.get("type", "string"),
+        getattr(python_type, "__name__", str(python_type)),
+        _prop_writable(prop)
+    )
 
-    return (prop_id, (python_type, Field(default="", description=description)))
+    field_default = ... if isinstance(python_type, type) and issubclass(python_type, Enum) else ""
+    return (prop_id, (python_type, Field(default=field_default, description=description)))
 
 
 def _create_elicitation_schema(form_properties: List[Dict[str, Any]], action: str = "") -> Type[BaseModel]:
@@ -235,6 +500,12 @@ def _create_elicitation_schema(form_properties: List[Dict[str, Any]], action: st
         A pydantic BaseModel class with fields corresponding to form properties
     """
     fields: Dict[str, Any] = {}
+
+    LOGGER.debug(
+        "Creating elicitation schema for action='%s' from raw property ids=%s",
+        action,
+        [prop.get("id") for prop in form_properties if isinstance(prop, dict)]
+    )
 
     # For 'complete' action, add an 'action' field as the first field
     if action == "complete":
@@ -251,7 +522,20 @@ def _create_elicitation_schema(form_properties: List[Dict[str, Any]], action: st
         if result is not None:
             fields[result[0]] = result[1]
 
-    return create_model('DynamicElicitationModel', **fields)
+    model = create_model('DynamicElicitationModel', **fields)
+    try:
+        schema = model.model_json_schema()
+        LOGGER.debug(
+            "Generated elicitation schema fields=%s",
+            {
+                field_name: schema.get("properties", {}).get(field_name, {})
+                for field_name in fields.keys()
+            }
+        )
+    except Exception as exc:
+        LOGGER.warning("Failed to serialize elicitation schema for debug logging: %s", exc)
+
+    return model
 
 
 def _map_property_type_to_python_type(prop_type: str) -> type:
@@ -294,6 +578,7 @@ def _extract_enum_value_ids(prop: Dict[str, Any]) -> List[str]:
     """
     enum_values = prop.get("enum_values", [])
     if not isinstance(enum_values, list) or not enum_values:
+        LOGGER.debug("Property '%s' has no enum_values", prop.get("id", "unknown"))
         return []
     
     ids = []
@@ -302,7 +587,13 @@ def _extract_enum_value_ids(prop: Dict[str, Any]) -> List[str]:
             ids.append(str(ev["id"]))
         elif isinstance(ev, str):
             ids.append(ev)
-    
+
+    LOGGER.debug(
+        "Extracted enum_values for property '%s': raw=%s, ids=%s",
+        prop.get("id", "unknown"),
+        enum_values,
+        ids
+    )
     return ids
 
 
@@ -329,6 +620,9 @@ def _describe_writable_properties(form_properties: List[Dict[str, Any]], action:
         return "No writable form properties found."
     
     lines = []
+    requires_rejection_comment_validation = (
+        action == "complete" and _form_supports_rejection_comment_validation(form_properties)
+    )
     
     # For 'complete' action, include the special 'action' field first
     if action == "complete":
@@ -338,7 +632,7 @@ def _describe_writable_properties(form_properties: List[Dict[str, Any]], action:
         prop_id = prop.get("id", "unknown")
         if prop_id == "action" and action == "complete":
             continue  # already handled above
-        lines.append(_describe_single_property(prop))
+        lines.append(_describe_single_property(prop, requires_rejection_comment_validation))
     
     return "\n".join(lines)
 
@@ -360,28 +654,45 @@ def _append_action_field_description(lines: List[str], form_properties: List[Dic
         return
     
     choices = _format_choices(action_prop)
-    suffix = f" [Choices: {choices}]" if choices else ""
-    lines.append(f"- action (string): Select the action to perform on the task{suffix}")
+    if choices:
+        lines.append(f"⊙ action: {choices}")
+    else:
+        lines.append("⊙ action")
 
 
-def _describe_single_property(prop: Dict[str, Any]) -> str:
+def _describe_single_property(
+    prop: Dict[str, Any],
+    requires_rejection_comment_validation: bool = False
+) -> str:
     """
     Format a single form property as a human-readable description line.
     
     Args:
         prop: Form property dictionary with id, type, name/description, and optional enum_values
+        requires_rejection_comment_validation: True when comment should mention the
+            hard-coded minimum length for rejection flows
         
     Returns:
-        Formatted description string like "- field_id (type): description [Choices: a, b]"
+        Formatted description string like "🗈 comment: description" or "field_id: description [Choices: a, b]"
     """
     prop_id = prop.get("id", "unknown")
     prop_name = prop.get("name", prop_id)
     description = prop.get("description", prop_name)
-    prop_type = prop.get("type", "string")
+
+    if prop_id == "comment" and requires_rejection_comment_validation:
+        description = (
+            f"{description} Minimum length: {REJECTION_COMMENT_MIN_LENGTH} characters "
+            f"when submitting a rejection action."
+        )
     
     choices = _format_choices(prop)
     suffix = f" [Choices: {choices}]" if choices else ""
-    return f"- {prop_id} ({prop_type}): {description}{suffix}"
+    
+    # Add special prefix for comment fields
+    if prop_id == "comment":
+        return f"🗈 {prop_id}: {description}{suffix}"
+    else:
+        return f"{prop_id}: {description}{suffix}"
 
 
 def _format_choices(prop: Dict[str, Any]) -> Optional[str]:
@@ -411,9 +722,158 @@ def _prop_writable(prop: Dict[str, Any]) -> bool:
     return prop.get("writable", True)
 
 
+def _filter_writable_properties(form_properties: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Filter form properties to only writable ones, with type safety.
+    
+    Args:
+        form_properties: List of raw form property dictionaries
+        
+    Returns:
+        List of writable properties (dictionaries only)
+    """
+    return [
+        prop for prop in form_properties
+        if isinstance(prop, dict) and _prop_writable(prop)
+    ]
+
+
+def _is_elicitation_not_supported_error(error_str: str) -> bool:
+    """
+    Check if an error indicates that elicitation is not supported by the MCP client.
+    
+    Common patterns: MCP error code -32042, "elicitation" in message, "not supported"
+    
+    Args:
+        error_str: Error message string
+        
+    Returns:
+        True if error indicates elicitation is not supported
+    """
+    return (
+        "-32042" in error_str
+        or "elicitation" in error_str.lower()
+        or "not supported" in error_str.lower()
+    )
+
+
+def _convert_response_data_to_dict(response_data: Any) -> Dict[str, Any]:
+    """
+    Convert elicitation response data to dictionary.
+    
+    Args:
+        response_data: Response data from elicitation (BaseModel or dict)
+        
+    Returns:
+        Dictionary representation of the response data
+    """
+    if isinstance(response_data, BaseModel):
+        return response_data.model_dump()
+    return response_data or {}
+
+
+async def _call_elicit_with_error_handling(
+    ctx: Context,
+    message: str,
+    response_type: Type[BaseModel],
+    operation_name: str,
+    raise_on_not_supported: bool = True,
+    action_context: str = ""
+) -> Optional[Any]:
+    """
+    Call ctx.elicit with standardized error handling and logging.
+    
+    Args:
+        ctx: MCP context for elicitation
+        message: Message to display to user
+        response_type: Pydantic model for response schema
+        operation_name: Name of operation for logging (e.g., "elicitation", "claim preview")
+        raise_on_not_supported: If True, raise ElicitationNotSupportedError when not supported;
+                                if False, return a sentinel value ('NOT_SUPPORTED')
+        action_context: Additional context for error messages (e.g., action name like "complete")
+        
+    Returns:
+        Response object if successful and accepted
+        None if declined/cancelled
+        'NOT_SUPPORTED' string if not supported and raise_on_not_supported=False
+        
+    Raises:
+        ElicitationNotSupportedError: If client doesn't support elicitation and raise_on_not_supported=True
+    """
+    try:
+        response = await ctx.elicit(
+            message=message,
+            response_type=response_type
+        )
+        
+        if response is not None and response.action == 'accept':
+            LOGGER.info(f"{operation_name} accepted, received: {response.data}")
+            return response
+        else:
+            LOGGER.info(f"{operation_name} declined or cancelled")
+            return None
+            
+    except Exception as e:
+        error_str = str(e)
+        LOGGER.warning(f"Failed to call {operation_name}: {error_str}")
+        
+        if _is_elicitation_not_supported_error(error_str):
+            if raise_on_not_supported:
+                LOGGER.error(f"MCP client does not support elicitation: {error_str}")
+                action_msg = f" for the '{action_context}' action" if action_context else ""
+                raise ElicitationNotSupportedError(
+                    f"The MCP client does not support elicitation, which is required"
+                    f"{action_msg}. The task's state is unchanged. Error: {error_str}"
+                )
+            else:
+                LOGGER.info(f"MCP client does not support {operation_name}; proceeding without it")
+                return 'NOT_SUPPORTED'
+        
+        return None
+
+
+def _validate_and_filter_properties(
+    ctx: Context,
+    form_properties: List[Dict[str, Any]],
+    operation_name: str
+) -> Optional[List[Dict[str, Any]]]:
+    """
+    Validate context and filter form properties to writable ones.
+    
+    Args:
+        ctx: MCP context (can be None)
+        form_properties: List of raw form property dictionaries
+        operation_name: Name of operation for logging (e.g., "elicitation", "claim preview")
+        
+    Returns:
+        List of writable properties if validation passes, None otherwise
+    """
+    if ctx is None:
+        LOGGER.warning(f"No context provided, skipping {operation_name}")
+        return None
+    
+    # Log any non-dictionary elements for debugging (only for main elicitation)
+    if operation_name == "elicitation":
+        non_dict_elements = [prop for prop in form_properties if not isinstance(prop, dict)]
+        if non_dict_elements:
+            LOGGER.warning(
+                f"Found {len(non_dict_elements)} non-dictionary elements in form_properties "
+                f"during {operation_name}: {non_dict_elements[:5]}..."
+            )
+    
+    # Filter to writable properties
+    writable_props = _filter_writable_properties(form_properties)
+    
+    if not writable_props:
+        LOGGER.info(f"No writable properties found for {operation_name}; skipping")
+        return None
+    
+    return writable_props
+
+
 async def _handle_elicitation(
     form_properties: List[Dict[str, Any]],
-    task_name: str,
+    task_display_name: str,
     action: str,
     ctx: Context
 ) -> Optional[Dict[str, str]]:
@@ -422,79 +882,98 @@ async def _handle_elicitation(
     
     Args:
         form_properties: List of raw form property dictionaries
-        task_name: Name of the task for context in the elicitation message
+        task_display_name: Display name of the task for context in the elicitation message
         action: Action being performed (claim or complete)
         ctx: MCP context for elicitation
         
     Returns:
         Dictionary mapping property IDs to user-provided values, or None if elicitation failed
     """
-    if ctx is None:
-        LOGGER.warning("No context provided, skipping elicitation")
-        return None
-    
-    # Log any non-dictionary elements for debugging
-    non_dict_elements = [prop for prop in form_properties if not isinstance(prop, dict)]
-    if non_dict_elements:
-        LOGGER.warning(f"Found {len(non_dict_elements)} non-dictionary elements in form_properties during elicitation: {non_dict_elements[:5]}...")
-    
-    # Filter to writable properties, with type safety
-    writable_props = [
-        prop for prop in form_properties 
-        if isinstance(prop, dict) and _prop_writable(prop)
-    ]
-    
-    if not writable_props:
-        LOGGER.info("No writable properties, skipping elicitation")
+    # Validate context and filter to writable properties
+    writable_props = _validate_and_filter_properties(ctx, form_properties, "elicitation")
+    if writable_props is None:
         return None
     
     # Create JSON Schema for elicitation
     schema = _create_elicitation_schema(writable_props, action)
     
     # Create elicitation message
-    message = f"Please provide the required information to {action} task: {task_name}"
+    message = f"Please provide the required information to {action} task: {task_display_name}"
     
-    try:
-        # Build the JSON-RPC elicitation request
+    LOGGER.info(f"Sending elicitation request for {len(writable_props)} properties for action: {action}")
+    response = await _call_elicit_with_error_handling(ctx, message, schema, "elicitation", action_context=action)
+    
+    if response is not None:
+        return _convert_response_data_to_dict(response.data)
+    return None
+
+
+async def _handle_claim_preview_elicitation(
+    form_properties: List[Dict[str, Any]],
+    task_display_name: str,
+    ctx: Context
+) -> Optional[bool]:
+    """
+    Show a confirmation-only elicitation before claiming a task.
+
+    The prompt explains which information will be required later to complete
+    the task, but does not collect any completion values yet.
+    
+    Args:
+        form_properties: List of raw form property dictionaries
+        task_display_name: Display name of the task
+        ctx: MCP context for elicitation
         
-        LOGGER.info(f"Sending elicitation request for {len(writable_props)} properties for action: {action}")
-        
-        # Use ctx.elicit with the BaseModel class
-        # The ctx.elicit method will handle the JSON-RPC format internally
-        response = await ctx.elicit(
-            message=message,
-            response_type=schema
-        )
-        
-        if response is not None and response.action == 'accept':
-            LOGGER.info(f"Elicitation accepted, received: {response.data}")
-            # response.data is a BaseModel instance, convert to dict
-            # Convert BaseModel to dict, handling potential nested structures
-            if isinstance(response.data, BaseModel):
-                return response.data.model_dump()
-            return response.data
-        else:
-            LOGGER.info("Elicitation declined or cancelled")
-            return None
-            
-    except Exception as e:
-        error_str = str(e)
-        LOGGER.warning(f"Failed to call elicitation: {error_str}")
-        
-        # Detect errors indicating the client does not support elicitation
-        # Common patterns: MCP error code -32042, "elicitation" in message, 
-        # "not supported" or "capability" references
-        if ("-32042" in error_str
-                or "elicitation" in error_str.lower()
-                or "not supported" in error_str.lower()):
-            LOGGER.error(f"MCP client does not support elicitation: {error_str}")
-            raise ElicitationNotSupportedError(
-                f"The MCP client does not support elicitation, which is required "
-                f"for the '{action}' action. The task's state is unchanged. "
-                f"Error: {error_str}"
+    Returns:
+        True if user confirms claim, False if declined, True if elicitation not supported
+    """
+    # Validate context and filter to writable properties
+    writable_props = _validate_and_filter_properties(ctx, form_properties, "claim preview elicitation")
+    if writable_props is None:
+        # For claim preview, if validation fails, proceed with claim (return True)
+        return True
+
+    description = _describe_writable_properties(form_properties, "complete")
+    confirmation_model = create_model(
+        'ClaimPreviewConfirmationModel',
+        confirm_claim=(
+            bool,
+            Field(
+                ...,
+                description="Confirm whether you want to claim this task now after reviewing the required completion information"
             )
-        
-        return None
+        )
+    )
+
+    message = (
+        f"**{task_display_name}**\n"
+        f"Claiming this task assigns it to you. To complete it, you'll have to provide:\n"
+        f"{description}\n\n"
+        f"Do you want to claim this task now?"
+    )
+
+    LOGGER.info(
+        "Sending claim preview elicitation for task '%s' with %d writable properties",
+        task_display_name,
+        len(writable_props)
+    )
+    response = await _call_elicit_with_error_handling(
+        ctx, message, confirmation_model, "claim preview elicitation", raise_on_not_supported=False
+    )
+    
+    # Handle different response types
+    if response == 'NOT_SUPPORTED':
+        # Elicitation not supported, proceed with claim
+        return True
+    elif response is None:
+        # User declined or cancelled
+        return False
+    
+    # User accepted, check the confirmation value
+    data = _convert_response_data_to_dict(response.data)
+    confirmed = bool(data.get("confirm_claim"))
+    LOGGER.info("Claim preview elicitation accepted with confirm_claim=%s", confirmed)
+    return confirmed
 
 
 def _extract_status_from_response(response: Any) -> Optional[int]:
@@ -698,6 +1177,13 @@ def _extract_and_validate_form_properties(task_data: Dict[str, Any]) -> List[Dic
     return form_properties_raw
 
 
+def _normalize_form_value_for_rest(value: Any) -> str:
+    """Convert elicitation values into raw REST-compatible string payload values."""
+    if isinstance(value, Enum):
+        return str(value.value)
+    return str(value)
+
+
 def _prepare_form_properties_with_user_values(
     form_properties: List[FormProperty],
     user_values: Optional[Dict[str, str]]
@@ -714,7 +1200,7 @@ def _prepare_form_properties_with_user_values(
     
     for prop in form_properties:
         if prop.id in user_values:
-            prop.value = str(user_values[prop.id])
+            prop.value = _normalize_form_value_for_rest(user_values[prop.id])
             LOGGER.info(f"Updated property {prop.id} with elicitation value")
 
 
@@ -801,7 +1287,7 @@ async def _resolve_user_values_for_complete(
     request: TaskActionRequest,
     ctx: Context,
     form_properties_raw: List[Dict[str, Any]],
-    task_name: str
+    task_display_name: str
 ) -> Optional[TaskActionResponse]:
     """
     Resolve user-supplied form values for the 'complete' action.
@@ -815,7 +1301,7 @@ async def _resolve_user_values_for_complete(
         request: The task action request (may contain form_values)
         ctx: MCP context for elicitation
         form_properties_raw: Raw form properties from the task
-        task_name: Task name for elicitation message
+        task_display_name: Task display name for elicitation message
         
     Returns:
         A TaskActionResponse (501 or 499) if the flow should abort early,
@@ -840,7 +1326,7 @@ async def _resolve_user_values_for_complete(
     # Strategy 2: attempt MCP elicitation
     if client_supports_elicitation(ctx):
         try:
-            user_values = await _handle_elicitation(form_properties_raw, task_name, request.action, ctx)
+            user_values = await _handle_elicitation(form_properties_raw, task_display_name, request.action, ctx)
         except ElicitationNotSupportedError:
             return _build_elicitation_unavailable_response(form_properties_raw, request.action)
         
@@ -859,7 +1345,8 @@ async def _resolve_user_values_for_complete(
 
 async def _handle_claim_action(
     request: TaskActionRequest,
-    task_data: Dict[str, Any]
+    task_data: Dict[str, Any],
+    ctx: Context
 ) -> TaskActionResponse:
     """
     Handle the claim action flow.
@@ -908,6 +1395,7 @@ async def _handle_claim_action(
     Args:
         request: TaskActionRequest containing task_id and action="claim"
         task_data: Task data dictionary from API response
+        ctx: MCP context for optional claim-preview elicitation
 
     Returns:
         TaskActionResponse with status and message
@@ -924,6 +1412,15 @@ async def _handle_claim_action(
 
     # Extract and validate form properties
     form_properties_raw = _extract_and_validate_form_properties(task_data)
+
+    task_display_name = _get_task_display_name(task_data)
+    if client_supports_elicitation(ctx):
+        claim_confirmed = await _handle_claim_preview_elicitation(form_properties_raw, task_display_name, ctx)
+        if not claim_confirmed:
+            return TaskActionResponse(
+                status_code=499,
+                message="Task claim cancelled by user after reviewing the required completion information"
+            )
 
     # Transform form properties
     form_properties = _transform_form_properties(form_properties_raw)
@@ -1010,12 +1507,18 @@ async def _handle_complete_action(
 
     # Resolve user-supplied form values via three strategies:
     #   1) form_values already in request  2) MCP elicitation  3) return 501
-    task_name = task_data.get("metadata", {}).get("name", "Unknown Task")
+    task_display_name = _get_task_display_name(task_data)
     early_response = await _resolve_user_values_for_complete(
-        request, ctx, form_properties_raw, task_name
+        request, ctx, form_properties_raw, task_display_name
     )
     if early_response is not None:
         return early_response
+
+    request.form_values = _restore_pending_rejection_action(request.task_id, request.form_values)
+
+    validation_error = _validate_rejection_comment(request.task_id, request.form_values)
+    if validation_error is not None:
+        return validation_error
 
     # Transform form properties and apply user values
     form_properties = _transform_form_properties(form_properties_raw)
@@ -1025,6 +1528,7 @@ async def _handle_complete_action(
     # Perform the complete action
     try:
         status_code = await _perform_claim_or_complete(request.task_id, "complete", user_id, form_properties)
+        _pop_pending_rejection_action(request.task_id)
         return TaskActionResponse(
             status_code=status_code,
             message=_generate_action_message("complete", status_code)
@@ -1041,7 +1545,30 @@ task_action_description="""
     - Complete a task (finish it) with required form property values collected via elicitation
     - Unclaim a task (release it if previously claimed)
     
-    For the complete action, the tool retrieves task details and collects required 
+    CRITICAL SAFETY RULE FOR action="complete":
+    Do not create, invent, infer, assume, summarize, paraphrase, default, auto-fill, or guess any form_values yourself.
+    Only include form_values that satisfy at least one of these conditions:
+    1. The user explicitly provided them in this conversation, or
+    2. They are being restored automatically by the server from prior retry state.
+    
+    It is always allowed to call this tool for action="complete" without form_values to start elicitation.
+    This is the default behavior unless the user has already explicitly provided some completion input.
+    If the user explicitly provided partial completion input, include only that user-provided input and let elicitation
+    collect the rest.
+    
+    Never choose approval, rejection, or any other workflow form action on behalf of the user.
+    Never generate a justification comment on behalf of the user.
+    If retry instructions say the server will restore a preserved action automatically, provide only the missing
+    user-supplied field(s), such as comment, and do not add any other form values.
+    
+    Negative example for action="complete":
+    - Wrong: The user did not provide approval/rejection or comment, and you call this tool with invented
+      form_values such as {"action": "approve"} or {"action": "-reject", "comment": "Looks fine"}.
+    - Correct: Call this tool without form_values to start elicitation, or include only the completion values the
+      user explicitly provided and let elicitation collect the rest. If the server explicitly says it will restore a
+      preserved action automatically, provide only the user-supplied missing field.
+    
+    For the complete action, the tool retrieves task details and collects required
     information through MCP elicitation. If the client does not support elicitation,
     the tool returns a 501 response listing the required form fields. You can then
     retry the call with the form_values parameter populated to complete the task.
@@ -1054,14 +1581,8 @@ task_action_description="""
     """
 
 
-@service_registry.tool(
-    name="task_action",
-    description=task_action_description,
-    tags={"workflow", "flowable", "tasks", "governance"},
-    meta={"version": "1.0", "service": "task_action"},
-)
 # explicit context for MCP elicitation, no autocontext
-async def task_action(
+async def _task_action(
     request: TaskActionRequest,
     ctx: Context
 ) -> TaskActionResponse:
@@ -1085,32 +1606,38 @@ async def task_action(
     task_data = await _get_task_details(request.task_id)
 
     if request.action == "claim":
-        return await _handle_claim_action(request, task_data)
+        return await _handle_claim_action(request, task_data, ctx)
     else:  # complete
         return await _handle_complete_action(request, ctx, task_data)
 
 
 @service_registry.tool(
     name="task_action",
-    description="Watsonx Orchestrator compatible wrapper for task_action. " + task_action_description,
-    tags={"wxo", "workflow", "flowable", "tasks", "governance"},
+    description=task_action_description,
+    tags={"workflow", "flowable", "tasks", "governance"},
     meta={"version": "1.0", "service": "task_action"},
 )
 @auto_context
-async def wxo_task_action(
+async def task_action(
     task_id: str,
-    action: str = "claim"
+    action: str = "claim",
+    form_values: Optional[Dict[str, str]] = None,
+    ctx: Context = None
 ) -> TaskActionResponse:
-    """Watsonx Orchestrator compatible version of task_action."""
+    """Wrapper version of task_action."""
     
-    request = TaskActionRequest(task_id=task_id, action=action)
+    request = TaskActionRequest(task_id=task_id, action=action, form_values=form_values)
     
-    # Create a minimal context for the main function
+    # Use the real context if available, otherwise use minimal context
+    if ctx is not None:
+        return await _task_action(request, ctx)
+    
+    # Fallback for wxo version or when context is not available
     class MinimalContext:
         def elicit(self, message, response_type):  # not async as stub
-            # Skip elicitation for wxo version - synchronous mock
+            # Skip elicitation for wrapper version - synchronous mock
             LOGGER.info(f"Empty elicitation {message}, {response_type}")
             # Return a mock response that matches the expected async interface
             return type('MockResponse', (), {'action': 'decline', 'data': None})()
     
-    return await task_action(request, MinimalContext())
+    return await _task_action(request, MinimalContext())

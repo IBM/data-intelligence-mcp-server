@@ -34,7 +34,7 @@ from app.services.glossary.utils.csv_validation import validate_csv_content
 from app.services.glossary.utils.csv_polling import poll_import_status
 from app.shared.exceptions.base import ServiceError
 from app.shared.logging import LOGGER
-from app.shared.utils.http_client import get_async_http_client
+from app.shared.utils.tool_helper_service import tool_helper_service
 
 
 def _determine_error_column(error_code: str, parameters: List[str]) -> Optional[str]:
@@ -434,8 +434,6 @@ async def import_single_artifact_type(
         CSVImportResult with import results for this artifact type
     """
     try:
-        http_client = await get_async_http_client()
-        
         # Prepare the file for upload
         csv_bytes = csv_content.encode('utf-8')
         files = {'file': (CSV_FILENAME, csv_bytes, CSV_CONTENT_TYPE)}
@@ -445,23 +443,21 @@ async def import_single_artifact_type(
         url = f"{settings.di_service_url}{endpoint}"
         params = {'merge_option': merge_option}
         
-        # Get authorization token
-        auth_token = await get_access_token()
-        if not auth_token:
-            raise ServiceError("Failed to obtain authorization token")
-        
-        headers = {'Authorization': auth_token}
-        
         LOGGER.info(f"Importing {artifact_type} CSV to {url} with merge_option={merge_option}")
         
-        response = await http_client.post(
+        response = await tool_helper_service.execute_post_request(
             url=url,
+            headers={}, 
             files=files,
             params=params,
-            headers=headers
+            tool_name="glossary_csv_import"
         )
         
         LOGGER.info(f"Import API initial response: {response}")
+        
+        # Ensure response is a dict
+        if not isinstance(response, dict):
+            raise ServiceError(f"Unexpected response type: {type(response)}")
         
         # Extract process_id from response
         process_id = response.get('process_id') or response.get('processId')

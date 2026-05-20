@@ -31,7 +31,7 @@ class MetadataEnrichmentCreationRequest(BaseModel):
     objective_names: list[str] | str = Field(
         ...,
         description="""List of names of objectives for the enrichment job.
-        Supported objectives are 'profile', 'dq_gen_constraints', 'analyze_quality', 'assign_terms', 'analyze_relationships', 'dq_sla_assessment', and 'semantic_expansion'.
+        Supported objectives are 'profile', 'dq_gen_constraints', 'analyze_quality', 'assign_terms', 'analyze_relationships', 'dq_sla_assessment', 'semantic_expansion', and 'data_search'.
         Required for both create and update modes.""",
     )
     category_names: Optional[list[str] | str] = Field(
@@ -68,6 +68,10 @@ class MetadataEnrichmentCreationRequest(BaseModel):
         None,
         description="New name for the metadata enrichment asset. Only used in UPDATE mode to rename the MDE. Ignored in CREATE mode."
     )
+    tags: Optional[list[str]] = Field(
+        None,
+        description="A list of tags to assign. Max items: 1000"
+    )
 
 
 class PatchMetadataEnrichmentRequest(BaseModel):
@@ -81,7 +85,8 @@ class PatchMetadataEnrichmentRequest(BaseModel):
         ...,
         description="""List of names of objectives to set for the enrichment job.
         Supported objectives are 'profile', 'dq_gen_constraints', 'analyze_quality',
-        and 'semantic_expansion'. These will replace the existing objectives.""",
+        'assign_terms', 'analyze_relationships', 'dq_sla_assessment', 'semantic_expansion',
+        and 'data_search'. These will replace the existing objectives.""",
     )
     category_names: Optional[list[str] | str] = Field(
         None,
@@ -220,6 +225,7 @@ class MetadataEnrichmentObjective(str, Enum):
     ASSIGN_TERMS = "assign_terms"
     ANALYZE_RELATIONSHIPS = "analyze_relationships"
     DQ_SLA_ASSESSMENT = "dq_sla_assessment"
+    DATA_SEARCH = "data_search"
 
 
 class MetadataEnrichmentAssetEnrichmentJob(BaseModel):
@@ -449,6 +455,10 @@ class MetadataEnrichmentAssetObjective(BaseModel):
 
 
 class MetadataEnrichmentAsset(BaseModel):
+    tags: Optional[list[str]] = Field(
+        None,
+        description="List of tags associated with the metadata enrichment asset.",
+    )
     name: str = Field(
         description="The name of the metadata enrichment asset to be created."
     )
@@ -506,6 +516,10 @@ class MetadataEnrichmentAssetObjectivePatch(BaseModel):
 
 
 class MetadataEnrichmentAssetPatch(BaseModel):
+    tags: Optional[list[str]] = Field(
+        None,
+        description="List of tags associated with the metadata enrichment asset.",
+    )
     objective: MetadataEnrichmentAssetObjectivePatch = Field(
         MetadataEnrichmentAssetObjectivePatch(),
         description="Objective patch of a metadata enrichment asset.",

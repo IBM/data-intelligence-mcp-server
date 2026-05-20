@@ -4,14 +4,13 @@
 
 from pydantic import BaseModel
 from pydantic import Field
+from typing import Literal
 from app.shared.models import BaseResponseModel
 
 
 class CheckIfOnboardingJobIsCompletedRequest(BaseModel):
-    project_id_or_name: str = Field(
-        ..., description="ID or name of the project that is being onboarded."
-    )
-
+    container_id_or_name: str = Field(..., description="Name or UUID of the container to onboard.")
+    container_type: Literal["catalog", "project"] = Field("project", description="The container type of the container to onboard, project by default.")
 
 class CheckIfOnboardingJobIsCompletedResponse(BaseResponseModel):
     state: str = Field(

@@ -169,7 +169,6 @@ Returns structured errors with:
 - Problematic value
 
 This enables LLMs to generate properly formatted CSVs and validate user-provided CSVs before import.""",
-tags={"custom_tool"},
 )
 @auto_context
 async def glossary_csv_import(

@@ -15,20 +15,8 @@ from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.logging import LOGGER, auto_context
 
 
-@service_registry.tool(
-    name="data_product_publish_data_product",
-    description="""
-    This tool publishes a data product draft.
-    Make sure to call this tool after all the required fields are filled in the data product draft, like name, domain, contract URL, delivery methods, etc.
-    Example: 'Publish data product draft' - Get the data product draft ID from context.
-    This receives the data product draft ID to publish the data product draft.
-    """,
-    tags={"create", "data_product"},
-    meta={"version": "1.0", "service": "data_product"},
-)
 @add_catalog_id_suffix()
-@auto_context
-async def publish_data_product(
+async def _publish_data_product(
     request: PublishDataProductRequest,
 ) -> PublishDataProductResponse:
     LOGGER.info(
@@ -128,14 +116,14 @@ async def _validate_if_draft_has_delivery_method_added_to_each_data_asset(respon
     meta={"version": "1.0", "service": "data_product"},
 )
 @auto_context
-async def wxo_publish_data_product(
+async def publish_data_product(
     data_product_draft_id: str,
 ) -> PublishDataProductResponse:
-    """Watsonx Orchestrator compatible version that expands PublishDataProductRequest object into individual parameters."""
+    """Wrapper version that expands PublishDataProductRequest object into individual parameters."""
 
     request = PublishDataProductRequest(
         data_product_draft_id=data_product_draft_id
     )
 
     # Call the original publish_data_product function
-    return await publish_data_product(request)
+    return await _publish_data_product(request)

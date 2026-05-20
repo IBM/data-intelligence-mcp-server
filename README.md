@@ -98,6 +98,11 @@ http mode
 uvx ibm-watsonx-data-intelligence-mcp-server
 ```
 
+To setup skills (optional):
+```bash
+uvx --from ibm-watsonx-data-intelligence-mcp-server wxdi-setup-skills
+```
+
 ---
 
 ## Server

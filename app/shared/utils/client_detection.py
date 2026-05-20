@@ -39,9 +39,13 @@ def supports_rich_text_format(ctx: Context) -> bool:
                 return format_as_json(data)
     """
 
+    # Handle None context (e.g. from wrapper functions where FastMCP context injection failed)
+    if ctx is None:
+        return True
+    
     # Assume unknown clients support RTF
     if not ctx.request_context or not ctx.request_context.session:
-        return True 
+        return True
     
     client_params = ctx.request_context.session.client_params
     if not client_params or not client_params.clientInfo:

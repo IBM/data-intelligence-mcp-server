@@ -112,7 +112,6 @@ Use this tool when you need to:
 - Validate CSV format before calling glossary_csv_import
 - Understand what fields are available for glossary artifacts
 - Learn the constraints for each field""",
-tags={"custom_tool"},
 )
 @auto_context
 async def get_glossary_csv_schema(

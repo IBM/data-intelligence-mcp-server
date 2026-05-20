@@ -323,7 +323,8 @@ class ToolHelperService:
         sanitized_message = self._get_sanitized_message(status_code, error_detail)
         
         error_message = self._build_error_message(
-            tool_name, error_category, status_code, sanitized_message, error_detail
+            tool_name, error_category, status_code, sanitized_message, error_detail,
+            original_message=exception.message
         )
         
         return self._raise_formatted_error(
@@ -331,9 +332,20 @@ class ToolHelperService:
         )
     
     def _parse_status_code(self, message: str) -> str | None:
-        """Parse status code from exception message."""
+        """Parse status code from exception message.
+        
+        Returns:
+            Status code string if found, or "request_failed" for non-HTTP errors
+        """
         status_code_match = re.search(r"HTTP error (\d+)", message)
-        return status_code_match.group(1) if status_code_match else None
+        if status_code_match:
+            return status_code_match.group(1)
+        
+        # Check for "Request failed:" pattern (e.g., JSON parsing errors)
+        if message.startswith("Request failed:"):
+            return "request_failed"
+        
+        return None
     
     def _extract_error_detail(self, message: str) -> str:
         """Extract error detail from exception message."""
@@ -346,6 +358,8 @@ class ToolHelperService:
     
     def _get_error_category(self, status_code: str | None) -> str:
         """Get error category from status code."""
+        if status_code == "request_failed":
+            return "Request Processing Error"
         if status_code and status_code.isdigit():
             return self._categorize_error(int(status_code))
         return "Unknown Error"
@@ -366,38 +380,62 @@ class ToolHelperService:
         LOGGER.debug(f"Extracted error message code: {error_message_code}")
         return error_message_code
     
+    def _format_request_failed_error(
+        self, base_message: str, original_message: str, error_detail: str
+    ) -> str:
+        """Format error message for request processing failures."""
+        if original_message.startswith("Request failed: "):
+            actual_error = original_message.replace("Request failed: ", "", 1)
+            return f"{base_message}. {actual_error}"
+        return f"{base_message}. {error_detail if error_detail else original_message}"
+    
+    def _format_404_error(
+        self, base_message: str, status_code: str, error_detail: str, sanitized_message: str
+    ) -> str:
+        """Format 404 error message."""
+        error_message_code = self._get_error_message_code(error_detail)
+        
+        not_implemented_error = self._handle_not_implemented_error(
+            error_message_code, base_message, status_code, sanitized_message
+        )
+        if not_implemented_error:
+            return not_implemented_error
+        
+        message = f"{base_message} (Status: {status_code}). Resource was not found."
+        return f"{message} {sanitized_message}" if sanitized_message else message
+    
+    def _format_status_code_error(
+        self, base_message: str, status_code: str, sanitized_message: str
+    ) -> str:
+        """Format error message with status code."""
+        message = f"{base_message} (Status: {status_code})"
+        return f"{message}. {sanitized_message}" if sanitized_message else message
+
     def _build_error_message(
-        self, tool_name: Optional[str], error_category: str, 
-        status_code: str | None, sanitized_message: str, error_detail: str
+        self, tool_name: Optional[str], error_category: str,
+        status_code: str | None, sanitized_message: str, error_detail: str,
+        original_message: str = ""
     ) -> str:
         """Build formatted error message."""
         tool_display = tool_name or 'request'
         base_message = f"Tool {tool_display} call failed: {error_category}"
         
+        if status_code == "request_failed":
+            return self._format_request_failed_error(base_message, original_message, error_detail)
+        
         if status_code == "500":
             return f"{base_message} (Status: {status_code}). Internal server error."
         
         if status_code == "404":
-            error_message_code = self._get_error_message_code(error_detail)
-            
-            # Handle "not_implemented" error code
-            not_implemented_error = self._handle_not_implemented_error(error_message_code, base_message, status_code, sanitized_message)
-            if not_implemented_error:
-                return not_implemented_error
-            
-            # Default 404 message
-            message = f"{base_message} (Status: {status_code}). Resource was not found."
-            return f"{message} {sanitized_message}" if sanitized_message else message
+            return self._format_404_error(base_message, status_code, error_detail, sanitized_message)
         
         if status_code == "403":
             message = f"{base_message} (Status: {status_code}). Operation is forbidden."
             return f"{message} {sanitized_message}" if sanitized_message else message
         
         if status_code:
-            message = f"{base_message} (Status: {status_code})"
-            return f"{message}. {sanitized_message}" if sanitized_message else message
+            return self._format_status_code_error(base_message, status_code, sanitized_message)
         
-        # Fallback if we can't parse status code
         return f"{base_message}. {sanitized_message}" if sanitized_message else base_message
     
     def _handle_not_implemented_error(self, error_message_code: str, base_message: str, status_code: str, sanitized_message: str) -> str | None:
@@ -410,11 +448,15 @@ class ToolHelperService:
             return f"{message} {sanitized_message}" if sanitized_message else message
 
     def _raise_formatted_error(
-        self, status_code: str | None, method: HTTPMethod, 
+        self, status_code: str | None, method: HTTPMethod,
         error_message: str, original_message: str
     ) -> ExternalAPIError | ServiceError:
         """Raise appropriate error type based on status code."""
         LOGGER.error(f"{error_message}, Full exception: {original_message}")
+        
+        # Request processing errors (e.g., JSON parsing) should not be retried
+        if status_code == "request_failed":
+            raise ServiceError(error_message)
         
         if status_code == "404" and method in [HTTPMethod.GET, HTTPMethod.DELETE]:
             raise ServiceError(error_message)

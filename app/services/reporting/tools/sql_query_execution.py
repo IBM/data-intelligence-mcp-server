@@ -92,12 +92,7 @@ def _unescape_sql_quotes(sql_query: str) -> str:
     )
 
 
-@service_registry.tool(
-    name="reporting_sql_query_execution",
-    description="Execute a user-provided SQL SELECT query against a tenant-specific reporting database. This tool enforces read-only access (only SELECT statements) and includes basic query validation for safety.",
-)
-@auto_context
-async def sql_query_execution(
+async def _sql_query_execution(
     request: SqlQueryExecutionRequest,
 ) -> SqlQueryExecutionResponse:
     """
@@ -182,9 +177,9 @@ async def sql_query_execution(
     description="Execute a user-provided SQL SELECT query against a tenant-specific reporting database. This tool enforces read-only access (only SELECT statements) and includes basic query validation for safety.",
 )
 @auto_context
-async def wxo_sql_query_execution(sql_query: str) -> SqlQueryExecutionResponse:
+async def sql_query_execution(sql_query: str) -> SqlQueryExecutionResponse:
     """
-    Watsonx Orchestrator compatible version that expands SqlQueryExecutionRequest object into individual parameters.
+    Wrapper that expands SqlQueryExecutionRequest object into individual parameters.
 
     Args:
         sql_query (str): The SQL SELECT query to execute. Must be a syntactically valid and read-only query.
@@ -195,4 +190,4 @@ async def wxo_sql_query_execution(sql_query: str) -> SqlQueryExecutionResponse:
     req = SqlQueryExecutionRequest(sql_query=sql_query)
 
     # Call the original sql_query_execution function
-    return await sql_query_execution(req)
+    return await _sql_query_execution(req)

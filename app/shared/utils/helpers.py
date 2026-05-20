@@ -114,6 +114,21 @@ def _try_parse_json(json_str: str) -> Optional[List[str]]:
     return None
 
 
+def _parse_json_response(response_data):
+    """Helper function to parse JSON response from bytes or dict."""
+    if isinstance(response_data, bytes):
+        import json
+        try:
+            return json.loads(response_data.decode('utf-8'))
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            raise ServiceError(f"Failed to parse response: {str(e)}")
+    
+    if not isinstance(response_data, (list, dict)):
+        raise ServiceError(f"Invalid response type: expected list or dict, got {type(response_data).__name__}")
+    
+    return response_data
+
+
 def _try_parse_with_normalization(json_str: str) -> Optional[List[str]]:
     """
     Try to parse a string as JSON after normalizing quotes.

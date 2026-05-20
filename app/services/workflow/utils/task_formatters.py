@@ -15,6 +15,9 @@ from app.services.workflow.models.get_workflow_tasks_from_my_inbox import Task
 from app.services.constants import WORKFLOW_TASK_ENDPOINT
 from app.shared.logging import LOGGER
 
+# Constants
+AT_RISK_THRESHOLD_HOURS = 48  # Tasks due within this many hours are considered "at risk"
+
 
 def calculate_task_age(created_at: datetime) -> str:
     """
@@ -57,7 +60,7 @@ def get_due_date_status(due_date: Optional[datetime]) -> str:
     
     if time_until_due.total_seconds() < 0:
         return "overdue"
-    elif time_until_due.total_seconds() < (48 * 3600):  # 48 hours in seconds
+    elif time_until_due.total_seconds() < (AT_RISK_THRESHOLD_HOURS * 3600):
         return "at_risk"
     else:
         return "normal"
@@ -93,17 +96,17 @@ def format_due_date_with_status(due_date: Optional[datetime]) -> str:
 
 def is_task_claimed(assignee: Optional[str]) -> str:
     """
-    Check if task is claimed and return display string.
+    Get the assignee for display in the Claimed column.
     
     Args:
         assignee: Task assignee (user ID or email)
         
     Returns:
-        "Yes" if claimed, "-" string if unclaimed
+        Assignee string if claimed, empty string if unclaimed
     """
     if assignee is not None and assignee.strip() != "":
-        return "Yes"
-    return "-"
+        return assignee
+    return ""
 
 
 def format_candidates_with_limit(candidates: Optional[List[str]]) -> str:
@@ -128,6 +131,50 @@ def format_candidates_with_limit(candidates: Optional[List[str]]) -> str:
     
     # Add ellipsis if there are more candidates
     if len(candidates) > 3:
+        result += "..."
+    
+    return result
+
+
+def format_assignees(candidate_users: Optional[List[str]], candidate_groups: Optional[List[str]]) -> str:
+    """
+    Merge candidate users and groups into a single list, marking groups with '(g)'.
+    
+    Args:
+        candidate_users: List of candidate user names
+        candidate_groups: List of candidate group names
+        
+    Returns:
+        Formatted string with:
+        - Users and groups merged, groups suffixed with '(g)'
+        - First 3 items joined by commas
+        - "..." appended if more than 3 items total
+        - "N/A" if both lists are empty or None
+    """
+    # Build merged list
+    merged = []
+    
+    # Add users (without suffix)
+    if candidate_users:
+        for user in candidate_users:
+            if user:  # Skip empty strings
+                merged.append(user)
+    
+    # Add groups (with '(g)' suffix)
+    if candidate_groups:
+        for group in candidate_groups:
+            if group:  # Skip empty strings
+                merged.append(f"{group} (g)")
+    
+    # Handle empty case
+    if not merged:
+        return "N/A"
+    
+    # Apply 3-item limit with ellipsis
+    displayed = merged[:3]
+    result = ", ".join(displayed)
+    
+    if len(merged) > 3:
         result += "..."
     
     return result
@@ -208,11 +255,10 @@ def format_tasks_as_table(tasks: List[Task], base_url: str) -> str:
     Returns:
         Markdown table string with columns:
         - Task Title (hyperlinked)
-        - Claimed (Yes or No)
-        - Assigned (time ago)
+        - Claimed at (date when claimed, or "-")
+        - Claimed (assignee email/id, or empty if unclaimed)
         - Due Date (with status icons)
-        - Candidate Users (first 3 with ellipsis for more, or "N/A")
-        - Candidate Groups (first 3 with ellipsis for more, or "N/A")
+        - Assignees (merged candidate users and groups, groups marked with '(g)')
         
     Note:
         If more than 20 tasks are returned, a link to the full task inbox
@@ -222,35 +268,45 @@ def format_tasks_as_table(tasks: List[Task], base_url: str) -> str:
         return "No tasks found in your inbox."
     
     # Build table header
-    table = "| Task Title | Claimed | Assigned | Due Date | Candidate Users | Candidate Groups |\n"
-    table += "|------------|---------|----------|----------|-----------------|------------------|\n"
+    table = "| Task Title | Claimed at | Claimed | Due Date | Assignees |\n"
+    table += "|------------|------------|---------|----------|-----------|\n"
     
     # Build table rows
     for task in tasks:
         task_url = build_task_url(base_url, task.task_id)
         title_link = f"[{task.task_title}]({task_url})"
-        claimed = is_task_claimed(task.assignee)
-        assigned = calculate_task_age(task.created_at)
-        due_date = format_due_date_with_status(task.due_date)
-        candidate_users = format_candidates_with_limit(task.candidate_users)
-        candidate_groups = format_candidates_with_limit(task.candidate_groups)
         
-        table += f"| {title_link} | {claimed} | {assigned} | {due_date} | {candidate_users} | {candidate_groups} |\n"
+        # Format claimed_at date or show "-"
+        if task.claimed_at:
+            claimed_at = task.claimed_at.strftime("%Y-%m-%d")
+        else:
+            claimed_at = "-"
+        
+        # Get assignee (empty if unclaimed)
+        claimed = is_task_claimed(task.assignee)
+        
+        # Format due date
+        due_date = format_due_date_with_status(task.due_date)
+        
+        # Merge candidate users and groups
+        assignees = format_assignees(task.candidate_users, task.candidate_groups)
+        
+        table += f"| {title_link} | {claimed_at} | {claimed} | {due_date} | {assignees} |\n"
     
     # Add link to task inbox if more than 20 tasks
     if len(tasks) > 20:
         inbox_url = f"{base_url}{WORKFLOW_TASK_ENDPOINT}"
-        table += f"| [View all tasks in your inbox]({inbox_url}) (list length exceeded) | | | | | |\n"
+        table += f"| [View all tasks in your inbox]({inbox_url}) (list length exceeded) | | | | |\n"
     
     return table
 
 
-def format_artefacts_as_table(artefacts: List, base_url: str) -> str:
+def format_artifacts_as_table(artifacts: List, base_url: str) -> str:
     """
-    Convert artefact list (business terms or data classes) to markdown table with formatted columns.
+    Convert artifact list (business terms or data classes) to markdown table with formatted columns.
     
     Args:
-        artefacts: List of Artefact objects (BusinessTerm or DataClass)
+        artifacts: List of Artifact objects (BusinessTerm or DataClass)
         base_url: Base URL for constructing artifact links
         
     Returns:
@@ -261,73 +317,73 @@ def format_artefacts_as_table(artefacts: List, base_url: str) -> str:
         - Modified By
         - Created At
     """
-    if not artefacts:
-        return "No artefacts found."
+    if not artifacts:
+        return "No artifacts found."
     
     # Build table header
     table = "| Name | Description | State | Modified By | Created At |\n"
     table += "|------|-------------|-------|-------------|------------|\n"
     
     # Build table rows
-    for artefact in artefacts:
+    for artifact in artifacts:
         # Build name link if artifact_id exists
-        if artefact.artifact_id:
-            name_link = f"[{artefact.name}]({base_url}/artefacts/{artefact.artifact_id})"
+        if artifact.artifact_id:
+            name_link = f"[{artifact.name}]({base_url}/artifacts/{artifact.artifact_id})"
         else:
-            name_link = artefact.name
+            name_link = artifact.name
         
         # Truncate description if too long
-        description = artefact.description or ""
+        description = artifact.description or ""
         if len(description) > 100:
             description = description[:97] + "..."
         
         # Format created_at if available
-        created_at = artefact.created_at or "N/A"
+        created_at = artifact.created_at or "N/A"
         
-        table += f"| {name_link} | {description} | {artefact.state or 'N/A'} | {artefact.modified_by or 'N/A'} | {created_at} |\n"
+        table += f"| {name_link} | {description} | {artifact.state or 'N/A'} | {artifact.modified_by or 'N/A'} | {created_at} |\n"
     
     return table
 
 
-def prompt_user_for_artifact_selection(artefacts: List, base_url: str) -> str:
+def prompt_user_for_artifact_selection(artifacts: List, base_url: str) -> str:
     """
     Prompt user to select an artifact when multiple artifacts are returned.
     
     Args:
-        artefacts: List of Artefact objects (BusinessTerm or DataClass)
+        artifacts: List of Artifact objects (BusinessTerm or DataClass)
         base_url: Base URL for constructing artifact links
         
     Returns:
         Formatted string prompting user to select an artifact
     """
-    if not artefacts:
-        return "No artefacts found."
+    if not artifacts:
+        return "No artifacts found."
     
-    if len(artefacts) == 1:
-        return f"Found 1 artifact: {artefacts[0].name}"
+    if len(artifacts) == 1:
+        return f"Found 1 artifact: {artifacts[0].name}"
     
     # Build numbered list of artifacts
-    output = f"Found {len(artefacts)} artifacts. Please select the artifact you want to work with:\n\n"
+    output = f"Found {len(artifacts)} artifacts. Please select the artifact you want to work with:\n\n"
     
-    for i, artefact in enumerate(artefacts, 1):
+    for i, artifact in enumerate(artifacts, 1):
         # Build name link if artifact_id exists
-        if artefact.artifact_id:
-            name_link = f"[{artefact.name}]({base_url}/artefacts/{artefact.artifact_id})"
+        if artifact.artifact_id:
+            name_link = f"[{artifact.name}]({base_url}/artifacts/{artifact.artifact_id})"
         else:
-            name_link = artefact.name
+            name_link = artifact.name
         
         # Truncate description if too long
-        description = artefact.description or ""
+        description = artifact.description or ""
         if len(description) > 100:
             description = description[:97] + "..."
         
         # Format created_at if available
-        created_at = artefact.created_at or "N/A"
+        created_at = artifact.created_at or "N/A"
         
         output += f"{i}. {name_link}\n"
         output += f"   Description: {description}\n"
-        output += f"   State: {artefact.state or 'N/A'}\n"
-        output += f"   Modified By: {artefact.modified_by or 'N/A'}\n"
+        output += f"   State: {artifact.state or 'N/A'}\n"
+        output += f"   Modified By: {artifact.modified_by or 'N/A'}\n"
         output += f"   Created At: {created_at}\n\n"
     
     output += "Please provide the number of the artifact you want to select."

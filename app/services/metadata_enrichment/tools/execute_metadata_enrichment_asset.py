@@ -24,26 +24,7 @@ from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import append_context_to_url, confirm_uuid
 
 
-@service_registry.tool(
-    name="execute_metadata_enrichment_asset",
-    description="""Executes a metadata enrichment asset within a specified project.
-
-    This tool initiates the execution of a pre-configured metadata enrichment asset. It retrieves the asset's details,
-    confirms its existence within the project, and starts the enrichment job. The function returns a MetadataEnrichmentRun
-    object containing information about the executed job, including its ID, run ID, and a URL to monitor its progress in the UI.
-
-    The execution process involves:
-    1. Confirming the project ID based on the provided project name.
-    2. Retrieving the metadata enrichment asset ID using its name within the project.
-    3. Finding the associated job ID for the asset.
-    4. Executing the metadata enrichment job.
-    5. Constructing a URL to the metadata enrichment UI for monitoring.
-
-    The function assumes the metadata enrichment asset is already defined and valid within the project.
-    It does not handle asset creation.""",
-)
-@auto_context
-async def execute_metadata_enrichment_asset(
+async def _execute_metadata_enrichment_asset(
     request: MetadataEnrichmentExecutionRequest,
 ) -> MetadataEnrichmentRun:
 
@@ -93,14 +74,14 @@ async def execute_metadata_enrichment_asset(
     It does not handle asset creation.""",
 )
 @auto_context
-async def wxo_execute_metadata_enrichment_asset(
+async def execute_metadata_enrichment_asset(
     project_name: str,
     metadata_enrichment_name: str,
 ) -> MetadataEnrichmentRun:
-    """Watsonx Orchestrator compatible version that MetadataEnrichmentExecutionRequest expands object into individual parameters."""
+    """Wrapper that MetadataEnrichmentExecutionRequest expands object into individual parameters."""
 
     request = MetadataEnrichmentExecutionRequest(
         project_name=project_name,
         metadata_enrichment_name=metadata_enrichment_name,
     )
-    return await execute_metadata_enrichment_asset(request)
+    return await _execute_metadata_enrichment_asset(request)

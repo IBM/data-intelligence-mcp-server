@@ -68,7 +68,7 @@ Raises:
 
 Note:
     This tool requires confirmation before execution as it creates a new resource.""",
-    tags={"create", "data_quality", "custom_tool"},
+    tags={"create", "data_quality"},
     meta={"version": "1.0", "service": "data_quality"},
 )
 @auto_context

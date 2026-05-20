@@ -20,38 +20,7 @@ from app.services.tool_utils import (
     find_connection_id,
 )
 
-@service_registry.tool(
-    name="copy_connection",
-    description="""Understand user's request about creating a new connetion from an existing connection,
-                    in other words, copying a connection, or using an existing connection in a different
-                    container, and returning the details of the new connection.
-                    Users are required to provide the identifier of the existing connection to be copied
-                    and the identifier of the target container for the connection to be copied to. If the
-                    users do not provide a source catalog, platform assets catalog is assumed as the
-                    source catalog. If the users do not provide a target container type, project is assumed 
-                    as the target container type.
-                    Example: Create a new connection in AgentTest project from birddb connection in MCPTest.
-                    In this case, connection_name is birddb, source_catalog is MCPTest, target_container is AgentTest, and target_container_type is project.
-                    Example: Copy connection employee to WorkInfo.
-                    In this case, connection_name is employee, target_container is WorkInfo, target_container_type is project, source_catalog is None.
-                    Example: Create a connection from aws-jobs in workflows catalog.
-                    In this case, connection_name is aws-jobs, target_container is workflows, target_container_type is catalog, source_catalog is None.
-                    Example: Copy connection test-connection in Test catalog to AgentIssue project.
-                    In this case, connection_name is test-connection, source_catalog is Test, target_container is AgentIssue, and target_container_type is project.
-                    Example: I want to use the BirdDB connection in AgentTest project.
-                    In this case, connection_name is BirdDB, target_container is AgentTest, target_container_type is project, source_catalog is None.
-
-                    IMPORTANT CONSTRAINTS:
-                    - connection_name must be provided
-                    - target_container must be provided
-                    - target_container_type if not provided defaults to "project"
-                    - connection to be copied can only exist in a catalog
-                    """,
-    tags={"copy", "connection"},
-    meta={"version": "1.0", "service": "connections"}
-)
-@auto_context
-async def copy_connection(
+async def _copy_connection(
     request: CopyConnectionRequest
 ) -> CopyConnectionResponse:
 
@@ -143,13 +112,13 @@ async def copy_connection(
     meta={"version": "1.0", "service": "connections"}
 )
 @auto_context
-async def wxo_copy_connection(
+async def copy_connection(
     connection_name: str,
     target_container: str,
     source_catalog: Optional[str] = None,
     target_container_type: Literal["catalog", "project"] = "project",
 ) -> CopyConnectionResponse:
-    """Watsonx Orchestrator compatible version that expands CopyConnectionRequest object into individual parameters."""
+    """Wrapper version that expands CopyConnectionRequest object into individual parameters."""
 
     request = CopyConnectionRequest(
         connection_name=connection_name,
@@ -159,4 +128,4 @@ async def wxo_copy_connection(
     )
 
     # Call the original copy_connection function
-    return await copy_connection(request)
+    return await _copy_connection(request)

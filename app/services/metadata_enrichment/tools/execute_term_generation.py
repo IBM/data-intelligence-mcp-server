@@ -36,34 +36,7 @@ from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import confirm_uuid
 
 
-@service_registry.tool(
-    name="execute_term_generation",
-    description="""Executes term generation on an existing metadata enrichment asset within a specified project.
-
-    This tool executes term generation on an metadata enrichment asset (MDE), running for all the data assets and data asset columns that are associated with the metadata enrichment asset.
-    This tool has two modes depending on if a metadata_enrichment_name was provided by the user:
-    - If the metadata_enrichment_name IS NOT provided, the tool will get all the MDEs in the project and return this information back to the user. The user is then instructred to choose an MDE to run term generation on.
-    - If the metadata_enrichment_name IS provided, the tool will get all the associated data assets to the MDE and run term generation on them in batches.
-
-    metadata_enrichment_name IS NOT provided:
-    - Requires: project_identifier
-    - Searches for MDEs in the project and extracts relevant data.
-    - Gets the data assets associated with the MDE and returns: 
-        1. A list of objectives
-        2. The name of the MDE
-        3. The id of the associated data assets, the count of missing terms, published terms and draft terms
-    - Returns MetadataEnrichmentResult with details of each MDE found in the project. Provide all details of the MDE in a user friendly format such as a table.
-
-    metadata_enrichment_name IS provided:
-    - Requires: project_identifier, metadata_enrichment_name
-    - Gets all the data assets associated with the MDE
-    - Gets a count of how many draft terms are currently in the workflow, prior to running term generation
-    - Executes term generation in batches on the data assets, if there are any failures these are reported back to the user
-    - Gets a count of how many draft terms are now in the workflow, after running term generation
-    - Returns TermGenerationResult with the count of term generated, the failed term generation attempts and URLs to the UI. Provide the response in a user friendly format such as a table""",
-)
-@auto_context
-async def execute_term_generation(
+async def _execute_term_generation(
     request: TermGenerationRequest,
 ) -> TermGenerationResult | MetadataEnrichmentResult:
 
@@ -157,14 +130,14 @@ async def execute_term_generation(
     - Returns TermGenerationResult with the count of term generated, the failed term generation attempts and URLs to the UI. Provide the response in a user friendly format such as a table""",
 )
 @auto_context
-async def wxo_execute_term_generation(
+async def execute_term_generation(
     project_name: str,
     metadata_enrichment_name: Optional[str] = None,
 ) -> TermGenerationResult | MetadataEnrichmentResult:
-    """Watsonx Orchestrator compatible version that expands TermGenerationRequest into individual parameters."""
+    """Wrapper that expands TermGenerationRequest into individual parameters."""
 
     request = TermGenerationRequest(
         project_name=project_name,
         metadata_enrichment_name=metadata_enrichment_name,
     )
-    return await execute_term_generation(request)
+    return await _execute_term_generation(request)

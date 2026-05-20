@@ -252,6 +252,8 @@ def set_metadata_enrichment_objective(
                 mde_options.analyze_relationships = True
             case MetadataEnrichmentObjective.DQ_SLA_ASSESSMENT:
                 mde_options.dq_sla_assessment = True
+            case MetadataEnrichmentObjective.DATA_SEARCH:
+                mde_options.data_search = True
             case _:
                 raise ValueError(f"Invalid objective: {objective}")
 
@@ -263,6 +265,7 @@ def generate_metadata_enrichment_asset(
     objectives: list[MetadataEnrichmentObjective],
     metadata_import_uuids: Optional[list[str]] = None,
     primary_category_uuid: Optional[str] = None,
+    tags: Optional[list[str]] = None,
 ) -> MetadataEnrichmentAsset:
     """
     Generates a default MetadataEnrichmentAsset with specified parameters.
@@ -274,12 +277,14 @@ def generate_metadata_enrichment_asset(
         objectives (list[MetadataEnrichmentObjective]): List of objectives of the MetadataEnrichmentAsset.
         metadata_import_uuids (list[str]): List of MDI UUIDs for the asset.
         primary_category_uuid (str): The primary category UUID for the asset.
+        tags (list[str]): List of tags for the asset.
 
     Returns:
         MetadataEnrichmentAsset: A default configured MetadataEnrichmentAsset.
     """
     mde_asset = MetadataEnrichmentAsset(name=asset_name)
     mde_asset.data_scope.enrichment_assets = dataset_uuids
+    mde_asset.tags=tags
     if metadata_import_uuids:
         metadata_imports = ContainerAssets(metadata_imports=metadata_import_uuids)
         mde_asset.data_scope.container_assets = metadata_imports
@@ -628,7 +633,8 @@ async def create_metadata_enrichment(
         category_uuids=category_ids,
         objectives=objectives,
         metadata_import_uuids=metadata_imports_ids,
-        primary_category_uuid=primary_category_id
+        primary_category_uuid=primary_category_id,
+        tags=request.tags,
     )
 
     return await call_create_metadata_enrichment_asset(project_id, mde_asset)
@@ -665,7 +671,8 @@ async def update_metadata_enrichment(
         description=request.description,
         primary_category_id=primary_category_id,
         datasets_to_add_uuids=datasets_to_add_ids,
-        datasets_to_remove_uuids=datasets_to_remove_ide
+        datasets_to_remove_uuids=datasets_to_remove_ide,
+        tags=request.tags,
     )
 
 async def check_and_confirm_dataset_names(dataset_names: list[str], project_id: str, check_mde_assignement: bool = True) -> list[str]:
@@ -674,10 +681,16 @@ async def check_and_confirm_dataset_names(dataset_names: list[str], project_id: 
         dataset_names = confirm_list_str(dataset_names)
         dataset_ids = [
             await confirm_uuid(
-                dataset_name, partial(find_asset_id_exact_match, container_id=project_id)
+                dataset_name, partial(find_asset_id_exact_match, container_id=project_id, raise_errors=False)
             )
             for dataset_name in dataset_names
         ]
+        invalid_count = sum(1 for _id in dataset_ids if not _id)
+
+        if invalid_count > 0:
+            LOGGER.warning(f"Found {invalid_count} invalid dataset_ids (None or empty) out of {len(dataset_ids)}")
+
+        dataset_ids = [asset_id for asset_id in dataset_ids if asset_id]
         if check_mde_assignement:
             await check_if_datasets_assigned_to_mde(dataset_ids, dataset_names, project_id)
     return dataset_ids
@@ -693,6 +706,7 @@ async def call_update_metadata_enrichment_asset(
     primary_category_id: Optional[str] = None,
     datasets_to_add_uuids: Optional[list[str]] = None,
     datasets_to_remove_uuids: Optional[list[str]] = None,
+    tags: Optional[list[str]] = None,
 ) -> MetadataEnrichmentAssetPatchResponse:
     """
     Update an existing metadata enrichment asset.
@@ -707,12 +721,14 @@ async def call_update_metadata_enrichment_asset(
         primary_category_id: Optional primary category ID for the governance scope
         datasets_to_add_uuids: Optional list of dataset UUIDs
         datasets_to_remove_uuids: Optional list of dataset UUIDs
+        tags: Optional list of tags associated with the governance scope
 
     Returns:
         MetadataEnrichmentAssetPatchResponse with updated MDE details
     """
     mde_patch = MetadataEnrichmentAssetPatch()
     set_metadata_enrichment_objective(mde_patch, objectives)
+    mde_patch.tags = tags
     for category_id in category_ids:
         mde_patch.objective.governance_scope.append(
             GovernanceScopeCategory(id=category_id)

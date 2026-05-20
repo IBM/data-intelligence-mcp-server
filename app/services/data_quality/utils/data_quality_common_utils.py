@@ -2,6 +2,13 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
+# This file has been modified with the assistance of IBM Bob AI tool
+
+import re
+import sys
+import uuid
+from functools import partial
+from typing import Any, Callable, Dict, List, Literal, Optional
 from functools import partial
 from typing import Dict, List, Literal, Optional
 
@@ -30,7 +37,7 @@ DATA_QUALITY_V3_BASE_URL = str(tool_helper_service.base_url) + DATA_QUALITY_BASE
 DATA_QUALITY_V4_BASE_URL = str(tool_helper_service.base_url) + DATA_QUALITY_BASE_ENDPOINT
 
 
-async def get_data_quality_rule_ui_url(project_id: str, data_quality_rule_id: str) -> str:
+def get_data_quality_rule_ui_url(project_id: str, data_quality_rule_id: str) -> str:
     """
     Constructs the UI URL for a data quality rule.
     
@@ -130,7 +137,8 @@ async def _find_data_quality_rules(
             f"Finding data quality rules failed due to: {str(ese)}"
         )
 
-    rows = response.get("rows", [])
+    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}
+    rows = response_dict.get("rows", [])
     data_quality_rules = []
 
     for row in rows:
@@ -139,7 +147,7 @@ async def _find_data_quality_rules(
             DataQualityRule(
                 data_quality_rule_id=data_quality_rule_id,
                 project_id=project_id,
-                data_quality_rule_ui_url=await get_data_quality_rule_ui_url(
+                data_quality_rule_ui_url=get_data_quality_rule_ui_url(
                     project_id=project_id, data_quality_rule_id=data_quality_rule_id
                 ),
                 data_quality_rule_name=row["metadata"]["name"],
@@ -208,7 +216,8 @@ async def _retrieve_data_quality_id_for_asset(
         raise ServiceError(
             f"Tool get_data_quality_for_asset call finishes unsuccessfully. Asset {asset_id} from {container_type} {container_id} has no data quality information."
         )
-    dq_id = response.get("id")
+    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}
+    dq_id = response_dict.get("id")
     if dq_id:
         return dq_id
     else:
@@ -251,19 +260,22 @@ async def _retrieve_data_quality(
         asset_id: str: Asset id
         container_id: str: Container id
         container_type: str: Container type (project or catalog)
+        dimensions: Optional[List[str]]: List of dimension names to retrieve.
+                                         Defaults to ['consistency', 'validity', 'completeness']
 
     Returns:
         DataQuality: Data quality asset object
     """
-
+    
     params = {"asset_id": data_quality_id, f"{container_type.lower()}_id": container_id}
     response = await tool_helper_service.execute_get_request(
         str(tool_helper_service.base_url) + DATA_QUALITY_BASE_ENDPOINT + "/scores",
         params=params,
     )
+    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}
     scores = [
         score
-        for score in response.get("scores", [])
+        for score in response_dict.get("scores", [])
         if score.get("status", "").lower() == "actual"
     ]
     if len(scores) == 0:
@@ -273,6 +285,7 @@ async def _retrieve_data_quality(
     score = scores[0]
 
     dimension_scores = score.get("dimension_scores", [])
+
 
     # Build scores_by_dimension dictionary dynamically from all available dimension scores
     scores_by_dimension = {}
@@ -297,6 +310,7 @@ async def get_data_quality_for_asset(
     asset_id_or_name: str,
     container_id_or_name: str,
     container_type: Literal["catalog", "project"],
+    dimensions: Optional[List[str]] = None,
 ) -> DataQuality:
     """
     Retrieve data quality metrics and information for a specific asset.
@@ -316,9 +330,11 @@ async def get_data_quality_for_asset(
         asset_id_or_name (str): The asset's UUID or name.
         container_id_or_name (str): The project or catalog's UUID or name.
         container_type (Literal["project", "catalog"]): Either "project" or "catalog".
+        dimensions (Optional[List[str]]): List of dimension names to retrieve.
+                                          Defaults to ['consistency', 'validity', 'completeness']
 
     Returns:
-        DataQuality: Quality metrics including overall, consistency, validity, completeness scores and report URL.
+        DataQuality: Quality metrics including overall, dimension scores and report URL.
 
     Raises:
         ToolProcessFailedError: If the asset has no data quality information or data quality scores cannot be retrieved.
@@ -458,7 +474,7 @@ async def run_data_quality_rule(
     return DataQualityRule(
         data_quality_rule_id=data_quality_rule_id,
         project_id=project_id,
-        data_quality_rule_ui_url=await get_data_quality_rule_ui_url(
+        data_quality_rule_ui_url=get_data_quality_rule_ui_url(
             project_id=project_id, data_quality_rule_id=data_quality_rule_id
         ),
         data_quality_rule_name=rule_name,
@@ -536,9 +552,10 @@ async def set_validates_data_quality_of_relation(
         raise ServiceError(
             f"setting validates_data_quality_of relation failed due to {str(ese)}."
         )
+    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}
     existing_relationship_found = False
     target_asset_id = data_asset_id + "#COLUMN#" + found_column_name
-    for resource in response.get("resources", []):
+    for resource in response_dict.get("resources", []):
         if project_id == resource.get("project_id") and target_asset_id == resource.get(
             "asset_id"
         ):
@@ -572,11 +589,12 @@ async def set_validates_data_quality_of_relation(
     return DataQualityRule(
         data_quality_rule_id=data_quality_rule_id,
         project_id=project_id,
-        data_quality_rule_ui_url=await get_data_quality_rule_ui_url(
+        data_quality_rule_ui_url=get_data_quality_rule_ui_url(
             project_id=project_id, data_quality_rule_id=data_quality_rule_id
         ),
         data_quality_rule_name=data_quality_rule_name,
     )
+
 
 
 async def find_data_quality_dimension_id(data_quality_dimension_name: str) -> str:
@@ -594,9 +612,10 @@ async def find_data_quality_dimension_id(data_quality_dimension_name: str) -> st
     response = await tool_helper_service.execute_get_request(
         str(tool_helper_service.base_url) + DATA_QUALITY_BASE_ENDPOINT + "/dimensions",
     )
+    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}
     dimensions = [
         {"name": dimension["name"], "id": dimension["id"]}
-        for dimension in response.get("dimensions", [])
+        for dimension in response_dict.get("dimensions", [])
     ]
     result_id = get_closest_match(dimensions, data_quality_dimension_name)
     if result_id:
@@ -640,8 +659,9 @@ async def find_dataset_column(column_name: str, dataset_id: str, project_id: str
         params=params
     )
 
+    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}
     columns = []
-    for row in response.get("rows", []):
+    for row in response_dict.get("rows", []):
         columns = [
             {"name": column, "id": column}
             for column in row.get("entity").get("assets").get("column_names", [])
@@ -797,7 +817,8 @@ async def create_data_quality_rule_from_sql_query(
             f"Creation of data quality rule: '{data_quality_rule_name}' failed due to {str(ese)}."
         )
 
-    data_quality_rule_id = response.get("id")
+    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}
+    data_quality_rule_id = response_dict.get("id")
     
     if not data_quality_rule_id:
         raise ServiceError(
@@ -807,7 +828,7 @@ async def create_data_quality_rule_from_sql_query(
     return DataQualityRule(
         data_quality_rule_id=data_quality_rule_id,
         project_id=project_id,
-        data_quality_rule_ui_url=await get_data_quality_rule_ui_url(
+        data_quality_rule_ui_url=get_data_quality_rule_ui_url(
             project_id=project_id, data_quality_rule_id=data_quality_rule_id
         ),
         data_quality_rule_name=data_quality_rule_name,

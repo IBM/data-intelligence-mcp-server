@@ -154,3 +154,37 @@ def _get_items_iterator(item):
     if hasattr(item, 'keys'):
         return ((k, item[k]) for k in item.keys())
     return None
+
+def format_search_results_for_table(results: list) -> list:
+    """
+    Format search results for UI table display.
+    
+    Args:
+        results: List of search result objects (SearchAssetResponse or GlobalSearchAssetResponse)
+        
+    Returns:
+        List of dictionaries with formatted data for table display
+    """
+    formatted_data = []
+    for item in results:
+        # Determine container type and ID
+        if item.project_id:
+            container_type = "project"
+            container_id = item.project_id
+        elif item.catalog_id:
+            container_type = "catalog"
+            container_id = item.catalog_id
+        else:
+            container_type = "-"
+            container_id = "-"
+        
+        asset_type = getattr(item, 'asset_type', None)
+        
+        formatted_data.append({
+            "Name": ui_message_context.create_markdown_link(item.url, item.name) if item.url else item.name,
+            "Artifact Type": asset_type or "-",
+            "Container Type": container_type,
+            "Container ID": container_id,
+        })
+    
+    return formatted_data

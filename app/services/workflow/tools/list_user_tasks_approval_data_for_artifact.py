@@ -178,13 +178,7 @@ Use formatted output in your answer.
 """
 
 
-@service_registry.tool(
-    name="list_user_tasks_approval_data_for_artifact",
-    description=list_user_tasks_approval_data_for_artifact_description,
-    tags={"workflow", "glossary", "user_tasks", "governance"},
-    meta={"version": "1.0", "service": "workflow"},
-)
-async def list_user_tasks_approval_data_for_artifact(
+async def _list_user_tasks_approval_data_for_artifact(
     request: ListUserTasksRequest,
     ctx: Context
 ) -> ListUserTasksResponse:
@@ -254,18 +248,19 @@ async def list_user_tasks_approval_data_for_artifact(
 
 @service_registry.tool(
     name="list_user_tasks_approval_data_for_artifact",
-    description="Watsonx Orchestrator compatible wrapper list_user_tasks_approval_data_for_artifact. " + list_user_tasks_approval_data_for_artifact_description,
-    tags={"workflow", "wxo", "glossary", "user_tasks", "governance"},
+    description=list_user_tasks_approval_data_for_artifact_description,
+    tags={"workflow", "glossary", "user_tasks", "governance"},
     meta={"version": "1.0", "service": "workflow"},
 )
 @auto_context
-async def wxo_list_user_tasks_approval_data_for_artifact(
+async def list_user_tasks_approval_data_for_artifact(
     artifact_id: str,
     max_results: int = 50,
     draft: bool = False,
     format: str = "table",
+    ctx: Context = None,
 ) -> ListUserTasksResponse:
-    """Watsonx Orchestrator compatible version of list_user_tasks_approval_data_for_artifact."""
+    """Wrapper version of list_user_tasks_approval_data_for_artifact."""
     
     request = ListUserTasksRequest(
         artifact_id=artifact_id,
@@ -274,4 +269,4 @@ async def wxo_list_user_tasks_approval_data_for_artifact(
         format=format
     )
     
-    return await list_user_tasks_approval_data_for_artifact(request)
+    return await _list_user_tasks_approval_data_for_artifact(request, ctx)

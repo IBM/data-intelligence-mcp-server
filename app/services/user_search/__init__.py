@@ -19,11 +19,10 @@ Features:
 - Works in both SaaS and CP4D environments
 """
 
-from app.services.user_search.tools.search_user_groups_roles import search_user_groups_roles, wxo_search_user_groups_roles
+from app.services.user_search.tools.search_user_groups_roles import search_user_groups_roles
 
 __all__ = [
     "search_user_groups_roles",
-    "wxo_search_user_groups_roles",
 ]
 
 # Made with Bob

@@ -6,21 +6,37 @@ This document provides a comprehensive list of all Model Context Protocol (MCP) 
 - [MCP Skills](#mcp-skills)
   - [Table of Contents](#table-of-contents)
   - [Where to Get the Skills](#where-to-get-the-skills)
-    - [Option 1: From PyPI Package](#option-1-from-pypi-package)
-    - [Option 2: From GitHub Repository](#option-2-from-github-repository)
+    - [Option 1: Direct Download (skills.zip)](#option-1-direct-download-skillszip)
+    - [Option 2: From PyPI Package](#option-2-from-pypi-package)
+    - [Option 3: From GitHub Repository](#option-3-from-github-repository)
   - [How to Use MCP Skills](#how-to-use-mcp-skills)
     - [Claude Desktop](#claude-desktop)
     - [IBM BOB](#ibm-bob)
     - [VS Code Copilot](#vs-code-copilot)
   - [Available Skills](#available-skills)
     - [Metadata Onboarding and Enrichment Skill](#metadata-onboarding-and-enrichment-skill)
+    - [Data Lineage Skill](#data-lineage-skill)
 
 
 ## Where to Get the Skills
 
-The skills are shipped with the Data Intelligence MCP Server and can be accessed in two ways:
+The skills are shipped with the Data Intelligence MCP Server and can be accessed in multiple ways:
 
-### Option 1: From PyPI Package
+### Option 1: Direct Download (skills.zip)
+
+You can directly download the pre-packaged skills archive from the GitHub repository:
+
+**Download Link:** [skills.zip](https://github.com/IBM/data-intelligence-mcp-server/skills.zip)
+
+**How to Use:**
+
+1. **Download the skills.zip file** from the link above
+2. **Extract the archive** to your desired location
+3. **Use the extracted skills folder** based on your client requirements (see [How to Use MCP Skills](#how-to-use-mcp-skills) section below)
+
+This is the quickest way to get started with the skills without installing the full package or cloning the repository.
+
+### Option 2: From PyPI Package
 
 If you have installed the MCP server via PyPI:
 
@@ -38,7 +54,7 @@ wxdi-setup-skills
 - The skills are bundled with the PyPI package at: `site-packages/skills/`
 - After running `wxdi-setup-skills`, you can specify any location to copy them to
 
-### Option 2: From GitHub Repository
+### Option 3: From GitHub Repository
 
 You can also download the skills directly from the GitHub repository:
 
@@ -137,3 +153,9 @@ In order to use the Data Intelligence skills with VS Code Copilot:
 | Skill Name | Description | Sample Prompts | pypi version | CPD version |
 |-----------|-------------|---------------|-------------|-------------|
 | onboard-and-enrich | Walks user through executing a metadata onboarding, data cataloging and metadata enrichment workflow starting from project setup to connection configuration to metadata import and finally metadata enrichment | "Onboard our Postgres sales database" or "I want to enrich the data I already imported last week" or "Set up a new project for the Finance team and enrich their IBM DB2 data" | >=0.9.0 | TBD |
+
+### Data Lineage Skill
+
+| Skill Name | Description | Sample Prompts | pypi version | CPD version |
+|-----------|-------------|---------------|-------------|-------------|
+| lineage | Guides users through exploring upstream/downstream data lineage and historical lineage changes via a 3-phase workflow: asset identification → lineage graph traversal → historical version comparison. Handles both direct lineage search and catalog-first lookup with ID conversion | "Show lineage for CUSTOMER_360" or "What feeds into the sales table?" or "Trace the customer_data asset in AgentTest project" or "What would break if we changed this table?" or "Where does this data come from originally?" or "Has anything changed in the pipeline since last month?" | >=1.1.0 | TBD |

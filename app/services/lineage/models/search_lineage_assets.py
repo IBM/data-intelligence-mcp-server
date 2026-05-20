@@ -58,6 +58,14 @@ class SearchLineageAssetsRequest(BaseModel):
         default=None,
         description="Fill this optional value ONLY with the type of asset passed by the user",
     )
+    dsd_id: Optional[str] = Field(
+        default=None,
+        description="Fill this optional value ONLY with the ID of Data Source Definition (DSD) passed by the user.",
+    )
+    dsd_name: Optional[str] = Field(
+        default=None,
+        description="Fill this optional value ONLY with the name of Data Source Definition (DSD) passed by the user.",
+    )
     dates: Optional[str] = Field(
         default=None,
         description="""Two dates in ISO 8601 format separated by comma or space. This optional field should get value:

@@ -26,6 +26,7 @@ from app.services.workflow.models.get_my_workflows import (
     TaskDetail
 )
 from app.services.workflow.tools.utils import ZERO_MINUTES
+from app.services.workflow.utils.task_utils import _convert_variables_to_dict
 from app.services.workflow.utils.user_mappers import convert_iam_id_to_email
 from app.services.workflow.utils.workflow_request_formatters import (
     format_workflow_requests_as_tables,
@@ -36,6 +37,68 @@ from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.client_detection import supports_rich_text_format
 from fastmcp.exceptions import ToolError
 from fastmcp.server.context import Context
+
+# Constants for workflow name parsing
+PLACEHOLDER_ARTIFACT_TYPE = "{artifactType}"
+PLACEHOLDER_ARTIFACT_NAME = "{artifactName}"
+PLACEHOLDER_DRAFT_MODE = "{draft_mode}"
+DEFAULT_WORKFLOW_NAME = "Untitled Workflow"
+
+# Task state constants
+TASK_STATE_CREATED = "0"
+TASK_STATE_ASSIGNED = "1"
+TASK_STATE_COMPLETED = "2"
+
+
+def _parse_workflow_name(workflow_name_raw: str) -> Optional[str]:
+    """
+    Parse workflow name from JSON template format.
+    
+    Args:
+        workflow_name_raw: Raw workflow name string in JSON format from metadata.name
+        
+    Returns:
+        Parsed workflow name or None if parsing fails
+        
+    Example:
+        Input: '{"defaultMessage":"{draft_mode} {artifactType} {artifactName}",
+                "artifactName":"Comps", "§draft_mode":"...CREATE"}'
+        Output: "Create Business term Comps"
+    """
+    try:
+        workflow_name_json = json.loads(workflow_name_raw.strip())
+        default_message = workflow_name_json.get("defaultMessage", "")
+        artifact_name = workflow_name_json.get("artifactName")
+        artifact_type_key = workflow_name_json.get("§artifactType", "")
+        draft_mode_key = workflow_name_json.get("§draft_mode", "")
+        
+        # Extract artifact type from the translation key
+        artifact_type = "artifact"
+        if "glossary_term" in artifact_type_key:
+            artifact_type = "Business term"
+        elif "data_class" in artifact_type_key:
+            artifact_type = "Data class"
+        elif "category" in artifact_type_key:
+            artifact_type = "Category"
+        
+        # Extract draft mode action from the translation key
+        draft_mode = "Workflow"
+        if "CREATE" in draft_mode_key:
+            draft_mode = "Create"
+        elif "UPDATE" in draft_mode_key:
+            draft_mode = "Update"
+        elif "DELETE" in draft_mode_key:
+            draft_mode = "Delete"
+        
+        # Replace placeholders in the template
+        result = default_message.replace(PLACEHOLDER_DRAFT_MODE, draft_mode)
+        result = result.replace(PLACEHOLDER_ARTIFACT_TYPE, artifact_type)
+        result = result.replace(PLACEHOLDER_ARTIFACT_NAME, artifact_name or "")
+        
+        return result.strip()
+    except (json.JSONDecodeError, KeyError, AttributeError) as e:
+        LOGGER.debug(f"Failed to parse workflow name JSON: {e}")
+        return None
 
 
 def _parse_task_title(task_title_raw: str) -> Optional[str]:
@@ -56,7 +119,7 @@ def _parse_task_title(task_title_raw: str) -> Optional[str]:
         
         # If artifact fields are missing, replace placeholders with empty strings
         if not artifact_name or not artifact_type_key:
-            return default_message.replace("{artifactType}", "").replace("{artifactName}", "")
+            return default_message.replace(PLACEHOLDER_ARTIFACT_TYPE, "").replace(PLACEHOLDER_ARTIFACT_NAME, "")
         
         # Extract artifact type from the translation key
         artifact_type = "artifact"
@@ -68,73 +131,24 @@ def _parse_task_title(task_title_raw: str) -> Optional[str]:
             artifact_type = "Category"
         
         # Replace placeholders in the template
-        return default_message.replace("{artifactType}", artifact_type).replace("{artifactName}", artifact_name)
+        return default_message.replace(PLACEHOLDER_ARTIFACT_TYPE, artifact_type).replace(PLACEHOLDER_ARTIFACT_NAME, artifact_name)
     except (json.JSONDecodeError, KeyError, AttributeError) as e:
         LOGGER.debug(f"Failed to parse task_title JSON: {e}")
         return None
 
 
-async def _get_workflow_title_from_tasks(workflow_id: str) -> Optional[str]:
-    """
-    Get workflow title by querying first task associated with this workflow.
-    The task_title contains user-friendly name like "Update Business term Address Line".
-    """
-    params = {
-        'workflow_id': workflow_id,
-        'limit': '1'
-    }
-        
-    response = []
-    try:
-        response = await tool_helper_service.execute_get_request(
-            url=f"{tool_helper_service.base_url}{WORKFLOW_TASK_ENDPOINT}",
-            params=params,
-        )
-    except Exception as e:
-        raise ToolError(f"Could not fetch workflow title for {workflow_id}: {e}")
-
-        
-    tasks = response.get('resources', [])
-    if tasks:
-        task = tasks[0]
-        entity = task.get("entity", {})
-        if entity is not None:
-            task_title_raw = entity.get("task_title", "")
-            
-            if task_title_raw:
-                return _parse_task_title(task_title_raw)
-        
-    return None
-        
-
-def _convert_variables_to_dict(variables_list) -> dict:
-    """
-    Convert variables from list format to dictionary.
-    
-    Args:
-        variables_list: Variables in list or dict format
-        
-    Returns:
-        Dictionary mapping variable names to values
-    """
-    if isinstance(variables_list, dict):
-        return variables_list
-    
-    variables_dict = {}
-    if isinstance(variables_list, list):
-        for var in variables_list:
-            if isinstance(var, dict) and 'name' in var and 'value' in var:
-                variables_dict[var['name']] = var['value']
-    return variables_dict
-
-
-async def _create_workflow_from_data(workflow_data: dict, workflow_title: Optional[str]) -> Workflow:
+async def _create_workflow_from_data(
+    workflow_data: dict,
+    workflow_title: Optional[str] = None,
+    tasks: Optional[List[TaskDetail]] = None
+) -> Workflow:
     """
     Create a Workflow object from raw workflow data.
     
     Args:
         workflow_data: Raw workflow data from API
-        workflow_title: Parsed workflow title from tasks (optional)
+        workflow_title: Parsed workflow title (optional, for backward compatibility)
+        tasks: List of task details (optional, included when include_tasks=True)
         
     Returns:
         Workflow object
@@ -149,29 +163,46 @@ async def _create_workflow_from_data(workflow_data: dict, workflow_title: Option
     # Get workflow ID
     workflow_id = metadata.get("workflow_id")
     
-    # Use title from tasks if available, otherwise fall back to entity name
-    workflow_name = workflow_title if workflow_title else entity.get("name", "Untitled Workflow")
+    # Parse workflow name from metadata.name JSON field
+    workflow_name = DEFAULT_WORKFLOW_NAME
+    workflow_name_raw = metadata.get("name")
+    if workflow_name_raw:
+        parsed_name = _parse_workflow_name(workflow_name_raw)
+        if parsed_name:
+            workflow_name = parsed_name
+    
+    # Fall back to provided title or entity name if parsing failed
+    if workflow_name == DEFAULT_WORKFLOW_NAME:
+        workflow_name = workflow_title if workflow_title else entity.get("name", DEFAULT_WORKFLOW_NAME)
     
     # Replace IAM ID with email address if available
     created_by_iam_id = metadata.get("created_by")
     created_by = await convert_iam_id_to_email(created_by_iam_id, "created_by") if created_by_iam_id else None
+    
+    # Use workflow_state from entity (business state) instead of metadata.state (engine state)
+    # entity.workflow_state contains values like "Not started", "Rejected", etc.
+    # metadata.state contains engine states like "running", "completed", etc.
+    workflow_state = entity.get("workflow_state", metadata.get("state", "unknown"))
     
     return Workflow(
         workflow_id=workflow_id,
         name=workflow_name,
         description=entity.get("description"),
         workflow_template_id=metadata.get("workflow_type_id", ""),
-        state=metadata.get("state", "unknown"),
+        state=workflow_state,
         created_at=datetime.fromisoformat(metadata.get("created_at").replace("Z", ZERO_MINUTES)),
         created_by=created_by,
         business_key=entity.get("business_key"),
-        variables=variables_dict
+        variables=variables_dict,
+        tasks=tasks
     )
 
 
 async def _retrieve_my_workflows(
     max_results: int,
     state: Optional[str] = None,
+    include_tasks: bool = False,
+    workflow_id: Optional[str] = None,
 ) -> List[Workflow]:
     """
     Retrieve list of workflows initiated by current user.
@@ -179,38 +210,59 @@ async def _retrieve_my_workflows(
     Args:
         max_results: Maximum number of workflows to return
         state: Optional state filter (active, completed, suspended, etc.)
+        include_tasks: Whether to include detailed task information for each workflow
+        workflow_id: Optional specific workflow ID to retrieve (ignores other filters)
 
     Returns:
         List[Workflow]: List of workflow objects
     """
     params = {}
-    if max_results is not None:
-        params['limit'] = str(max_results)
     
-    if state is not None:
-        params['state'] = state
+    url=f"{tool_helper_service.base_url}{WORKFLOW_BASE_ENDPOINT}"
+
+    # When workflow_id is specified, ignore other filters
+    if workflow_id:
+        url=f"{tool_helper_service.base_url}{WORKFLOW_BASE_ENDPOINT}/{workflow_id}"
+    else:
+        if max_results is not None:
+            params['limit'] = str(max_results)
+        if state is not None:
+            params['state'] = state
 
     try:
         response = await tool_helper_service.execute_get_request(
-            url=f"{tool_helper_service.base_url}{WORKFLOW_BASE_ENDPOINT}",
+            url=url,
             params=params,
         )
 
+        workflow_list = None
         # Parse response
-        workflow_list = response.get('resources', [])
+        if workflow_id:
+            workflow_list = [response]
+        else:
+            workflow_list = response.get('resources', [])
+
+        LOGGER.info(f"Retrieved {len(workflow_list)} workflows from API")
         workflows = []
         
-        for workflow_data in workflow_list:
+        for idx, workflow_data in enumerate(workflow_list):
             metadata = workflow_data.get("metadata", {})
-            workflow_id = metadata.get("workflow_id")
+            wf_id = metadata.get("workflow_id")
+            LOGGER.info(f"Processing workflow {idx+1}/{len(workflow_list)}: {wf_id}")
             
-            # Get the workflow title from associated tasks
-            workflow_title = await _get_workflow_title_from_tasks(workflow_id)
+            # Get tasks if requested
+            tasks = None
+            if include_tasks:
+                LOGGER.info(f"  Retrieving tasks for workflow {wf_id}")
+                tasks = await _get_tasks_for_workflow(wf_id)
+                LOGGER.info(f"  Retrieved {len(tasks)} tasks")
             
-            # Create workflow object
-            workflow = await _create_workflow_from_data(workflow_data, workflow_title)
+            # Create workflow object with parsed name and optional tasks
+            workflow = await _create_workflow_from_data(workflow_data, tasks=tasks)
+            LOGGER.info(f"  Created workflow object with id: {workflow.workflow_id}, name: {workflow.name}")
             workflows.append(workflow)
 
+        LOGGER.info(f"Returning {len(workflows)} workflow objects")
         return workflows
 
     except Exception as e:
@@ -278,7 +330,7 @@ async def _create_task_detail(task_data: dict) -> TaskDetail:
     
     # Get completed timestamp if available
     completed_at = None
-    if state == "2":  # Completed
+    if state == TASK_STATE_COMPLETED:
         completed_at = _parse_completed_timestamp(entity.get("completed"))
     
     # Replace IAM ID with email address for assignee if available
@@ -342,9 +394,9 @@ def _count_tasks_by_state(tasks: List[TaskDetail]) -> dict:
     """
     return {
         "total_tasks": len(tasks),
-        "completed_tasks": sum(1 for t in tasks if t.state == "2"),
-        "in_progress_tasks": sum(1 for t in tasks if t.state == "1"),
-        "pending_tasks": sum(1 for t in tasks if t.state == "0")
+        "completed_tasks": sum(1 for t in tasks if t.state == TASK_STATE_COMPLETED),
+        "in_progress_tasks": sum(1 for t in tasks if t.state == TASK_STATE_ASSIGNED),
+        "pending_tasks": sum(1 for t in tasks if t.state == TASK_STATE_CREATED)
     }
 
 
@@ -360,7 +412,7 @@ def _extract_current_assignees(tasks: List[TaskDetail]) -> List[str]:
     """
     assignees = []
     for task in tasks:
-        if task.state != "2" and task.assignee and task.assignee not in assignees:
+        if task.state != TASK_STATE_COMPLETED and task.assignee and task.assignee not in assignees:
             assignees.append(task.assignee)
     return assignees
 
@@ -547,9 +599,17 @@ async def _create_workflow_request(
     entity = workflow_data.get("entity", {})
     wf_id = metadata.get("workflow_id")
     
-    # Get workflow title
-    workflow_title = await _get_workflow_title_from_tasks(wf_id)
-    workflow_name = workflow_title if workflow_title else entity.get("name", "Untitled Workflow")
+    # Parse workflow name from metadata.name JSON field
+    workflow_name = DEFAULT_WORKFLOW_NAME
+    workflow_name_raw = metadata.get("name")
+    if workflow_name_raw:
+        parsed_name = _parse_workflow_name(workflow_name_raw)
+        if parsed_name:
+            workflow_name = parsed_name
+    
+    # Fall back to entity name if parsing failed
+    if workflow_name == DEFAULT_WORKFLOW_NAME:
+        workflow_name = entity.get("name", DEFAULT_WORKFLOW_NAME)
     
     # Get tasks for this workflow
     tasks = await _get_tasks_for_workflow(wf_id)
@@ -561,12 +621,15 @@ async def _create_workflow_request(
     created_by_iam_id = metadata.get("created_by")
     created_by = await convert_iam_id_to_email(created_by_iam_id, "created_by") if created_by_iam_id else None
     
+    # Use workflow_state from entity (business state) instead of metadata.state (engine state)
+    workflow_state = entity.get("workflow_state", metadata.get("state", "unknown"))
+    
     return WorkflowRequest(
         workflow_id=wf_id,
         name=workflow_name,
         description=entity.get("description"),
         workflow_template_id=metadata.get("workflow_type_id", ""),
-        state=metadata.get("state", "unknown"),
+        state=workflow_state,
         created_at=datetime.fromisoformat(metadata.get("created_at").replace("Z", ZERO_MINUTES)),
         created_by=created_by,
         last_activity_at=metrics["last_activity_at"],
@@ -626,6 +689,57 @@ async def _retrieve_my_workflows_deep_dive(
         return []
 
 
+def _calculate_task_counts(tasks: List[TaskDetail]) -> tuple[int, int, int, int]:
+    """
+    Calculate task counts by state.
+    
+    Args:
+        tasks: List of task details
+        
+    Returns:
+        Tuple of (total, completed, in_progress, pending)
+    """
+    total = len(tasks)
+    completed = sum(1 for t in tasks if t.state == TASK_STATE_COMPLETED)
+    in_progress = sum(1 for t in tasks if t.state == TASK_STATE_ASSIGNED)
+    pending = sum(1 for t in tasks if t.state == TASK_STATE_CREATED)
+    return total, completed, in_progress, pending
+
+
+def _format_workflow_row_basic(wf: Workflow) -> str:
+    """
+    Format a workflow row for basic table (without tasks).
+    
+    Args:
+        wf: Workflow object
+        
+    Returns:
+        Formatted table row string
+    """
+    created_by = wf.created_by or "-"
+    return f"| {wf.workflow_id} | {wf.name} | {wf.state} | {created_by} |\n"
+
+
+def _format_workflow_row_with_tasks(wf: Workflow) -> str:
+    """
+    Format a workflow row for extended table (with task statistics).
+    
+    Args:
+        wf: Workflow object
+        
+    Returns:
+        Formatted table row string
+    """
+    created_by = wf.created_by or "-"
+    
+    if wf.tasks:
+        total, completed, in_progress, pending = _calculate_task_counts(wf.tasks)
+    else:
+        total, completed, in_progress, pending = 0, 0, 0, 0
+    
+    return f"| {wf.workflow_id} | {wf.name} | {wf.state} | {created_by} | {total} | {completed} | {in_progress} | {pending} |\n"
+
+
 def _build_light_mode_response(workflows: List[Workflow]) -> GetMyWorkflowsResponse:
     """
     Build response for light mode (basic workflow information).
@@ -636,16 +750,24 @@ def _build_light_mode_response(workflows: List[Workflow]) -> GetMyWorkflowsRespo
     Returns:
         GetMyWorkflowsResponse for light mode
     """
-    # Generate formatted output for better readability
     formatted_output = None
+    
     if workflows:
-        # Simple table for light mode
-        formatted_output = "## Workflows\n\n| Workflow ID | Name | State | Created By |\n"
-        formatted_output += "|-------------|------|-------|------------|\n"
-        for wf in workflows:
-            created_by = wf.created_by or "-"
-            formatted_output += f"| {wf.workflow_id} | {wf.name} | {wf.state} | {created_by} |\n"
-        formatted_output += f"\nTotal: {len(workflows)} workflow(s)"
+        # Check if any workflow has tasks to determine table format
+        has_tasks = any(wf.tasks is not None and len(wf.tasks) > 0 for wf in workflows)
+        
+        if has_tasks:
+            # Extended table with task information
+            header = "## Workflows\n\n| Workflow ID | Name | State | Created By | Total Tasks | Completed | In Progress | Pending |\n"
+            separator = "|-------------|------|-------|------------|-------------|-----------|-------------|----------|\n"
+            rows = "".join(_format_workflow_row_with_tasks(wf) for wf in workflows)
+        else:
+            # Simple table without tasks
+            header = "## Workflows\n\n| Workflow ID | Name | State | Created By |\n"
+            separator = "|-------------|------|-------|------------|\n"
+            rows = "".join(_format_workflow_row_basic(wf) for wf in workflows)
+        
+        formatted_output = f"{header}{separator}{rows}\nTotal: {len(workflows)} workflow(s)"
     
     return GetMyWorkflowsResponse(
         workflows=workflows,
@@ -737,16 +859,9 @@ get_my_workflows_description="""
     """
 
 
-@service_registry.tool(
-    name="get_my_workflows",
-    description=get_my_workflows_description,
-    tags={"workflow", "flowable", "governance", "glossary", "my_workflows"},
-    meta={"version": "2.0", "service": "workflows"},
-)
-
-async def get_my_workflows(
+async def _get_my_workflows(
     request: GetMyWorkflowsRequest,
-    ctx: Context
+    ctx: Optional[Context]
 ) -> GetMyWorkflowsResponse:
     """
     Get workflows initiated by current user.
@@ -766,7 +881,7 @@ async def get_my_workflows(
     
     # Auto-detect clients that don't support rich text and switch to JSON format if needed
     # Some clients don't handle markdown tables well, so we default to JSON
-    if not supports_rich_text_format(ctx) and request.deep_dive and request.format == "table":
+    if (ctx is None or not supports_rich_text_format(ctx)) and request.deep_dive and request.format == "table":
         LOGGER.info("Client without rich text support detected: switching format from 'table' to 'json'")
         request.format = "json"
 
@@ -775,6 +890,8 @@ async def get_my_workflows(
         workflows = await _retrieve_my_workflows(
             max_results=request.max_results,
             state=request.state,
+            include_tasks=request.include_tasks,
+            workflow_id=request.workflow_id,
         )
         return _build_light_mode_response(workflows)
     
@@ -808,22 +925,22 @@ async def get_my_workflows(
 
 @service_registry.tool(
     name="get_my_workflows",
-    description="Watsonx Orchestrator compatible wrapper for get_my_workflows." + get_my_workflows_description,
-    tags={"wxo", "workflow", "flowable", "governance", "glossary", "my_workflows"},
+    description=get_my_workflows_description,
+    tags={"workflow", "flowable", "governance", "glossary", "my_workflows"},
     meta={"version": "2.0", "service": "workflows"},
 )
 @auto_context
-async def wxo_get_my_workflows(
+async def get_my_workflows(
     max_results: int = 50,
-    state: str = None,
+    state: Optional[str] = None,
     deep_dive: bool = False,
     include_tasks: bool = True,
-    stalled_days: int = None,
-    workflow_id: str = None,
+    stalled_days: Optional[int] = None,
+    workflow_id: Optional[str] = None,
     format: str = "table",
-    ctx: Context = None
+    ctx: Optional[Context] = None
 ) -> GetMyWorkflowsResponse:
-    """Watsonx Orchestrator compatible version of get_my_workflows."""
+    """Wrapper version of get_my_workflows."""
     
     request = GetMyWorkflowsRequest(
         max_results=max_results,
@@ -835,4 +952,4 @@ async def wxo_get_my_workflows(
         format=format
     )
     
-    return await get_my_workflows(request, ctx)
+    return await _get_my_workflows(request, ctx)

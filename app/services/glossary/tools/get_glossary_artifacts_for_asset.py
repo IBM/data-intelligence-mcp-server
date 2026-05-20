@@ -225,7 +225,6 @@ async def _get_glossary_artifacts_for_asset(
     
     This tool finds all glossary terms and classification that have been assigned to a particular asset.
     This helps understand the business context and semantic meaning of the asset.""",
-    tags={"custom_tool"},
 )
 @auto_context
 async def get_glossary_artifacts_for_asset(

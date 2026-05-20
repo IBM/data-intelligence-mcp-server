@@ -73,7 +73,7 @@ Returns:
 Raises:
     ToolProcessFailedError: If the data quality rule find fails.
     ExternalServiceError: If the data quality rule find service request fails.""",
-    tags={"find", "data_quality", "custom_tool"},
+    tags={"find", "data_quality"},
     meta={"version": "1.0", "service": "data_quality"},
 )
 @auto_context

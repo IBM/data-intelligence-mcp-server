@@ -6,7 +6,7 @@ from app.services.projects.models.add_or_edit_collaborator import (
     AddOrEditCollaboratorResponse,
     CollaboratorMember,
 )
-from app.core.auth import get_bss_account_id, get_cloud_iam_url_from_service_url
+from app.core.auth import get_bss_account_id
 from app.shared.utils.helpers import is_uuid, get_exact_or_fuzzy_matches
 from app.shared.exceptions.base import ServiceError, ExternalAPIError
 from app.services.tool_utils import is_project_exist_by_name, is_project_exist_by_id
@@ -15,7 +15,6 @@ from app.shared.utils.tool_helper_service import tool_helper_service , create_de
 from typing import List, Dict, Set, Sequence, Optional, Literal, cast
 from app.core.settings import settings
 from app.services.constants import JSON_CONTENT_TYPE
-from urllib.parse import urlparse
 
 
 def create_collaborator_members(users: List[Dict]) -> List[CollaboratorMember]:
@@ -44,18 +43,7 @@ def create_collaborator_members(users: List[Dict]) -> List[CollaboratorMember]:
     ]
 
 
-@service_registry.tool(
-    name="add_or_edit_collaborator",
-    description="Add or update one or more collaborators (users or groups) in a project with specified roles. "
-    "Intelligently searches for users or access groups using fuzzy matching on names and emails. "
-    "For new members: Adds them to the project with the specified role. "
-    "For existing members: Updates their role to the new specified role. "
-    "Automatically detects whether members are new or existing and handles them appropriately. "
-    "Supports role assignment (admin, editor, viewer) with 'viewer' as the default role. "
-    "Supports mixed user and group types - specify type for each collaborator or omit to default to 'user' for all.",
-)
-@auto_context
-async def add_or_edit_collaborator(request: AddOrEditCollaboratorRequest) -> AddOrEditCollaboratorResponse:
+async def _add_or_edit_collaborator(request: AddOrEditCollaboratorRequest) -> AddOrEditCollaboratorResponse:
     """
     Add or update collaborators in a project with intelligent user/group search and validation.
     
@@ -507,56 +495,6 @@ def extract_candidates(raw_data: List[Dict], member_type: str, is_cpd: bool) -> 
                 if isinstance(item, dict) and (item.get("user_id") or item.get("email")) and (item.get("id") or item.get("user_id"))
             ]
 
-def get_search_config(member_type: str, is_cpd: bool, account_id: str) -> tuple[str, Optional[str], List[str]]:
-    """
-    Get API configuration for member search based on environment and member type.
-    
-    Args:
-        member_type: Type of member ('user' or 'group')
-        is_cpd: Whether running in CP4D environment
-        account_id: The BSS account ID (for SaaS only)
-        
-    Returns:
-        tuple[str, Optional[str], List[str]]: URL, response_key, and search_fields
-        
-    Raises:
-        ValueError: When di_service_url is not configured
-    """
-    if is_cpd:
-        if not settings.di_service_url:
-            raise ValueError(
-                "DI_SERVICE_URL is not configured. "
-                "Please set the DI_SERVICE_URL environment variable to your CP4D instance URL."
-            )
-        if member_type == "group":
-            return (
-                f"{settings.di_service_url}/usermgmt/v2/groups",
-                "results",
-                ["name"]
-            )
-        return (
-            f"{settings.di_service_url}/usermgmt/v1/usermgmt/users",
-            None,
-            ["name", "id"]
-        )
-    
-    if member_type == "group":
-        if not settings.di_service_url:
-            raise ValueError(
-                "DI_SERVICE_URL is not configured. "
-                "Please set the DI_SERVICE_URL environment variable to your Data Intelligence service URL."
-            )
-        return (
-            f"{get_cloud_iam_url_from_service_url(str(settings.di_service_url))}/v2/groups?account_id={account_id}",
-            "groups",
-            ["name"]
-        )
-    return (
-        f"{tool_helper_service.user_management_url}/v2/accounts/{account_id}/users",
-        "resources",
-        ["name", "id"]
-    )
-
 
 async def search_members(
     account_id: str,
@@ -569,6 +507,7 @@ async def search_members(
     Searches across the specified account using fuzzy matching algorithms to find
     users by name/email or groups by name. Returns up to 10 best matches.
     Supports both SaaS and CP4D environments with appropriate API endpoints.
+    Uses centralized search utilities from search_utils.py for consistency.
     
     Args:
         account_id: The BSS account ID to search within (for SaaS) or ignored for CP4D
@@ -593,35 +532,29 @@ async def search_members(
     entity_type = "access group" if member_type == "group" else "user"
     LOGGER.info(f"Searching for {entity_type}: '{search_str}'")
     
+    # Import search utilities
+    from app.services.user_search.utils.search_utils import (
+        _fetch_cpd_users,
+        _fetch_cpd_groups,
+        _fetch_saas_users,
+        _fetch_saas_groups,
+    )
+    
     # Get configuration based on environment and member type
     is_cpd = settings.di_env_mode.upper() == "CPD"
-    url, response_key, search_fields = get_search_config(member_type, is_cpd, account_id)
-
-    parsed = urlparse(url)
-    base_url = f"{parsed.scheme}://{parsed.netloc}"
-    raw_data = []
-
-    # Fetch data from API
+    
+    # Fetch data using centralized search utilities
     try:
-        while url:
-            response = await tool_helper_service.execute_get_request(
-                url=url, tool_name="add_or_edit_collaborator"
-            )
-            
-            # Extract page data based on response structure
-            if response_key:
-                page_data = response.get(response_key, [])
-            elif isinstance(response, list):
-                page_data = response
+        if is_cpd:
+            if member_type == "group":
+                raw_data = await _fetch_cpd_groups()
             else:
-                page_data = []
-            
-            raw_data.extend(page_data)
-            
-            # Get next page URL
-            next_url = response.get("next_url") if isinstance(response, dict) else None
-            url = f"{base_url}{next_url}" if next_url else None
-
+                raw_data = await _fetch_cpd_users()
+        else:
+            if member_type == "group":
+                raw_data = await _fetch_saas_groups()
+            else:
+                raw_data = await _fetch_saas_users()
     except ExternalAPIError as e:
         LOGGER.error(f"API error while fetching {entity_type}s from account: {str(e)}")
         raise ValueError(
@@ -629,13 +562,15 @@ async def search_members(
             f"Please verify you have the necessary permissions to list {entity_type}s."
         )
     
-    
     if not raw_data:
         LOGGER.warning(f"No {entity_type}s available in account {account_id}")
         return []
     
     # Prepare data for fuzzy matching based on member type and environment
     candidates = extract_candidates(raw_data, member_type, is_cpd)
+    
+    # Define search fields based on member type
+    search_fields = ["name"] if member_type == "group" else ["name", "id"]
     
     # Perform exact match first, then fuzzy match if needed
     matched_results = get_exact_or_fuzzy_matches(
@@ -694,17 +629,16 @@ async def search_users(account_id: str, user_search_str: str) -> List[Dict]:
     "For existing members: Updates their role to the new specified role. "
     "Automatically detects whether members are new or existing and handles them appropriately. "
     "Supports role assignment (admin, editor, viewer) with 'viewer' as the default role. "
-    "Supports mixed user and group types - specify type for each collaborator or omit to default to 'user' for all. "
-    "(Watsonx Orchestrator compatible)",
+    "Supports mixed user and group types - specify type for each collaborator or omit to default to 'user' for all. ",
 )
 @auto_context
-async def wxo_add_or_edit_collaborator(
+async def add_or_edit_collaborator(
     project_identifier: str,
     user_names: List[str],
     role: Optional[List[str]] = None,
     type: Optional[List[str]] = None,
 ) -> AddOrEditCollaboratorResponse:
-    """Watsonx Orchestrator compatible version that expands AddOrEditCollaboratorRequest object into individual parameters."""
+    """Wrapper that expands AddOrEditCollaboratorRequest object into individual parameters."""
     
     # Cast role to proper type, defaulting to ["editor"] if None
     role_typed = cast(
@@ -726,4 +660,4 @@ async def wxo_add_or_edit_collaborator(
     )
     
     # Call the original add_or_edit_collaborator function
-    return await add_or_edit_collaborator(request)
+    return await _add_or_edit_collaborator(request)

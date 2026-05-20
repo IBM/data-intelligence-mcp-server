@@ -13,19 +13,8 @@ from app.services.constants import JSON_CONTENT_TYPE, JSON_PATCH_CONTENT_TYPE
 from app.shared.logging import LOGGER, auto_context
 
 
-@service_registry.tool(
-    name="data_product_attach_business_domain_to_data_product",
-    description="""
-    This tool attaches the given business domain to a data product draft.
-    The business domain given should be a valid business domain in the system or else this returns the list of business domains available to choose from.
-    Appropriate success message is sent if the business domain is attached to the data product draft.
-    """,
-    tags={"create", "data_product"},
-    meta={"version": "1.0", "service": "data_product"},
-)
 @add_catalog_id_suffix()
-@auto_context
-async def attach_business_domain_to_data_product(
+async def _attach_business_domain_to_data_product(
     request: AttachBusinessDomainToDataProductRequest,
 ) -> str:
     LOGGER.info(
@@ -96,11 +85,11 @@ async def attach_business_domain_to_data_product(
     meta={"version": "1.0", "service": "data_product"},
 )
 @auto_context
-async def wxo_attach_business_domain_to_data_product(
+async def attach_business_domain_to_data_product(
     domain: str,
     data_product_draft_id: str
 ) -> str:
-    """Watsonx Orchestrator compatible version that expands AttachBusinessDomainToDataProductRequest object into individual parameters."""
+    """Wrapper version that expands AttachBusinessDomainToDataProductRequest object into individual parameters."""
 
     request = AttachBusinessDomainToDataProductRequest(
         domain=domain,
@@ -108,4 +97,4 @@ async def wxo_attach_business_domain_to_data_product(
     )
 
     # Call the original attach_business_domain_to_data_product function
-    return await attach_business_domain_to_data_product(request)
+    return await _attach_business_domain_to_data_product(request)

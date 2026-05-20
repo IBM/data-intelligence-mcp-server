@@ -30,40 +30,7 @@ from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import confirm_uuid
 
 
-@service_registry.tool(
-    name="create_or_update_metadata_enrichment_asset",
-    description="""Creates a new metadata enrichment (MDE) asset or updates an existing one within a specified project.
-
-    This tool automatically detects whether to create or update based on whether an MDE with the given name exists:
-    - If MDE exists: UPDATE mode (updates existing MDE with new objectives and categories)
-    - If MDE doesn't exist: CREATE mode (creates new MDE)
-
-    If the category_names are not provided, use the 'search_categories' tool to find the list of the available categories.
-    Return the FULL list to the user and ask him to choose one or more categories to be used to create or update the MDE.
-    Do not select categories by your self, the user should select.
-
-    CREATE MODE (when MDE doesn't exist):
-    - Requires: metadata_enrichment_name, objective_names, category_names, dataset_names
-    - Creates a new metadata enrichment asset with the specified datasets, categories, and objectives
-    - Validates that datasets exist and aren't already assigned to other MDEs
-    - Returns DataScopeOperation with details of the newly created asset
-
-    UPDATE MODE (when MDE exists):
-    - Requires: metadata_enrichment_name, objective_names
-    - Optional: category_names (updates categories if provided)
-    - Ignores: dataset_names (datasets cannot be modified after creation - will log warning if provided)
-    - Updates the MDE's objectives and optionally categories
-    - Returns MetadataEnrichmentAssetPatchResponse with updated MDE details
-
-    The objective_names in MetadataEnrichmentCreationRequest is the list of names of objectives used in the enrichment job.
-    Supported objectives are 'profile', 'dq_gen_constraints', 'analyze_quality', 'assign_terms', 
-    'analyze_relationships', 'dq_sla_assessment', and 'semantic_expansion'.
-    
-    The function assumes that the datasets provided are valid and exist.
-    It does not handle the creation of datasets or categories if they do not already exist.""",
-)
-@auto_context
-async def create_or_update_metadata_enrichment_asset(
+async def _create_or_update_metadata_enrichment_asset(
     request: MetadataEnrichmentCreationRequest,
 ) -> Union[DataScopeOperation, MetadataEnrichmentAssetPatchResponse]:
 
@@ -116,21 +83,39 @@ async def create_or_update_metadata_enrichment_asset(
 
 @service_registry.tool(
     name="create_or_update_metadata_enrichment_asset",
-    description="""Creates a new metadata enrichment asset or updates an existing one within a specified project.
+    description="""Creates a new metadata enrichment (MDE) asset or updates an existing one within a specified project.
 
     This tool automatically detects whether to create or update based on whether an MDE with the given name exists:
-    - If MDE exists: UPDATE mode (updates existing MDE)
+    - If MDE exists: UPDATE mode (updates existing MDE with new objectives and categories)
     - If MDE doesn't exist: CREATE mode (creates new MDE)
 
-    CREATE MODE: Requires metadata_enrichment_name, objective_names, category_names, dataset_names
-    UPDATE MODE: Requires metadata_enrichment_name, objective_names; Optional: category_names; Ignores: dataset_names
+    If the category_names are not provided, use the 'search_categories' tool to find the list of the available categories.
+    Return the FULL list to the user and ask him to choose one or more categories to be used to create or update the MDE.
+    Do not select categories by your self, the user should select.
 
-    The objective_names is the list of names of objectives used in the enrichment job.
-    Supported objectives are 'profile', 'dq_gen_constraints', 'analyze_quality', 'assign_terms', 
-    'analyze_relationships', 'dq_sla_assessment', and 'semantic_expansion'.""",
+    CREATE MODE (when MDE doesn't exist):
+    - Requires: metadata_enrichment_name, objective_names, category_names, dataset_names
+    - Creates a new metadata enrichment asset with the specified datasets, categories, and objectives
+    - Validates that datasets exist and aren't already assigned to other MDEs
+    - Returns DataScopeOperation with details of the newly created asset
+
+    UPDATE MODE (when MDE exists):
+    - Requires: metadata_enrichment_name, objective_names
+    - Optional: category_names (updates categories if provided)
+    - Ignores: dataset_names (datasets cannot be modified after creation - will log warning if provided)
+    - Updates the MDE's objectives and optionally categories
+    - Returns MetadataEnrichmentAssetPatchResponse with updated MDE details
+
+    The objective_names in MetadataEnrichmentCreationRequest is the list of names of objectives used in the enrichment job.
+    Supported objectives are 'profile', 'dq_gen_constraints', 'analyze_quality', 'assign_terms',
+    'analyze_relationships', 'dq_sla_assessment', 'semantic_expansion', and 'data_search'.
+    
+    The function assumes that the datasets provided are valid and exist.
+    It does not handle the creation of datasets or categories if they do not already exist.""",
+    
 )
 @auto_context
-async def wxo_create_or_update_metadata_enrichment_asset(
+async def create_or_update_metadata_enrichment_asset(
     project_name: str,
     metadata_enrichment_name: str,
     objective_names: list[str] | str,
@@ -141,8 +126,9 @@ async def wxo_create_or_update_metadata_enrichment_asset(
     metadata_import_names: Optional[list[str] | str] = None,
     description: Optional[str] = None,
     new_name: Optional[str] = None,
+    tags: Optional[list[str]] = None,
 ) -> Union[DataScopeOperation, MetadataEnrichmentAssetPatchResponse]:
-    """Watsonx Orchestrator compatible version that expands MetadataEnrichmentCreationRequest into individual parameters."""
+    """Wrapper that expands MetadataEnrichmentCreationRequest into individual parameters."""
 
     request = MetadataEnrichmentCreationRequest(
         project_name=project_name,
@@ -155,5 +141,6 @@ async def wxo_create_or_update_metadata_enrichment_asset(
         metadata_import_names=metadata_import_names,
         description=description,
         new_name=new_name,
+        tags=tags,
     )
-    return await create_or_update_metadata_enrichment_asset(request)
+    return await _create_or_update_metadata_enrichment_asset(request)

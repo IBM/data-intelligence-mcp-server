@@ -324,7 +324,6 @@ async def _explain_glossary_artifact(
     - Rule (Glossary artifact)
 
     The explanation includes the artifact's definition, purpose, and related metadata.""",
-    tags={"custom_tool"},
 )
 @auto_context
 async def explain_glossary_artifact(

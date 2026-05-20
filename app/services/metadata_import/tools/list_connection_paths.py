@@ -1,7 +1,7 @@
 # Copyright [2025] [IBM]
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
-from typing import Optional, List
+from typing import Optional
 from app.shared.logging import LOGGER, auto_context
 from app.core.registry import service_registry
 from app.services.tool_utils import find_project_id, find_connection_id
@@ -12,32 +12,7 @@ from app.services.metadata_import.models.list_connection_paths import (
 )
 
 
-@service_registry.tool(
-    name="list_connection_paths",
-    description="""
-    List available schema/table paths for a connection.
-    
-    ⚠️ CALL THIS TOOL FIRST when:
-    - User mentions "first N schemas" (e.g., "first 7 schemas")
-    - User does NOT explicitly provide schema names
-    - You need to discover what schemas/tables are available
-    
-    Use the 'limit' parameter to control how many schemas to retrieve:
-    - For "first 7 schemas", set limit=7
-    - For "first 10 schemas", set limit=10
-    - Default is 10 if not specified
-    
-    After calling this tool, use the returned schema list as the 'scope' parameter
-    when calling create_metadata_import.
-    
-    Returns:
-        ListConnectionPathsResponse: Response containing list of schema/table paths and count.
-    """,
-    tags={"list_connection", "metadata_import"},
-    meta={"version": "1.0", "service": "metadata_import"},
-)
-@auto_context
-async def list_connection_paths(
+async def _list_connection_paths(
     request: ListConnectionPathsRequest,
 ) -> ListConnectionPathsResponse:
     
@@ -96,14 +71,14 @@ async def list_connection_paths(
     Returns:
         ListConnectionPathsResponse: Response containing list of schema/table paths and count.
     """,
-    tags={"metadata-import", "wxo"},
+    tags={"list_connection", "metadata-import"},
     meta={"version": "1.0", "service": "metadata-import"},
 )
 @auto_context
-async def wxo_list_connection_paths(
+async def list_connection_paths(
     project_name: str, connection_name: str, offset: Optional[int] = 1, limit: Optional[int] = 10, filter_text: Optional[str] = None
 ) -> ListConnectionPathsResponse:
-    """Watsonx Orchestrator compatible wrapper that expands params into a `ListConnectionPathsRequest` and calls the tool."""
+    """Wrapper that expands params into a `ListConnectionPathsRequest` and calls the tool."""
 
     request = ListConnectionPathsRequest(
         project_name=project_name,
@@ -113,4 +88,4 @@ async def wxo_list_connection_paths(
         filter_text=filter_text,
     )
 
-    return await list_connection_paths(request)
+    return await _list_connection_paths(request)

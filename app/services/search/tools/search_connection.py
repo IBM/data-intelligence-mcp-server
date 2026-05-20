@@ -32,33 +32,7 @@ PROJ_CONNECTION_URL_PREFIX = str(tool_helper_service.ui_base_url) + "/connection
 CAT_CONNECTION_URL_PREFIX = str(tool_helper_service.ui_base_url) + "/data/catalogs/"
 
 
-@service_registry.tool(
-    name="search_connection",
-    description="""Understand user's request about searching connections and return a list of 
-                    retrieved connections. Users can choose to filter the results based on 
-                    the optional input parameters: container, connection name,
-                    data source type, and creator. If no filters are provided, then all available 
-                    connections are retrieved.
-                    Example: Find all connections.
-                    In this case, all input parameters will be None.
-                    Example: Find connections in catalog test.
-                    In this case, container parameter will be 'test' and container_type will be 'catalog'.
-                    Example: Find bird connection in catalog test.
-                    In this case, connection_name parameter will be 'bird', container parameter will be 'test' and container_type will be 'catalog'.
-                    Example: Find connections with data source postgresql and created by user123 in catalog test.
-                    In this case, datasource_type parameter will be 'postgresql', creator parameter will be 'user123', container parameter will be 'test' and container_type will be 'catalog'.
-
-                    IMPORTANT CONSTRAINTS:
-                    - container_type needs to be provided if container is provided
-                    - container_type must be one of: "catalog", "project", or "all"
-                    - if no container_type is provided, it defaults to "all"
-                    - container and container_type must be provided if one or more of connection_name, datasource_type, or creator is provided
-                    - Invalid values will result in errors""",
-    tags={"search", "connection"},
-    meta={"version": "1.0", "service": "search"}
-)
-@auto_context
-async def search_connection(
+async def _search_connection(
     request: SearchConnectionRequest
 ) -> List[SearchConnectionResponse]:
     
@@ -139,10 +113,10 @@ async def search_connection(
 
 @service_registry.tool(
     name="search_connection",
-    description="""Understand user's request about searching connections and return a list of
-                    retrieved connections. Users can choose to filter the results based on
+    description="""Understand user's request about searching connections and return a list of 
+                    retrieved connections. Users can choose to filter the results based on 
                     the optional input parameters: container, connection name,
-                    data source type, and creator. If no filters are provided, then all available
+                    data source type, and creator. If no filters are provided, then all available 
                     connections are retrieved.
                     Example: Find all connections.
                     In this case, all input parameters will be None.
@@ -163,10 +137,10 @@ async def search_connection(
     meta={"version": "1.0", "service": "search"}
 )
 @auto_context
-async def wxo_search_connection(
+async def search_connection(
     container: Optional[str], connection_name: Optional[str], datasource_type: Optional[str], creator: Optional[str], container_type: str = "all",
 ) -> List[SearchConnectionResponse]:
-    """Watsonx Orchestrator compatible version that expands SearchConnectionRequest object into individual parameters."""
+    """Wrapper that expands SearchConnectionRequest object into individual parameters."""
 
     container_type_enum = ContainerType(container_type)
     request = SearchConnectionRequest(
@@ -178,7 +152,7 @@ async def wxo_search_connection(
     )
 
     # Call the original search_data_source_definition function
-    return await search_connection(request)
+    return await _search_connection(request)
 
 async def search_connection_global_search() -> List[SearchConnectionResponse]:
     """

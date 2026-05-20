@@ -4,8 +4,10 @@
 
 from app.core.registry import service_registry
 from app.services.constants import LINEAGE_BASE_ENDPOINT
+from app.services.lineage.constants import SERVICE_UNAVAILABLE_MESSAGE
+from app.services.lineage.utils import handle_500_error
 from app.services.lineage.models.get_lineage_versions import GetLineageVersionsRequest, GetLineageVersionsResponse
-from app.shared.exceptions.base import ServiceError
+from app.shared.exceptions.base import ExternalAPIError, ServiceError
 from app.shared.logging.generate_context import auto_context
 from app.shared.logging.utils import LOGGER
 from app.shared.utils.helpers import is_valid_iso_date
@@ -34,10 +36,21 @@ async def _get_lineage_versions(
         "offset": 0,
         "limit": 1000,
     }
-    response = await tool_helper_service.execute_get_request(
-        url=str(tool_helper_service.base_url) + LINEAGE_BASE_ENDPOINT + "/lineage_versions",
-        params=params,
-    )
+
+    try:
+        response = await tool_helper_service.execute_get_request(
+            url=str(tool_helper_service.base_url) + LINEAGE_BASE_ENDPOINT + "/lineage_versions",
+            params=params,
+        )
+    except ExternalAPIError as e:
+        return handle_500_error(
+            e,
+            lambda: GetLineageVersionsResponse(
+                dates=[],
+                success=False,
+                error=SERVICE_UNAVAILABLE_MESSAGE
+            )
+        )
 
     lineage_versions = response.get("lineage_versions", [])
     if not lineage_versions:
@@ -66,7 +79,6 @@ async def _get_lineage_versions(
         ExternalServiceError: If the API request fails (status code != 200)
         ToolProcessFailedError: If no entities are found for the given IDs
     """,
-    tags={"custom_tool"},
 )
 @auto_context
 async def get_lineage_versions(

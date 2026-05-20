@@ -57,4 +57,4 @@ class FindContainerRequest(BaseModel):
 
 class FindContainerResponse(BaseResponseModel):
     """Response model for finding a container"""
-    container: Container = Field(..., description="The found container")
+    container: Container | None = Field(None, description="The found container, or None if not found")

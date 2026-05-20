@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
 
 from app.shared.models import BaseResponseModel, field_validator
-from app.services.workflow.models.artefact import Artefact, BusinessTerm
+from app.services.workflow.models.artifact import Artifact, BusinessTerm
 
 
 class ListBusinessTermsRequest(BaseModel):

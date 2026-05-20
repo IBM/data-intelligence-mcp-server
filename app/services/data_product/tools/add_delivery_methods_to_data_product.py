@@ -17,20 +17,8 @@ from app.shared.logging import LOGGER, auto_context
 from typing import List
 
 
-@service_registry.tool(
-    name="data_product_add_delivery_methods_to_data_product",
-    description="""
-    This tool adds delivery methods selected by user to a data product draft. DO NOT make up delivery methods, use the corresponding ID values for the delivery methods selected by the user.
-    This is called after `find_delivery_methods_based_on_connection()` to add the delivery methods selected by the user to the data product draft.
-    Example: Adding two delivery methods to an asset in the draft.
-        'Add flight and download delivery methods to customer asset in the data product draft'- This gets the data product draft ID from context, data asset name (in this case, customer), the delivery method IDs from context matching the delivery methods selected by the user from the previous tool call.
-    """,
-    tags={"create", "data_product"},
-    meta={"version": "1.0", "service": "data_product"},
-)
 @add_catalog_id_suffix()
-@auto_context
-async def add_delivery_methods_to_data_product(
+async def _add_delivery_methods_to_data_product(
     request: AddDeliveryMethodsToDataProductRequest,
 ) -> str:
     LOGGER.info(
@@ -114,12 +102,12 @@ async def add_delivery_methods_to_data_product(
     meta={"version": "1.0", "service": "data_product"},
 )
 @auto_context
-async def wxo_add_delivery_methods_to_data_product(
+async def add_delivery_methods_to_data_product(
     data_product_draft_id: str,
     data_asset_name: str,
     delivery_method_ids: List[str],
 ) -> str:
-    """Watsonx Orchestrator compatible version that expands AddDeliveryMethodsToDataProductRequest object into individual parameters."""
+    """Wrapper version that expands AddDeliveryMethodsToDataProductRequest object into individual parameters."""
 
     request = AddDeliveryMethodsToDataProductRequest(
         data_product_draft_id=data_product_draft_id,
@@ -128,5 +116,5 @@ async def wxo_add_delivery_methods_to_data_product(
     )
 
     # Call the original add_delivery_methods_to_data_product function
-    return await add_delivery_methods_to_data_product(request)
+    return await _add_delivery_methods_to_data_product(request)
     

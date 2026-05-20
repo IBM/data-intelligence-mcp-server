@@ -19,19 +19,9 @@ from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.utils.utils_tools import format_dict_for_table
 
 
-@service_registry.tool(
-    name="data_product_attach_url_contract_to_data_product",
-    description="""
-    This tool attaches the given URL contract to a data product draft.
-    Appropriate success message is sent if the URL contract is attached to the data product draft.
-    """,
-    tags={"create", "data_product"},
-    meta={"version": "1.0", "service": "data_product"},
-)
 @add_catalog_id_suffix(field_name="data_product_draft_id")
 @add_catalog_id_suffix(field_name="contract_terms_id")
-@auto_context
-async def attach_url_contract_to_data_product(
+async def _attach_url_contract_to_data_product(
     request: AttachURLContractToDataProductRequest,
 ) -> str:
     LOGGER.info(
@@ -75,13 +65,13 @@ async def attach_url_contract_to_data_product(
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
 )
-async def wxo_attach_url_contract_to_data_product(
+async def attach_url_contract_to_data_product(
     contract_url: str,
     contract_name: str,
     contract_terms_id: str,
     data_product_draft_id: str
 ) -> str:
-    """Watsonx Orchestrator compatible version that expands AttachURLContractToDataProductRequest object into individual parameters."""
+    """Wrapper version that expands AttachURLContractToDataProductRequest object into individual parameters."""
 
     request = AttachURLContractToDataProductRequest(
         contract_url=contract_url,
@@ -91,23 +81,10 @@ async def wxo_attach_url_contract_to_data_product(
     )
 
     # Call the original attach_url_contract_to_data_product function
-    return await attach_url_contract_to_data_product(request)
+    return await _attach_url_contract_to_data_product(request)
 
 
-@service_registry.tool(
-    name="data_product_get_contract_templates",
-    description="""
-    This tool gets all contract templates defined in the system.
-    This is sometimes called before calling `data_product_attach_contract_template_to_data_product` tool.
-    Example 1: Add contract1 template to the draft
-         - This will first call `data_product_get_contract_templates` to get the list of contract templates (if contract template ID is not known) and passes the contract template ID of contract1 to the next tool `data_product_attach_contract_template_to_data_product`.
-    Example 2: What are my contract templates?
-    """,
-    tags={"create", "data_product"},
-    meta={"version": "1.0", "service": "data_product"},
-)
-@auto_context
-async def get_contract_templates()-> GetContractTemplateResponse:
+async def _get_contract_templates()-> GetContractTemplateResponse:
     LOGGER.info("In data_product_get_contract_templates, getting all contract templates.")
     response = await tool_helper_service.execute_get_request(
         url=f"{tool_helper_service.base_url}/data_product_exchange/v1/contract_templates",
@@ -136,8 +113,8 @@ async def get_contract_templates()-> GetContractTemplateResponse:
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
 )
-async def wxo_get_contract_templates()-> GetContractTemplateResponse:
-    return await get_contract_templates()
+async def get_contract_templates()-> GetContractTemplateResponse:
+    return await _get_contract_templates()
 
 def deep_merge(base: dict, override: dict) -> dict:
     """
@@ -356,43 +333,7 @@ def get_full_contract_terms_empty_values() -> dict:
         "custom_properties": []
     }
 
-@service_registry.tool(
-    name="data_product_attach_contract_template_to_data_product",
-    description="""
-    This tool attaches the selected contract template to data product draft.
-    Call `data_product_get_contract_templates` tool before calling this tool, if you don't know the ID of the contract template.
-    Also, it is a good idea to list all contract templates to user so the user can choose from the list.
-    
-    The tool works in two steps:
-    1. First call: Do NOT provide contract_terms parameter (or set to None). This fetches and displays the contract template's default values to the user for review.
-    2. Second call: Provide contract_terms parameter:
-       - To use template defaults as-is: set contract_terms={} (empty dict)
-       - To customize: set contract_terms with user's custom values following the exact schema structure from first call
-    
-    IMPORTANT: contract_terms must follow the exact nested structure shown in the first call's output.
-    The first call displays the complete schema with all available fields.
-    
-    Example workflow:
-         - Call `data_product_get_contract_templates` to get the list of contract templates.
-         - Call this tool WITHOUT contract_terms parameter to see the default values and complete schema (first call)
-         - User reviews the schema structure and decides:
-           * To use defaults: call again with contract_terms={} (empty dict).
-           * To customize: call again with contract_terms following the exact schema structure.
-    
-    Example customizations (must match schema structure):
-         - Update description limitations: {"description": {"limitations": "unlimited"}}
-         - Add SLA with properties: {"sla": [{"properties": [{"property": "property1", "value": "value1"}, {"property": "property2", "value": "value2"}]}]}
-         - Add custom properties: {"custom_properties": [{"property": "refresh", "value": "daily"}, {"key": "relevancy", "value": "new"}]}
-         - Update overview name: {"overview": {"name": "My Custom Contract"}}
-         - Combine multiple: {"description": {"limitations": "unlimited"}, "custom_properties": [{"property": "refresh", "value": "daily"}]}
-    
-    The deep_merge preserves all template defaults while applying your customizations.
-    """,
-    tags={"create", "data_product"},
-    meta={"version": "1.0", "service": "data_product"},
-)
-@auto_context
-async def attach_contract_template_to_data_product(
+async def _attach_contract_template_to_data_product(
     request: AttachContractTemplateToDataProductRequest
 )-> str:
     LOGGER.info(f"In data_product_attach_contract_template_to_data_product, attaching contract template {request.contract_template_id} to data product draft {request.data_product_draft_id} with contract terms {request.contract_terms_id}")
@@ -502,7 +443,7 @@ async def attach_contract_template_to_data_product(
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
 )
-async def wxo_attach_contract_template_to_data_product(
+async def attach_contract_template_to_data_product(
     contract_template_id: str,
     data_product_draft_id: str,
     contract_terms_id: str,
@@ -516,38 +457,11 @@ async def wxo_attach_contract_template_to_data_product(
     )
 
     # Call the original attach_contract_template_to_data_product function
-    return await attach_contract_template_to_data_product(request)
+    return await _attach_contract_template_to_data_product(request)
 
 
 
-@service_registry.tool(
-    name="data_product_create_and_attach_custom_contract",
-    description="""
-    This tool creates a custom contract from scratch and attaches it to a data product draft.
-    Unlike the template-based tool, this does not use any predefined template. Instead, it allows
-    users to create a completely custom contract by providing their own values.
-    
-    The tool works in two steps:
-    1. First call: Do NOT provide contract_terms parameter (or set to None). This displays the empty contract schema to show all available fields.
-    2. Second call: Provide contract_terms parameter with user's custom values to create and attach the contract.
-    
-    IMPORTANT: contract_terms must follow the exact nested structure shown in the first call's output.
-    The first call displays the complete schema with all available fields.
-    
-    Example workflow:
-         - Call this tool WITHOUT contract_terms parameter to see the empty schema
-         - User reviews the schema structure
-         - Call this tool again WITH contract_terms={...} containing values (following the exact schema structure)
-         - The contract is created and attached to the data product draft
-    
-    Note: Not all fields are mandatory. Users only need to provide values for the fields they want to include.
-    Empty dict is not allowed - custom contracts must have at least some values.
-    """,
-    tags={"create", "data_product"},
-    meta={"version": "1.0", "service": "data_product"},
-)
-@auto_context
-async def create_and_attach_custom_contract(
+async def _create_and_attach_custom_contract(
     request: CreateAndAttachCustomContractRequest
 ) -> str:
     LOGGER.info(f"In data_product_create_and_attach_custom_contract, creating custom contract for data product draft {request.data_product_draft_id} with contract terms {request.contract_terms_id}")
@@ -637,7 +551,7 @@ async def create_and_attach_custom_contract(
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
 )
-async def wxo_create_and_attach_custom_contract(
+async def create_and_attach_custom_contract(
     data_product_draft_id: str,
     contract_terms_id: str,
     contract_terms: Optional[dict] = None
@@ -649,4 +563,4 @@ async def wxo_create_and_attach_custom_contract(
     )
 
     # Call the original create_and_attach_custom_contract function
-    return await create_and_attach_custom_contract(request)
+    return await _create_and_attach_custom_contract(request)

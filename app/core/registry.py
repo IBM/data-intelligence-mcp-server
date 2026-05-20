@@ -16,8 +16,6 @@ from app.shared.logging.utils import LOGGER
 # Tool name validation pattern: alphanumeric, underscore, hyphen, 1-64 chars
 TOOL_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
 
-# Custom tool tags that should always be loaded regardless of WXO filtering
-CUSTOM_TOOL_TAGS = {"custom", "custom_tool"}
 # Experimental tool tags that should not be used in production environment
 EXPERIMENTAL_TAGS= {"experimental"}
 
@@ -55,23 +53,6 @@ class ServiceRegistry:
                 f"Colons and other special characters are not allowed."
             )
 
-    def _is_wxo_function(self, func: Callable) -> bool:
-        """Check if function is a WXO function based on naming convention."""
-        return func.__name__.startswith('wxo')
-    
-    def _should_skip_wxo_filtering(self, func: Callable) -> bool:
-        """Check if function should be skipped based on WXO filtering rules."""
-        if not hasattr(settings, 'wxo'):
-            return False
-        is_wxo_func = self._is_wxo_function(func)
-        # Skip if wxo mode enabled but not wxo function, or vice versa
-        return (settings.wxo and not is_wxo_func) or (not settings.wxo and is_wxo_func)
-    
-    def _is_custom_tool(self, tags: set[str] | None) -> bool:
-        """Check if tool has any custom tag """
-        if not tags:
-            return False
-        return any(custom_tag in tags for custom_tag in CUSTOM_TOOL_TAGS)
 
     def _is_experimental(self, tags: set[str] | None) -> bool:
         """Check if tool has experimental tag """
@@ -104,9 +85,7 @@ class ServiceRegistry:
         def decorator(func: Callable) -> Callable:
             tool_name = name if name is not None else func.__name__
             self._validate_tool_name(tool_name)
-            """Load the tool based on WXO configuration. Always load custom tools"""
-            if self._should_skip_wxo_filtering(func) and not self._is_custom_tool(tags):
-                return func
+            
             """Do not load the tool if it's experimental and the experimental setting is not enabled"""
             if settings.use_experimental == False and self._is_experimental(tags):
                 return func
@@ -195,17 +174,17 @@ class ServiceRegistry:
             LOGGER.error(f"Failed to create default response: {e4}")
             raise
 
-    def _create_wxo_error_wrapper(self, func: Callable, tool_name: str) -> Callable:
+    def _create_error_wrapper(self, func: Callable, tool_name: str) -> Callable:
         """
-        Create an error wrapper for wxo tools that catches exceptions and returns
-        structured error responses that wxo can understand.
+        Create an error wrapper that catches exceptions and returns
+        structured error responses.
         
         Args:
             func: The original tool function
             tool_name: Name of the tool (for logging)
             
         Returns:
-            Wrapped function that handles errors gracefully for wxo
+            Wrapped function that handles errors gracefully
         """
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -216,7 +195,7 @@ class ServiceRegistry:
                 import traceback
                 error_message = str(e)
                 stack_trace = traceback.format_exc()
-                LOGGER.error(f"WXO tool '{tool_name}' failed with error: {error_message}")
+                LOGGER.error(f"Tool '{tool_name}' failed with error: {error_message}")
                 LOGGER.error(f"Stack trace:\n{stack_trace}")
                 
                 # Get the return type annotation
@@ -246,14 +225,9 @@ class ServiceRegistry:
             if not tool.enabled:
                 continue
 
-            # Note: wxo filtering now happens during collection phase in the decorator
-            # so all tools in self._tools are already filtered appropriately
-
-            # Wrap wxo tools with error handler
-            func_to_register = tool.func
-            if self._is_wxo_function(tool.func):
-                LOGGER.info(f"Wrapping WXO tool '{tool.name}' with error handler")
-                func_to_register = self._create_wxo_error_wrapper(tool.func, tool.name)
+            # Wrap all tools with error handler
+            LOGGER.info(f"Wrapping tool '{tool.name}' with error handler")
+            func_to_register = self._create_error_wrapper(tool.func, tool.name)
 
             # Build kwargs and register tool
             kwargs = self._build_tool_kwargs(tool)

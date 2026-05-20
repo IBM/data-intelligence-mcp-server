@@ -141,20 +141,7 @@ async def execute_metadata_import_job(
         )
 
 
-@service_registry.tool(
-    name="execute_metadata_import",
-    description="""Execute a metadata import job in a project.
-
-    ERROR HANDLING:
-    - If project not found: Use 'list_containers' to find available projects or verify the project name
-    - If metadata import asset not found: Use 'create_metadata_import' to create the asset first
-
-    Returns: Job ID, run ID, state, and monitoring URL.""",
-    tags={"run-metadata-import", "execute-metadata-import", "start-metadata-import"},
-    meta={"version": "1.0", "service": "metadata-import"},
-)
-@auto_context
-async def execute_metadata_import(
+async def _execute_metadata_import(
     request: ExecuteMetadataImportRequest,
 ) -> ExecuteMetadataImportResponse:
 
@@ -207,18 +194,18 @@ async def execute_metadata_import(
     - If project not found: Use 'list_containers' to find available projects or verify the project name
     - If metadata import asset not found: Use 'create_metadata_import' to create the asset first
     Returns: Job ID, run ID, state, and monitoring URL.""",
-    tags={"run-metadata-import", "execute-metadata-import", "start-metadata-import", "wxo"},
+    tags={"run-metadata-import", "execute-metadata-import", "start-metadata-import"},
     meta={"version": "1.0", "service": "metadata-import"},
 )
 @auto_context
-async def wxo_execute_metadata_import(
+async def execute_metadata_import(
     project_name: str,
     metadata_import_name: str,
 ) -> ExecuteMetadataImportResponse:
-    """Watsonx Orchestrator compatible version that expands ExecuteMetadataImportRequest object into individual parameters."""
+    """Wrapper that expands ExecuteMetadataImportRequest object into individual parameters."""
 
     request = ExecuteMetadataImportRequest(
         project_name=project_name,
         metadata_import_name=metadata_import_name,
     )
-    return await execute_metadata_import(request)
+    return await _execute_metadata_import(request)

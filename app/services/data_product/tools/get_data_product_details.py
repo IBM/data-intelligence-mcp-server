@@ -627,52 +627,7 @@ async def _process_part_asset(part: Dict[str, Any], params: Dict[str, str]) -> D
     return enriched_part
 
 
-@service_registry.tool(
-    name="data_product_get_data_product_details",
-    description="""
-    Retrieve comprehensive information about IBM Cloud Data Product Hub data products.
-    
-    This tool provides detailed metadata about data products including:
-    
-    **get_data_product_details**: Retrieves complete metadata including:
-       - Release information (version, state, description)
-       - Parts/assets with names, descriptions, and enriched column schemas
-       - Primary key information (both at part level and column level)
-       - Subscription details (only successful subscriptions with 'succeeded' state - failed deliveries are excluded)
-    
-    **Column Schema Details** - Each column includes:
-       - Basic schema: name, data_type, length, nullable, native_type
-       - Primary key flag: is_primary_key (true if column is part of primary key)
-       - Column metadata (column_info object):
-         * Data classification: data_class_name, data_class_confidence
-         * Semantic naming: semantic_name, semantic_name_confidence, semantic_name_status
-         * Descriptions: column_description, semantic_description with confidence and status
-    
-    **Primary Keys**:
-       - Part-level: primary_keys array shows all primary key combinations (supports composite keys)
-       - Column-level: is_primary_key flag on individual columns for easy identification
-    
-    **Required Input**: Provide either data_product_version_id OR data_product_name.
-    
-    **Subscription Details** (only successful subscriptions returned):
-       - Only includes subscriptions with 'succeeded' state - failed subscription deliveries are not returned
-       - For data_asset types: Returns 'flight_asset_id' and optionally 'flight_client_url' for data extraction
-       - For ibm_url_definition types: Returns 'url' for accessing external resources
-       - Each subscribed asset includes 'name' and either 'flight_asset_id' or 'url'
-       - If no successful subscriptions exist, the list will be empty
-    
-    **Usage Tips**:
-       - Rich column metadata helps understand data semantics and quality before querying
-       - Primary key information is essential for joins and data relationships
-       - Data classification and confidence scores indicate data sensitivity and reliability
-       - flight_asset_id from subscription details enables data extraction via Flight API
-       - url from subscription details provides direct access to external data sources
-    """,
-    tags={"read", "data_product"},
-    meta={"version": "1.0", "service": "data_product"}
-)
-@auto_context
-async def get_data_product_details(
+async def _get_data_product_details(
     request: GetDataProductDetailsRequest,
 ) -> GetDataProductDetailsResponse:
     """
@@ -776,12 +731,40 @@ async def get_data_product_details(
     Retrieve comprehensive information about IBM Cloud Data Product Hub data products.
     
     This tool provides detailed metadata about data products including:
-    - Release information (version, state, description)
-    - Parts/assets with names, descriptions, and enriched column schemas
-    - Primary key information (both at part level and column level)
-    - Subscription details (if active subscriptions exist)
+    
+    **get_data_product_details**: Retrieves complete metadata including:
+       - Release information (version, state, description)
+       - Parts/assets with names, descriptions, and enriched column schemas
+       - Primary key information (both at part level and column level)
+       - Subscription details (only successful subscriptions with 'succeeded' state - failed deliveries are excluded)
+    
+    **Column Schema Details** - Each column includes:
+       - Basic schema: name, data_type, length, nullable, native_type
+       - Primary key flag: is_primary_key (true if column is part of primary key)
+       - Column metadata (column_info object):
+         * Data classification: data_class_name, data_class_confidence
+         * Semantic naming: semantic_name, semantic_name_confidence, semantic_name_status
+         * Descriptions: column_description, semantic_description with confidence and status
+    
+    **Primary Keys**:
+       - Part-level: primary_keys array shows all primary key combinations (supports composite keys)
+       - Column-level: is_primary_key flag on individual columns for easy identification
     
     **Required Input**: Provide either data_product_version_id OR data_product_name.
+    
+    **Subscription Details** (only successful subscriptions returned):
+       - Only includes subscriptions with 'succeeded' state - failed subscription deliveries are not returned
+       - For data_asset types: Returns 'flight_asset_id' and optionally 'flight_client_url' for data extraction
+       - For ibm_url_definition types: Returns 'url' for accessing external resources
+       - Each subscribed asset includes 'name' and either 'flight_asset_id' or 'url'
+       - If no successful subscriptions exist, the list will be empty
+    
+    **Usage Tips**:
+       - Rich column metadata helps understand data semantics and quality before querying
+       - Primary key information is essential for joins and data relationships
+       - Data classification and confidence scores indicate data sensitivity and reliability
+       - flight_asset_id from subscription details enables data extraction via Flight API
+       - url from subscription details provides direct access to external data sources
     
     Args:
         data_product_version_id: Optional ID of the data product version. Provide either this or data_product_name.
@@ -794,15 +777,15 @@ async def get_data_product_details(
     meta={"version": "1.0", "service": "data_product"}
 )
 @auto_context
-async def wxo_get_data_product_details(
+async def get_data_product_details(
     data_product_version_id: Optional[str] = None,
     data_product_name: Optional[str] = None
 ) -> GetDataProductDetailsResponse:
-    """Watsonx Orchestrator compatible version that expands GetDataProductDetailsRequest object into individual parameters."""
+    """Wrapper version that expands GetDataProductDetailsRequest object into individual parameters."""
 
     request = GetDataProductDetailsRequest(
         data_product_version_id=data_product_version_id,
         data_product_name=data_product_name,
     )
 
-    return await get_data_product_details(request)
+    return await _get_data_product_details(request)

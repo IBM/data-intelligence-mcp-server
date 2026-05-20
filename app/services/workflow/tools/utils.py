@@ -7,12 +7,12 @@
 """
 Utility functions for workflow tools.
 
-This module provides shared utility functions for querying glossary artefacts
+This module provides shared utility functions for querying glossary artifacts
 (data classes and business terms) from the workflow service.
 """
 
 from typing import List, Literal
-from app.services.workflow.models.artefact import Artefact, BusinessTerm, DataClass
+from app.services.workflow.models.artifact import Artifact, BusinessTerm, DataClass
 from app.shared.logging import LOGGER
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.services.constants import SEARCH_PATH, GLOSSARY_ARTIFACT_TYPES_ENDPOINT
@@ -21,9 +21,42 @@ from fastmcp.exceptions import ToolError
 ZERO_MINUTES = "+00:00"
 
 
+def _create_artifact_from_item(item: dict, artifact_type: str):
+    """
+    Create appropriate artifact object based on artifact type.
+    
+    Args:
+        item: Dictionary containing artifact data
+        artifact_type: Type of artifact ('glossary_term' or 'data_class')
+        
+    Returns:
+        BusinessTerm, DataClass, or Artifact object
+    """
+    from app.services.workflow.models.artifact import Artifact, BusinessTerm, DataClass
+    
+    common_fields = {
+        'name': item.get("name"),
+        'description': item.get('long_description') or item.get('description'),
+        'artifact_id': item.get("artifact_id"),
+        'modified_by': item.get("modified_by"),
+        'state': item.get("draft_mode") or item.get("state"),
+        'created_at': item.get("created_at"),
+        'updated_at': item.get("updated_at"),
+        'workflow_id': item.get("workflow_id"),
+        'artifact_type': artifact_type
+    }
+    
+    if artifact_type == 'glossary_term':
+        return BusinessTerm(**common_fields)
+    elif artifact_type == 'data_class':
+        return DataClass(**common_fields)
+    else:
+        return Artifact(**common_fields)
+
+
 def validate_search_params(search_term: str, artifact_type: str, max_results: int) -> None:
     """
-    Validate search parameters for querying artefacts.
+    Validate search parameters for querying artifacts.
     
     Args:
         search_term: Search term to validate
@@ -47,17 +80,17 @@ def validate_search_params(search_term: str, artifact_type: str, max_results: in
         LOGGER.warning(f"max_results ({max_results}) exceeds recommended limit of 100")
 
 
-async def _query_artifact_in_draft_by_term(search_term: str, artifact_type: str, max_results: int) -> List[Artefact]:
+async def _query_artifact_in_draft_by_term(search_term: str, artifact_type: str, max_results: int) -> List[Artifact]:
     """
-    Query the glossary API for artefacts in draft mode.
+    Query the glossary API for artifacts in draft mode.
 
     Args:
         search_term: str: search_term in name or description
         artifact_type: str: artifact type string like 'data_class' or 'glossary_term'
-        max_results: int: Maximum number of artefacts to return
+        max_results: int: Maximum number of artifacts to return
 
     Returns:
-        List[Artefact]: List of glossary artefact objects
+        List[Artifact]: List of glossary artifact objects
         
     Raises:
         ValueError: If search parameters are invalid
@@ -72,72 +105,35 @@ async def _query_artifact_in_draft_by_term(search_term: str, artifact_type: str,
             params=params
         )
 
-        artefacts = []
+        artifacts = []
         item_list = response.get('resources', [])
 
         for item in item_list:
-            # Create appropriate artefact type based on artifact_type
-            if artifact_type == 'glossary_term':
-                artefact_obj = BusinessTerm(
-                    name=item.get("name"),
-                    description=item.get('long_description'),
-                    artifact_id=item.get("artifact_id"),
-                    modified_by=item.get("modified_by"),
-                    state=item.get("draft_mode"),
-                    created_at=item.get("created_at"),
-                    updated_at=item.get("updated_at"),
-                    workflow_id=item.get("workflow_id"),
-                    artifact_type=artifact_type
-                )
-            elif artifact_type == 'data_class':
-                artefact_obj = DataClass(
-                    name=item.get("name"),
-                    description=item.get('long_description'),
-                    artifact_id=item.get("artifact_id"),
-                    modified_by=item.get("modified_by"),
-                    state=item.get("draft_mode"),
-                    created_at=item.get("created_at"),
-                    updated_at=item.get("updated_at"),
-                    workflow_id=item.get("workflow_id"),
-                    artifact_type=artifact_type
-                )
-            else:
-                artefact_obj = Artefact(
-                    name=item.get("name"),
-                    description=item.get('long_description'),
-                    artifact_id=item.get("artifact_id"),
-                    modified_by=item.get("modified_by"),
-                    state=item.get("draft_mode"),
-                    created_at=item.get("created_at"),
-                    updated_at=item.get("updated_at"),
-                    workflow_id=item.get("workflow_id"),
-                    artifact_type=artifact_type
-                )
-            
-            artefacts.append(artefact_obj)
+            artifact_obj = _create_artifact_from_item(item, artifact_type)
+            artifacts.append(artifact_obj)
 
-        return artefacts
+        return artifacts
 
     except ValueError:
         # Re-raise validation errors
         raise
     except Exception as e:
-        LOGGER.error(f"Error querying glossary artefacts in draft mode: {str(e)}")
+        LOGGER.error(f"Error querying glossary artifacts in draft mode: {str(e)}")
         # Re-raise exceptions so callers can handle them appropriately
-        raise ToolError(f"Failed to query glossary artefacts in draft mode: {str(e)}")
+        raise ToolError(f"Failed to query glossary artifacts in draft mode: {str(e)}")
 
 
-async def _query_artefacts_by_term(search_term: str, artifact_type: str, max_results: int) -> List[Artefact]:
+async def _query_artifacts_by_term(search_term: str, artifact_type: str, max_results: int) -> List[Artifact]:
     """
-    Use the global search API for artefacts.
+    Use the global search API for artifacts.
 
     Args:
         search_term: str: search_term in name or description
         artifact_type: str: artifact type string like 'data_class' or 'glossary_term'
-        max_results: int: Maximum number of artefacts to return
+        max_results: int: Maximum number of artifacts to return
 
     Returns:
-        List[Artefact]: List of glossary artefact objects
+        List[Artifact]: List of glossary artifact objects
         
     Raises:
         ValueError: If search parameters are invalid
@@ -163,55 +159,34 @@ async def _query_artefacts_by_term(search_term: str, artifact_type: str, max_res
         )
 
         # Schema: { "size": 3, "rows": [ { "last_updated_at": 1763108155799, "metadata": { "name": "Spanish Fiscal Identification Number", ...
-        artefacts = []
+        artifact_objs = []
         item_list = response.get('rows', [])
 
-        for artefact in item_list:
-            metadata = artefact.get("metadata", {})
-            entity = artefact.get("entity", {})
+        for artifact in item_list:
+            metadata = artifact.get("metadata", {})
+            entity = artifact.get("entity", {})
             LOGGER.debug(f"Processing entity: {entity}")
             artifacts = entity.get("artifacts", {})
             
-            # Create appropriate artefact type based on artifact_type
-            if artifact_type == 'glossary_term':
-                artefact_obj = BusinessTerm(
-                    name=metadata.get("name"),
-                    description=metadata.get("description"),
-                    artifact_id=artifacts.get("artifact_id"),
-                    modified_by=metadata.get("modified_by"),
-                    state=entity.get("state"),
-                    created_at=metadata.get("created_at"),
-                    artifact_type=artifact_type
-                )
-            elif artifact_type == 'data_class':
-                artefact_obj = DataClass(
-                    name=metadata.get("name"),
-                    description=metadata.get("description"),
-                    artifact_id=artifacts.get("artifact_id"),
-                    modified_by=metadata.get("modified_by"),
-                    state=entity.get("state"),
-                    created_at=metadata.get("created_at"),
-                    artifact_type=artifact_type
-                )
-            else:
-                artefact_obj = Artefact(
-                    name=metadata.get("name"),
-                    description=metadata.get("description"),
-                    artifact_id=artifacts.get("artifact_id"),
-                    modified_by=metadata.get("modified_by"),
-                    state=entity.get("state"),
-                    created_at=metadata.get("created_at"),
-                    artifact_type=artifact_type
-                )
+            # Prepare item dict for artifact creation
+            item = {
+                'name': metadata.get("name"),
+                'description': metadata.get("description"),
+                'artifact_id': artifacts.get("artifact_id"),
+                'modified_by': metadata.get("modified_by"),
+                'state': entity.get("state"),
+                'created_at': metadata.get("created_at"),
+            }
             
-            artefacts.append(artefact_obj)
+            artifact_obj = _create_artifact_from_item(item, artifact_type)
+            artifact_objs.append(artifact_obj)
 
-        return artefacts
+        return artifact_objs
 
     except ValueError:
         # Re-raise validation errors
         raise
     except Exception as e:
-        LOGGER.error(f"Error querying glossary artefacts: {str(e)}")
+        LOGGER.error(f"Error querying glossary artifacts: {str(e)}")
         # Re-raise exceptions so callers can handle them appropriately
-        raise ToolError(f"Failed to query glossary artefacts: {str(e)}")
+        raise ToolError(f"Failed to query glossary artifacts: {str(e)}")

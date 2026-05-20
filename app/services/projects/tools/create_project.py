@@ -13,7 +13,6 @@ from app.services.constants import PROJECTS_BASE_ENDPOINT
 from app.core.settings import settings, ENV_MODE_SAAS, ENV_MODE_CPD
 from app.shared.exceptions.base import ExternalAPIError
 from typing import List, Optional
-from enum import Enum
 
 from app.shared.utils.helpers import append_context_to_url, get_project_or_space_type_based_on_context
 from app.services.tool_utils import (
@@ -32,16 +31,7 @@ GENERATOR_DF = "df-portal-projects"
 GENERATOR_CPDAAS = "cpdaas-portal-projects"
 GENERATOR_CPD = "icp4data-portal-projects"
 
-@service_registry.tool(
-    name="create_project",
-    description="When creating a new project, the system applies a default name i.e. mcp_generated_project_* if none is provided else create project with given name. "
-    "If a duplicate project name is detected, an error is thrown with a link to the existing project. "
-    "For storage configuration, the system validates available COS storage instances. "
-    "When multiple storage instances are found, the user is prompted to specify one by name or CRN before proceeding. "
-    "Once the user provides the required storage selection, the project is generated with the validated configuration in the given context.",
-)
-@auto_context
-async def create_project(request: CreateProjectRequest) -> CreateProjectResponse:
+async def _create_project(request: CreateProjectRequest) -> CreateProjectResponse:
 
     # Create a payload for new project creation
     payload = {}
@@ -282,21 +272,21 @@ def prepare_response(response, project_type):
     "If a duplicate project name is detected, an error is thrown with a link to the existing project. "
     "For storage configuration, the system validates available COS storage instances. "
     "When multiple storage instances are found, the user is prompted to specify one by name or CRN before proceeding. "
-    "Once the user provides the required storage selection, the project is generated with the validated configuration in the given context.(Watsonx Orchestrator compatible)")
+    "Once the user provides the required storage selection, the project is generated with the validated configuration in the given context.",)
 
 @auto_context
-async def wxo_create_project(
+async def create_project(
     name: Optional[str] = None,
     description: str = "MCP generated project",
     type: Optional[str] = None,
     storage: Optional[str] = None,
     tags: List = [],
 ) -> CreateProjectResponse:
-    """Watsonx Orchestrator compatible version that expands CreateProjectRequest object into individual parameters."""
+    """Wrapper that expands CreateProjectRequest object into individual parameters."""
 
     request = CreateProjectRequest(
         name=name, description=description, type=type, storage=storage, tags=tags
     )
 
     # Call the original create_project function
-    return await create_project(request)
+    return await _create_project(request)
