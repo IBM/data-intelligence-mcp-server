@@ -17,19 +17,18 @@
   - `text_to_sql_enable_project_for_text_to_sql` - Renamed to `text_to_sql_enable_container_for_text_to_sql` and enhanced to support both catalogs and projects.
   - `text_to_sql_check_if_onboarding_job_is_completed` - Enhanced to support both catalogs and projects.
 - **Data Protection Rules (DPS)**:
-  - `create_data_protection_rule` - Refactored tool description using "Proxy Tool Pattern" to reduce token usage by 77.4% (from ~3000 tokens to ~155 tokens). The full schema guide is now available on-demand via `get_rule_schema()` tool. This change improves LLM context efficiency while maintaining full functionality.
+  - `create_data_protection_rule` - Refactored tool description using "Proxy Tool Pattern" to reduce token usage by 77.4% (from ~3000 tokens to ~155 tokens). The full schema guide is now available on-demand via `get_rule_schema` tool. This change improves LLM context efficiency while maintaining full functionality.
 - **User Search**:
   - Updated CPD user search to use `/usermgmt/v2/usermgmt/users` with pagination support for newer CP4D 5.4 environments.
   - Updated `add_or_edit_collaborator` tool to use centralized search utilities from `search_utils.py` for consistent user and group search across all tools.
 - **Lineage**:
-  - `lineage_search_lineage_assets` - Added Data Source Definition (DSD) filtering with `dsd_id` and `dsd_name` parameters to filter lineage assets by specific data source definitions
-  - Enhanced error handling to gracefully handle HTTP 500 errors from lineage service by returning empty results with user-friendly error messages instead of crashing
+  - `lineage_search_lineage_assets` - Added Data Source Definition (DSD) filtering with `dsd_id` and `dsd_name` parameters to filter lineage assets by specific data source definitions.
+  - Enhanced error handling to gracefully handle HTTP 500 errors from lineage service by returning empty results with user-friendly error messages instead of crashing.
 - **Data Product Hub (DPH)**:
   - `data_product_create_or_update_from_asset_in_container` - Updated the input parameters to receive target asset IDs instead of asset ID and container ID to allow creation of data products from existing copied assets in the DPH catalog. Moved the force parameter to the `data_product_import_remote_assets_to_dph_catalog` tool.
 - **Metadata Enrichment (MDE)**:
   - Added support for `data_search` objective in metadata enrichment workflows. The `create_or_update_metadata_enrichment_asset` tool now accepts 'data_search' as a valid objective name, enabling data search functionality during metadata enrichment operations.
-- **Metadata Enrichment (MDE)**
-  - `create_or_update_metadata_enrichment_asset` now supports adding tags to the MDE
+  - `create_or_update_metadata_enrichment_asset` now supports adding tags to the MDE.
 
 ### Fixed
 - **Workflow**: Handle missing context properly, `get_my_workflows` no longer returns the same element multiple times and task action no longer allows empty comments when rejecting a task.
