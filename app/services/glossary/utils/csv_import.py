@@ -450,7 +450,7 @@ async def import_single_artifact_type(
             headers={}, 
             files=files,
             params=params,
-            tool_name="glossary_csv_import"
+            tool_name="import_glossary_from_csv"
         )
         
         LOGGER.info(f"Import API initial response: {response}")

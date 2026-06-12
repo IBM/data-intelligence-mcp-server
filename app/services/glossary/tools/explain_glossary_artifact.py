@@ -313,6 +313,10 @@ async def _explain_glossary_artifact(
 
 @service_registry.tool(
     name="explain_glossary_artifact",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Retrieve and Generate Detailed Explanations for Glossary Artifacts by Name"
+    },
     description="""Explain detailed information about a glossary artifact by its name.
 
     This tool retrieves and explains metadata about a glossary artifact, which could be any of:

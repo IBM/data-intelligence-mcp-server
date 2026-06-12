@@ -26,7 +26,8 @@ from app.services.workflow.tools.utils import _query_artifact_in_draft_by_term, 
 from app.services.workflow.utils.task_formatters import format_artifacts_as_table, prompt_user_for_artifact_selection
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
-from app.shared.utils.client_detection import supports_rich_text_format
+from app.shared.utils.client_detection import supports_rich_text_format, MinimalContext
+from app.shared.utils.llm_utils import client_supports_elicitation
 
 from fastmcp.exceptions import ToolError
 from fastmcp.server.context import Context
@@ -38,6 +39,7 @@ from mcp.server.elicitation import (
 )
 
 from pydantic import BaseModel, Field, create_model
+ELICITATION_WATERMARK = 10
 
 async def _fetch_data_classes(request: ListDataClassesRequest) -> List[DataClass]:
     """
@@ -90,7 +92,13 @@ async def _handle_elicitation(
     Returns:
         Subset of data classes (either all or single selection)
     """
-    if len(data_classes) <= 1 or ctx is None:
+    if len(data_classes) <= ELICITATION_WATERMARK or ctx is None:
+        return data_classes
+    
+    # Check if both client and server support elicitation
+    # If not supported, return full result set (following decline/cancel path)
+    if not client_supports_elicitation(ctx):
+        LOGGER.info("Elicitation not supported by client or server - returning full result set")
         return data_classes
 
     try:
@@ -184,6 +192,7 @@ def _build_json_response(data_classes: List[DataClass]) -> ListDataClassesRespon
 list_data_classes_by_search_term_description="""
 list_data_classes_by_search_term returns a list of all data classes as objects of a data governance workflow pertaining to the search term
 with the artifact_id included. Always define the draft parameter: if the text refers to future approvals set it true, otherwise false.
+Use list_data_classes_by_search_term ONLY for requests about unpublished, draft data classes or for workflow related requests, otherwise use search_governance_artifacts.
 If you find markdown text in the result show it to the user.
 ALWAYS use a request json object to encapsulate the parameters.
 """
@@ -207,7 +216,6 @@ async def _list_data_classes_by_search_term(
         f"Listing glossary data classes with max_results: {request.max_results}, "
         f"draft mode: {request.draft}, format: {request.format}"
     )
-    print("CONTEXT", ctx)
     
     # Auto-detect Claude Code and switch to JSON format if needed
     # Some clients don't handle markdown tables well, so we default to JSON
@@ -232,6 +240,10 @@ async def _list_data_classes_by_search_term(
 
 @service_registry.tool(
     name="list_data_classes_by_search_term",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Search and List Glossary Data Classes in Governance Workflows"
+    },
     description=list_data_classes_by_search_term_description,
     tags={"workflow", "glossary", "data_classes", "governance"},
     meta={"version": "1.0", "service": "glossary"},
@@ -258,13 +270,4 @@ async def list_data_classes_by_search_term(
         return await _list_data_classes_by_search_term(request, ctx)
     
     # Fallback for wxo version or when context is not available
-    class MinimalContext:
-        request_context = None
-        
-        def elicit(self, message, response_type):
-            # Skip elicitation for wrapper version
-            logger = logging.getLogger()
-            logger.info("Empty elicitation: " + str(message) + ", " + str(response_type))
-            return None
-    
     return await _list_data_classes_by_search_term(request, MinimalContext())

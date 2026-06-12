@@ -36,7 +36,7 @@ async def _glossary_csv_import(
         ServiceError: If import fails unexpectedly
     """
     LOGGER.info(
-        f"glossary_csv_import called with validate_only={request.validate_only}, "
+        f"import_glossary_from_csv called with validate_only={request.validate_only}, "
         f"csv_length={len(request.csv_content)}"
     )
     
@@ -78,7 +78,7 @@ async def _glossary_csv_import(
 
 
 @service_registry.tool(
-    name="glossary_csv_import",
+    name="import_glossary_from_csv",
     description="""Import business glossary terms and categories from CSV files.
 
 Wrapper that accepts parameters directly.
@@ -169,16 +169,20 @@ Returns structured errors with:
 - Problematic value
 
 This enables LLMs to generate properly formatted CSVs and validate user-provided CSVs before import.""",
+    annotations={
+        "title": "Import and Create Glossary Terms and Categories from CSV Content",
+        "destructiveHint": True
+    }
 )
 @auto_context
-async def glossary_csv_import(
+async def import_glossary_from_csv(
     csv_content: str,
     validate_only: bool = False,
     merge_option: str = "all",
     ctx: Optional[Context] = None,
 ) -> CSVImportResult:
     """ 
-    Wrapper for glossary_csv_import.
+    Wrapper for import_glossary_from_csv.
 
     Args:
         csv_content: CSV content as string

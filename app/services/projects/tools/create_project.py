@@ -99,28 +99,24 @@ async def check_get_project_name(request_name) -> str:
         request_name: The requested project name from the user
         
     Returns:
-        A valid project name (either the requested name or a generated one)
+        A valid project name
         
     Raises:
         ValueError: If the name is empty or already exists
     """
-    # Generate a default project name with timestamp
-    mcp_generated_name = f"mcp_generated_project_{time.strftime('%Y-%m-%d %H-%M-%S')}"
-    
-    if not is_empty(request_name):
-        is_exist, project_type, project_id = await is_project_exist_by_name(request_name)
-        if not is_exist:
-            mcp_generated_name = request_name
-        else:
-            project_location = build_project_location_url(project_id, project_type)
-            raise ValueError(
-                f"Given project name {request_name} already exists. Project URL: {project_location}"
-            )
-    else:
+    if is_empty(request_name):
         raise ValueError(
-            f"Project name is required. Suggested name: {mcp_generated_name}"
+            "Project name is required. Please provide a meaningful name for your project."
         )
-    return mcp_generated_name
+    
+    is_exist, project_type, project_id = await is_project_exist_by_name(request_name)
+    if is_exist:
+        project_location = build_project_location_url(project_id, project_type)
+        raise ValueError(
+            f"Given project name {request_name} already exists. Project URL: {project_location}"
+        )
+    
+    return request_name
 
 def check_get_type(request_type: str | None) -> tuple[str, str, str]:
     """
@@ -268,11 +264,16 @@ def prepare_response(response, project_type):
 
 
 @service_registry.tool(name="create_project",
-    description="When creating a new project, the system applies a default name i.e. mcp_generated_project_* if none is provided else create project with given name. "
+    description="Creates a new project with the specified name. "
+    "A project name is required - if not provided, ask the user for a meaningful name. "
     "If a duplicate project name is detected, an error is thrown with a link to the existing project. "
     "For storage configuration, the system validates available COS storage instances. "
     "When multiple storage instances are found, the user is prompted to specify one by name or CRN before proceeding. "
-    "Once the user provides the required storage selection, the project is generated with the validated configuration in the given context.",)
+    "Once the user provides the required information, the project is generated with the validated configuration in the given context.",
+    annotations={
+        "title": "Creates a New Project with the Given Name",
+        "destructiveHint": True
+    })
 
 @auto_context
 async def create_project(

@@ -74,7 +74,7 @@ async def _search_categories() -> List[str]:
     
     if search_response:
         selected_data = ui_message_context.send_table_selector_msg(
-            tool_name="search_categories",
+            tool_name="list_enrichment_categories",
             data=categories,
             formatted_data=_format_categories_for_table(categories),
             title="Available Categories",
@@ -88,12 +88,16 @@ async def _search_categories() -> List[str]:
 
 
 @service_registry.tool(
-    name="search_categories",
+    name="list_enrichment_categories",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Search and Retrieve Available Governance Categories"
+    },
     description="""Searches for user's categories.
                     This function is mainly used when a user want to create or update a metadata enrichment (MDE) and does not provide a category.
                     This function should be used to retrieve the list of categories and surface them back to the user so he can choose one of them""",
 )
 @auto_context
-async def search_categories() -> List[str]:
+async def list_enrichment_categories() -> List[str]:
 
     return await _search_categories()

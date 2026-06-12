@@ -89,7 +89,7 @@ async def _create_or_update_metadata_enrichment_asset(
     - If MDE exists: UPDATE mode (updates existing MDE with new objectives and categories)
     - If MDE doesn't exist: CREATE mode (creates new MDE)
 
-    If the category_names are not provided, use the 'search_categories' tool to find the list of the available categories.
+    If the category_names are not provided, use the 'list_enrichment_categories' tool to find the list of the available categories.
     Return the FULL list to the user and ask him to choose one or more categories to be used to create or update the MDE.
     Do not select categories by your self, the user should select.
 
@@ -112,7 +112,10 @@ async def _create_or_update_metadata_enrichment_asset(
     
     The function assumes that the datasets provided are valid and exist.
     It does not handle the creation of datasets or categories if they do not already exist.""",
-    
+    annotations={
+        "title": "Create or Update Metadata Enrichment Asset Configuration",
+        "destructiveHint": True
+    }
 )
 @auto_context
 async def create_or_update_metadata_enrichment_asset(

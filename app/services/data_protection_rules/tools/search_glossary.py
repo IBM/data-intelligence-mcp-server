@@ -26,7 +26,7 @@ async def _search_governance_artifacts(
 ) -> SearchGovernanceArtifactResponse:
     """Search for governance artifacts by query and return matching results."""
     LOGGER.info(
-        f"In the data_protection_rule_search_governance_artifacts tool, searching for {request.rhs_type} with query '{request.query_value}'."
+        f"In the search_governance_artifacts tool, searching for {request.rhs_type} with query '{request.query_value}'."
     )
 
     # Validate rhs_type
@@ -84,14 +84,14 @@ async def _search_governance_artifacts(
 
     except ExternalAPIError as e:
         LOGGER.error(
-            f"Failed to run data_protection_rule_search_governance_artifacts tool. External API error: {str(e)}"
+            f"Failed to run search_governance_artifacts tool. External API error: {str(e)}"
         )
         raise ExternalAPIError(
             f"Failed to search governance artifacts. External API error: {str(e)}"
         )
     except Exception as e:
         LOGGER.error(
-            f"Failed to run data_protection_rule_search_governance_artifacts tool. Unexpected error: {str(e)}"
+            f"Failed to run search_governance_artifacts tool. Unexpected error: {str(e)}"
         )
         raise ServiceError(
             f"Failed to search governance artifacts. Unexpected error: {str(e)}"
@@ -109,7 +109,11 @@ def format_artifacts_for_table(artifacts: list[GovernanceArtifact]) -> list:
     ]
     
 @service_registry.tool(
-    name="data_protection_rule_search_governance_artifacts",
+    name="search_governance_artifacts",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Search Governance Artifacts"
+    },
     description="""
     This tool searches for governance artifacts (classifications, data classes, or glossary terms) by query and returns matching results.
     Use this tool to search for existing governance artifacts by correct names in IBM Knowledge Catalog.
@@ -214,7 +218,7 @@ async def search_rhs_terms(rhs_type: str, query: str):
         response = await tool_helper_service.execute_post_request(
             url=f"{tool_helper_service.base_url}{SEARCH_PATH}?role=viewer&auth_scope=all&auth_cache=true&tenant_scope=true",
             json=json_body,
-            tool_name="data_protection_rule_search_governance_artifacts"
+            tool_name="search_governance_artifacts"
         )
         return response
     except Exception as e:

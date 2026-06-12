@@ -24,7 +24,7 @@ async def _get_lineage_versions(
         raise ServiceError(f"Invalid ISO-8601 date format for 'until': {input.until}")
 
     LOGGER.info(
-        "get_lineage_versions called with dates since: %s until: %s",
+        "list_lineage_versions called with dates since: %s until: %s",
         input.since,
         input.until,
     )
@@ -61,10 +61,14 @@ async def _get_lineage_versions(
     return GetLineageVersionsResponse(dates=dates)
 
 @service_registry.tool(
-    name="lineage_get_lineage_versions",
+    name="list_lineage_versions",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Retrieve Available Lineage Versions Within Date Range"
+    },
     description="""Returns a list of versions of lineage that user can use for comparison.
     This tool takes two dates as input and returns a list of lineage versions that are available between the two dates.
-    Data returned by this tool is used by the lineage_comparison tool and lineage_get_lineage_graph tool.
+    Data returned by this tool is used by the lineage_comparison tool and get_lineage_graph tool.
 
     Args:
         since (str): starting date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ) Other ISO-8601 formats are also supported,
@@ -81,12 +85,12 @@ async def _get_lineage_versions(
     """,
 )
 @auto_context
-async def get_lineage_versions(
+async def list_lineage_versions(
     since: str, until: str
 ) -> GetLineageVersionsResponse:
     """Wrapper that expands GetLineageVersionsRequest object into individual parameters."""
 
     request = GetLineageVersionsRequest(since=since, until=until)
 
-    # Call the original get_lineage_versions function
+    # Call the original list_lineage_versions function
     return await _get_lineage_versions(request)

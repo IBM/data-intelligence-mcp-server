@@ -8,7 +8,7 @@ from app.core.registry import service_registry
 from app.shared.logging import LOGGER, auto_context
 
 from app.services.data_quality.utils.data_quality_common_utils import (
-    find_data_quality_rules as find_data_quality_rules_util,
+    list_data_quality_rules as list_data_quality_rules_util,
 )
 
 from app.services.data_quality.models.find_data_quality_rules import (
@@ -28,7 +28,7 @@ async def _find_data_quality_rules(request: FindDataQualityRulesRequest) -> Find
         request.data_quality_rule_name
     )
 
-    result = await find_data_quality_rules_util(
+    result = await list_data_quality_rules_util(
         project_id_or_name=request.project_id_or_name,
         data_quality_rule_name=request.data_quality_rule_name,
     )
@@ -54,8 +54,12 @@ async def _find_data_quality_rules(request: FindDataQualityRulesRequest) -> Find
 
 
 @service_registry.tool(
-    name="find_data_quality_rules",
-    description="""Wrapper for find_data_quality_rules.
+    name="list_data_quality_rules",
+    annotations={
+        "readOnlyHint": True,
+        "title": "List Data Quality Rules in Project"
+    },
+    description="""Wrapper for list_data_quality_rules.
 
 Find data quality rules in the given project. If data quality rule name is not provided, then return all the data quality rules from this project.
 
@@ -77,7 +81,7 @@ Raises:
     meta={"version": "1.0", "service": "data_quality"},
 )
 @auto_context
-async def find_data_quality_rules(
+async def list_data_quality_rules(
     project_id_or_name: str,
     data_quality_rule_name: Optional[str] = None,
 ) -> FindDataQualityRulesResponse:

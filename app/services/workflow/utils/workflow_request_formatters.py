@@ -13,6 +13,7 @@ from typing import List, Optional, Dict
 
 from app.services.workflow.models.get_my_workflows import WorkflowRequest
 from app.services.workflow.utils.task_formatters import calculate_task_age
+from app.services.workflow.tools.get_workflow_tasks_from_my_inbox import transform_base_url_to_ui_url
 from app.services.constants import WORKFLOW_BASE_ENDPOINT
 from app.shared.logging import LOGGER
 
@@ -128,19 +129,26 @@ def build_workflow_url(base_url: str, workflow_id: str) -> str:
     return f"{base_url}{WORKFLOW_BASE_ENDPOINT}/{workflow_id}"
 
 
-def _format_task_row(task) -> str:
+def _format_task_row(task, base_url: str) -> str:
     """
     Format a single task row for extended tables.
     
     Args:
         task: Task object with task_id, task_title, state, assignee, days_in_current_state
+        base_url: Base URL for constructing task links (API base URL, will be transformed to UI URL)
         
     Returns:
         Formatted table row string
     """
+    from app.services.workflow.utils.task_formatters import build_task_url
+    
+    # Transform API base URL to UI URL (similar to inbox tasks)
+    ui_base_url = transform_base_url_to_ui_url(base_url)
+    task_url = build_task_url(ui_base_url, task.task_id)
+    task_link = f"[{task.task_title}]({task_url})"
     task_state_str = _format_task_state(task.state)
     task_assignee = task.assignee or "-"
-    return f"| | | | | | | | {task.task_id} | {task.task_title} | {task_state_str} | {task_assignee} | {task.days_in_current_state} |\n"
+    return f"| | | | | | | {task_link} | {task_state_str} | {task_assignee} | {task.days_in_current_state} |\n"
 
 
 def _format_in_progress_compact_row(workflow: WorkflowRequest, base_url: str, stalled_days: Optional[int] = None) -> str:
@@ -160,9 +168,9 @@ def _format_in_progress_compact_row(workflow: WorkflowRequest, base_url: str, st
     created_by = workflow.created_by or "-"
     last_activity = format_last_activity(workflow.last_activity_at, workflow.days_since_activity, stalled_days)
     progress = format_progress(workflow.completed_tasks, workflow.total_tasks)
-    assignees = format_assignees(workflow.current_assignees)
+    age = calculate_task_age(workflow.created_at)
     
-    return f"| {title_link} | {created_by} | {last_activity} | {progress} | {assignees} |\n"
+    return f"| {title_link} | {created_by} | {last_activity} | {progress} | {age} |\n"
 
 
 def _format_in_progress_extended_row(workflow: WorkflowRequest, base_url: str, stalled_days: Optional[int] = None) -> str:
@@ -182,9 +190,9 @@ def _format_in_progress_extended_row(workflow: WorkflowRequest, base_url: str, s
     created_by = workflow.created_by or "-"
     last_activity = format_last_activity(workflow.last_activity_at, workflow.days_since_activity, stalled_days)
     progress = format_progress(workflow.completed_tasks, workflow.total_tasks)
-    assignees = format_assignees(workflow.current_assignees)
+    age = calculate_task_age(workflow.created_at)
     
-    return f"| {workflow.workflow_id} | {title_link} | {workflow.state} | {created_by} | {last_activity} | {progress} | {assignees} | | | | | |\n"
+    return f"| {title_link} | {workflow.state} | {created_by} | {last_activity} | {progress} | {age} | | | | |\n"
 
 
 def _add_list_exceeded_row(table: str, base_url: str, link_text: str, column_count: int) -> str:
@@ -216,11 +224,11 @@ def _get_in_progress_table_headers(include_tasks: bool) -> str:
         Header and separator rows
     """
     if include_tasks:
-        headers = "| Workflow ID | Name | State | Created By | Last Activity | Progress | Current Assignees | Task ID | Task Title | Task State | Assignee | Days in State |"
-        separator = "|-------------|------|-------|------------|---------------|----------|-------------------|---------|------------|------------|----------|---------------|"
+        headers = "| Workflow Request | State | Created By | Last Activity | Progress | Age | Task | Task State | Assignee | Days in State |"
+        separator = "|------------------|-------|------------|---------------|----------|-----|------|------------|----------|---------------|"
     else:
-        headers = "| Workflow Request | Created By | Last Activity | Progress | Current Assignees |"
-        separator = "|------------------|------------|---------------|----------|-------------------|"
+        headers = "| Workflow Request | Created By | Last Activity | Progress | Age |"
+        separator = "|------------------|------------|---------------|----------|-----|"
     
     return headers + "\n" + separator + "\n"
 
@@ -236,8 +244,8 @@ def _get_completed_table_headers(include_tasks: bool) -> str:
         Header and separator rows
     """
     if include_tasks:
-        headers = "| Workflow ID | Name | State | Created By | Completed At | Duration | Total Tasks | Task ID | Task Title | Task State | Assignee | Days in State |"
-        separator = "|-------------|------|-------|------------|-------------|----------|-------------|---------|------------|------------|----------|---------------|"
+        headers = "| Workflow Request | State | Created By | Completed At | Duration | Total Tasks | Task | Task State | Assignee | Days in State |"
+        separator = "|------------------|-------|------------|-------------|----------|-------------|------|------------|----------|---------------|"
     else:
         headers = "| Workflow Request | Created By | Completed | Duration | Total Tasks |"
         separator = "|------------------|------------|-----------|----------|-------------|"
@@ -281,7 +289,7 @@ def _format_workflow_with_tasks(workflow: WorkflowRequest, row_formatter, base_u
     rows = _format_workflow_row(workflow, row_formatter, base_url, stalled_days)
     
     if include_tasks and workflow.tasks:
-        task_rows = [_format_task_row(task) for task in workflow.tasks]
+        task_rows = [_format_task_row(task, base_url) for task in workflow.tasks]
         rows += "".join(task_rows)
     
     return rows
@@ -304,7 +312,7 @@ def _add_exceeded_link_if_needed(table: str, workflows: List[WorkflowRequest], t
     if len(workflows) <= 20:
         return table
     
-    column_count = 11 if include_tasks else 5
+    column_count = 9 if include_tasks else 5
     workflow_type = title.lower().replace("## ", "").split(" ")[0]
     link_text = f"View all {workflow_type} requests"
     return _add_list_exceeded_row(table, base_url, link_text, column_count)
@@ -420,7 +428,7 @@ def _format_completed_extended_row(workflow: WorkflowRequest, base_url: str) -> 
     duration_str = f"{workflow.duration_days} days" if workflow.duration_days is not None else "Unknown"
     total_tasks_str = f"{workflow.total_tasks} tasks"
     
-    return f"| {workflow.workflow_id} | {title_link} | {workflow.state} | {created_by} | {completed_str} | {duration_str} | {total_tasks_str} | | | | | |\n"
+    return f"| {title_link} | {workflow.state} | {created_by} | {completed_str} | {duration_str} | {total_tasks_str} | | | | |\n"
 
 
 def format_completed_workflows_table(workflows: List[WorkflowRequest], base_url: str, include_tasks: bool = False) -> str:

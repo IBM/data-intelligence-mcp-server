@@ -158,7 +158,11 @@ async def _check_if_onboarding_job_is_completed(
 
 
 @service_registry.tool(
-    name="text_to_sql_check_if_onboarding_job_is_completed",
+    name="check_if_onboarding_job_is_completed",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Check Text-to-SQL Onboarding Job Status for a Project or Catalog"
+    },
     description="This tool checks if the onboarding job for enabling Text to SQL is completed.",
 )
 @auto_context

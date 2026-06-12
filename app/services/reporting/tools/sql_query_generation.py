@@ -101,7 +101,7 @@ async def _sql_query_generation(
         ExternalAPIError: If the API call to generate SQL fails.
     """
     LOGGER.info(
-        f"Starting reporting_sql_query_generation for project_name={request.project_name}, "
+        f"Starting generate_reporting_sql_query for project_name={request.project_name}, "
         f"query={request.query}, instructions={request.instructions}, raw_output={request.raw_output}"
     )
 
@@ -200,7 +200,7 @@ async def _sql_query_generation(
     generated_sql_query = _escape_sql_quotes(generated_sql_queries[0].get("sql"))
 
     LOGGER.info(
-        f"Successfully generated SQL query via reporting_sql_query_generation for project {project_id}"
+        f"Successfully generated SQL query via generate_reporting_sql_query for project {project_id}"
     )
 
     return SqlQueryGenerationResponse(
@@ -212,8 +212,12 @@ async def _sql_query_generation(
 
 
 @service_registry.tool(
-    name="reporting_sql_query_generation",
+    name="generate_reporting_sql_query",
     description="Generate a SQL query from a natural language input for a given project using a text-to-SQL service for reporting-related use cases. The tool verifies reporting service connectivity, resolves the project ID, and generates the SQL query based on the project context and SQL dialect.",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Generate SQL Query from Natural Language for Reporting"
+    },
 )
 @auto_context
 async def sql_query_generation(

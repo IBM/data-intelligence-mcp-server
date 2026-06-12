@@ -222,7 +222,7 @@ async def _call_get_lineage_graph(
     
     Args:
         lineage_ids (Union[str, List[str]]): One or more 64-character hexadecimal lineage IDs
-            (MUST be obtained from search_lineage_assets results or convert_to_lineage_id results)
+            (MUST be obtained from search_lineage_assets results or convert_asset_to_lineage_id results)
         hop_up (Optional[str]): Number of upstream levels to traverse ("0", "1", "3", or "50").
             Use "50" when user mentions "between", "ultimate source", or provides multiple lineage_ids. If only hop_down is specified use "0".
         hop_down (Optional[str]): Number of downstream levels to traverse ("0", "1", "3", or "50").
@@ -333,7 +333,11 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
     )
 
 @service_registry.tool(
-    name="lineage_get_lineage_graph",
+    name="get_lineage_graph",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Get Upstream and Downstream Lineage Graph"
+    },
     description="""Retrieves upstream and downstream lineage graph using 64-character hexadecimal lineage IDs.
     
     This tool generates a data lineage graph showing data flow relationships both upstream
@@ -349,13 +353,13 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
     
     **DO NOT CALL THIS TOOL IF**:
     - You have asset names (e.g., "customer_table") → Call search_lineage_assets first
-    - You have short IDs or UUIDs → Call convert_to_lineage_id first
+    - You have short IDs or UUIDs → Call convert_asset_to_lineage_id first
     - The identifier is not exactly 64 hexadecimal characters → Call search_lineage_assets first
     
     **ONLY CALL THIS TOOL IF**:
     - You have 64-character hexadecimal strings like for example "aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeee11111111112222"
     - You obtained the lineage ID from search_lineage_assets results
-    - You obtained the loneage ID from convert_to_lineage_id results
+    - You obtained the loneage ID from convert_asset_to_lineage_id results
     
     Validation: Before calling this tool, verify each lineage_id:
     - Length is exactly 64 characters
@@ -364,7 +368,7 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
     
     Args:
         lineage_ids (Union[str, List[str]]): One or more 64-character hexadecimal lineage IDs
-            (MUST be obtained from search_lineage_assets results or convert_to_lineage_id results)
+            (MUST be obtained from search_lineage_assets results or convert_asset_to_lineage_id results)
         hop_up (Optional[str]): Number of upstream levels to traverse ("0", "1", "3", or "50").
             Use "50" when user mentions "between", "ultimate source", or provides multiple lineage_ids. If only hop_down is specified use "0".
         hop_down (Optional[str]): Number of downstream levels to traverse ("0", "1", "3", or "50").
@@ -394,8 +398,8 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
         - Return complete results without truncation
         - User can ask for ultimate target and/or source. The workflow is the same as asking for lineage graph.
         - Ultimate should be set to "both" only if user asks for ultimate source and target
-        - If user is attempting to compare two versions, lineage_get_lineage_versions needs to be called first
-        - If the lineage_get_lineage_versions is called first - pick first and last date from the list
+        - If user is attempting to compare two versions, list_lineage_versions needs to be called first
+        - If the list_lineage_versions is called first - pick first and last date from the list
     
     Example Workflow:
         User: "Show me the lineage for customer_table"
@@ -421,7 +425,7 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
         6. Search for PRODUCTS_VIEW in response and return the path from PRODUCTS_VIEW_BODY to the user
     Example Workflow 4:
         User: "Get lineage for LOAD_ACCOUNT_TYPES. What changed between 2024 and 2025?"
-        1. Call lineage_get_lineage_versions(since="2024Z",until="2025Z")
+        1. Call list_lineage_versions(since="2024Z",until="2025Z")
         2. Extract first and last value from the list
         3. Call search_lineage_assets(name_query="LOAD_ACCOUNT_TYPES")
         4. Extract lineage ID from results: "75a06535eb329a6b..."

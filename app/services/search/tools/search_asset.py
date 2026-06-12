@@ -125,6 +125,10 @@ async def _search_asset(
 
 @service_registry.tool(
     name="search_asset",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Semantic Search for Data Assets Across Catalogs and Projects"
+    },
     description="""Understand user's request about searching data assets and return list of retrieved assets.
                        This function takes a user's search prompt as input and may take container type: project or catalog. Default container type to catalog.
                        It then returns list of asset that has been found.

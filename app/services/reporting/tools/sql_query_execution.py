@@ -173,7 +173,11 @@ async def _sql_query_execution(
 
 
 @service_registry.tool(
-    name="reporting_sql_query_execution",
+    name="execute_reporting_select_query",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Execute Reporting Select Query"
+    },
     description="Execute a user-provided SQL SELECT query against a tenant-specific reporting database. This tool enforces read-only access (only SELECT statements) and includes basic query validation for safety.",
 )
 @auto_context

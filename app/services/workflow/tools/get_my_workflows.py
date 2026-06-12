@@ -220,6 +220,8 @@ async def _retrieve_my_workflows(
     
     url=f"{tool_helper_service.base_url}{WORKFLOW_BASE_ENDPOINT}"
 
+    params['include_user_tasks'] = include_tasks
+
     # When workflow_id is specified, ignore other filters
     if workflow_id:
         url=f"{tool_helper_service.base_url}{WORKFLOW_BASE_ENDPOINT}/{workflow_id}"
@@ -253,8 +255,13 @@ async def _retrieve_my_workflows(
             # Get tasks if requested
             tasks = None
             if include_tasks:
-                LOGGER.info(f"  Retrieving tasks for workflow {wf_id}")
-                tasks = await _get_tasks_for_workflow(wf_id)
+                task_list = workflow_data.get("entity", {}).get("user_tasks", [])
+
+                tasks = []
+                for task_data in task_list:
+                    task = await _create_task_detail(task_data)
+                    tasks.append(task)
+
                 LOGGER.info(f"  Retrieved {len(tasks)} tasks")
             
             # Create workflow object with parsed name and optional tasks
@@ -553,6 +560,7 @@ def _calculate_workflow_metrics(workflow_data: dict, tasks: List[TaskDetail], st
 def _build_workflow_query_params(
     max_results: Optional[int],
     state: Optional[str],
+    include_tasks: Optional[bool],
     workflow_id: Optional[str]
 ) -> dict:
     """
@@ -561,12 +569,15 @@ def _build_workflow_query_params(
     Args:
         max_results: Maximum number of workflows to return
         state: Filter by state
+        include_tasks: Include user task data
         workflow_id: Specific workflow ID to query
         
     Returns:
         Dictionary of query parameters
     """
     params = {}
+
+    params['include_user_tasks'] = include_tasks
     
     if workflow_id:
         params['workflow_id'] = workflow_id
@@ -611,8 +622,17 @@ async def _create_workflow_request(
     if workflow_name == DEFAULT_WORKFLOW_NAME:
         workflow_name = entity.get("name", DEFAULT_WORKFLOW_NAME)
     
-    # Get tasks for this workflow
-    tasks = await _get_tasks_for_workflow(wf_id)
+    # Get tasks from workflow data
+    task_list = workflow_data.get("entity", {}).get("user_tasks", [])
+
+    tasks = []
+    for task_data in task_list:
+        task = await _create_task_detail(task_data)
+        tasks.append(task)
+
+    LOGGER.info(f"  Retrieved {len(tasks)} tasks")
+        
+    # Create workflow object with parsed name and optional tasks
     
     # Calculate metrics
     metrics = _calculate_workflow_metrics(workflow_data, tasks, stalled_days)
@@ -666,7 +686,7 @@ async def _retrieve_my_workflows_deep_dive(
     Returns:
         List of WorkflowRequest objects
     """
-    params = _build_workflow_query_params(max_results, state, workflow_id)
+    params = _build_workflow_query_params(max_results, state, True, workflow_id) # always include task data
     
     try:
         response = await tool_helper_service.execute_get_request(
@@ -706,38 +726,54 @@ def _calculate_task_counts(tasks: List[TaskDetail]) -> tuple[int, int, int, int]
     return total, completed, in_progress, pending
 
 
-def _format_workflow_row_basic(wf: Workflow) -> str:
+def _format_workflow_row_basic(wf: Workflow, base_url: str) -> str:
     """
     Format a workflow row for basic table (without tasks).
     
     Args:
         wf: Workflow object
+        base_url: Base URL for constructing workflow links
         
     Returns:
         Formatted table row string
     """
+    from app.services.workflow.utils.workflow_request_formatters import build_workflow_url
+    from app.services.workflow.utils.task_formatters import calculate_task_age
+    
+    workflow_url = build_workflow_url(base_url, wf.workflow_id)
+    workflow_link = f"[{wf.name}]({workflow_url})"
     created_by = wf.created_by or "-"
-    return f"| {wf.workflow_id} | {wf.name} | {wf.state} | {created_by} |\n"
+    age = calculate_task_age(wf.created_at)
+    created_on = wf.created_at.strftime("%Y-%m-%d")
+    return f"| {workflow_link} | {wf.state} | {created_by} | {age} | {created_on} |\n"
 
 
-def _format_workflow_row_with_tasks(wf: Workflow) -> str:
+def _format_workflow_row_with_tasks(wf: Workflow, base_url: str) -> str:
     """
     Format a workflow row for extended table (with task statistics).
     
     Args:
         wf: Workflow object
+        base_url: Base URL for constructing workflow links
         
     Returns:
         Formatted table row string
     """
+    from app.services.workflow.utils.workflow_request_formatters import build_workflow_url
+    from app.services.workflow.utils.task_formatters import calculate_task_age
+    
+    workflow_url = build_workflow_url(base_url, wf.workflow_id)
+    workflow_link = f"[{wf.name}]({workflow_url})"
     created_by = wf.created_by or "-"
+    age = calculate_task_age(wf.created_at)
     
     if wf.tasks:
         total, completed, in_progress, pending = _calculate_task_counts(wf.tasks)
     else:
         total, completed, in_progress, pending = 0, 0, 0, 0
     
-    return f"| {wf.workflow_id} | {wf.name} | {wf.state} | {created_by} | {total} | {completed} | {in_progress} | {pending} |\n"
+    created_on = wf.created_at.strftime("%Y-%m-%d")
+    return f"| {workflow_link} | {wf.state} | {created_by} | {age} | {created_on} | {total} | {completed} | {in_progress} | {pending} |\n"
 
 
 def _build_light_mode_response(workflows: List[Workflow]) -> GetMyWorkflowsResponse:
@@ -751,6 +787,7 @@ def _build_light_mode_response(workflows: List[Workflow]) -> GetMyWorkflowsRespo
         GetMyWorkflowsResponse for light mode
     """
     formatted_output = None
+    base_url = str(tool_helper_service.base_url)
     
     if workflows:
         # Check if any workflow has tasks to determine table format
@@ -758,14 +795,14 @@ def _build_light_mode_response(workflows: List[Workflow]) -> GetMyWorkflowsRespo
         
         if has_tasks:
             # Extended table with task information
-            header = "## Workflows\n\n| Workflow ID | Name | State | Created By | Total Tasks | Completed | In Progress | Pending |\n"
-            separator = "|-------------|------|-------|------------|-------------|-----------|-------------|----------|\n"
-            rows = "".join(_format_workflow_row_with_tasks(wf) for wf in workflows)
+            header = "## Workflows\n\n| Workflow Request | State | Created By | Age | Created On | Total Tasks | Completed | In Progress | Pending |\n"
+            separator = "|------------------|-------|------------|-----|------------|-------------|-----------|-------------|----------|\n"
+            rows = "".join(_format_workflow_row_with_tasks(wf, base_url) for wf in workflows)
         else:
             # Simple table without tasks
-            header = "## Workflows\n\n| Workflow ID | Name | State | Created By |\n"
-            separator = "|-------------|------|-------|------------|\n"
-            rows = "".join(_format_workflow_row_basic(wf) for wf in workflows)
+            header = "## Workflows\n\n| Workflow Request | State | Created By | Age | Created On |\n"
+            separator = "|------------------|-------|------------|-----|------------|\n"
+            rows = "".join(_format_workflow_row_basic(wf, base_url) for wf in workflows)
         
         formatted_output = f"{header}{separator}{rows}\nTotal: {len(workflows)} workflow(s)"
     
@@ -849,11 +886,11 @@ get_my_workflows_description="""
     Retrieve workflows initiated by current user.
 
     This tool fetches workflow instances that you have created/initiated, with two modes:
-    - Light mode (deep_dive=False): Returns basic workflow information for quick overview
+    - Light mode (deep_dive=False): Returns basic workflow information for quick overview. If called in light mode, ask the user whether he would like to see the details.
     - Deep dive mode (deep_dive=True): Returns comprehensive analysis with task details, activity tracking, and metrics
     If you find markdown text in the result show it to the user.
 
-    This is different from get_workflow_tasks_from_my_inbox which shows tasks assigned to you by others.
+    This is different from get_my_workflow_inbox_tasks which shows tasks assigned to you by others.
 
     Make sure to use a request json object for the parameters.
     """
@@ -878,7 +915,7 @@ async def _get_my_workflows(
         f"state: {request.state}, "
         f"deep_dive: {request.deep_dive}"
     )
-    
+
     # Auto-detect clients that don't support rich text and switch to JSON format if needed
     # Some clients don't handle markdown tables well, so we default to JSON
     if (ctx is None or not supports_rich_text_format(ctx)) and request.deep_dive and request.format == "table":
@@ -925,6 +962,10 @@ async def _get_my_workflows(
 
 @service_registry.tool(
     name="get_my_workflows",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Get and Monitor My Initiated Workflows with Comprehensive Analytics"
+    },
     description=get_my_workflows_description,
     tags={"workflow", "flowable", "governance", "glossary", "my_workflows"},
     meta={"version": "2.0", "service": "workflows"},

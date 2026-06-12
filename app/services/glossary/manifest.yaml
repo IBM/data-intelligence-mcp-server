@@ -15,7 +15,7 @@ system_instructions: |
     - Users want to understand what a specific glossary artifact means or represents
     - Users want to auto-generate descriptions using AI if metadata descriptions are missing
   
-  2. get_glossary_artifacts_for_asset: Use when:
+  2. get_asset_glossary_artifacts: Use when:
     - Retrieve all business terms and classifications assigned to a specific asset.
     - Users want to see what business terms or classifications are associated with a data asset
   
@@ -26,7 +26,7 @@ system_instructions: |
     - Users ask about required columns, allowed values, or CSV constraints
     - Returns comprehensive schema information including required/optional columns, allowed values, examples, and validation rules
   
-  4. glossary_csv_import: Use when:
+  4. import_glossary_from_csv: Use when:
     - Users want to import glossary terms and categories from CSV files
     - You need to validate CSV content before importing (use validate_only=true)
     - Users provide CSV content to be imported into the glossary

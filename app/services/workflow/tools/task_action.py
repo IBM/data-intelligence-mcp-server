@@ -28,6 +28,7 @@ from app.services.workflow.utils.task_utils import _parse_task_title_from_json
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.llm_utils import client_supports_elicitation
 from app.shared.utils.tool_helper_service import tool_helper_service
+from app.shared.utils.client_detection import MinimalContext
 
 from fastmcp.exceptions import ToolError
 from fastmcp.server.context import Context
@@ -82,7 +83,7 @@ async def _get_task_details(task_id: str) -> Dict[str, Any]:
     try:
         response = await tool_helper_service.execute_get_request(
             url=f"{tool_helper_service.base_url}{WORKFLOW_TASK_ENDPOINT}/{task_id}",
-            tool_name="task_action"
+            tool_name="perform_workflow_task_action"
         )
         return response
     except Exception as e:
@@ -1055,7 +1056,7 @@ async def _perform_claim_or_complete(
         response = await tool_helper_service.execute_post_request(
             url=f"{tool_helper_service.base_url}{WORKFLOW_TASK_ENDPOINT}/{task_id}/actions",
             json=request_body,
-            tool_name="task_action"
+            tool_name="perform_workflow_task_action"
         )
         
         # If we reach here, the request was successful (2xx status)
@@ -1104,7 +1105,7 @@ async def _perform_unclaim(task_id: str) -> int:
         response = await tool_helper_service.execute_post_request(
             url=f"{tool_helper_service.base_url}{WORKFLOW_TASK_ENDPOINT}/unclaim",
             json=request_body,
-            tool_name="task_action"
+            tool_name="perform_workflow_task_action"
         )
         
         # Extract status code from response if available
@@ -1556,8 +1557,8 @@ task_action_description="""
     If the user explicitly provided partial completion input, include only that user-provided input and let elicitation
     collect the rest.
     
-    Never choose approval, rejection, or any other workflow form action on behalf of the user.
-    Never generate a justification comment on behalf of the user.
+    NEVER choose approval, rejection, or any other workflow form action on behalf of the user.
+    NEVER generate a justification comment on behalf of the user.
     If retry instructions say the server will restore a preserved action automatically, provide only the missing
     user-supplied field(s), such as comment, and do not add any other form values.
     
@@ -1612,19 +1613,23 @@ async def _task_action(
 
 
 @service_registry.tool(
-    name="task_action",
+    name="perform_workflow_task_action",
+    annotations={
+        "title": "Perform Actions on Workflow Tasks: Claim, Complete, or Unclaim",
+        "destructiveHint": True
+    },
     description=task_action_description,
     tags={"workflow", "flowable", "tasks", "governance"},
-    meta={"version": "1.0", "service": "task_action"},
+    meta={"version": "1.0", "service": "perform_workflow_task_action"},
 )
 @auto_context
-async def task_action(
+async def perform_workflow_task_action(
     task_id: str,
     action: str = "claim",
     form_values: Optional[Dict[str, str]] = None,
     ctx: Context = None
 ) -> TaskActionResponse:
-    """Wrapper version of task_action."""
+    """Wrapper version of perform_workflow_task_action."""
     
     request = TaskActionRequest(task_id=task_id, action=action, form_values=form_values)
     
@@ -1633,11 +1638,4 @@ async def task_action(
         return await _task_action(request, ctx)
     
     # Fallback for wxo version or when context is not available
-    class MinimalContext:
-        def elicit(self, message, response_type):  # not async as stub
-            # Skip elicitation for wrapper version - synchronous mock
-            LOGGER.info(f"Empty elicitation {message}, {response_type}")
-            # Return a mock response that matches the expected async interface
-            return type('MockResponse', (), {'action': 'decline', 'data': None})()
-    
     return await _task_action(request, MinimalContext())

@@ -1,0 +1,11 @@
+{
+  "name": "<USER_PROVIDED_PRODUCT_NAME> (Max length - 256)",
+  "description": "<USER_PROVIDED_DESCRIPTION> (max length - 5000)",
+  "domain": "<USER_PROVIDED_OR_SELECTED_FROM_LIST>",
+  "version": "1.0.0",
+  "tags": ["<USER_PROVIDED_TAGS>"],
+  "use_case": "<USER_PROVIDED_USE_CASE>",
+  "assumptions": [
+    "<USER_PROVIDED_ASSUMPTIONS>"
+  ]
+}

@@ -8,7 +8,7 @@ For glossary objects like data classes and business terms:
 3. NEVER use **get_asset_details** for data classes and business terms
 
 For task inbox management:
-1. Use **get_workflow_tasks_from_my_inbox** to see tasks assigned to you
+1. Use **get_my_workflow_inbox_tasks** to see tasks assigned to you
 2. Use task_title field (e.g., "Review Business term Ager") for display, not task_name
 3. NEVER show user ID numbers - always display user's first and last name
 

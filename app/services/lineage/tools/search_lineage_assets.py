@@ -777,7 +777,11 @@ async def _search_lineage_assets(
 
 
 @service_registry.tool(
-    name="lineage_search_lineage_assets",
+    name="search_lineage_assets",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Search and Filter Lineage Assets by Multiple Criteria"
+    },
     description="""Searches for assets in the Lineage system based on name and optional filters.
     
     This tool finds lineage assets matching the provided name query, with filtering
@@ -797,7 +801,7 @@ async def _search_lineage_assets(
     This tool converts human-readable asset names into the 64-character hexadecimal
     lineage IDs required by get_lineage_graph. Results include the lineage ID in the
     'id' field of each asset.
-    User can ask to compare the state of the asset between two versions returned by lineage_get_lineage_versions - use
+    User can ask to compare the state of the asset between two versions returned by list_lineage_versions - use
     the dates fields then. Otherwise the dates field should be none.
     
     Workflow:

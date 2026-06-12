@@ -2,7 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Literal
+from typing import Literal, Optional
+from datetime import datetime
+
 
 from app.core.registry import service_registry
 from app.shared.logging import LOGGER, auto_context
@@ -16,6 +18,7 @@ from app.services.data_quality.models.get_data_quality_for_asset import (
 from app.services.data_quality.utils.data_quality_common_utils import (
     get_data_quality_for_asset as get_data_quality_for_asset_util,
 )
+
 
 def _format_data_quality_for_table(response: GetDataQualityForAssetResponse) -> list:
     """
@@ -37,19 +40,35 @@ def _format_data_quality_for_table(response: GetDataQualityForAssetResponse) -> 
     for dimension_name, score in response.scores_by_dimension.items():
         formatted_row[dimension_name.capitalize()] = score
     
+    # Add SLA assessment summary if available
+    if response.sla_assessment_summary:
+        summary = response.sla_assessment_summary
+        formatted_row["Matching Data Quality SLAs"] = f"{summary.matching_data_quality_slas} SLA(s)"
+        
+        # Format violations count
+        violations_count = summary.total_data_quality_sla_violations
+        if violations_count > 0:
+            formatted_row["Total Data Quality SLA Violations"] = f"{violations_count} violation(s)"
+        else:
+            formatted_row["Total Data Quality SLA Violations"] = "None"
+        
+        if summary.last_assessment_time:
+            # Format ISO 8601 timestamp to human-readable format
+            try:
+                dt = datetime.fromisoformat(summary.last_assessment_time.replace('Z', '+00:00'))
+                formatted_row["Last Assessment"] = dt.strftime("%B %d, %Y at %-I:%M %p %Z").replace("  ", " ")
+            except (ValueError, AttributeError) as e:
+                LOGGER.warning("Failed to parse timestamp %s: %s", summary.last_assessment_time, str(e))
+                formatted_row["Last Assessment"] = summary.last_assessment_time
+    
     return [formatted_row]
 
-
+    
 async def _get_data_quality_for_asset(request: GetDataQualityForAssetRequest) -> GetDataQualityForAssetResponse:
     """
     Retrieve data quality metrics and information for a specific asset.
     """
-    LOGGER.info(
-        "Getting data quality for asset: asset_id_or_name=%s container_id_or_name=%s container_type=%s",
-        request.asset_id_or_name,
-        request.container_id_or_name,
-        request.container_type
-    )
+    
 
     data_quality = await get_data_quality_for_asset_util(
         asset_id_or_name=request.asset_id_or_name,
@@ -63,6 +82,7 @@ async def _get_data_quality_for_asset(request: GetDataQualityForAssetRequest) ->
         overall=data_quality.overall,
         scores_by_dimension=data_quality.scores_by_dimension,
         report_url=report_url,
+        sla_assessment_summary=data_quality.sla_assessment_summary,
     )
 
     ui_message_context.add_table_ui_message(
@@ -72,10 +92,14 @@ async def _get_data_quality_for_asset(request: GetDataQualityForAssetRequest) ->
     )
 
     return response
-
+    
 
 @service_registry.tool(
     name="get_data_quality_for_asset",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Get Data Quality Metrics and Assessment Scores for Specific Asset"
+    },
     description="""Wrapper for get_data_quality_for_asset.
 
     

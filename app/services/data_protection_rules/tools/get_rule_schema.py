@@ -231,13 +231,17 @@ END OF SCHEMA GUIDE
 
 
 @service_registry.tool(
-    name="get_rule_schema",
+    name="get_data_protection_rule_schema",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Get JSON Schema for Data Protection Rule Creation"
+    },
     description="Returns the complete JSON schema, valid terms, examples, and formatting rules for creating data protection rules. Call this BEFORE creating a rule to understand the correct JSON format.",
     tags={"data_protection_rules", "schema", "reference"},
     meta={"version": "1.0", "service": "data_protection_rules"},
 )
 @auto_context
-async def get_rule_schema() -> str:
+async def get_data_protection_rule_schema() -> str:
     """
     Returns the full JSON schema and examples for data protection rules.
     

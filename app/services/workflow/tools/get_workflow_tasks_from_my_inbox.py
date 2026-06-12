@@ -209,7 +209,7 @@ async def _get_workflow_tasks_from_my_inbox(
         GetMyTasksResponse object containing list of tasks, total count, and optional formatted output
     """
     LOGGER.info(
-        f"Calling get_workflow_tasks_from_my_inbox with "
+        f"Calling get_my_workflow_inbox_tasks with "
         f"max_results: {request.max_results}, "
         f"format: {request.format}"
     )
@@ -251,18 +251,22 @@ async def _get_workflow_tasks_from_my_inbox(
 
 
 @service_registry.tool(
-    name="get_workflow_tasks_from_my_inbox",
+    name="get_my_workflow_inbox_tasks",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Get Workflow Tasks Assigned to Me from My Inbox"
+    },
     description=get_workflow_tasks_from_my_inbox_description,
     tags={"workflow", "flowable", "tasks", "governance", "glossary"},
     meta={"version": "2.0", "service": "task_inbox"},
 )
 @auto_context
-async def get_workflow_tasks_from_my_inbox(
+async def get_my_workflow_inbox_tasks(
     max_results: int = 50,
     format: str = "table",
     ctx: Context = None,
 ) -> GetMyTasksResponse:
-    """Wrapper version of get_workflow_tasks_from_my_inbox."""
+    """Wrapper version of get_my_workflow_inbox_tasks."""
     
     request = GetMyTasksRequest(
         max_results=max_results,

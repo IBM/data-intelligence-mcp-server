@@ -405,7 +405,7 @@ async def _build_subscribed_assets_from_api(
         data_asset_response = await tool_helper_service.execute_get_request(
             url=data_asset_url,
             params=params,
-            tool_name="data_product_get_data_product_details"
+            tool_name="get_data_product_details"
         )
         
         # Extract the asset name from the API response
@@ -457,7 +457,7 @@ async def _get_data_product_subscription_details(
         LOGGER.info(f"Searching for subscriptions: {subscriptions_url}")
         subscriptions_response = await tool_helper_service.execute_get_request(
             url=subscriptions_url,
-            tool_name="data_product_get_data_product_details"
+            tool_name="get_data_product_details"
         )
         LOGGER.info(f"Got subscriptions response: {subscriptions_response}")
         
@@ -478,7 +478,7 @@ async def _get_data_product_subscription_details(
         )
         subscription_response = await tool_helper_service.execute_get_request(
             url=subscription_url,
-            tool_name="data_product_get_data_product_details"
+            tool_name="get_data_product_details"
         )
         items = subscription_response.get(FIELD_ITEMS, [])
 
@@ -530,7 +530,7 @@ async def _search_data_product_by_name(data_product_name: str, catalog_id: str) 
     data_product_details_response = await tool_helper_service.execute_post_request(
         url=data_product_details_url,
         json=search_body,
-        tool_name="data_product_get_data_product_details"
+        tool_name="get_data_product_details"
     )
     LOGGER.info(f"Got product response: {data_product_details_response}")
     
@@ -542,7 +542,7 @@ async def _search_data_product_by_name(data_product_name: str, catalog_id: str) 
         raise ServiceError(
             f"Data product '{data_product_name}' could not be found. "
             f"Please try again with a different name. "
-            f"If necessary, use the MCP tool data_product_search_data_products to perform a search with a query."
+            f"If necessary, use the MCP tool search_data_products to perform a search with a query."
         )
     
     # Extract the data product ID from the first result
@@ -587,7 +587,7 @@ async def _process_part_asset(part: Dict[str, Any], params: Dict[str, str]) -> D
     data_asset_response = await tool_helper_service.execute_get_request(
         url=data_asset_url,
         params=params,
-        tool_name="data_product_get_data_product_details"
+        tool_name="get_data_product_details"
     )
 
     # Extract the asset name and description from metadata
@@ -637,7 +637,7 @@ async def _get_data_product_details(
     column schemas, and subscription details.
     """
     LOGGER.info(
-        f"In data_product_get_data_product_details tool, retrieving details for "
+        f"In get_data_product_details tool, retrieving details for "
         f"data_product_version_id={request.data_product_version_id}, data_product_name={request.data_product_name}"
     )
     
@@ -674,7 +674,7 @@ async def _get_data_product_details(
         )
         release_response = await tool_helper_service.execute_get_request(
             url=release_url,
-            tool_name="data_product_get_data_product_details"
+            tool_name="get_data_product_details"
         )
         LOGGER.info(f"Got release response: {release_response}")
         
@@ -726,7 +726,7 @@ async def _get_data_product_details(
 
 
 @service_registry.tool(
-    name="data_product_get_data_product_details",
+    name="get_data_product_details",
     description="""
     Retrieve comprehensive information about IBM Cloud Data Product Hub data products.
     
@@ -774,7 +774,11 @@ async def _get_data_product_details(
         GetDataProductDetailsResponse: Object containing data_product_details and data_product_subscription_details
     """,
     tags={"read", "data_product"},
-    meta={"version": "1.0", "service": "data_product"}
+    meta={"version": "1.0", "service": "data_product"},
+    annotations={
+        "title": "Get Comprehensive Data Product Information with Subscription and Asset Details",
+        "readOnlyHint": True
+    }
 )
 @auto_context
 async def get_data_product_details(

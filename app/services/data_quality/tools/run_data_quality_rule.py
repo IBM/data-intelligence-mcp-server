@@ -39,6 +39,10 @@ async def _run_data_quality_rule(
 
 @service_registry.tool(
     name="run_data_quality_rule",
+    annotations={
+        "title": "Execute Data Quality Rule to Generate Quality Assessment",
+        "destructiveHint": True
+    },
     description="""Executes a specific data quality rule and returns details about the execution. Use when the user wants to re-run a rule.
     Do NOT use when the user only wants to view rule. Do NOT use for creating, updating, or deleting rules. Do NOT call this tool for describe data quality rules.
     Do NOT use when required parameters (project_id, rule_id) are missing.

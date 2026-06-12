@@ -52,6 +52,10 @@ async def _list_connection_paths(
 
 @service_registry.tool(
     name="list_connection_paths",
+    annotations={
+        "readOnlyHint": True,
+        "title": "List Available Schema and Table Paths from Data Connection"
+    },
     description="""
     List available schema/table paths for a connection.
     

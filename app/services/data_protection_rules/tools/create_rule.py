@@ -42,17 +42,17 @@ WRONG_RULE_FORMAT_MESSAGE_TEMPLATE = (
 
 RULE_CREATION_DESCRIPTION = """Create a data protection rule from JSON string.
 
-⚠️ IMPORTANT: Call get_rule_schema() FIRST to get the JSON format, valid terms, and examples.
+⚠️ IMPORTANT: Call get_data_protection_rule_schema() FIRST to get the JSON format, valid terms, and examples.
 
 This tool accepts a JSON string defining the rule and creates it in the system.
 
 WORKFLOW:
-1. FIRST: Call get_rule_schema() to understand the JSON format
+1. FIRST: Call get_data_protection_rule_schema() to understand the JSON format
 2. THEN: Call this tool with preview_only=true (default) to preview the rule
 3. FINALLY: After user confirms, call again with preview_only=false to create
 
 Args:
-    rule_json: JSON string defining the rule (get format from get_rule_schema())
+    rule_json: JSON string defining the rule (get format from get_data_protection_rule_schema())
     preview_only: If true (default), shows preview. If false, creates the rule.
 
 Returns:
@@ -180,6 +180,10 @@ async def _create_data_protection_rule(request: CreateRuleRequest) -> CreateRule
     description=RULE_CREATION_DESCRIPTION,
     tags={"create", "data_protection_rules", "json", "llm_integration"},
     meta={"version": "2.0", "service": "data_protection_rules"},
+    annotations={
+        "title": "Creates a data protection rule from a JSON string",
+        "destructiveHint": True
+    }
 )
 @auto_context
 async def create_data_protection_rule(

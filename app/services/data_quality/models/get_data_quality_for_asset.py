@@ -4,9 +4,9 @@
 
 from pydantic import BaseModel, Field
 from app.shared.models import BaseResponseModel
-from typing import Dict, Literal
+from typing import Dict, Literal, Optional
 
-
+from app.services.data_quality.models.data_quality import SlaAssessmentSummary
 class GetDataQualityForAssetRequest(BaseModel):
     """Request model for getting data quality for an asset."""
     
@@ -33,9 +33,13 @@ class GetDataQualityForAssetResponse(BaseResponseModel):
     """
     
     overall: str = Field(..., description="Overall quality score (percentage)")
+
     scores_by_dimension: Dict[str, str] = Field(
         default_factory=dict,
         description="Dictionary of dimension names to their scores (percentages). "
                     "Common dimensions: consistency, validity, completeness, timeliness, accuracy"
     )
     report_url: str = Field(..., description="Link to detailed quality dashboard")
+    sla_assessment_summary: Optional[SlaAssessmentSummary] = Field(
+        None, description="Summary of SLA assessments for this asset"
+    )

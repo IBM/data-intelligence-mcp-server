@@ -7,9 +7,16 @@ from app.services.projects.models.add_or_edit_collaborator import (
     CollaboratorMember,
 )
 from app.core.auth import get_bss_account_id
-from app.shared.utils.helpers import is_uuid, get_exact_or_fuzzy_matches
-from app.shared.exceptions.base import ServiceError, ExternalAPIError
-from app.services.tool_utils import is_project_exist_by_name, is_project_exist_by_id
+from app.shared.utils.helpers import is_uuid_bool, get_exact_or_fuzzy_matches
+from app.shared.exceptions.base import ServiceError
+from app.services.tool_utils import (
+    is_project_exist_by_name,
+    is_project_exist_by_id,
+    is_catalog_exist_by_name,
+    is_catalog_exist_by_id,
+    build_container_members_url
+)
+from app.services.constants import CATALOGS_BASE_ENDPOINT, PROJECTS_BASE_ENDPOINT
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service , create_default_headers
 from typing import List, Dict, Set, Sequence, Optional, Literal, cast
@@ -45,38 +52,46 @@ def create_collaborator_members(users: List[Dict]) -> List[CollaboratorMember]:
 
 async def _add_or_edit_collaborator(request: AddOrEditCollaboratorRequest) -> AddOrEditCollaboratorResponse:
     """
-    Add or update collaborators in a project with intelligent user/group search and validation.
+    Add or update collaborators in a project or catalog with intelligent user/group search and validation.
     
-    This function performs comprehensive validation including project existence verification,
+    This function performs comprehensive validation including container existence verification,
     member detection, and fuzzy matching for user/group identification. It automatically
     determines whether to add new members or update existing ones based on their current
     membership status.
     
     Args:
         request: AddOrEditCollaboratorRequest containing:
-            - project_identifier: Project name or UUID
+            - container_identifier: Project or catalog name or UUID
+            - container_type: Type of container ('project' or 'catalog')
             - user_names: List of user/group names or emails to add or update
             - role: List of roles to assign (admin, editor, viewer)
             - type: List of member types ('user' or 'group'), one for each user_name. Optional, defaults to 'user' for all.
         
     Returns:
         AddOrEditCollaboratorResponse containing:
-            - project_id: The validated project UUID
+            - container_id: The validated container UUID
+            - container_type: The type of container
             - added_members: List of successfully added/updated collaborators
             - message: Detailed success message with member summary
         
     Raises:
-        ValueError: When project doesn't exist or API operations fail
+        ValueError: When container doesn't exist or API operations fail
         ServiceError: When multiple matches are found requiring user clarification
     """
-    # Validate and get project ID
-    project_id = await validate_and_get_project_id(request.project_identifier)
+    # Validate and get container ID
+    container_id = await validate_and_get_container_id(
+        request.container_identifier,
+        request.container_type
+    )
 
     # Get account ID for user search
     account_id = await get_bss_account_id()
 
     # Get existing members to determine add vs update (use set for O(1) lookup)
-    existing_members, existing_member_ids = await get_existing_members_data(project_id)
+    existing_members, existing_member_ids = await get_existing_members_data(
+        container_id,
+        request.container_type
+    )
 
     # Search and validate users/groups
     # Type should never be None at this point due to model validator, but we handle it for safety
@@ -95,20 +110,20 @@ async def _add_or_edit_collaborator(request: AddOrEditCollaboratorRequest) -> Ad
             "Please verify the user list is correct."
         )
 
-    # Validate that the project will have at least one admin after the operation
+    # Validate that the container will have at least one admin after the operation
     await validate_admin_requirement(existing_members, users_to_add, users_to_update)
 
     # Prepare members for API calls using helper function to avoid duplication
     members_to_add = create_collaborator_members(users_to_add)
     members_to_update = create_collaborator_members(users_to_update)
 
-    # Add new members to project via POST API
+    # Add new members to container via POST API
     if members_to_add:
-        await add_members_to_project(project_id, members_to_add)
+        await add_members_to_container(container_id, members_to_add, request.container_type)
 
     # Update existing members via PATCH API
     if members_to_update:
-        await update_members_in_project(project_id, members_to_update)
+        await update_members_in_container(container_id, members_to_update, request.container_type)
 
     # Combine all processed members for response
     all_members = members_to_add + members_to_update
@@ -127,6 +142,7 @@ async def _add_or_edit_collaborator(request: AddOrEditCollaboratorRequest) -> Ad
     # Create detailed success message
     added_count = len(members_to_add)
     updated_count = len(members_to_update)
+    container_name = request.container_type
     
     message_parts = []
     if added_count > 0:
@@ -139,61 +155,111 @@ async def _add_or_edit_collaborator(request: AddOrEditCollaboratorRequest) -> Ad
         updated_word = "collaborator" if updated_count == 1 else "collaborators"
         message_parts.append(f"Updated {updated_count} {updated_word}: {updated_summary}")
     
-    message = f"✓ Successfully processed collaborators. {'. '.join(message_parts)}."
+    message = f"✓ Successfully processed collaborators in {container_name}. {'. '.join(message_parts)}."
 
     LOGGER.info(message)
 
     return AddOrEditCollaboratorResponse(
-        project_id=project_id,
+        container_id=container_id,
+        container_type=request.container_type,
         added_members=response_members,
         message=message,
     )
 
-async def validate_and_get_project_id(project_identifier: str) -> str:
+
+async def _validate_container_by_id(container_id: str, container_type: str) -> None:
     """
-    Validate that the specified project exists and retrieve its UUID.
-    
-    Accepts either a project UUID or project name. When a name is provided,
-    performs a lookup to find the corresponding project ID.
+    Validate that a container exists by its UUID.
     
     Args:
-        project_identifier: Either a project UUID or project name
-        
-    Returns:
-        str: The validated project UUID
+        container_id: Container UUID to validate
+        container_type: Type of container ('project' or 'catalog')
         
     Raises:
-        ValueError: When the project cannot be found by ID or name
+        ValueError: When the container does not exist
     """
-    try:
-        # Check if it's a UUID
-        is_uuid(project_identifier)
-        if not await is_project_exist_by_id(project_identifier):
+    if container_type == "project":
+        if not await is_project_exist_by_id(container_id):
             raise ValueError(
-                f"Project with ID '{project_identifier}' does not exist. "
+                f"Project with ID '{container_id}' does not exist. "
                 f"Please verify the project ID is correct and you have access to it."
             )
-        return project_identifier
-    except ServiceError:
-        # Not a UUID, try as project name
-        is_exist, _ , project_id = await is_project_exist_by_name(project_identifier)
-        if is_exist:
-            return project_id
-        else:
+    else:  # catalog
+        if not await is_catalog_exist_by_id(container_id):
             raise ValueError(
-                f"Project '{project_identifier}' could not be found. "
-                f"Please verify the project name is spelled correctly and you have access to it."
+                f"Catalog with ID '{container_id}' does not exist. "
+                f"Please verify the catalog ID is correct and you have access to it."
             )
 
-async def get_existing_members_data(project_id: str) -> tuple[List[Dict], Set[str]]:
+
+async def _find_container_by_name(container_identifier: str, container_type: str) -> str:
     """
-    Retrieve all existing members from a project with their roles and IDs.
+    Find a container by its name and return its UUID.
+    
+    Args:
+        container_identifier: Container name
+        container_type: Type of container ('project' or 'catalog')
+        
+    Returns:
+        str: The container UUID
+        
+    Raises:
+        ValueError: When the container cannot be found
+    """
+    if container_type == "project":
+        is_exist, _, container_id = await is_project_exist_by_name(container_identifier)
+        if is_exist:
+            return container_id
+        raise ValueError(
+            f"Project '{container_identifier}' could not be found. "
+            f"Please verify the project name is spelled correctly and you have access to it."
+        )
+    else:  # catalog
+        is_exist, _, container_id = await is_catalog_exist_by_name(container_identifier)
+        if is_exist:
+            return container_id
+        raise ValueError(
+            f"Catalog '{container_identifier}' could not be found. "
+            f"Please verify the catalog name is spelled correctly and you have access to it."
+        )
+
+
+async def validate_and_get_container_id(container_identifier: str, container_type: str) -> str:
+    """
+    Validate that the specified container (project or catalog) exists and retrieve its UUID.
+    
+    Accepts either a container UUID or container name. When a name is provided,
+    performs a lookup to find the corresponding container ID.
+    
+    Args:
+        container_identifier: Either a container UUID or container name
+        container_type: Type of container ('project' or 'catalog')
+        
+    Returns:
+        str: The validated container UUID
+        
+    Raises:
+        ValueError: When the container cannot be found by ID or name
+    """
+    # Check if it's a UUID
+    if is_uuid_bool(container_identifier):
+        await _validate_container_by_id(container_identifier, container_type)
+        return container_identifier
+    
+    # Not a UUID, treat as container name
+    return await _find_container_by_name(container_identifier, container_type)
+
+
+async def get_existing_members_data(container_id: str, container_type: str) -> tuple[List[Dict], Set[str]]:
+    """
+    Retrieve all existing members from a container (project or catalog) with their roles and IDs.
     
     Returns both the full member list and a set of member IDs for efficient operations.
     The ID set uses O(1) lookup performance for duplicate detection.
     
     Args:
-        project_id: The UUID of the project to query
+        container_id: The UUID of the container to query
+        container_type: Type of container ('project' or 'catalog')
         
     Returns:
         tuple[List[Dict], Set[str]]: A tuple containing:
@@ -201,23 +267,49 @@ async def get_existing_members_data(project_id: str) -> tuple[List[Dict], Set[st
             - Set of all existing member IDs for O(1) lookup
         
     Raises:
-        ValueError: When unable to retrieve project members due to API failure or permission issues
+        ValueError: When unable to retrieve container members due to API failure or permission issues
     """
-    url = f"{tool_helper_service.base_url}/v2/projects/{project_id}/members"
+    # Build URL based on container type
+    url = build_container_members_url(container_id, container_type)
     
     try:
         response = await tool_helper_service.execute_get_request(
             url=url, tool_name="add_or_edit_collaborator"
         )
         members = response.get("members", [])
-        member_ids = {member["id"] for member in members}
+        
+        # For catalogs, use user_iam_id and access_group_id; for projects, use id
+        if container_type == "catalog":
+            member_ids = {
+                member.get("user_iam_id") or member.get("access_group_id")
+                for member in members
+                if member.get("user_iam_id") or member.get("access_group_id")
+            }
+        else:
+            member_ids = {member["id"] for member in members}
+        
         return members, member_ids
-    except ExternalAPIError as e:
-        LOGGER.error(f"Unable to retrieve project members: {str(e)}")
+    except Exception as e:
+        LOGGER.error(f"Unable to retrieve {container_type} members: {str(e)}")
         raise ValueError(
-            f"Could not retrieve the member list for project '{project_id}'. "
-            f"Please ensure you have the necessary permissions to view project members."
+            f"Could not retrieve the member list for {container_type} '{container_id}'. "
+            f"Please ensure you have the necessary permissions to view {container_type} members."
         )
+
+
+def get_member_id(member: Dict) -> str:
+    """
+    Get the member ID from a member dict, handling both project and catalog formats.
+    
+    Projects use 'id' field, catalogs use 'user_iam_id' or 'access_group_id'.
+    
+    Args:
+        member: Member dictionary from API response
+        
+    Returns:
+        The member's ID
+    """
+    return member.get("id") or member.get("user_iam_id") or member.get("access_group_id", "")
 
 
 async def validate_admin_requirement(
@@ -226,26 +318,26 @@ async def validate_admin_requirement(
     users_to_update: List[Dict]
 ) -> None:
     """
-    Validate that the project will have at least one admin user after the operation.
+    Validate that the container will have at least one admin user after the operation.
     
     This function checks:
-    1. Current admin users in the project
+    1. Current admin users in the container
     2. Whether any existing admins are being changed to non-admin roles
     3. Whether any new admins are being added
     4. Ensures at least one admin remains after the operation
     
     Args:
-        existing_members: List of current project members with their roles
+        existing_members: List of current container members with their roles
         users_to_add: List of new users being added
         users_to_update: List of existing users being updated
         
     Raises:
-        ValueError: When the operation would result in a project with no admin users
+        ValueError: When the operation would result in a container with no admin users
     """
     
-    # Get current admin member IDs
+    # Get current admin member IDs (works for both projects and catalogs)
     current_admin_ids = {
-        member["id"] for member in existing_members
+        get_member_id(member) for member in existing_members
         if member.get("role") == "admin"
     }
     
@@ -275,8 +367,8 @@ async def validate_admin_requirement(
     
     if total_admins_after == 0:
         raise ValueError(
-            "Cannot complete this operation: The project must have at least one admin user. "
-            "This operation would result in a project with no admin users. "
+            "Cannot complete this operation: The project or catalog must have at least one admin user. "
+            "This operation would result in a project or catalog with no admin users. "
             "Please ensure at least one user has the 'admin' role."
         )
     
@@ -357,17 +449,18 @@ async def search_and_validate_members(
     return users_to_add, users_to_update
 
 
-async def add_members_to_project(
-    project_id: str, members: List[CollaboratorMember]
+async def add_members_to_container(
+    container_id: str, members: List[CollaboratorMember], container_type: str
 ) -> dict:
     """
-    Add validated members to a project through the Data Intelligence API.
+    Add validated members to a container (project or catalog) through the Data Intelligence API.
     
     Sends a batch request to add all specified members with their assigned roles.
     
     Args:
-        project_id: The UUID of the project to add members to
+        container_id: The UUID of the container to add members to
         members: List of CollaboratorMember objects containing user details and roles
+        container_type: Type of container ('project' or 'catalog')
         
     Returns:
         dict: The API response containing confirmation of added members
@@ -375,39 +468,56 @@ async def add_members_to_project(
     Raises:
         ValueError: When the API call fails due to permission issues or invalid data
     """
-    url = f"{tool_helper_service.base_url}/v2/projects/{project_id}/members"
+    # Build URL based on container type
+    url = build_container_members_url(container_id, container_type)
     
-    # Prepare payload
-    payload = {"members": [member.model_dump() for member in members]}
+    # Prepare payload - for catalogs, map id to user_iam_id or access_group_id
+    if container_type == "catalog":
+        payload_members = []
+        for member in members:
+            member_dict = {}
+            # Map 'id' to appropriate catalog field based on member type
+            if member.type == "group":
+                member_dict["access_group_id"] = member.id
+            else:
+                member_dict["user_iam_id"] = member.id
+            # Add role field
+            member_dict["role"] = member.role
+            payload_members.append(member_dict)
+        payload = {"members": payload_members}
+    else:
+        payload = {"members": [member.model_dump() for member in members]}
     
     member_word = "member" if len(members) == 1 else "members"
-    LOGGER.info(f"Adding {len(members)} {member_word} to project {project_id}")
+    LOGGER.info(f"Adding {len(members)} {member_word} to {container_type} {container_id}")
     
     try:
         response = await tool_helper_service.execute_post_request(
             url=url, json=payload, tool_name="add_or_edit_collaborator"
         )
         return response
-    except ExternalAPIError as e:
-        LOGGER.error(f"API error while adding members to project: {str(e)}")
+    except Exception as e:
+        LOGGER.error(f"API error while adding members to {container_type}: {str(e)}")
         raise ValueError(
-            f"Unable to add collaborators to project '{project_id}'. "
-            f"Please ensure you have admin or editor permissions for this project."
+            f"Unable to add collaborators to {container_type} '{container_id}'. "
+            f"Please ensure you have admin or editor permissions for this {container_type}."
         )
 
 
-async def update_members_in_project(
-    project_id: str, members: List[CollaboratorMember]
+async def update_members_in_container(
+    container_id: str, members: List[CollaboratorMember], container_type: str
 ) -> dict:
     """
-    Update existing members' roles in a project through the Data Intelligence API.
+    Update existing members' roles in a container (project or catalog) through the Data Intelligence API.
     
-    Sends a PATCH request to update all specified members with their new roles.
+    For projects: Sends a single PATCH request to update all specified members with their new roles.
+    For catalogs: Sends individual PATCH requests per member to /v2/catalogs/{catalog_id}/members/{member_id}
     Note: The 'type' field is excluded from the payload as it's not required for updates.
     
     Args:
-        project_id: The UUID of the project to update members in
+        container_id: The UUID of the container to update members in
         members: List of CollaboratorMember objects containing user details and new roles
+        container_type: Type of container ('project' or 'catalog')
         
     Returns:
         dict: The API response containing confirmation of updated members
@@ -415,25 +525,43 @@ async def update_members_in_project(
     Raises:
         ValueError: When the API call fails due to permission issues or invalid data
     """
-    url = f"{tool_helper_service.base_url}/v2/projects/{project_id}/members"
-
-    # Prepare payload - exclude 'type' field as it's not needed for updates
-    payload = {"members": [member.model_dump(exclude={"state", "type"}) for member in members]}
-
     member_word = "member" if len(members) == 1 else "members"
-    LOGGER.info(f"Updating {len(members)} {member_word} in project {project_id}")
+    LOGGER.info(f"Updating {len(members)} {member_word} in {container_type} {container_id}")
 
     try:
         headers = create_default_headers(content_type=JSON_CONTENT_TYPE)
-        response = await tool_helper_service.execute_patch_request(
-            url=url, headers=headers, json=payload, tool_name="add_or_edit_collaborator"
-        )
-        return response
-    except ExternalAPIError as e:
-        LOGGER.error(f"API error while updating members in project: {str(e)}")
+        
+        if container_type == "catalog":
+            # For catalogs, update each member individually with member_id in URL
+            responses = []
+            for member in members:
+                # Build URL with member_id in path
+                url = build_container_members_url(container_id, container_type, member.id)
+                # Payload only contains the role field
+                payload = {"role": member.role}
+                
+                response = await tool_helper_service.execute_patch_request(
+                    url=url, headers=headers, json=payload, tool_name="add_or_edit_collaborator"
+                )
+                responses.append(response)
+            
+            # Return combined response
+            return {"members": responses, "updated_count": len(responses)}
+        else:
+            # For projects, use batch update
+            url = build_container_members_url(container_id, container_type)
+            payload = {"members": [member.model_dump(exclude={"state", "type"}) for member in members]}
+            
+            response = await tool_helper_service.execute_patch_request(
+                url=url, headers=headers, json=payload, tool_name="add_or_edit_collaborator"
+            )
+            return response
+            
+    except Exception as e:
+        LOGGER.error(f"API error while updating members in {container_type}: {str(e)}")
         raise ValueError(
-            f"Unable to update collaborators in project '{project_id}'. "
-            f"Please ensure you have admin permissions for this project."
+            f"Unable to update collaborators in {container_type} '{container_id}' for {str(e)}. "
+            f"Please ensure you have admin permissions for this {container_type}."
         )
 
 
@@ -555,7 +683,7 @@ async def search_members(
                 raw_data = await _fetch_saas_groups()
             else:
                 raw_data = await _fetch_saas_users()
-    except ExternalAPIError as e:
+    except Exception as e:
         LOGGER.error(f"API error while fetching {entity_type}s from account: {str(e)}")
         raise ValueError(
             f"Unable to search for {entity_type}s in this account. "
@@ -623,24 +751,30 @@ async def search_users(account_id: str, user_search_str: str) -> List[Dict]:
 
 @service_registry.tool(
     name="add_or_edit_collaborator",
-    description="Add or update one or more collaborators (users or groups) in a project with specified roles. "
+    description="Add or update one or more collaborators (users or groups) in a project or catalog with specified roles. "
     "Intelligently searches for users or access groups using fuzzy matching on names and emails. "
-    "For new members: Adds them to the project with the specified role. "
+    "For new members: Adds them to the container with the specified role. "
     "For existing members: Updates their role to the new specified role. "
     "Automatically detects whether members are new or existing and handles them appropriately. "
     "Supports role assignment (admin, editor, viewer) with 'viewer' as the default role. "
-    "Supports mixed user and group types - specify type for each collaborator or omit to default to 'user' for all. ",
+    "Supports mixed user and group types - specify type for each collaborator or omit to default to 'user' for all. "
+    "Works with both projects and catalogs - specify container_type as 'project' or 'catalog' (defaults to 'project'). ",
+    annotations={
+        "title": "Add or Update Collaborators in a Project with Specified Roles",
+        "destructiveHint": True
+    }
 )
 @auto_context
 async def add_or_edit_collaborator(
-    project_identifier: str,
+    container_identifier: str,
     user_names: List[str],
     role: Optional[List[str]] = None,
     type: Optional[List[str]] = None,
+    container_type: Optional[str] = None,
 ) -> AddOrEditCollaboratorResponse:
     """Wrapper that expands AddOrEditCollaboratorRequest object into individual parameters."""
     
-    # Cast role to proper type, defaulting to ["editor"] if None
+    # Cast role to proper type, defaulting to ["viewer"] if None
     role_typed = cast(
         List[Literal["viewer", "editor", "admin"]],
         role if role is not None else ["viewer"]
@@ -652,11 +786,18 @@ async def add_or_edit_collaborator(
         type
     ) if type is not None else None
     
+    # Cast container_type to proper type, defaulting to "project" if None
+    container_type_typed = cast(
+        Literal["project", "catalog"],
+        container_type if container_type is not None else "project"
+    )
+    
     request = AddOrEditCollaboratorRequest(
-        project_identifier=project_identifier,
+        container_identifier=container_identifier,
         user_names=user_names,
         role=role_typed,
         type=type_typed,
+        container_type=container_type_typed,
     )
     
     # Call the original add_or_edit_collaborator function

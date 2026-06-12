@@ -14,7 +14,7 @@ Import business glossary terms and categories from CSV files.
 ### `get_glossary_csv_schema`
 Returns CSV format specification with required/optional columns, allowed values, and examples.
 
-### `glossary_csv_import`
+### `import_glossary_from_csv`
 Import or validate glossary artifacts.
 
 **Parameters:**

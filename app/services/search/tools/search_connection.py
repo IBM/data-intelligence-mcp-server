@@ -12,7 +12,7 @@ from app.shared.logging import LOGGER, auto_context
 from app.shared.exceptions.base import ServiceError
 from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.utils.tool_helper_service import tool_helper_service
-from app.shared.utils.helpers import append_context_to_url, is_uuid
+from app.shared.utils.helpers import append_context_to_url, is_uuid_bool
 from app.shared.utils.utils_tools import format_connections_or_dsds_for_table
 
 from app.services.constants import (
@@ -70,10 +70,9 @@ async def _search_connection(
     if request.connection_name:
         params["entity.name"] = request.connection_name
     if request.datasource_type:
-        try:
-            is_uuid(request.datasource_type)
+        if is_uuid_bool(request.datasource_type):
             datasource_asset_id = request.datasource_type
-        except ServiceError:
+        else:
             datasource_asset_id = await find_datasource_type_asset_id(request.datasource_type)
         params["entity.datasource_type"] = datasource_asset_id
     params[request.container_type + "_id"] =  container_id
@@ -113,7 +112,11 @@ async def _search_connection(
 
 @service_registry.tool(
     name="search_connection",
-    description="""Understand user's request about searching connections and return a list of 
+    annotations={
+        "readOnlyHint": True,
+        "title": "Search and Filter Database Connections Across Containers"
+    },
+    description="""Understand user's request about searching connections and return a list of
                     retrieved connections. Users can choose to filter the results based on 
                     the optional input parameters: container, connection name,
                     data source type, and creator. If no filters are provided, then all available 

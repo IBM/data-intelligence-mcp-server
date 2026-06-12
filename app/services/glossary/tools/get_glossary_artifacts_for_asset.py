@@ -18,7 +18,7 @@ from app.services.glossary.models.glossary_artifact import (
 from app.services.tool_utils import find_asset_id, find_catalog_id, find_project_id
 from app.shared.logging import LOGGER, auto_context
 from app.shared.ui_message.ui_message_context import ui_message_context
-from app.shared.utils.helpers import append_context_to_url, confirm_uuid, is_uuid_bool as is_uuid
+from app.shared.utils.helpers import append_context_to_url, is_uuid_bool
 from app.shared.utils.tool_helper_service import tool_helper_service
 
 def _extract_glossary_artifacts_from_metadata(metadata: Dict) -> List[GlossaryArtifact]:
@@ -139,24 +139,27 @@ async def _get_glossary_artifacts_for_asset(
         ServiceError: If the artifacts cannot be retrieved
     """
     LOGGER.info(
-        f"get_glossary_artifacts_for_asset called with asset_id_or_name={request.asset_id_or_name}, "
+        f"get_asset_glossary_artifacts called with asset_id_or_name={request.asset_id_or_name}, "
         f"container_id_or_name={request.container_id_or_name}, container_type={request.container_type}"
     )
 
     # Resolve container ID
-    container_id = await confirm_uuid(
-        request.container_id_or_name,
-        find_catalog_id if request.container_type == "catalog" else find_project_id,
-    )
+    if is_uuid_bool(request.container_id_or_name):
+        container_id = request.container_id_or_name
+    else:
+        if request.container_type == "catalog":
+            container_id = await find_catalog_id(request.container_id_or_name)
+        else:
+            container_id = await find_project_id(request.container_id_or_name)
 
     # Resolve asset ID
-    asset_id = await confirm_uuid(
-        request.asset_id_or_name,
-        lambda name: find_asset_id(name, container_id, request.container_type),
-    )
+    if is_uuid_bool(request.asset_id_or_name):
+        asset_id = request.asset_id_or_name
+    else:
+        asset_id = await find_asset_id(request.asset_id_or_name, container_id, request.container_type)
 
     # Build search query
-    if is_uuid(request.asset_id_or_name):
+    if is_uuid_bool(request.asset_id_or_name):
         asset_match = {"match": {"artifact_id": asset_id}}
     else:
         asset_match = {"match": {METADATA_NAME: request.asset_id_or_name}}
@@ -211,7 +214,7 @@ async def _get_glossary_artifacts_for_asset(
 
     if results:
         ui_message_context.add_table_ui_message(
-            tool_name="get_glossary_artifacts_for_asset",
+            tool_name="get_asset_glossary_artifacts",
             formatted_data=_format_glossary_artifacts_for_table(results),
             title="Glossary artifacts",
         )
@@ -219,7 +222,11 @@ async def _get_glossary_artifacts_for_asset(
 
 
 @service_registry.tool(
-    name="get_glossary_artifacts_for_asset",
+    name="get_asset_glossary_artifacts",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Get All Business Terms and Classifications Associated with a Specific Asset"
+    },
     description="""Retrieve all business terms and classifications (these are the only two supported types of glossary artifacts) associated with a specific asset.
     When a user requests "get/list glossary items" without specifying asset details, prompt them to provide the following required parameters: asset_id_or_name, container_id_or_name, and container_type.
     
@@ -227,12 +234,12 @@ async def _get_glossary_artifacts_for_asset(
     This helps understand the business context and semantic meaning of the asset.""",
 )
 @auto_context
-async def get_glossary_artifacts_for_asset(
+async def get_asset_glossary_artifacts(
     asset_id_or_name: str,
     container_id_or_name: str,
     container_type: Literal["catalog", "project"],
 ) -> str:
-    """Wrapper for get_glossary_artifacts_for_asset."""
+    """Wrapper for get_asset_glossary_artifacts."""
     request = GetGlossaryArtifactsForAssetRequest(
         asset_id_or_name=asset_id_or_name,
         container_id_or_name=container_id_or_name,

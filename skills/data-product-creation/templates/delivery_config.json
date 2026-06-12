@@ -1,0 +1,14 @@
+{
+  "delivery_methods": [
+    {
+      "asset_name": "<MUST_MATCH_ASSET_NAME_FROM_MANIFEST>",
+      "methods": [
+        {
+          "method_id": "<POPULATED_BY_FIND_DELIVERY_METHODS_TOOL>",
+          "method_name": "<POPULATED_BY_FIND_DELIVERY_METHODS_TOOL>",
+          "rationale": "<USER_PROVIDED_RATIONALE>"
+        }
+      ]
+    }
+  ]
+}

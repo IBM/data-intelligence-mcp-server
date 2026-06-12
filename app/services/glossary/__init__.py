@@ -6,10 +6,10 @@ from app.services.glossary.tools.explain_glossary_artifact import (
     explain_glossary_artifact,
 )
 from app.services.glossary.tools.get_glossary_artifacts_for_asset import (
-    get_glossary_artifacts_for_asset,
+    get_asset_glossary_artifacts,
 )
 
 __all__ = [
     "explain_glossary_artifact",
-    "get_glossary_artifacts_for_asset",
+    "get_asset_glossary_artifacts",
 ]

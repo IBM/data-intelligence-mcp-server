@@ -6,6 +6,7 @@ from app.core.registry import service_registry
 from app.services.search.models.search_data_source_definition import SearchDataSourceDefinitionRequest, SearchDataSourceDefinitionResponse
 
 from typing import List, Optional
+from urllib.parse import urlencode
 
 from app.shared.exceptions.base import ServiceError
 from app.shared.ui_message.ui_message_context import ui_message_context
@@ -15,7 +16,7 @@ from app.services.tool_utils import (
     find_datasource_type_asset_id, 
     get_datasource_type_name
 )
-from app.shared.utils.helpers import is_uuid, get_closest_match
+from app.shared.utils.helpers import is_uuid_bool, get_closest_match, append_context_to_url
 from app.shared.logging import LOGGER, auto_context
 from app.services.constants import ASSET_TYPE_BASE_ENDPOINT
 from app.shared.utils.utils_tools import format_connections_or_dsds_for_table
@@ -35,18 +36,18 @@ async def _search_data_source_definition(
         request.physical_collection
     )
 
+    pac_catalog_id = await get_platform_assets_catalog_id()
     params = {
-        "catalog_id": await get_platform_assets_catalog_id(),
+        "catalog_id": pac_catalog_id,
         "hide_deprecated_response_fields": False
     }
 
     payload = {"limit": 100, "sort": "asset.name<string>", "include": "entity"}
 
     if request.datasource_type:
-        try:
-            is_uuid(request.datasource_type)
+        if is_uuid_bool(request.datasource_type):
             datasource_asset_id = request.datasource_type
-        except ServiceError:
+        else:
             datasource_asset_id = await find_datasource_type_asset_id(request.datasource_type)
         payload["query"] = f"ibm_data_source.data_source_type_id:{datasource_asset_id}"
     elif request.hostname or request.port or request.physical_collection:
@@ -77,7 +78,8 @@ async def _search_data_source_definition(
             create_time=result["metadata"]["created_at"],
             creator_id=result["metadata"]["creator_id"],
             datasource_type_id=datasource_type_id,
-            datasource_type_name=datasource_type_name
+            datasource_type_name=datasource_type_name,
+            url=append_context_to_url(_create_dsd_url(result["metadata"]["asset_id"], pac_catalog_id))
         )
         output.append(dsd)
 
@@ -92,6 +94,10 @@ async def _search_data_source_definition(
 
 @service_registry.tool(
     name="search_data_source_definition",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Query and Search Data Source Definitions with Advanced Filtering"
+    },
     description="""Understand user's request about searching data source definitions aka DSD
                     and return a list of retrieved DSDs. Users can choose to filter the
                     results based on the optional input parameters: name, data source type,
@@ -206,3 +212,19 @@ def find_dsd_by_name(response: dict, dsd_name: str) -> str:
         raise ServiceError(
             f"Couldn't find any matching data source definition with name '{dsd_name}'"
         )
+
+def _create_dsd_url(dsd_id: str, catalog_id: str) -> str:
+    """
+    Creates the URL for a data source definition.
+    Args:
+        dsd_id (str): The ID of the data source definition.
+        catalog_id (str): The ID of the catalog.
+    Returns:
+        str: The URL for the data source definition.
+    """
+    dsd_url_prefix = str(tool_helper_service.ui_base_url) + "/data/catalogs/"
+    url = dsd_url_prefix + catalog_id + "/asset/" + dsd_id
+    query_params = {
+        "ds_gov_summary": "true"
+    }
+    return f"{url}?{urlencode(query_params)}"

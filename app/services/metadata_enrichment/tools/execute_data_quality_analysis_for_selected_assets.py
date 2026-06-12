@@ -41,6 +41,10 @@ async def _execute_data_quality_analysis_for_selected_assets(
 
 @service_registry.tool(
     name="execute_data_quality_analysis_for_selected_assets",
+    annotations={
+        "title": "Execute Data Quality Analysis and Constraint Generation for Selected Datasets",
+        "destructiveHint": True
+    },
     description="""Executes data quality analysis for specific datasets within a project.
 
     This tool performs data quality analysis on the datasets specified in the request. It retrieves the datasets,

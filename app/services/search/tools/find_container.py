@@ -84,6 +84,10 @@ async def _find_container(
 
 @service_registry.tool(
     name="find_container",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Find Specific Container (Catalog, Project, or Space) by ID or name"
+    },
     description="""Finds a specific container (catalog, project or space) by ID or name.
     
     This tool searches for a container using either its UUID or name.

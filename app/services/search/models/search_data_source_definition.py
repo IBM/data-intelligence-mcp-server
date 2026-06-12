@@ -20,3 +20,4 @@ class SearchDataSourceDefinitionResponse(BaseResponseModel):
     creator_id: str = Field(..., description="Id of the user who created the data source definition")
     datasource_type_id: str = Field(..., description="Unique id of the data source type of data source definition")
     datasource_type_name: str = Field(..., description="Name of the data source type of data source definition")
+    url: Optional[str] = Field(None, description="URL to access the data source definition in the UI")

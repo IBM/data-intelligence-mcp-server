@@ -103,7 +103,7 @@ Understand the user prompt to identify if the user wants to onboard data, catalo
 8. Display the results of the `execute_metadata_import` tool to show that the job is running
 </Step>
 <Step>
-9. Confirm with the user if the import job is complete or not, offer the user to get the status of the metadata import job using the `monitor_job_status` tool with `job_id` set to the job ID returned from the `execute_metadata_import` tool and `project` set to the project name from the first phase or ask the user to check on the UI with the job link. Only if the user confirms or `monitor_job_status` tool confirms that the job is complete, proceed to the next phase.
+9. Confirm with the user if the import job is complete or not, offer the user to get the status of the metadata import job using the `get_metadata_enrichment_job_status` tool with `job_id` set to the job ID returned from the `execute_metadata_import` tool and `project` set to the project name from the first phase or ask the user to check on the UI with the job link. Only if the user confirms or `get_metadata_enrichment_job_status` tool confirms that the job is complete, proceed to the next phase.
 </Step>
 </Steps>
 
@@ -111,7 +111,7 @@ Understand the user prompt to identify if the user wants to onboard data, catalo
 
 <Steps>
 <Step>
-1. If the user has provided enrichment objectives in the intial query, closest match the user's request to the available enrichment objectives (listed in step 2) and skip steps 2 and 3. If the user has provided categories in the intial query, closest match the user's request to the available categories (using `search_categories` tool) and skip step 4. If the user has provided dataset names in their initial query to perform metadata enrichment on, still execute step 5 to make sure their provided dataset names exist in the project.
+1. If the user has provided enrichment objectives in the intial query, closest match the user's request to the available enrichment objectives (listed in step 2) and skip steps 2 and 3. If the user has provided categories in the intial query, closest match the user's request to the available categories (using `list_enrichment_categories` tool) and skip step 4. If the user has provided dataset names in their initial query to perform metadata enrichment on, still execute step 5 to make sure their provided dataset names exist in the project.
 </Step>
 <Step>
 2. Explain available enrichment objectives to the user in plain language and confirm their selections. Here is the list of enrichment objectives avaialble for the user:
@@ -127,7 +127,7 @@ Understand the user prompt to identify if the user wants to onboard data, catalo
 3. Ask the user which enrichment objectives they want to apply to the metadata. If they want to apply all objectives, ask them to confirm.
 </Step>
 <Step>
-4. Call the `search_categories` tool to get a list of categories available for the user to select from. Confirm with the user which category(s) they want to use for the enrichment.
+4. Call the `list_enrichment_categories` tool to get a list of categories available for the user to select from. Confirm with the user which category(s) they want to use for the enrichment.
 </Step>
 <Step>
 5. For dataset_names, confirm with the user if they want to use the names of the assets that were imported in Phase 3, or if they want to specify different names. DO NOT skip this step, always ask the user for datasets to use.

@@ -252,6 +252,89 @@ async def find_catalog_id(catalog_name: str) -> str:
             f"find_catalog_id failed to find any catalog with the name '{catalog_name}'"
         )
 
+def build_container_members_url(
+    container_id: str,
+    container_type: Literal["project", "catalog"],
+    member_id: Optional[str] = None
+) -> str:
+    """
+    Build URL for container members endpoints (projects or catalogs).
+    
+    Constructs URLs for accessing or modifying members in projects or catalogs.
+    Supports both base members endpoint and member-specific operations.
+    
+    Args:
+        container_id: The UUID of the container (project or catalog)
+        container_type: Type of container ('project' or 'catalog')
+        member_id: Optional member ID for member-specific operations
+        
+    Returns:
+        str: Complete URL for the members endpoint
+        
+    Examples:
+        >>> build_container_members_url("abc-123", "project")
+        "https://api.example.com/v2/projects/abc-123/members"
+        
+        >>> build_container_members_url("xyz-789", "catalog", "user-456")
+        "https://api.example.com/v2/catalogs/xyz-789/members/user-456"
+        
+    Raises:
+        ValueError: If container_type is not 'project' or 'catalog'
+    """
+    if container_type not in ("project", "catalog"):
+        raise ValueError(
+            f"Invalid container_type '{container_type}'. "
+            f"Must be either 'project' or 'catalog'."
+        )
+    
+    # Select appropriate base endpoint
+    base_endpoint = PROJECTS_BASE_ENDPOINT if container_type == "project" else CATALOGS_BASE_ENDPOINT
+    
+    # Build URL with optional member_id
+    url = f"{tool_helper_service.base_url}{base_endpoint}/{container_id}/members"
+    if member_id:
+        url = f"{url}/{member_id}"
+    
+    return url
+
+async def is_catalog_exist_by_id(catalog_id: str) -> bool:
+    """
+    Check if a catalog exists by its ID.
+    
+    Args:
+        catalog_id (str): The UUID of the catalog to check.
+        
+    Returns:
+        bool: True if the catalog exists, False otherwise.
+    """
+    try:
+        url = f"{tool_helper_service.base_url}{CATALOGS_BASE_ENDPOINT}/{catalog_id}"
+        await tool_helper_service.execute_get_request(url=url)
+        return True
+    except Exception:
+        return False
+
+
+async def is_catalog_exist_by_name(catalog_name: str) -> tuple[bool, str, str]:
+    """
+    Check if a catalog exists by its name.
+    
+    Args:
+        catalog_name (str): The name of the catalog to check.
+        
+    Returns:
+        tuple[bool, str, str]: A tuple containing:
+            - bool: True if the catalog exists, False otherwise
+            - str: The catalog name (empty string if not found)
+            - str: The catalog ID (empty string if not found)
+    """
+    try:
+        catalog_id = await find_catalog_id(catalog_name)
+        return True, catalog_name, catalog_id
+    except ServiceError:
+        return False, "", ""
+
+
 async def get_platform_assets_catalog_id() -> str:
     """
     Find id of the Platform Assets Catalog attached
@@ -1082,14 +1165,37 @@ async def check_if_container_is_enabled_for_text_to_sql(
         "container_type": container_type,
     }
 
-    response = await tool_helper_service.execute_get_request(
-        url=str(tool_helper_service.base_url) + GEN_AI_SETTINGS_BASE_ENDPOINT,
-        params=params,
+    url = str(tool_helper_service.base_url) + GEN_AI_SETTINGS_BASE_ENDPOINT
+    LOGGER.debug(
+        "Checking if container is enabled for text-to-sql: URL=%s, params=%s",
+        url, params
     )
-
-    return response.get("enable_gen_ai", False) and response.get(
-        "onboard_metadata_for_gen_ai", False
-    )
+    
+    try:
+        response = await tool_helper_service.execute_get_request(
+            url=url,
+            params=params,
+        )
+        
+        LOGGER.debug(
+            "Gen AI settings response: %s", response
+        )
+        
+        enable_gen_ai = response.get("enable_gen_ai", False)
+        onboard_metadata = response.get("onboard_metadata_for_gen_ai", False)
+        
+        LOGGER.debug(
+            "enable_gen_ai=%s, onboard_metadata_for_gen_ai=%s",
+            enable_gen_ai, onboard_metadata
+        )
+        
+        return enable_gen_ai and onboard_metadata
+    except Exception as e:
+        LOGGER.error(
+            "Error checking if container is enabled for text-to-sql: %s",
+            str(e), exc_info=True
+        )
+        raise
 
 
 def get_onboarding_job_run_url(container_id, container_type, job_id, run_id):
@@ -1103,6 +1209,45 @@ def get_onboarding_job_run_url(container_id, container_type, job_id, run_id):
         )
     else:
         raise ValueError(f"Invalid container type: {container_type}")
+
+async def find_data_source_definition_asset_id(
+    data_source_definition_name: str,
+) -> str:
+    """
+    Get the asset ID for a data source definition based on its name.
+
+    Args:
+        data_source_definition_name (str): The name of the data source definition.
+    Returns:
+        str: The asset ID of the data source definition.
+    """
+    params = {
+        "catalog_id": await get_platform_assets_catalog_id(),
+        "hide_deprecated_response_fields": False
+    }
+    payload = {"limit": 100, "sort": "asset.name<string>", "query" : "*:*"}
+
+    response = await tool_helper_service.execute_post_request(
+        url=str(tool_helper_service.base_url) + ASSET_TYPE_BASE_ENDPOINT + "/ibm_data_source/search",
+        params=params,
+        json=payload
+    )
+
+    result_id = None
+    if isinstance(response, dict) and response["total_rows"] > 0:
+        dsd_list = [
+            {"name": dsd["metadata"]["name"], "id": dsd["metadata"]["asset_id"]}
+            for dsd in response["results"]
+        ]
+        result_id = get_closest_match(dsd_list, data_source_definition_name)
+
+    if result_id:
+        return result_id
+    else:
+        raise ServiceError(
+            f"find_data_source_definition_asset_id failed to find any DSD with the name '{data_source_definition_name}'"
+        )
+
 
 def _map_metadata_import(row: Any) -> MetadataImportResponse:
     metadata = row.get("metadata", [])

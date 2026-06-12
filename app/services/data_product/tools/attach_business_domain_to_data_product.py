@@ -18,7 +18,7 @@ async def _attach_business_domain_to_data_product(
     request: AttachBusinessDomainToDataProductRequest,
 ) -> str:
     LOGGER.info(
-        f"In the data_product_attach_business_domain_to_data_product tool, attaching business domain {request.domain} to the data product draft {request.data_product_draft_id}."
+        f"In the attach_business_domain_to_data_product tool, attaching business domain {request.domain} to the data product draft {request.data_product_draft_id}."
     )
     DPH_CATALOG_ID = await get_dph_catalog_id_for_user()
 
@@ -28,7 +28,7 @@ async def _attach_business_domain_to_data_product(
     response = await tool_helper_service.execute_post_request(
         url=f"{tool_helper_service.base_url}/v2/asset_types/ibm_data_product_domain/search?catalog_id={DPH_CATALOG_ID}&hide_deprecated_response_fields=false",
         json=search_payload,
-        tool_name="data_product_attach_business_domain_to_data_product",
+        tool_name="attach_business_domain_to_data_product",
     )
     
     domain_id = ""
@@ -41,8 +41,8 @@ async def _attach_business_domain_to_data_product(
 
     if not domain_id:
         error_message = f'Domain name "{request.domain}" is not found, so it is not attached to {request.data_product_draft_id}. Here are the available domains: {available_domains}'
-        LOGGER.error(f"Failed to run data_product_attach_business_domain_to_data_product tool. {error_message}")
-        raise ServiceError(f"Failed to run data_product_attach_business_domain_to_data_product tool. {error_message}")
+        LOGGER.error(f"Failed to run attach_business_domain_to_data_product tool. {error_message}")
+        raise ServiceError(f"Failed to run attach_business_domain_to_data_product tool. {error_message}")
 
     # step 2: attach the business domain to data product draft
     headers = {
@@ -61,17 +61,17 @@ async def _attach_business_domain_to_data_product(
         url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/drafts/{request.data_product_draft_id}",
         headers=headers,
         json=patch_payload,
-        tool_name="data_product_attach_business_domain_to_data_product",
+        tool_name="attach_business_domain_to_data_product",
     )
 
     LOGGER.info(
-        f"In the data_product_attach_business_domain_to_data_product tool, business domain {request.domain} attached to the data product draft {request.data_product_draft_id}."
+        f"In the attach_business_domain_to_data_product tool, business domain {request.domain} attached to the data product draft {request.data_product_draft_id}."
     )
     return f"Business domain {request.domain} is attached to the data product draft {request.data_product_draft_id}."
 
 
 @service_registry.tool(
-    name="data_product_attach_business_domain_to_data_product",
+    name="attach_business_domain_to_data_product",
     description="""
     This tool attaches the given business domain to a data product draft.
     The business domain given should be a valid business domain in the system or else this returns the list of business domains available to choose from.
@@ -83,6 +83,10 @@ async def _attach_business_domain_to_data_product(
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
+    annotations={
+        "title": "Attach Business Domain to Data Product Draft",
+        "destructiveHint": True
+    }
 )
 @auto_context
 async def attach_business_domain_to_data_product(

@@ -1,0 +1,79 @@
+{
+  "contract_type": "custom",
+  "contract_terms": {
+    "documents": [],
+    "overview": {
+      "api_version": "<USER_PROVIDED>",
+      "kind": "<USER_PROVIDED>",
+      "name": "<USER_PROVIDED>",
+      "version": "<USER_PROVIDED>",
+      "status": "<USER_PROVIDED>",
+      "domain": {
+        "id": "<POPULATED_BY_ATTACH_DOMAIN_TOOL>",
+        "name": "<USER_PROVIDED_OR_SELECTED>"
+      },
+      "authoritative_definitions": [
+        {
+          "url": "<USER_PROVIDED_HTTPS_URL>",
+          "type": "<USER_PROVIDED_TYPE>"
+        }
+      ]
+    },
+    "description": {
+      "purpose": "<USER_PROVIDED_PURPOSE>",
+      "limitations": "<USER_PROVIDED_LIMITATIONS>",
+      "usage": "<USER_PROVIDED_USAGE_GUIDELINES>",
+      "authoritative_definitions": [
+        {
+          "url": "<USER_PROVIDED_HTTPS_URL>",
+          "type": "<USER_PROVIDED_TYPE>"
+        }
+      ],
+      "custom_properties": [
+        {
+          "property": "<USER_PROVIDED_PROPERTY_NAME>",
+          "value": "<USER_PROVIDED_PROPERTY_VALUE>"
+        }
+      ]
+    },
+    "organization": [
+      {
+        "user_id": "<USER_PROVIDED_USER_ID>",
+        "role": "<USER_PROVIDED_ROLE>"
+      }
+    ],
+    "roles": [
+      {
+        "role": "<USER_PROVIDED_ROLE_NAME>"
+      }
+    ],
+    "price": {
+      "amount": "<USER_PROVIDED_AMOUNT>",
+      "currency": "<USER_PROVIDED_CURRENCY>",
+      "unit": "<USER_PROVIDED_UNIT>"
+    },
+    "sla": [
+      {
+        "default_element": "<USER_PROVIDED_SLA_ELEMENT>",
+        "properties": [
+          {
+            "property": "<USER_PROVIDED_PROPERTY_NAME>",
+            "value": "<USER_PROVIDED_PROPERTY_VALUE>"
+          }
+        ]
+      }
+    ],
+    "support_and_communication": [
+      {
+        "channel": "<USER_PROVIDED_CHANNEL>",
+        "url": "<USER_PROVIDED_SUPPORT_URL>"
+      }
+    ],
+    "custom_properties": [
+      {
+        "property": "<USER_PROVIDED_PROPERTY_NAME>",
+        "value": "<USER_PROVIDED_PROPERTY_VALUE>"
+      }
+    ]
+  }
+}

@@ -17,7 +17,7 @@ from app.services.text_to_sql.models.enable_container_for_text_to_sql import (
     EnableContainerForTextToSqlRequest,
     EnableContainerForTextToSqlResponse,
 )
-from app.services.tool_utils import find_project_id, find_catalog_id, get_onboarding_job_run_url
+from app.services.tool_utils import find_project_id, find_catalog_id, get_onboarding_job_run_url, build_container_members_url
 from app.shared.exceptions.base import ServiceError
 from app.shared.logging.generate_context import auto_context
 from app.shared.logging.utils import LOGGER
@@ -43,7 +43,7 @@ async def _is_admin_of_container(container_id, container_type) -> bool:
         params["member_type"] = "all"
 
     response = await tool_helper_service.execute_get_request(
-        url=f"{tool_helper_service.base_url}{CATALOGS_BASE_ENDPOINT if container_type == 'catalog' else PROJECTS_BASE_ENDPOINT}/{container_id}/members",
+        url=build_container_members_url(container_id, container_type),
         params=params,
         tool_name="enable_container_for_text_to_sql",
     )
@@ -125,7 +125,11 @@ async def _enable_container_for_text_to_sql(
 
 
 @service_registry.tool(
-    name="text_to_sql_enable_container_for_text_to_sql",
+    name="enable_container_for_text_to_sql",
+    annotations={
+        "title": "Enable a Project or Catalog for Text-to-SQL",
+        "destructiveHint": True
+    },
     description="This tool enables the specified project or catalog for Text To SQL.",
 )
 @auto_context

@@ -587,7 +587,7 @@ def _extract_parts_out_from_result(result: dict) -> list[dict]:
 
 def _process_parts_for_duplicates(
     parts_out: list[dict],
-    source_asset_ids: list[str],
+    target_asset_ids: list[str],
     dp_info: dict,
     duplicates_map: dict[str, dict]
 ) -> None:
@@ -596,7 +596,7 @@ def _process_parts_for_duplicates(
     
     Args:
         parts_out: List of part dictionaries from data product
-        source_asset_ids: List of source asset IDs to check for
+        target_asset_ids: List of target asset IDs to check for
         dp_info: Data product info to store for duplicates
         duplicates_map: Map to update with found duplicates
     """
@@ -611,7 +611,7 @@ def _process_parts_for_duplicates(
         asset_id = asset_info.get("id")
         
         # Check if this asset is one we're looking for
-        if not asset_id or asset_id not in source_asset_ids:
+        if not asset_id or asset_id not in target_asset_ids:
             continue
         
         # Only keep the first data product found for each asset
@@ -625,18 +625,18 @@ def _process_parts_for_duplicates(
         )
 
 
-async def batch_check_for_duplicate_data_products_by_source_asset_ids(
-    source_asset_ids: list[str],
+async def batch_check_for_duplicate_data_products_by_target_asset_ids(
+    target_asset_ids: list[str],
     dph_catalog_id: str
 ) -> dict[str, dict]:
     """
-    Batch check if any of the given source assets already exist in data products.
+    Batch check if any of the given target assets already exist in data products.
     
     Uses a single Lucene query with OR to check multiple assets at once, significantly
     improving performance compared to checking each asset individually.
     
     Args:
-        source_asset_ids: List of source asset IDs to check
+        target_asset_ids: List of target asset IDs to check
         dph_catalog_id: The DPH catalog ID where data products are stored
         
     Returns:
@@ -656,17 +656,17 @@ async def batch_check_for_duplicate_data_products_by_source_asset_ids(
         Input: ["asset1", "asset2", "asset3"]
         Output: {"asset1": {...}, "asset3": {...}}  # asset2 not in any data product
     """
-    if not source_asset_ids:
+    if not target_asset_ids:
         return {}
     
     # Build query with OR for all asset IDs: "id1 OR id2 OR id3"
-    ids_query_string = " OR ".join(source_asset_ids)
+    ids_query_string = " OR ".join(target_asset_ids)
     query = (
         f"ibm_data_product_version.parts_out_asset_id:({ids_query_string}) "
         f"AND (ibm_data_product_version.state:available OR ibm_data_product_version.state:draft)"
     )
     
-    LOGGER.info(f"Batch checking {len(source_asset_ids)} source asset(s) for duplicates")
+    LOGGER.info(f"Batch checking {len(target_asset_ids)} source asset(s) for duplicates")
     LOGGER.debug(f"Query: {query}")
     
     try:
@@ -684,10 +684,10 @@ async def batch_check_for_duplicate_data_products_by_source_asset_ids(
         for result in results:
             dp_info = _extract_duplicate_info_from_asset_type_search_result(result)
             parts_out = _extract_parts_out_from_result(result)
-            _process_parts_for_duplicates(parts_out, source_asset_ids, dp_info, duplicates_map)
+            _process_parts_for_duplicates(parts_out, target_asset_ids, dp_info, duplicates_map)
         
         found_count = len(duplicates_map)
-        total_count = len(source_asset_ids)
+        total_count = len(target_asset_ids)
         LOGGER.info(f"Found {found_count} duplicate(s) out of {total_count} asset(s)")
         
         return duplicates_map
@@ -706,16 +706,16 @@ async def check_for_duplicate_data_product_by_source_asset_id(
     dph_catalog_id: str
 ) -> dict | None:
     """
-    DIRECT CHECK: Check if any data product contains the given asset ID directly in parts_out.
+    Check if any data product contains an asset that was copied from the given source asset.
     
-    This searches data products directly using the asset_id to check if it exists in
-    any data product's parts_out, matching the manual query pattern:
-    ibm_data_product_version.parts_out_asset_id:{asset_id} AND (state:available OR state:draft)
+    This is a two-step process:
+    1. First, check if the source asset has already been copied to DPH catalog (using asset.source_asset_id)
+    2. If found, check if that copied asset is used in any data product (using parts_out_asset_id)
     
     Args:
-        source_asset_id: The ID of the asset to check (from source catalog/project)
-        source_container_id: The ID of the source container (catalog/project) - not used in direct check
-        source_container_type: The type of source container ("catalog" or "project") - not used in direct check
+        source_asset_id: The ID of the source asset to check (from source catalog/project)
+        source_container_id: The ID of the source container (catalog/project)
+        source_container_type: The type of source container ("catalog" or "project")
         dph_catalog_id: The DPH catalog ID where data products are stored
         
     Returns:
@@ -723,45 +723,49 @@ async def check_for_duplicate_data_product_by_source_asset_id(
               Returns: {"data_product_id": str, "version_id": str, "name": str, "state": str}
     """
     LOGGER.info(
-        f"=== DIRECT DUPLICATE CHECK === "
-        f"Checking for data products containing asset {source_asset_id} in parts_out"
+        f"=== SOURCE ASSET DUPLICATE CHECK === "
+        f"Checking for data products containing source asset {source_asset_id} "
+        f"from {source_container_type}:{source_container_id}"
     )
     
-    # DIRECT CHECK: Search for data products containing this asset_id in parts_out
-    # This matches the manual query pattern exactly
-    query = (
-        f"ibm_data_product_version.parts_out_asset_id:{source_asset_id} "
-        f"AND (ibm_data_product_version.state:available OR ibm_data_product_version.state:draft)"
-    )
+    # Step 1: Check if source asset has already been copied to DPH catalog
+    # Import here to avoid circular dependency
+    from app.services.data_product.tools.import_remote_assets_to_dph_catalog import find_existing_copied_assets
     
-    LOGGER.info(f"Using query: {query}")
+    existing_copies = await find_existing_copied_assets([source_asset_id], dph_catalog_id)
     
-    try:
-        response = await tool_helper_service.execute_post_request(
-            url=f"{tool_helper_service.base_url}/v2/asset_types/ibm_data_product_version/search",
-            params={"catalog_id": dph_catalog_id},
-            json={"query": query},
-            tool_name="check_for_duplicate_data_product_by_source_asset_id"
+    if not existing_copies or source_asset_id not in existing_copies:
+        LOGGER.info(
+            f"=== NO DUPLICATE === "
+            f"Source asset {source_asset_id} has not been copied to DPH catalog yet"
         )
-        
-        results = _get_asset_type_search_results(response)
-        results_size = _get_asset_type_search_results_count(response)
-        
-        if results_size > 0 and results:
-            # Duplicate found!
-            dp_result = results[0]
-            result = _extract_duplicate_info_from_asset_type_search_result(dp_result)
-            
-            LOGGER.info(
-                f"=== DUPLICATE FOUND === "
-                f"Asset {source_asset_id} is already in data product '{result['name']}' "
-                f"(ID: {result['data_product_id']}, State: {result['state']})"
-            )
-            return result
-        
-        LOGGER.info(f"=== NO DUPLICATE === Asset {source_asset_id} not found in any data products")
         return None
-        
-    except Exception as e:
-        LOGGER.error(f"Error in direct duplicate check: {str(e)}")
-        raise
+    
+    # Step 2: Get the target asset ID (the copied asset in DPH catalog)
+    target_asset_id = existing_copies[source_asset_id]["target_asset_id"]
+    LOGGER.info(
+        f"Found copied asset: source {source_asset_id} -> target {target_asset_id}"
+    )
+    
+    # Step 3: Check if this target asset is used in any data product
+    duplicate_info = await check_for_duplicate_data_product_with_asset(
+        asset_id=target_asset_id,
+        dph_catalog_id=dph_catalog_id,
+        max_retries=1
+    )
+    
+    if duplicate_info:
+        LOGGER.info(
+            f"=== DUPLICATE FOUND === "
+            f"Source asset {source_asset_id} (copied as {target_asset_id}) "
+            f"is already in data product '{duplicate_info['name']}' "
+            f"(ID: {duplicate_info['data_product_id']}, State: {duplicate_info['state']})"
+        )
+        return duplicate_info
+    
+    LOGGER.info(
+        f"=== NO DUPLICATE === "
+        f"Source asset {source_asset_id} (copied as {target_asset_id}) "
+        f"not found in any data products"
+    )
+    return None

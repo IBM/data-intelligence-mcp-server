@@ -21,22 +21,22 @@ from app.shared.utils.helpers import parse_list_of_ids, verify_dates
 from app.shared.utils.tool_helper_service import tool_helper_service
 
 TOOLS_DESCRIPTION = """
-    Performs a comparison of assets between two versions. It can be either for singular assets coming from lineage_search_lineage_assets
-    or for graphs coming from lineage_get_lineage_graph. Returns a list of assets with their status and optionally a list of edges with statuses for graphs.
+    Performs a comparison of assets between two versions. It can be either for singular assets coming from search_lineage_assets
+    or for graphs coming from get_lineage_graph. Returns a list of assets with their status and optionally a list of edges with statuses for graphs.
     
-    **CRITICAL** - this tool should be used after user used either lineage_search_lineage_assets or lineage_get_lineage_graph on their own or
+    **CRITICAL** - this tool should be used after user used either search_lineage_assets or get_lineage_graph on their own or
     should be called as a last tool when user's request requires usage of combination of tools. The dates for comparison should come from
-    lineage_get_lineage_versions.
+    list_lineage_versions.
 
     Example Workflow:
         User: "Compare lineage graph for asset CUSTOMER_TABLE at September 24th 2025 and October 10th 2025"
-        1. Call lineage_get_lineage_versions(since="2025-09-24Z", until="2025-10-24Z")
+        1. Call list_lineage_versions(since="2025-09-24Z", until="2025-10-24Z")
         2. Choose first and last versions from the list
         3. Call search_lineage_assets(name_query="customer_table")
         4. Extract lineage ID from results: "75a06535eb329a6b..."
         5. Call get_lineage_graph(lineage_ids="75a06535eb329a6b...", hop_up=50, hop_down=50, dates=["2025-09-24T04:10:12.828Z", "2025-10-23T08:54:02.17Z"])
         6. Extract lineage IDs from the results
-        7. Call lineage_get_lineage_comparison(
+        7. Call get_lineage_comparison(
             compared_lineage_assets=["75a06535eb329a6b...","12b06535eb329a6b..."],
             lineage={"initial_asset_ids": ["75a06535eb329a6b..."]},
             base_version="2025-09-24T04:10:12.828Z",
@@ -46,11 +46,11 @@ TOOLS_DESCRIPTION = """
 
     Example Workflow2:
         User: "How did lineage asset CUSTOMER_TABLE change between September 24th 2025 and October 10th 2025"
-        1. Call lineage_get_lineage_versions(since="2025-09-24Z", until="2025-10-24Z")
+        1. Call list_lineage_versions(since="2025-09-24Z", until="2025-10-24Z")
         2. Choose first and last versions from the list
         3. Call search_lineage_assets(name_query="customer_table", dates=["2025-09-24T04:10:12.828Z", "2025-10-23T08:54:02.17Z"])
         4. Extract lineage ID from results: "75a06535eb329a6b..."
-        5. Call lineage_get_lineage_comparison(
+        5. Call get_lineage_comparison(
             compared_lineage_assets=["75a06535eb329a6b..."],
             base_version="2025-09-24T04:10:12.828Z",
             compared_version="2025-10-23T08:54:02.17Z"
@@ -218,7 +218,11 @@ async def _get_lineage_comparison(
     )
 
 @service_registry.tool(
-    name="lineage_get_lineage_comparison",
+    name="get_lineage_comparison",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Get Compare Lineage Assets Between Two Versions"
+    },
     description=TOOLS_DESCRIPTION,
 )
 @auto_context

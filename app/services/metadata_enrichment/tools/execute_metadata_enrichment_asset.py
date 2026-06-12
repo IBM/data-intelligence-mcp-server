@@ -57,6 +57,10 @@ async def _execute_metadata_enrichment_asset(
 
 @service_registry.tool(
     name="execute_metadata_enrichment_asset",
+    annotations={
+        "title": "Execute Metadata Enrichment Asset within a Specified Project",
+        "destructiveHint": True
+    },
     description="""Executes a metadata enrichment asset within a specified project.
 
     This tool initiates the execution of a pre-configured metadata enrichment asset. It retrieves the asset's details,

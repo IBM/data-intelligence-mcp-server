@@ -1,0 +1,11 @@
+{
+  "source_type": "url",
+  "urls": [
+    {
+      "url_name": "<USER_PROVIDED_URL_NAME>",
+      "url_value": "<USER_PROVIDED_HTTPS_URL>",
+      "description": "<USER_PROVIDED_DESCRIPTION>",
+      "rationale": "<USER_PROVIDED_RATIONALE>"
+    }
+  ]
+}

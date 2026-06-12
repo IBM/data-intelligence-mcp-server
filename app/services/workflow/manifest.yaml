@@ -10,7 +10,7 @@
       the artifact_id for each object. NEVER use **get_asset_details** for data classes and business terms, rather call
       **list_user_tasks_approval_data_for_artifact** to find out more.
 
-      1. **get_workflow_tasks_from_my_inbox** → returns the current user's list of tasks from the workflow task inbox.
+      1. **get_my_workflow_inbox_tasks** → returns the current user's list of tasks from the workflow task inbox.
       2. **list_data_classes_by_search_term** → returns a list of all data classes as objects of a data governance workflow pertaining to the search term
          with the artifact_id included. Use the draft parameter to retrieve data classes waiting for approval and not yet published.
       3. **list_business_terms_by_search_term** → returns a list of all business terms as objects of a data governance workflow with the artifact_id included. Use
@@ -18,9 +18,9 @@
       4. **list_user_tasks_approval_data_for_artifact** -> returns user tasks in a data governance workflow for a specific artifact id along with the final state
          of the workflow to find out approvers in user task data. Use the draft parameter to specify whether to retrieve user tasks for artifacts not published, resp.
          not yet published.
-      5. **task_action** → performs actions on workflow tasks. Use action="claim" to assign a task to yourself, action="complete" to finish a task, 
+      5. **perform_workflow_task_action** → performs actions on workflow tasks. Use action="claim" to assign a task to yourself, action="complete" to finish a task, 
          or action="unclaim" to release a previously claimed task. For claim and complete actions, required form properties will be collected through elicitation.
-      NEVER call **get_workflow_tasks_from_my_inbox** for data classes and business terms.
+      NEVER call **get_my_workflow_inbox_tasks** for data classes and business terms.
       ALWAYS use **list_data_classes_by_search_term** or **list_business_terms_by_search_term** before calling **list_user_tasks_approval_data_for_artifact**. 
       NEVER use **list_user_tasks_approval_data_for_artifact** without an artifact_id or to retrieve the user's task inbox.
 
@@ -35,7 +35,7 @@
         * Use "unclaim" if you no longer want to work on a task you previously claimed.
       - **Elicitation:** For claim and complete actions, the tool will prompt you for required form property values through elicitation.
 
-      TASK DISPLAY REQUIREMENTS FOR get_workflow_tasks_from_my_inbox:
+      TASK DISPLAY REQUIREMENTS FOR get_my_workflow_inbox_tasks:
       - **My assigned tasks** are any and all tasks in my Task inbox, viewable inside "Assigned to you"
       - **My claimed tasks** are tasks that I have claimed
       - When listing my tasks, ALWAYS use the **task_title** field (e.g., "Review Business term Ager"), NOT the task_name field (e.g., "Review")

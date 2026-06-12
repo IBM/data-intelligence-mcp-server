@@ -8,18 +8,18 @@ from app.services.glossary.tools.explain_glossary_artifact import (
     explain_glossary_artifact,
 )
 from app.services.glossary.tools.get_glossary_artifacts_for_asset import (
-    get_glossary_artifacts_for_asset,
+    get_asset_glossary_artifacts,
 )
 from app.services.glossary.tools.get_glossary_csv_schema import (
     get_glossary_csv_schema,
 )
 from app.services.glossary.tools.glossary_csv_import import (
-    glossary_csv_import,
+    import_glossary_from_csv,
 )
 
 __all__ = [
     "explain_glossary_artifact",
-    "get_glossary_artifacts_for_asset",
-    "glossary_csv_import",
+    "get_asset_glossary_artifacts",
+    "import_glossary_from_csv",
     "get_glossary_csv_schema",
 ]

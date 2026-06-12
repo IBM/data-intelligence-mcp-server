@@ -15,6 +15,7 @@ This document provides a comprehensive list of all Model Context Protocol (MCP) 
     - [VS Code Copilot](#vs-code-copilot)
   - [Available Skills](#available-skills)
     - [Metadata Onboarding and Enrichment Skill](#metadata-onboarding-and-enrichment-skill)
+    - [Data Product Creation Skill](#data-product-creation-skill)
     - [Data Lineage Skill](#data-lineage-skill)
 
 
@@ -154,8 +155,15 @@ In order to use the Data Intelligence skills with VS Code Copilot:
 |-----------|-------------|---------------|-------------|-------------|
 | onboard-and-enrich | Walks user through executing a metadata onboarding, data cataloging and metadata enrichment workflow starting from project setup to connection configuration to metadata import and finally metadata enrichment | "Onboard our Postgres sales database" or "I want to enrich the data I already imported last week" or "Set up a new project for the Finance team and enrich their IBM DB2 data" | >=0.9.0 | TBD |
 
+### Data Product Creation Skill
+
+| Skill Name | Description | Sample Prompts | pypi version | CPD version |
+|-----------|-------------|---------------|-------------|-------------|
+| data-product-creation | Guides user through creating and publishing data products in IBM watsonx.data intelligence (Data Product Hub) using a file-based specification approach. Creates JSON specification files for review and refinement before batch-submitting to DPH, enabling version control, collaboration, and reusability | "Create a data product from our customer database" or "Publish the sales dataset as a data product" or "I want to share this data as a product" or "Set up a data product for marketing analytics" | >=0.9.0 | TBD |
+
 ### Data Lineage Skill
 
 | Skill Name | Description | Sample Prompts | pypi version | CPD version |
 |-----------|-------------|---------------|-------------|-------------|
 | lineage | Guides users through exploring upstream/downstream data lineage and historical lineage changes via a 3-phase workflow: asset identification → lineage graph traversal → historical version comparison. Handles both direct lineage search and catalog-first lookup with ID conversion | "Show lineage for CUSTOMER_360" or "What feeds into the sales table?" or "Trace the customer_data asset in AgentTest project" or "What would break if we changed this table?" or "Where does this data come from originally?" or "Has anything changed in the pipeline since last month?" | >=1.1.0 | TBD |
+

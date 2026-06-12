@@ -27,10 +27,14 @@ async def _search_metadata_import(
 
 @service_registry.tool(
     name="search_metadata_import",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Search and List Existing Metadata Import Configurations"
+    },
     description="""Searches for the available metadata import .
 
     This function is mainly used when a user want to create or update a metadata enrichment (MDE) and does not provide an asset or want to use a metadata import (MDI).
-    This function can search for all the available metadata imports (MDI) or search a metadata imports by name 
+    This function can search for all the available metadata imports (MDI) or search a metadata imports by name
     - The user must provide a project name or the project ID
     - Optional: the user can provide the metadata import name to search a specific MDI
 

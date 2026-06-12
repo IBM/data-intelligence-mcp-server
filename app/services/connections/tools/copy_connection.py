@@ -83,6 +83,10 @@ async def _copy_connection(
 
 @service_registry.tool(
     name="copy_connection",
+    annotations={
+        "title": "Create Connection Copy in Target Container",
+        "destructiveHint": True
+    },
     description="""Understand user's request about creating a new connetion from an existing connection,
                     in other words, copying a connection, or using an existing connection in a different
                     container, and returning the details of the new connection.
