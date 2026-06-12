@@ -235,8 +235,12 @@ async def _create_asset_from_sql_query(
 
 
 @service_registry.tool(
-    name="text_to_sql_create_asset_from_sql_query",
+    name="create_asset_from_sql_query",
     description="Create a new asset in the specified project and connection if provided based on the provided SQL query if creation of new asset was made explicitly.",
+    annotations={
+        "title": "Create an Asset from a SQL SELECT Query",
+        "destructiveHint": True
+    }
 )
 @auto_context
 async def create_asset_from_sql_query(

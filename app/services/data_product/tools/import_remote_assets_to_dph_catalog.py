@@ -15,8 +15,9 @@ from app.services.data_product.models.import_remote_assets_to_dph_catalog import
 from app.shared.exceptions.base import ServiceError
 from app.services.data_product.utils.common_utils import get_dph_catalog_id_for_user
 from app.services.data_product.utils.data_product_creation_utils import (
-    batch_check_for_duplicate_data_products_by_source_asset_ids,
+    batch_check_for_duplicate_data_products_by_target_asset_ids,
     batch_create_part_assets_and_set_relationships,
+    check_for_duplicate_data_product_by_source_asset_id,
 )
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
@@ -144,7 +145,7 @@ async def batch_get_asset_details(
     response = await tool_helper_service.execute_get_request(
         url=f"{tool_helper_service.base_url}/v2/assets/bulk",
         params=query_params,
-        tool_name="import_remote_assets_to_dph_catalog",
+        tool_name="import_remote_assets_to_data_product_catalog",
     )
     response_dict = cast(dict[str, Any], response)
     
@@ -201,7 +202,7 @@ async def get_datasource_type_from_connection(connection_id: str, container_id: 
     response = await tool_helper_service.execute_get_request(
         url=f"{tool_helper_service.base_url}/v2/connections/{connection_id}",
         params=query_params,
-        tool_name="import_remote_assets_to_dph_catalog",
+        tool_name="import_remote_assets_to_data_product_catalog",
     )
     response_dict = cast(dict[str, Any], response)
     datasource_type = cast(dict[str, Any], response_dict.get("entity", {})).get("datasource_type", "")
@@ -223,7 +224,7 @@ async def _validate_if_datasource_type_is_supported(datasource_type: str) -> Non
     response = await tool_helper_service.execute_get_request(
         url=f"{tool_helper_service.base_url}/v2/datasource_types",
         params=query_params,
-        tool_name="import_remote_assets_to_dph_catalog",
+        tool_name="import_remote_assets_to_data_product_catalog",
     )
     response_dict = cast(dict[str, Any], response)
     supported_datasource_types = {
@@ -448,7 +449,7 @@ async def batch_copy_assets_to_dph_catalog(
         url=f"{tool_helper_service.base_url}/v2/assets/bulk_copy",
         params=query_params,
         json=payload,
-        tool_name="import_remote_assets_to_dph_catalog",
+        tool_name="import_remote_assets_to_data_product_catalog",
     )
     response_dict = cast(dict[str, Any], response)
     responses = cast(list[dict[str, Any]], response_dict.get("responses", []))
@@ -609,7 +610,7 @@ async def _validate_if_connection_credentials_are_available(connection_id: str |
     response = await tool_helper_service.execute_get_request(
         url=f"{tool_helper_service.base_url}/data_product_exchange/v1/connections/{connection_id}/get_credentials",
         params=query_params,
-        tool_name="import_remote_assets_to_dph_catalog",
+        tool_name="import_remote_assets_to_data_product_catalog",
     )
     response_dict = cast(dict[str, Any], response)
     if not response_dict.get("caller", False):
@@ -631,7 +632,7 @@ async def create_asset_revision(target_asset_id: str, dph_catalog_id: str):
     await tool_helper_service.execute_post_request(
         url=f"{tool_helper_service.base_url}/v2/assets/{target_asset_id}/revisions?catalog_id={dph_catalog_id}&hide_deprecated_response_fields=false",
         json=payload,
-        tool_name="import_remote_assets_to_dph_catalog",
+        tool_name="import_remote_assets_to_data_product_catalog",
     )
 
 
@@ -665,43 +666,11 @@ async def _batch_fetch_all_asset_details(
     return all_asset_details
 
 
-async def _perform_duplicate_check_if_needed(
-    request: ImportRemoteAssetsToDphCatalogRequest,
-    dph_catalog_id: str
-) -> dict[str, dict]:
-    """
-    Perform batch duplicate check if force=False.
-    
-    Args:
-        request: Import request
-        dph_catalog_id: DPH catalog ID
-        
-    Returns:
-        Dictionary mapping asset_id to duplicate data product info
-    """
-    if request.force:
-        return {}
-    
-    source_asset_ids = [asset_info.asset_id for asset_info in request.assets]
-    LOGGER.info(f"Performing batch duplicate check for {len(source_asset_ids)} asset(s)")
-    
-    duplicate_map = await batch_check_for_duplicate_data_products_by_source_asset_ids(
-        source_asset_ids, dph_catalog_id
-    )
-    
-    if duplicate_map:
-        LOGGER.warning(f"Found {len(duplicate_map)} asset(s) already in data products")
-    
-    return duplicate_map
-
-
 async def _validate_single_asset(
     idx: int,
     asset_info: Any,
     asset_count: int,
-    all_asset_details: dict[str, dict],
-    duplicate_map: dict[str, dict],
-    force: bool
+    all_asset_details: dict[str, dict]
 ) -> tuple[dict | None, dict | None]:
     """
     Validate a single asset and return validation result.
@@ -711,8 +680,6 @@ async def _validate_single_asset(
         asset_info: Asset information
         asset_count: Total asset count
         all_asset_details: Map of asset_id to asset details
-        duplicate_map: Map of asset_id to duplicate info
-        force: Whether to force import
         
     Returns:
         Tuple of (source_asset_details, validation_error_dict or None)
@@ -738,19 +705,7 @@ async def _validate_single_asset(
         # Extract asset name for use in validation messages
         source_asset_name = source_asset_details.get("asset", {}).get("metadata", {}).get("name", "")
         
-        # Check if this asset is in the duplicate map (batch check done before loop)
-        if not force:
-            duplicate = duplicate_map.get(asset_info.asset_id)
-            if duplicate:
-                error_msg = (
-                    f"Source asset '{source_asset_name}' (ID: {asset_info.asset_id}) "
-                    f"already exists in data product:\n"
-                    f"  - {duplicate['name']} (ID: {duplicate['data_product_id']}, "
-                    f"State: {duplicate['state']})\n\n"
-                    f"This prevents creating multiple data products from the same source asset.\n"
-                    f"To import anyway, set force=true"
-                )
-                raise ServiceError(error_msg)
+        # Note: Duplicate detection happens AFTER copying (Step 7) with target asset IDs
         
         LOGGER.info(f"Asset {idx}/{asset_count} passed validation: {source_asset_name}")
         return source_asset_details, None
@@ -779,7 +734,6 @@ async def _validate_single_asset(
 async def _validate_all_assets(
     request: ImportRemoteAssetsToDphCatalogRequest,
     all_asset_details: dict[str, dict],
-    duplicate_map: dict[str, dict],
     asset_count: int
 ) -> tuple[dict[tuple[str, str], list[tuple[int, Any, dict]]], list[dict], list[dict]]:
     """
@@ -788,7 +742,6 @@ async def _validate_all_assets(
     Args:
         request: Import request
         all_asset_details: Map of asset_id to asset details
-        duplicate_map: Map of asset_id to duplicate info
         asset_count: Total asset count
         
     Returns:
@@ -803,7 +756,7 @@ async def _validate_all_assets(
     
     for idx, asset_info in enumerate(request.assets, 1):
         source_asset_details, error_dict = await _validate_single_asset(
-            idx, asset_info, asset_count, all_asset_details, duplicate_map, request.force
+            idx, asset_info, asset_count, all_asset_details
         )
         
         if error_dict:
@@ -857,7 +810,7 @@ async def _fetch_connection_id_from_target_asset(
     target_asset_details = await tool_helper_service.execute_get_request(
         url=f"{tool_helper_service.base_url}/v2/assets/{target_asset_id}",
         params={"catalog_id": dph_catalog_id},
-        tool_name="import_remote_assets_to_dph_catalog",
+        tool_name="import_remote_assets_to_data_product_catalog",
     )
     target_asset_dict = cast(dict[str, Any], target_asset_details)
     
@@ -1099,6 +1052,82 @@ async def _process_container_assets(
 
 
 @auto_context
+async def _check_source_asset_duplicates(
+    assets_by_container_with_details: dict,
+    dph_catalog_id: str,
+    asset_count: int
+) -> None:
+    """Check if source assets are already in data products."""
+    LOGGER.info(f"Checking if {asset_count} source asset(s) are already in data products (before import)")
+    
+    duplicate_errors = []
+    for container_key, asset_group in assets_by_container_with_details.items():
+        container_id, container_type = container_key
+        for idx, asset_info, source_asset_details in asset_group:
+            source_asset_id = asset_info.asset_id
+            source_asset_name = source_asset_details.get("metadata", {}).get("name", source_asset_id)
+            
+            duplicate = await check_for_duplicate_data_product_by_source_asset_id(
+                source_asset_id=source_asset_id,
+                source_container_id=container_id,
+                source_container_type=container_type,
+                dph_catalog_id=dph_catalog_id
+            )
+            
+            if duplicate:
+                error_msg = (
+                    f"Source asset '{source_asset_name}' (ID: {source_asset_id}) already exists in data product:\n"
+                    f"  - {duplicate['name']} (ID: {duplicate['data_product_id']}, State: {duplicate['state']})\n\n"
+                    f"This prevents creating multiple data products from the same source asset."
+                )
+                duplicate_errors.append(error_msg)
+                LOGGER.error(error_msg)
+    
+    if duplicate_errors:
+        full_error_msg = (
+            f"Found {len(duplicate_errors)} source asset(s) already in data products:\n\n" +
+            "\n\n".join(duplicate_errors) +
+            "\n\nTo import anyway, set force=true"
+        )
+        raise ServiceError(full_error_msg)
+    
+    LOGGER.info("No source assets found in existing data products")
+
+async def _check_target_asset_duplicates(
+    target_asset_ids: list[str],
+    dph_catalog_id: str
+) -> None:
+    """Check if target assets are already in data products."""
+    if not target_asset_ids:
+        return
+        
+    LOGGER.info(f"Checking if {len(target_asset_ids)} target asset(s) are already in data products")
+    
+    target_duplicates_map = await batch_check_for_duplicate_data_products_by_target_asset_ids(
+        target_asset_ids, dph_catalog_id
+    )
+    
+    if target_duplicates_map:
+        duplicate_errors = []
+        for target_id, dp_info in target_duplicates_map.items():
+            error_msg = (
+                f"Target asset {target_id} (imported from source) is already used in data product:\n"
+                f"  - {dp_info['name']} (ID: {dp_info['data_product_id']}, State: {dp_info['state']})"
+            )
+            duplicate_errors.append(error_msg)
+            LOGGER.error(error_msg)
+        
+        full_error_msg = (
+            f"Found {len(target_duplicates_map)} target asset(s) already in data products:\n\n" +
+            "\n\n".join(duplicate_errors) +
+            "\n\nThis prevents creating multiple data products from the same assets.\n"
+            "To import anyway, set force=true"
+        )
+        raise ServiceError(full_error_msg)
+    
+    LOGGER.info("No target assets found in existing data products")
+
+
 async def _import_remote_assets_to_dph_catalog(
     request: ImportRemoteAssetsToDphCatalogRequest,
 ) -> ImportRemoteAssetsToDphCatalogResponse:
@@ -1137,13 +1166,14 @@ async def _import_remote_assets_to_dph_catalog(
     # Step 3: Batch fetch asset details by container
     all_asset_details = await _batch_fetch_all_asset_details(assets_by_container)
     
-    # Step 4: Batch duplicate check BEFORE validation loop
-    duplicate_map = await _perform_duplicate_check_if_needed(request, dph_catalog_id)
-    
-    # Step 5: Validate all assets - collect all validation errors
+    # Step 4: Validate all assets - collect all validation errors
     assets_by_container_with_details, _, _ = await _validate_all_assets(
-        request, all_asset_details, duplicate_map, asset_count
+        request, all_asset_details, asset_count
     )
+    
+    # Step 5: Check for source asset duplicates (if force=False)
+    if not request.force:
+        await _check_source_asset_duplicates(assets_by_container_with_details, dph_catalog_id, asset_count)
     
     # Step 6: Batch copy assets by container and process them
     target_asset_ids = []
@@ -1157,6 +1187,10 @@ async def _import_remote_assets_to_dph_catalog(
         target_asset_ids.extend(target_ids)
         successfully_processed.extend(success_list)
         processing_errors.extend(error_list)
+    
+    # Step 7: Check for target asset duplicates (if force=False)
+    if not request.force:
+        await _check_target_asset_duplicates(target_asset_ids, dph_catalog_id)
     
     # Check if any processing failed
     if processing_errors:
@@ -1186,7 +1220,7 @@ async def _import_remote_assets_to_dph_catalog(
 
 
 @service_registry.tool(
-    name="data_product_import_remote_assets_to_dph_catalog",
+    name="import_remote_assets_to_data_product_catalog",
     description=(
         "Import remote assets from catalogs or projects to the DPH (Data Product Hub) catalog. "
         "This tool validates assets, checks for duplicates, copies them to DPH catalog, "
@@ -1195,9 +1229,13 @@ async def _import_remote_assets_to_dph_catalog(
         "Use this tool BEFORE creating a data product to prepare the assets."
     ),
     tags={"data_product", "import", "dph_catalog"},
-    meta={"version": "1.0", "service": "data_product"}
+    meta={"version": "1.0", "service": "data_product"},
+    annotations={
+        "title": "Import Remote Asset for Data Product Hub Catalog",
+        "destructiveHint": True
+    }
 )
-async def import_remote_assets_to_dph_catalog(
+async def import_remote_assets_to_data_product_catalog(
     input: ImportRemoteAssetsToDphCatalogRequest
 ) -> ImportRemoteAssetsToDphCatalogResponse:
     """

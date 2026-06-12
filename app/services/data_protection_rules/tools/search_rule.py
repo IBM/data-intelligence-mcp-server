@@ -23,23 +23,23 @@ async def _search_rules(
     request: SearchDataProtectionRuleRequest,
 ) -> SearchDataProtectionRuleResponse:
     LOGGER.info(
-        f"In the data_protection_rule_search tool, searching data protection rules with query {request.data_protection_rule_search_query}."
+        f"In the search_data_protection_rules tool, searching data protection rules with query {request.search_data_protection_rules_query}."
     )
 
     payload = get_dps_search_payload(
-        data_protection_rule_search_query=request.data_protection_rule_search_query,
+        search_data_protection_rules_query=request.search_data_protection_rules_query,
     )
 
     try:
         response = await tool_helper_service.execute_post_request(
             url=f"{tool_helper_service.base_url}{SEARCH_PATH}?role=viewer&auth_scope=all&auth_cache=true&tenant_scope=true",
             json=payload,
-            tool_name="search_rule"
+            tool_name="search_data_protection_rules"
         )
         number_of_responses = response["size"]
         if number_of_responses == 0:
             LOGGER.info(
-                "In the data_protection_rule_search tool, no data protection rules found."
+                "In the search_data_protection_rules tool, no data protection rules found."
             )
             return SearchDataProtectionRuleResponse(count=0, data_protection_rules=[])
         LOGGER.info(f"Found {number_of_responses} data protection rules.")
@@ -60,22 +60,22 @@ async def _search_rules(
             )
 
         format_response = format_data_protection_rule_for_table(data_protection_rules)
-        ui_message_context.add_table_ui_message(tool_name="search_data_protection_rule",
+        ui_message_context.add_table_ui_message(tool_name="search_data_protection_rules",
                          formatted_data=format_response, title=TABLE_TITLE_DATA_PROTECTION_RULES)
         
     except ExternalAPIError as e:
         LOGGER.error(
-            f"Failed to run data_protection_rule_search tool. Error while searching data protection rules: {str(e)}"
+            f"Failed to run search_data_protection_rules tool. Error while searching data protection rules: {str(e)}"
         )
         raise ExternalAPIError(
-            f"Failed to run data_protection_rule_search tool. Error while searching data protection rules: {str(e)}"
+            f"Failed to run search_data_protection_rules tool. Error while searching data protection rules: {str(e)}"
         )
     except Exception as e:
         LOGGER.error(
-            f"Failed to run data_protection_rule_search tool. Error while searching data protection rules: {str(e)}"
+            f"Failed to run search_data_protection_rules tool. Error while searching data protection rules: {str(e)}"
         )
         raise ServiceError(
-            f"Failed to run data_protection_rule_search tool. Error while searching data protection rules: {str(e)}"
+            f"Failed to run search_data_protection_rules tool. Error while searching data protection rules: {str(e)}"
         )
 
     return SearchDataProtectionRuleResponse(count=number_of_responses, data_protection_rules=data_protection_rules)
@@ -93,32 +93,36 @@ def format_data_protection_rule_for_table(data_protection_rules: list[dict]) -> 
     ]
 
 @service_registry.tool(
-    name="data_protection_rule_search",
+    name="search_data_protection_rules",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Search and List All Data Protection Rules by Name or Description"
+    },
     description="""
     This tool searches all data protection rules to return data protection rules that match the given search query.
     Example: 'Find all data protection rules with Deny name.'
-    In this case, data_protection_rule_search_query is 'Deny', and this tool returns all data protection rules that have Deny in their name or description.
+    In this case, search_data_protection_rules_query is 'Deny', and this tool returns all data protection rules that have Deny in their name or description.
     Example: 'Show me all data protection rules'
-    In this case, data_protection_rule_search_query is '*'.
+    In this case, search_data_protection_rules_query is '*'.
     """,
     tags={"search", "data_protection_rules"},
     meta={"version": "1.0", "service": "data_protection_rules"},
 )
 @auto_context
 async def search_rules(
-    data_protection_rule_search_query: str
+    search_data_protection_rules_query: str
 ) -> SearchDataProtectionRuleResponse:
     """Wrapper version that expands SearchDataProtectionRuleRequest object into individual parameters."""
 
     request = SearchDataProtectionRuleRequest(
-        data_protection_rule_search_query=data_protection_rule_search_query,
+        search_data_protection_rules_query=search_data_protection_rules_query,
     )
 
     # Call the original search_data_protection_rules function
     return await _search_rules(request)
 
-def get_dps_search_payload(data_protection_rule_search_query: str) -> dict:
-    if data_protection_rule_search_query == "*":
+def get_dps_search_payload(search_data_protection_rules_query: str) -> dict:
+    if search_data_protection_rules_query == "*":
         return {
             "size": 10000,
             "from": "0",
@@ -154,7 +158,7 @@ def get_dps_search_payload(data_protection_rule_search_query: str) -> dict:
                     {"match": {"metadata.artifact_type": "data_protection_rule"}},
                     {
                             "gs_user_query": {
-                            "search_string": data_protection_rule_search_query,
+                            "search_string": search_data_protection_rules_query,
                             "semantic_search_enabled": True
                         }
                     }

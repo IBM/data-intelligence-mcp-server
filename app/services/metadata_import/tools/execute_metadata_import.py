@@ -196,6 +196,10 @@ async def _execute_metadata_import(
     Returns: Job ID, run ID, state, and monitoring URL.""",
     tags={"run-metadata-import", "execute-metadata-import", "start-metadata-import"},
     meta={"version": "1.0", "service": "metadata-import"},
+    annotations={
+        "title": "Execute Metadata Import Job in a Project",
+        "destructiveHint": True
+    }
 )
 @auto_context
 async def execute_metadata_import(

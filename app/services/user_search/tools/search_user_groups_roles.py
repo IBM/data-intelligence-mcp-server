@@ -235,6 +235,10 @@ async def _search_user_groups_roles(
 
 @service_registry.tool(
     name="search_user_groups_roles",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Unified Identity Search for Users, Groups, and Roles"
+    },
     description="""
     Unified tool to search and retrieve users, user groups, or user roles in watsonx.data intelligence.
     

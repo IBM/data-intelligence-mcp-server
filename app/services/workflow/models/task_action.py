@@ -20,7 +20,7 @@ class FormProperty(BaseModel):
 
 
 class TaskActionRequest(BaseModel):
-    """Request model for task_action."""
+    """Request model for perform_workflow_task_action."""
     
     task_id: str = Field(..., description="Unique identifier of the task")
     action: Literal["claim", "complete", "unclaim"] = Field(
@@ -48,7 +48,7 @@ class TaskActionRequest(BaseModel):
 
 
 class TaskActionResponse(BaseResponseModel):
-    """Response model for task_action."""
+    """Response model for perform_workflow_task_action."""
     
     status_code: int = Field(..., description="HTTP status code from the action")
     message: Optional[str] = Field(None, description="Status message")

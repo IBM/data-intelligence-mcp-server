@@ -20,39 +20,39 @@ async def _find_delivery_methods_based_on_connection(
     request: FindDeliveryMethodsBasedOnConnectionRequest, 
 ) -> FindDeliveryMethodsBasedOnConnectionResponse:
     LOGGER.info(
-        f"In the data_product_find_delivery_methods_based_on_connection tool, finding delivery methods for data asset {request.data_asset_id} in {request.container_type} (ID: {request.container_id})."
+        f"In the find_data_product_delivery_methods_based_on_connection tool, finding delivery methods for data asset {request.data_asset_id} in {request.container_type} (ID: {request.container_id})."
     )
     # validate_inputs(request, "data_asset_name")
     dph_catalog_id = await get_dph_catalog_id_for_user()
 
     if not request.container_id or not request.container_type:
         error_message = "Container ID and Container Type are required."
-        LOGGER.error(f"Failed to run data_product_find_delivery_methods_based_on_connection tool. {error_message}")
-        raise ServiceError(f"Failed to run data_product_find_delivery_methods_based_on_connection tool. {error_message}")
+        LOGGER.error(f"Failed to run find_data_product_delivery_methods_based_on_connection tool. {error_message}")
+        raise ServiceError(f"Failed to run find_data_product_delivery_methods_based_on_connection tool. {error_message}")
     
     if not request.data_asset_id:
         error_message = "Data asset ID is required. Find the data asset ID matching the data asset for which we are finding delivery methods. Data asset ID can be found in the response of `search_asset` tool."
-        LOGGER.error(f"Failed to run data_product_find_delivery_methods_based_on_connection tool. {error_message}")
-        raise ServiceError(f"Failed to run data_product_find_delivery_methods_based_on_connection tool. {error_message}")
+        LOGGER.error(f"Failed to run find_data_product_delivery_methods_based_on_connection tool. {error_message}")
+        raise ServiceError(f"Failed to run find_data_product_delivery_methods_based_on_connection tool. {error_message}")
    
     # step 1: get the connection ID from the data asset details
     response = await tool_helper_service.execute_get_request(
         url=f"{tool_helper_service.base_url}/v2/assets/{request.data_asset_id}?{request.container_type}_id={request.container_id}",
-        tool_name="data_product_find_delivery_methods_based_on_connection",
+        tool_name="find_data_product_delivery_methods_based_on_connection",
     )
 
     connection_id = response.get("attachments", [{}])[0].get("connection_id")
     if not connection_id:
         error_message = "Connection detail could not be found for this data asset. Make sure the asset is a connection asset."
-        LOGGER.error(f"Failed to run data_product_find_delivery_methods_based_on_connection tool. {error_message}")
-        raise ServiceError(f"Failed to run data_product_find_delivery_methods_based_on_connection tool. {error_message}")
+        LOGGER.error(f"Failed to run find_data_product_delivery_methods_based_on_connection tool. {error_message}")
+        raise ServiceError(f"Failed to run find_data_product_delivery_methods_based_on_connection tool. {error_message}")
 
     LOGGER.info(f"Connection ID found: {connection_id}")
 
     # step 2: get the datasource type from the connection
     response = await tool_helper_service.execute_get_request(
         url=f"{tool_helper_service.base_url}/v2/connections/{connection_id}?decrypt_secrets=true&{request.container_type}_id={request.container_id}&userfs=false",
-        tool_name="data_product_find_delivery_methods_based_on_connection",
+        tool_name="find_data_product_delivery_methods_based_on_connection",
     )
     datasource_type = response["entity"]["datasource_type"]
     
@@ -64,7 +64,7 @@ async def _find_delivery_methods_based_on_connection(
     response = await tool_helper_service.execute_post_request(
         url=f"{tool_helper_service.base_url}/v2/asset_types/ibm_data_product_delivery_method/search?catalog_id={dph_catalog_id}&hide_deprecated_response_fields=false",
         json=search_payload,
-        tool_name="data_product_find_delivery_methods_based_on_connection",
+        tool_name="find_data_product_delivery_methods_based_on_connection",
     )
     available_delivery_methods = get_available_delivery_methods(response, datasource_type)
     
@@ -95,7 +95,7 @@ def get_available_delivery_methods(response, datasource_type):
 
 
 @service_registry.tool(
-    name="data_product_find_delivery_methods_based_on_connection",
+    name="find_data_product_delivery_methods_based_on_connection",
     description="""
     This tool finds delivery methods available for the connection type of the data asset.
     Finds delivery methods for data asset (data_asset_id) in container_type (ID: container_id).
@@ -112,9 +112,13 @@ def get_available_delivery_methods(response, datasource_type):
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
+    annotations={
+        "title": "Find Delivery Methods Based on Connection Type",
+        "readOnlyHint": True
+    }
 )
 @auto_context
-async def find_delivery_methods_based_on_connection(
+async def find_data_product_delivery_methods_based_on_connection(
     container_id: str,
     container_type: str,
     data_asset_id: str

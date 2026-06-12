@@ -100,11 +100,17 @@ def client_supports_elicitation(ctx: Optional[Context]) -> bool:
     determine whether elicitation is available, without actually calling
     ctx.elicit().
     
+    IMPORTANT: Elicitation requires a STATEFUL MCP server. The server must
+    maintain session state across multiple requests to support the elicitation
+    workflow (prompt -> user response -> continuation). This is verified by
+    checking for the presence of fastmcp_context and a valid session_id.
+    
     Args:
         ctx: Optional MCP Context containing session and client information
         
     Returns:
-        True if the client advertises elicitation support, False otherwise
+        True if both client advertises elicitation support AND server is stateful,
+        False otherwise
         
     Example:
         >>> from app.shared.logging import auto_context
@@ -118,6 +124,13 @@ def client_supports_elicitation(ctx: Optional[Context]) -> bool:
         return False
     
     try:
+        # Check for server statefulness via fastmcp_context
+        # The MCP server needs to be stateful for elicitation to work properly
+        if not hasattr(ctx, 'session_id') or ctx.session_id is None:
+            LOGGER.debug("FastMCP session_id not available or None so MCP server is likely stateless")
+            return False
+        
+        # Check client capabilities for elicitation support
         session = ctx.session
         if session is None:
             return False

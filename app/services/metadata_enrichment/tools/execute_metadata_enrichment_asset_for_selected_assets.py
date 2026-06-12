@@ -71,6 +71,10 @@ async def _execute_metadata_enrichment_asset_for_selected_assets(
 
 @service_registry.tool(
     name="execute_metadata_enrichment_asset_for_selected_assets",
+    annotations={
+        "title": "Execute Pre-configured Metadata Enrichment Asset on Selected Datasets",
+        "destructiveHint": True
+    },
     description="""Executes a metadata enrichment asset for selected datasets within a specified project.
 
     This tool initiates the execution of a pre-configured metadata enrichment asset, applying it to multiple datasets.

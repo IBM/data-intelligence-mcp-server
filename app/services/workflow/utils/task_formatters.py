@@ -14,6 +14,7 @@ from typing import List, Optional
 from app.services.workflow.models.get_workflow_tasks_from_my_inbox import Task
 from app.services.constants import WORKFLOW_TASK_ENDPOINT
 from app.shared.logging import LOGGER
+from app.core.settings import settings
 
 # Constants
 AT_RISK_THRESHOLD_HOURS = 48  # Tasks due within this many hours are considered "at risk"
@@ -301,13 +302,87 @@ def format_tasks_as_table(tasks: List[Task], base_url: str) -> str:
     return table
 
 
+def build_artifact_url(artifact_id: str, artifact_type: str, ui_base_url: str) -> str:
+    """
+    Build the proper URL for an artifact based on its type and environment.
+    
+    Args:
+        artifact_id: The artifact ID
+        artifact_type: Type of artifact ('data_class' or 'glossary_term')
+        ui_base_url: Base URL for the UI
+        
+    Returns:
+        Full URL to the artifact in the governance UI
+        
+    Examples:
+        SaaS data class: https://dai.dev.cloud.ibm.com/governance/data-classes/{artifact_id}
+        CPD data class: https://cpd.example.com/gov/data-classes/{artifact_id}
+        SaaS business term: https://dai.dev.cloud.ibm.com/governance/terms/{artifact_id}
+        CPD business term: https://cpd.example.com/gov/terms/{artifact_id}
+    """
+    # Determine the governance path prefix based on environment
+    if settings.di_env_mode == "CPD":
+        gov_prefix = "gov"
+    else:
+        gov_prefix = "governance"
+    
+    # Determine the artifact path based on type
+    if artifact_type == "data_class":
+        artifact_path = "data-classes"
+    elif artifact_type == "glossary_term":
+        artifact_path = "terms"
+    else:
+        # Fallback to old format if artifact type is unknown
+        LOGGER.warning(f"Unknown artifact type '{artifact_type}', using fallback URL format")
+        return f"{ui_base_url}/artifacts/{artifact_id}"
+    
+    return f"{ui_base_url}/{gov_prefix}/{artifact_path}/{artifact_id}"
+
+
+def _format_artifact_name_link(artifact, ui_base_url: str) -> str:
+    """
+    Build a formatted name link for an artifact.
+    
+    Args:
+        artifact: Artifact object (BusinessTerm or DataClass)
+        ui_base_url: UI base URL for constructing artifact links
+        
+    Returns:
+        Formatted name link (hyperlinked if artifact_id exists, plain text otherwise)
+    """
+    if artifact.artifact_id and hasattr(artifact, 'artifact_type') and artifact.artifact_type:
+        return f"[{artifact.name}]({build_artifact_url(artifact.artifact_id, artifact.artifact_type, ui_base_url)})"
+    elif artifact.artifact_id:
+        # Fallback to old format if artifact_type is not available
+        return f"[{artifact.name}]({ui_base_url}/artifacts/{artifact.artifact_id})"
+    else:
+        return artifact.name
+
+
+def _truncate_description(description: str, max_length: int = 100) -> str:
+    """
+    Truncate description if it exceeds max_length.
+    
+    Args:
+        description: Description text to truncate
+        max_length: Maximum length before truncation (default: 100)
+        
+    Returns:
+        Truncated description with "..." suffix if needed, or original if within limit
+    """
+    description = description or ""
+    if len(description) > max_length:
+        return description[:max_length - 3] + "..."
+    return description
+
+
 def format_artifacts_as_table(artifacts: List, base_url: str) -> str:
     """
     Convert artifact list (business terms or data classes) to markdown table with formatted columns.
     
     Args:
         artifacts: List of Artifact objects (BusinessTerm or DataClass)
-        base_url: Base URL for constructing artifact links
+        base_url: Base URL for constructing artifact links (API base URL, will be converted to UI URL)
         
     Returns:
         Markdown table string with columns:
@@ -320,24 +395,17 @@ def format_artifacts_as_table(artifacts: List, base_url: str) -> str:
     if not artifacts:
         return "No artifacts found."
     
+    # Get UI base URL from settings
+    ui_base_url = str(settings.ui_url) if settings.ui_url else base_url
+    
     # Build table header
     table = "| Name | Description | State | Modified By | Created At |\n"
     table += "|------|-------------|-------|-------------|------------|\n"
     
     # Build table rows
     for artifact in artifacts:
-        # Build name link if artifact_id exists
-        if artifact.artifact_id:
-            name_link = f"[{artifact.name}]({base_url}/artifacts/{artifact.artifact_id})"
-        else:
-            name_link = artifact.name
-        
-        # Truncate description if too long
-        description = artifact.description or ""
-        if len(description) > 100:
-            description = description[:97] + "..."
-        
-        # Format created_at if available
+        name_link = _format_artifact_name_link(artifact, ui_base_url)
+        description = _truncate_description(artifact.description)
         created_at = artifact.created_at or "N/A"
         
         table += f"| {name_link} | {description} | {artifact.state or 'N/A'} | {artifact.modified_by or 'N/A'} | {created_at} |\n"
@@ -351,7 +419,7 @@ def prompt_user_for_artifact_selection(artifacts: List, base_url: str) -> str:
     
     Args:
         artifacts: List of Artifact objects (BusinessTerm or DataClass)
-        base_url: Base URL for constructing artifact links
+        base_url: Base URL for constructing artifact links (API base URL, will be converted to UI URL)
         
     Returns:
         Formatted string prompting user to select an artifact
@@ -362,22 +430,15 @@ def prompt_user_for_artifact_selection(artifacts: List, base_url: str) -> str:
     if len(artifacts) == 1:
         return f"Found 1 artifact: {artifacts[0].name}"
     
+    # Get UI base URL from settings
+    ui_base_url = str(settings.ui_url) if settings.ui_url else base_url
+    
     # Build numbered list of artifacts
     output = f"Found {len(artifacts)} artifacts. Please select the artifact you want to work with:\n\n"
     
     for i, artifact in enumerate(artifacts, 1):
-        # Build name link if artifact_id exists
-        if artifact.artifact_id:
-            name_link = f"[{artifact.name}]({base_url}/artifacts/{artifact.artifact_id})"
-        else:
-            name_link = artifact.name
-        
-        # Truncate description if too long
-        description = artifact.description or ""
-        if len(description) > 100:
-            description = description[:97] + "..."
-        
-        # Format created_at if available
+        name_link = _format_artifact_name_link(artifact, ui_base_url)
+        description = _truncate_description(artifact.description)
         created_at = artifact.created_at or "N/A"
         
         output += f"{i}. {name_link}\n"

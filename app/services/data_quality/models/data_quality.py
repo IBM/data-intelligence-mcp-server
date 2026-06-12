@@ -6,6 +6,14 @@ from pydantic import BaseModel, Field
 from typing import Dict, Optional
 
 
+class SlaAssessmentSummary(BaseModel):
+    """Summary of SLA assessments for an asset."""
+    
+    matching_data_quality_slas: int = Field(..., description="Number of data quality SLAs currently monitoring this asset (based on latest assessments)")
+    total_data_quality_sla_violations: int = Field(..., description="Total number of data quality SLA violations across all latest assessments")
+    last_assessment_time: Optional[str] = Field(None, description="Timestamp of the most recent assessment (ISO 8601 format)")
+
+
 class DataQuality(BaseModel):
     """
     Data quality metrics for an asset.
@@ -21,6 +29,9 @@ class DataQuality(BaseModel):
                     "Common dimensions: consistency, validity, completeness, timeliness, accuracy"
     )
     report_url: str = Field(..., description="Link to detailed quality dashboard")
+    sla_assessment_summary: Optional[SlaAssessmentSummary] = Field(
+        None, description="Summary of SLA assessments for this asset"
+    )
 
 class DataQualityRule(BaseModel):
     data_quality_rule_id: str

@@ -1,0 +1,5 @@
+{
+  "contract_type": "url",
+  "contract_url": "<USER_PROVIDED_HTTPS_URL>",
+  "contract_name": "<USER_PROVIDED_CONTRACT_NAME>"
+}

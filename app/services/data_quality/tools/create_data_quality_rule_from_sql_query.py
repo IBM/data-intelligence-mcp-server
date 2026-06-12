@@ -70,6 +70,10 @@ Note:
     This tool requires confirmation before execution as it creates a new resource.""",
     tags={"create", "data_quality"},
     meta={"version": "1.0", "service": "data_quality"},
+    annotations={
+        "title": "Create Custom Data Quality Rule Using SQL Query",
+        "destructiveHint": True
+    }
 )
 @auto_context
 async def create_data_quality_rule_from_sql_query(

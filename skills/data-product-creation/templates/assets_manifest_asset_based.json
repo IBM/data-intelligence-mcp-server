@@ -1,0 +1,19 @@
+{
+  "source_type": "asset",
+  "assets": [
+    {
+      "asset_id": "<POPULATED_BY_SEARCH_ASSET_TOOL>",
+      "asset_name": "<USER_PROVIDED_OR_FROM_SEARCH>",
+      "container_id": "<POPULATED_BY_SEARCH_ASSET_TOOL>",
+      "container_type": "<catalog_or_project>",
+      "description": "<USER_PROVIDED_DESCRIPTION>",
+      "quality_scores": {
+        "completeness": "<OPTIONAL_FROM_GET_ASSET_DETAILS>",
+        "validity": "<OPTIONAL_FROM_GET_ASSET_DETAILS>",
+        "consistency": "<OPTIONAL_FROM_GET_ASSET_DETAILS>"
+      },
+      "key_columns": ["<USER_PROVIDED_COLUMN_NAMES>"],
+      "rationale": "<USER_PROVIDED_RATIONALE>"
+    }
+  ]
+}

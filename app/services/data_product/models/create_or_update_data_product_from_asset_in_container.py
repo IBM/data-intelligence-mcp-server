@@ -19,7 +19,7 @@ class CreateOrUpdateDataProductFromAssetInContainerRequest(BaseModel):
     target_asset_ids: list[str] = Field(
         description=(
             "List of target asset IDs in DPH catalog to be added to the data product. "
-            "These should be the asset IDs returned from import_remote_assets_to_dph_catalog tool. "
+            "These should be the asset IDs returned from import_remote_assets_to_data_product_catalog tool. "
             "Provide at least one asset ID."
         )
     )

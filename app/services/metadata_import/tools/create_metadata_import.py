@@ -119,6 +119,10 @@ async def _create_metadata_import(input: CreateMetadataImportRequest) -> CreateM
     description="Create a metadata import (MDI) in a project. PREREQUISITE: Must call list_connection_paths FIRST if schemas are not explicitly provided by user.",
     tags={"metadata-import"},
     meta={"version": "1.0", "service": "metadata-import"},
+    annotations={
+        "title": "Create Metadata Import in a Project",
+        "destructiveHint": True
+    }
 )
 @auto_context
 async def create_metadata_import(

@@ -191,6 +191,10 @@ async def _list_containers(
 
 @service_registry.tool(
     name="list_containers",
+    annotations={
+        "readOnlyHint": True,
+        "title": "List All Available Containers (Catalogs, Projects, and Spaces)"
+    },
     description="""Lists all available containers - catalogs, projects or spaces.
     
     This tool finds all containers (catalogs, projects or spaces) that are available to the current user.

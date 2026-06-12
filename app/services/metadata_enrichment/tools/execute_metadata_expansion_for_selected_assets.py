@@ -40,6 +40,10 @@ async def _execute_metadata_expansion_for_selected_assets(
 
 @service_registry.tool(
     name="execute_metadata_expansion_for_selected_assets",
+    annotations={
+        "title": "Execute Semantic Metadata Expansion for Selected Datasets",
+        "destructiveHint": True
+    },
     description="""Executes metadata expansion for specific datasets within a project.
     
     This tool performs metadata expansion on the datasets specified in the request. It retrieves the datasets,

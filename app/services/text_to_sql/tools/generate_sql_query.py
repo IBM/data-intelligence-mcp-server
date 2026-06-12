@@ -92,8 +92,12 @@ async def _generate_sql_query(
 
 
 @service_registry.tool(
-    name="text_to_sql_generate_sql_query",
+    name="generate_sql_query",
     description="Generate the SQL query which addresses the request of the user and utilises the specified container.",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Generate SQL Query from Natural Language"
+    },
 )
 @auto_context
 async def generate_sql_query(

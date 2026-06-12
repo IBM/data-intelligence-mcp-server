@@ -14,11 +14,16 @@ from app.shared.models import BaseResponseModel, field_validator, model_validato
 from typing import cast, Literal as LiteralType
 
 class AddOrEditCollaboratorRequest(BaseModel):
-    """Model for adding or editing collaborators or update the role of the collaborator to a project."""
+    """Model for adding or editing collaborators or update the role of the collaborator to a project or catalog."""
     
-    project_identifier: str = Field(
+    container_identifier: str = Field(
         ...,
-        description="The project name or id of the project"
+        description="The project or catalog name or id"
+    )
+    
+    container_type: Literal["project", "catalog"] = Field(
+        default="project",
+        description="The type of container: 'project' or 'catalog'. Defaults to 'project'."
     )
     
     user_names: List[str] = Field(
@@ -111,7 +116,8 @@ class CollaboratorMember(BaseModel):
 class AddOrEditCollaboratorResponse(BaseResponseModel):
     """Response model for adding or editing collaborators."""
     
-    project_id: str = Field(..., description="The project ID where collaborators were added")
+    container_id: str = Field(..., description="The project or catalog ID where collaborators were added")
+    container_type: str = Field(..., description="The type of container: 'project' or 'catalog'")
     added_members: List[CollaboratorMember] = Field(
         ...,
         description="List of members that were successfully added (without sensitive ID information)"

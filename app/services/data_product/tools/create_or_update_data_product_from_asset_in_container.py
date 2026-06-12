@@ -27,7 +27,7 @@ async def _create_or_update_data_product_from_asset_in_container(
     """
     Create or update a data product using pre-imported DPH catalog assets.
     
-    This tool expects target_asset_ids from the import_remote_assets_to_dph_catalog tool.
+    This tool expects target_asset_ids from the import_remote_assets_to_data_product_catalog tool.
     It only handles data product creation/update, not asset import.
     """
     asset_count = len(request.target_asset_ids)
@@ -69,7 +69,7 @@ async def _create_or_update_data_product_from_asset_in_container(
         response = await tool_helper_service.execute_post_request(
             url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products",
             json=payload,
-            tool_name="data_product_create_or_update_from_asset_in_container",
+            tool_name="create_update_data_product_from_asset_in_container",
         )
         
         end_time = time.time()
@@ -91,10 +91,10 @@ async def _create_or_update_data_product_from_asset_in_container(
         response = await tool_helper_service.execute_patch_request(
             url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/drafts/{request.existing_data_product_draft_id}",
             json=payload,
-            tool_name="data_product_create_or_update_from_asset_in_container",
+            tool_name="create_update_data_product_from_asset_in_container",
         )
         LOGGER.info(
-            f"In the data_product_create_or_update_from_asset_in_container tool, patched data product draft with {asset_count} data asset item(s)."
+            f"In the create_update_data_product_from_asset_in_container tool, patched data product draft with {asset_count} data asset item(s)."
         )
         message = f"Updated data product draft with {asset_count} data asset item(s) successfully."
         draft = cast(dict[str, Any], response)
@@ -184,16 +184,16 @@ def get_patch_data_asset_items_to_draft_payload(
 
 
 @service_registry.tool(
-    name="data_product_create_or_update_from_asset_in_container",
+    name="create_update_data_product_from_asset_in_container",
     description="""
     This tool creates or updates a data product draft using pre-imported DPH catalog assets.
     
-    IMPORTANT: This tool expects target_asset_ids from the import_remote_assets_to_dph_catalog tool.
-    It does NOT import assets - use import_remote_assets_to_dph_catalog first to prepare assets.
-    If any asset import fails during import_remote_assets_to_dph_catalog tool call, DO NOT call this tool.
+    IMPORTANT: This tool expects target_asset_ids from the import_remote_assets_to_data_product_catalog tool.
+    It does NOT import assets - use import_remote_assets_to_data_product_catalog first to prepare assets.
+    If any asset import fails during import_remote_assets_to_data_product_catalog tool call, DO NOT call this tool.
     
     Workflow:
-    1. Call import_remote_assets_to_dph_catalog to import and prepare assets
+    1. Call import_remote_assets_to_data_product_catalog to import and prepare assets
     2. Use the returned target_asset_ids with this tool to create/update the data product
     
     Example 1 - Create a data product draft with imported assets:
@@ -208,11 +208,15 @@ def get_patch_data_asset_items_to_draft_payload(
     Args:
         name (str | None): The name of the data product. Required for CREATE operations.
         description (str | None): The description of the data product. Required for CREATE operations.
-        target_asset_ids (list[str]): List of DPH catalog asset IDs (from import_remote_assets_to_dph_catalog tool).
+        target_asset_ids (list[str]): List of DPH catalog asset IDs (from import_remote_assets_to_data_product_catalog tool).
         existing_data_product_draft_id (str | None, optional): The ID of the existing data product draft. Provide only for UPDATE operations.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
+    annotations={
+        "title": "Create or Update Data Product Draft from Pre-Imported DPH Catalog Assets",
+        "destructiveHint": True
+    }
 )
 @auto_context
 async def create_or_update_data_product_from_asset_in_container(

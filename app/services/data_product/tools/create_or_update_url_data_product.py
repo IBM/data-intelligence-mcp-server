@@ -125,10 +125,10 @@ async def _create_or_update_url_data_product(
         response = await tool_helper_service.execute_post_request(
             url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products",
             json=payload,
-            tool_name="data_product_create_or_update_url_data_product"
+            tool_name="create_or_update_url_data_product"
         )
         LOGGER.info(
-            "In the data_product_create_or_update_url_data_product tool, created URL data product draft"
+            "In the create_or_update_url_data_product tool, created URL data product draft"
         )
         message = "Created data product draft with the provided URL successfully."
         draft = response["drafts"][0]
@@ -140,10 +140,10 @@ async def _create_or_update_url_data_product(
         response = await tool_helper_service.execute_patch_request(
             url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/drafts/{request.existing_data_product_draft_id}",
             json=payload,
-            tool_name="data_product_create_or_update_url_data_product",
+            tool_name="create_or_update_url_data_product",
         )
         LOGGER.info(
-            "In the data_product_create_or_update_url_data_product tool, patched data product draft with the provided URL asset."
+            "In the create_or_update_url_data_product tool, patched data product draft with the provided URL asset."
         )
         message = "Updated data product draft with the provided URL asset item successfully."
         draft = response
@@ -178,10 +178,10 @@ async def create_url_asset_in_cams(request: CreateOrUpdateUrlDataProductRequest,
     response = await tool_helper_service.execute_post_request(
         url=f"{tool_helper_service.base_url}/v2/assets?catalog_id={dph_catalog_id}&hide_deprecated_response_fields=false",
         json=payload,
-        tool_name="data_product_create_or_update_url_data_product"
+        tool_name="create_or_update_url_data_product"
     )
     url_asset_id = response["asset_id"]
-    LOGGER.info(f"In the data_product_create_or_update_url_data_product tool, created URL Asset. {url_asset_id}")
+    LOGGER.info(f"In the create_or_update_url_data_product tool, created URL Asset. {url_asset_id}")
     return url_asset_id
 
 
@@ -194,7 +194,7 @@ async def get_delivery_method_id_for_open_url(dph_catalog_id: str) -> str:
     response = await tool_helper_service.execute_post_request(
         url=f"{tool_helper_service.base_url}/v2/asset_types/ibm_data_product_delivery_method/search?catalog_id={dph_catalog_id}&hide_deprecated_response_fields=false",
         json=payload,
-        tool_name="data_product_create_or_update_url_data_product"
+        tool_name="create_or_update_url_data_product"
     )
 
     delivery_method_id = ""
@@ -203,10 +203,10 @@ async def get_delivery_method_id_for_open_url(dph_catalog_id: str) -> str:
             delivery_method_id = result["metadata"]["asset_id"]
 
     if not delivery_method_id:
-        LOGGER.error('Failed to run data_product_create_or_update_url_data_product tool. Delivery method "Open URL" is not found.')
-        raise ServiceError('Failed to run data_product_create_or_update_url_data_product tool. Delivery method "Open URL" is not found')
+        LOGGER.error('Failed to run create_or_update_url_data_product tool. Delivery method "Open URL" is not found.')
+        raise ServiceError('Failed to run create_or_update_url_data_product tool. Delivery method "Open URL" is not found')
 
-    LOGGER.info(f"In the data_product_create_or_update_url_data_product tool tool, Got delivery method id - {delivery_method_id}.")
+    LOGGER.info(f"In the create_or_update_url_data_product tool tool, Got delivery method id - {delivery_method_id}.")
     return delivery_method_id
 
 
@@ -269,7 +269,7 @@ def get_patch_data_asset_items_with_delivery_method_to_draft_payload(
 
 
 @service_registry.tool(
-    name="data_product_create_or_update_url_data_product",
+    name="create_or_update_url_data_product",
     description="""
     This tool creates a data product draft from a URL or updates an existing draft to add a URL asset to it.
     It strictly follows the following rules:
@@ -295,6 +295,10 @@ def get_patch_data_asset_items_with_delivery_method_to_draft_payload(
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
+    annotations={
+        "title": "Create or Update Data Product Draft with URL Asset",
+        "destructiveHint": True
+    }
 )
 @auto_context
 async def create_or_update_url_data_product(

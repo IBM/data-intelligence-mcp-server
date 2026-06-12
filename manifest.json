@@ -1,0 +1,13 @@
+{
+  "manifest_version": "0.2",
+  "name": "ibm-watsonx-data-intelligence-mcp-server",
+  "description": "MCP Server implementation for IBM Data Intelligence",
+  "author": {
+    "name": "IBM"
+  },
+  "homepage": "https://github.com/ibm/data-intelligence-mcp-server",
+  "privacy_policies": [
+    "https://github.com/ibm/data-intelligence-mcp-server/blob/main/PRIVACY.md",
+    "https://www.ibm.com/privacy"
+  ]
+}

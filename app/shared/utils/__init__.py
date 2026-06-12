@@ -6,6 +6,8 @@ This module provides common utilities used across MCP services, including:
 LLM Integration:
     - chat_llm_request: Request LLM text generation using MCP sampling
     - LLMResponse: Response wrapper for LLM-generated content
+    - client_supports_sampling: Check if client supports MCP sampling
+    - client_supports_elicitation: Check if client supports MCP elicitation
 
 The LLM utilities use the Model Context Protocol (MCP) sampling capability
 to request text generation from the client's LLM during tool execution.
@@ -23,6 +25,16 @@ Example:
 For detailed LLM usage guide, see: readme_guides/LLM_SAMPLING_GUIDE.md
 """
 
-from app.shared.utils.llm_utils import chat_llm_request, LLMResponse
+from app.shared.utils.llm_utils import (
+    chat_llm_request,
+    LLMResponse,
+    client_supports_sampling,
+    client_supports_elicitation
+)
 
-__all__ = ["chat_llm_request", "LLMResponse"]
+__all__ = [
+    "chat_llm_request",
+    "LLMResponse",
+    "client_supports_sampling",
+    "client_supports_elicitation"
+]

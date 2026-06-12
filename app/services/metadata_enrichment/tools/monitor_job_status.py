@@ -13,7 +13,11 @@ async def _monitor_job_status(job_id: str, project: str) -> JobRunStatus:
 
 
 @service_registry.tool(
-    name="monitor_job_status",
+    name="get_metadata_enrichment_job_status",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Get Metadata Enrichment Job Execution Status"
+    },
     description="""Monitors a given job's status in a given project."
 
                 This tool checks the job status, it accepts:
@@ -22,6 +26,6 @@ async def _monitor_job_status(job_id: str, project: str) -> JobRunStatus:
                 """,
 )
 @auto_context
-async def monitor_job_status(job_id: str, project: str) -> JobRunStatus:
+async def get_metadata_enrichment_job_status(job_id: str, project: str) -> JobRunStatus:
 
     return await _monitor_job_status(job_id, project)

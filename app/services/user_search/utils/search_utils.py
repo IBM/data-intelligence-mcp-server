@@ -112,7 +112,7 @@ async def _fetch_cpd_users() -> List[Dict]:
             LOGGER.info(f"Successfully fetched {len(all_users)} users using new API (v2)")
             return all_users
             
-    except ExternalAPIError as e:
+    except Exception as e:
         LOGGER.error(f"New API (v2) failed, falling back to legacy endpoint: {str(e)}")
     
     # Fall back to legacy API endpoint (pre-CPD 5.x) - /usermgmt/v1/usermgmt/users
@@ -129,7 +129,7 @@ async def _fetch_cpd_users() -> List[Dict]:
         LOGGER.info(f"Successfully fetched {len(users)} users using legacy API (v1)")
         return users
         
-    except ExternalAPIError as e:
+    except Exception as e:
         LOGGER.error(f"Both new (v2) and legacy (v1) API failed: {str(e)}")
         raise ExternalAPIError(
             "Unable to search for users. Please verify you have the necessary permissions to list users."
@@ -147,7 +147,7 @@ async def _fetch_saas_users() -> List[Dict]:
             response = await tool_helper_service.execute_get_request(
                 url=next_url, tool_name="search_users"
             )
-        except ExternalAPIError as e:
+        except Exception as e:
             LOGGER.error(f"API error while fetching users: {str(e)}")
             raise ExternalAPIError(
                 "Unable to search for users. Please verify you have the necessary permissions to list users."
@@ -274,7 +274,7 @@ async def _fetch_cpd_groups() -> List[Dict]:
         if all_groups:
             LOGGER.info(f"Successfully fetched {len(all_groups)} groups using new API (v4)")
             return all_groups
-    except ExternalAPIError as e:
+    except Exception as e:
         LOGGER.error(f"New API (v4) failed, falling back to legacy endpoint: {str(e)}")
     
     # Fall back to legacy API endpoint (pre-CPD 5.4) - /usermgmt/v2/groups
@@ -288,7 +288,7 @@ async def _fetch_cpd_groups() -> List[Dict]:
         groups = response.get("results", []) if isinstance(response, dict) else []
         LOGGER.info(f"Successfully fetched {len(groups)} groups using legacy API (v2)")
         return groups
-    except ExternalAPIError as e:
+    except Exception as e:
         LOGGER.error(f"Both new (v4) and legacy (v2) API failed: {str(e)}")
         raise ExternalAPIError(
             "Unable to search for groups. Please verify you have the necessary permissions to list groups."
@@ -308,7 +308,7 @@ async def _fetch_saas_groups() -> List[Dict]:
             response = await tool_helper_service.execute_get_request(
                 url=url, tool_name="search_groups"
             )
-        except ExternalAPIError as e:
+        except Exception as e:
             LOGGER.error(f"API error while fetching groups: {str(e)}")
             raise ExternalAPIError(
                 "Unable to search for groups. Please verify you have the necessary permissions to list groups."
@@ -471,7 +471,7 @@ async def search_roles_by_query(
         response = await tool_helper_service.execute_get_request(
             url=url, tool_name="search_roles"
         )
-    except ExternalAPIError as e:
+    except Exception as e:
         LOGGER.error(f"API error while fetching roles: {str(e)}")
         raise ExternalAPIError(
             "Unable to search for roles. Please verify you have the necessary permissions to list roles."

@@ -580,3 +580,24 @@ def construct_glossary_category_url(category_id: str) -> str:
         return f"{base_url}/gov/categories/{category_id}"
     else:
         return f"{base_url}/governance/categories/{category_id}"
+
+def convert_iso8601_to_human_readable(iso_timestamp: str) -> Optional[str]:
+    """
+    Convert ISO 8601 timestamp to human-readable format.
+    
+    Args:
+        iso_timestamp: ISO 8601 formatted timestamp string (e.g., "2026-05-27T10:30:00Z")
+    
+    Returns:
+        Optional[str]: Human-readable timestamp (e.g., "May 27, 2026 at 10:30 AM UTC") or None if conversion fails
+    
+    """
+    try:
+        from datetime import datetime
+        dt = datetime.fromisoformat(iso_timestamp.replace('Z', '+00:00'))
+        return dt.strftime("%B %d, %Y at %I:%M %p UTC")
+    except (ValueError, AttributeError) as e:
+        from app.shared.logging.utils import get_logger
+        logger = get_logger(__name__)
+        logger.warning("Failed to convert timestamp '%s': %s", iso_timestamp, str(e))
+        return None

@@ -9,7 +9,7 @@ async def _get_business_domains(
     request: GetBusinessDomainsRequest
 ) -> GetBusinessDomainsResponse:
     LOGGER.info(
-        f"In the data_product_get_business_domains tool, finding available business domains with keyword {request.keyword}."
+        f"In the list_data_product_business_domains tool, finding available business domains with keyword {request.keyword}."
     )
     DPH_CATALOG_ID = await get_dph_catalog_id_for_user()
     if not request.keyword:
@@ -20,7 +20,7 @@ async def _get_business_domains(
     response = await tool_helper_service.execute_post_request(
         url=f"{tool_helper_service.base_url}/v2/asset_types/ibm_data_product_domain/search?catalog_id={DPH_CATALOG_ID}&hide_deprecated_response_fields=false",
         json=search_payload,
-        tool_name="data_product_attach_business_domain_to_data_product",
+        tool_name="attach_business_domain_to_data_product",
     )
 
     tool_response_list = []
@@ -36,27 +36,31 @@ async def _get_business_domains(
         )
 
     LOGGER.info(
-        f"In the data_product_get_business_domains tool, found {len(tool_response_list)} business domains."
+        f"In the list_data_product_business_domains tool, found {len(tool_response_list)} business domains."
     )
     return GetBusinessDomainsResponse(domains=tool_response_list)
 
 
 @service_registry.tool(
-    name="data_product_get_business_domains",
+    name="list_data_product_business_domains",
     description="""
     This tool gets all business domains listed in the system.
     Use this tool if user is not sure of the business domain name or if the user asks for the list of business domains.
     Example: What are the domains available?
-    Call: data_product_get_business_domains with keyword as None.
+    Call: list_data_product_business_domains with keyword as None.
     Optionally, user can provide a keyword to search for business domains. In this case, call the tool with the keyword.
     Example: What are the domains available for customer data?
-    Call: data_product_get_business_domains with keyword as "customer".
+    Call: list_data_product_business_domains with keyword as "customer".
 
     Args:
         keyword (str): A keyword to search for business domains. This is an optional field.
     """,
     tags={"sample", "data_product"},
-    meta={"version": "1.0", "service": "data_product"}
+    meta={"version": "1.0", "service": "data_product"},
+    annotations={
+        "title": "List all Business Domains for Data Product",
+        "readOnlyHint": True
+    }
 )
 @auto_context
 async def get_business_domains(

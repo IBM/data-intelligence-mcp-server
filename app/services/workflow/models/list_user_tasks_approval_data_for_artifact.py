@@ -17,11 +17,13 @@ from app.shared.models import BaseResponseModel
 class UserTask(BaseModel):
     """Model representing a glossary data class."""
 
+    task_id: Optional[str] = Field(None, description="Unique task identifier")
     name: str = Field(..., description="User task name")  # I hope to guess approval tasks from their name, title and instruction
     task_title : Optional[str] = Field(None, description="Task title")
     task_instruction : Optional[str] = Field(None, description="Task instruction")
     state: Optional[str] = Field(None, description="User task state")   # 0 - created, 1 - assigned, 2 - completed
     assignee: Optional[str] = Field(None, description="User task assignee")
+    claimed_at: Optional[str] = Field(None, description="When user task was claimed")
     completed_at: Optional[str] = Field(None, description="When user task has been completed")
     candidate_users: Optional[List[str]] = Field(
         None, description="List of potential assignee names for this task"
@@ -58,9 +60,9 @@ class ListUserTasksResponse(BaseResponseModel):
 
     user_tasks: Optional[List[UserTask]] = Field(
         None,
-        description="List of user tasks (only when format='json')"
+        description="List of user tasks for the artifact"
     )
-    total_count: int = Field(..., description="Total number of data classes available")
+    total_count: int = Field(..., description="Total number of user tasks available")
     formatted_output: Optional[str] = Field(
         None,
         description="Formatted markdown table output when format='table'"

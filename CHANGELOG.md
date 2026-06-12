@@ -2,6 +2,75 @@
 
 > All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project **adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)**.
 
+## [1.2.0] - June 12th, 2026
+
+### Added
+- **Agent Skills**:
+  - `data-product-creation` - New skill for orchestrating data product creation workflow with guided steps for asset selection, delivery method configuration, and publishing
+- **Text to SQL**:
+  - `get_semantic_model` - Retrieve schema assets and metadata for text-to-SQL operations. Searches for relevant data assets based on user queries and returns detailed schema information including column metadata, primary keys, foreign keys, and profiling data. Supports filtering by container (project/catalog), connection, asset IDs, data source definitions, and document libraries.
+  
+### Changed 
+- **Projects**:
+  - `add_or_edit_collaborator` - Enhanced to support both **projects** and **catalogs**. Added `container_type` parameter (defaults to "project" for backward compatibility). Tool now works seamlessly with catalog collaborator management, automatically handling API differences between projects and catalogs (e.g., `user_iam_id`/`access_group_id` for catalogs vs `id` for projects).
+  - `create_project` - Improved user experience when project name is not provided. The tool now raises a clear error message asking users to provide a meaningful project name, instead of suggesting unhelpful auto-generated names with timestamps (e.g., `mcp_generated_project_2026-05-05 16-53-06`). This reduces cognitive load and guides users to provide better project names.
+- **Data Quality**:
+  - `get_data_quality_for_asset` - Enhanced to retrieve SLA assessment summary from CAMS asset. Returns comprehensive data quality metrics including SLA compliance status (total SLAs, violations count, and last assessment timestamp in human-readable format). Automatically extracts SLA data from `entity.data_profile.attribute_quality` in CAMS asset responses.
+- **Search**:
+  - Added hyperlinks to search DSDs for better navigation and usability.
+- **Tool Name Standardization**: Renamed multiple tools to follow consistent naming conventions without service prefixes:
+  - **Data Protection Rules (DPS)**:
+    - `data_protection_rule_search` → `search_data_protection_rules`
+    - `data_protection_rule_search_governance_artifacts` → `search_governance_artifacts`
+    - `get_rule_schema` → `get_data_protection_rule_schema`
+  - **Data Product Hub (DPH)**:
+    - `data_product_get_business_domains` → `list_data_product_business_domains`
+    - `data_product_create_or_update_from_asset_in_container` → `create_update_data_product_from_asset_in_container`
+    - `data_product_get_data_contract` → `get_data_product_contract`
+    - `data_product_find_delivery_methods_based_on_connection` → `find_data_product_delivery_methods_based_on_connection`
+    - `data_product_search_data_products` → `search_data_products`
+    - `data_product_get_data_product_details` → `get_data_product_details`
+    - `data_product_search_data_product_subscriptions` → `search_data_product_subscriptions`
+    - `data_product_get_data_product_subscription_details` → `get_data_product_subscription_details`
+    - `data_product_add_delivery_methods_to_data_product` → `add_delivery_methods_to_data_product`
+    - `data_product_publish_data_product` → `publish_data_product`
+    - `data_product_attach_business_domain_to_data_product` → `attach_business_domain_to_data_product`
+    - `data_product_create_or_update_url_data_product` → `create_or_update_url_data_product`
+    - `data_product_import_remote_assets_to_dph_catalog` → `import_remote_assets_to_data_product_catalog`
+    - `data_product_attach_url_contract_to_data_product` → `attach_url_contract_to_data_product`
+    - `data_product_get_contract_templates` → `list_data_product_contract_templates`
+    - `data_product_attach_contract_template_to_data_product` → `attach_contract_template_to_data_product`
+    - `data_product_create_and_attach_custom_contract` → `create_attach_custom_data_product_contract`
+  - **Data Quality**:
+    - `find_data_quality_rules` → `list_data_quality_rules`
+  - **Glossary**:
+    - `get_glossary_artifacts_for_asset` → `get_asset_glossary_artifacts`
+    - `glossary_csv_import` → `import_glossary_from_csv`
+  - **Lineage**:
+    - `lineage_search_lineage_assets` → `search_lineage_assets`
+    - `lineage_get_lineage_graph` → `get_lineage_graph`
+    - `lineage_get_lineage_comparison` → `get_lineage_comparison`
+    - `lineage_convert_to_lineage_id` → `convert_asset_to_lineage_id`
+    - `lineage_get_lineage_versions` → `list_lineage_versions`
+  - **Metadata Enrichment (MDE)**:
+    - `search_categories` → `list_enrichment_categories`
+    - `monitor_job_status` → `get_metadata_enrichment_job_status`
+  - **Reporting**:
+    - `reporting_sql_query_execution` → `execute_reporting_select_query`
+    - `reporting_sql_query_generation` → `generate_reporting_sql_query`
+  - **Text to SQL**:
+    - `text_to_sql_enable_container_for_text_to_sql` → `enable_container_for_text_to_sql`
+    - `text_to_sql_create_asset_from_sql_query` → `create_asset_from_sql_query`
+    - `text_to_sql_generate_sql_query` → `generate_sql_query`
+    - `text_to_sql_check_if_onboarding_job_is_completed` → `check_if_onboarding_job_is_completed`
+  - **Workflow**:
+    - `get_workflow_tasks_from_my_inbox` → `get_my_workflow_inbox_tasks`
+    - `task_action` → `perform_workflow_task_action`
+- **Tool Annotations**:
+  - Added comprehensive tool annotations for improved tool discovery and usage.
+- **Data Product Hub (DPH)**:
+  - `data_product_get_assets_from_container` - This tool has been removed and replaced with the `dynamic_query_search` tool.
+
 ## [1.1.0] - May 20th, 2026
 
 ### Added

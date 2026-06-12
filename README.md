@@ -51,6 +51,7 @@ Resources:
 5. [Configuration](#configuration)
    - [Client Settings](#client-settings)
    - [SSL/TLS Configuration](#ssltls-configuration)
+6. [Privacy Policy](#privacy-policy)
 
 ---
 
@@ -317,3 +318,23 @@ e.g:
 ### SSL/TLS Configuration
 
 If running in CPD environment, you might need to configure SSL certificate for client connection. Please look into [SSL_CERTIFICATE_GUIDE.md](readme_guides/SSL_CERTIFICATE_GUIDE.md) for more details.
+
+---
+
+## Privacy Policy
+
+The IBM Watsonx Data Intelligence MCP Server is committed to protecting user privacy and data security.
+
+- **Data Collection**: We collect only the data necessary for authentication and service operations (API keys, queries, operational logs)
+- **Usage and Storage**: Data is processed in-memory and transmitted securely to IBM Data Intelligence services via HTTPS. Local logs are stored only when configured by users. The Server maintains no persistent storage of user data.
+- **Third-Party Sharing**: Data is shared only with **IBM Data Intelligence services** (SaaS or Cloud Pak for Data) to fulfill user requests. No data is sold or shared with other third parties.
+
+For complete details about our data handling practices, security measures, user rights, and compliance information, please read our full [Privacy Policy](PRIVACY.md).
+
+**Key Points:**
+- Communications:
+  - **Server ↔ IBM Data Intelligence:** HTTPS/TLS encryption
+  - **MCP Client ↔ Server:** stdio or http transport
+- Users have full control over logging and data retention
+- No persistent storage of credentials or user data by the Server
+- Compliant with IBM security and privacy standards

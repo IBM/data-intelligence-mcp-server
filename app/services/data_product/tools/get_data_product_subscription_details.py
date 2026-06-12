@@ -32,14 +32,14 @@ async def _get_data_product_subscription_details(
     states and access information.
     """
     LOGGER.info(
-        f"In data_product_get_data_product_subscription_details tool, "
+        f"In get_data_product_subscription_details tool, "
         f"subscription_id={request.subscription_id}"
     )
     
     if not request.subscription_id or not request.subscription_id.strip():
         raise ServiceError(
             "Missing required subscription_id. "
-            "Please provide a valid subscription ID obtained from data_product_search_data_product_subscriptions."
+            "Please provide a valid subscription ID obtained from search_data_product_subscriptions."
         )
     
     try:
@@ -51,7 +51,7 @@ async def _get_data_product_subscription_details(
         # Execute the request
         response_data = await tool_helper_service.execute_get_request(
             url=items_url,
-            tool_name="data_product_get_data_product_subscription_details"
+            tool_name="get_data_product_subscription_details"
         )
         
         # Extract key information
@@ -91,12 +91,12 @@ async def _get_data_product_subscription_details(
 
 
 @service_registry.tool(
-    name="data_product_get_data_product_subscription_details",
+    name="get_data_product_subscription_details",
     description="""
     Retrieve the actual content (items) being delivered in a specific data product subscription.
     
     **IMPORTANT**: This tool requires a subscription ID. To find subscription IDs, first use
-    the data_product_search_data_product_subscriptions tool.
+    the search_data_product_subscriptions tool.
     
     This tool retrieves all items from a specific subscription (asset list) by its ID.
     Each item represents a subscribed data product with detailed delivery information:
@@ -121,7 +121,7 @@ async def _get_data_product_subscription_details(
     - Total count of items
     
     **Workflow**: 
-    1. Use data_product_search_data_product_subscriptions to find subscriptions
+    1. Use search_data_product_subscriptions to find subscriptions
     2. Use this tool with the subscription ID to get the delivered items
     
     **Example Use Case**:
@@ -132,13 +132,17 @@ async def _get_data_product_subscription_details(
     
     Args:
         subscription_id: The ID of the subscription (asset list) to retrieve items from.
-                        This is a UUID obtained from data_product_search_data_product_subscriptions.
+                        This is a UUID obtained from search_data_product_subscriptions.
     
     Returns:
         GetDataProductSubscriptionDetailsResponse: Object containing items list, total_count, and subscription_id
     """,
     tags={"read", "data_product", "subscriptions"},
-    meta={"version": "1.0", "service": "data_product"}
+    meta={"version": "1.0", "service": "data_product"},
+    annotations={
+        "title": "Get Content in a Specific Data Product Subscription",
+        "readOnlyHint": True
+    }
 )
 @auto_context
 async def get_data_product_subscription_details(

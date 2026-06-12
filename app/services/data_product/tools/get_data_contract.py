@@ -117,7 +117,7 @@ async def _get_data_contract(request: GetDataContractRequest) -> GetDataContract
     formatted_data = format_dict_for_table(response)
     
     ui_message_context.add_table_ui_message(
-        tool_name="get_data_contract",
+        tool_name="get_data_product_contract",
         formatted_data=formatted_data,
         title="Data Contract"
     )
@@ -126,7 +126,7 @@ async def _get_data_contract(request: GetDataContractRequest) -> GetDataContract
 
 
 @service_registry.tool(
-    name="data_product_get_data_contract",
+    name="get_data_product_contract",
     description="""
     This tool is used to get data contract for the specified data product (draft/published (available)).
     Example: 'Get me data contract for <data product name>'
@@ -139,10 +139,14 @@ async def _get_data_contract(request: GetDataContractRequest) -> GetDataContract
         str = The data contract.
     """,
     tags={"read", "data_product", "sample"},
-    meta={"version": "1.0", "service": "data_product"}
+    meta={"version": "1.0", "service": "data_product"},
+    annotations={
+        "title": "Get Data Contract for Draft and Published Data Products",
+        "readOnlyHint": True
+    }
 )
 @auto_context
-async def get_data_contract(data_product_version_id: str,
+async def get_data_product_contract(data_product_version_id: str,
         data_product_state: Literal["draft", "available"]) -> GetDataContractResponse:
     """Wrapper version that expands GetDataContractRequest object into individual parameters."""
 

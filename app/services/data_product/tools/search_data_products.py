@@ -42,7 +42,7 @@ async def _search_data_products(
     request: SearchDataProductsRequest,
 ) -> SearchDataProductsResponse:
     LOGGER.info(
-        f"In the data_product_search_data_products tool, Searching data products with query '{request.product_search_query}', domain='{request.domain}', "
+        f"In the search_data_products tool, Searching data products with query '{request.product_search_query}', domain='{request.domain}', "
         f"state_filter='{request.state_filter}', created_date_after='{request.created_date_after}', created_date_before='{request.created_date_before}'"
     )
     DPH_CATALOG_ID = await get_dph_catalog_id_for_user()
@@ -59,13 +59,13 @@ async def _search_data_products(
     response = await tool_helper_service.execute_post_request(
         url=f"{tool_helper_service.base_url}/v3/search?role=viewer&auth_scope=ibm_data_product_catalog&tenant_scope=true",
         json=payload,
-        tool_name="data_product_search_data_products",
+        tool_name="search_data_products",
     )
 
     number_of_responses = response.get("size", len(response.get("rows", [])))
     if number_of_responses == 0:
         LOGGER.info(
-            "In the data_product_search_data_products tool, no data products found."
+            "In the search_data_products tool, no data products found."
         )
         return SearchDataProductsResponse(count=0, data_products=[])
     
@@ -318,7 +318,7 @@ def _add_date_range_filter(
 
 
 @service_registry.tool(
-    name="data_product_search_data_products",
+    name="search_data_products",
     description="""
     Search for data products in the Data Product Hub with flexible filtering by name, domain, state, and creation date.
     Please note that the date filter is only for creation date. If the query is about a different date not related to product creation, please do not provide creation dates.
@@ -394,6 +394,10 @@ def _add_date_range_filter(
 """,
     tags={"search", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
+    annotations={
+        "title": "Data Product Discovery and Search with Domain and Date Filtering",
+        "readOnlyHint": True
+    }
 )
 @auto_context
 async def search_data_products(

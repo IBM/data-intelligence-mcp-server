@@ -92,6 +92,10 @@ Loss Given Default,glossary_term,Risk Management,The percentage of exposure the 
 
 @service_registry.tool(
     name="get_glossary_csv_schema",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Get CSV Format Schema and Validation Rules for Glossary Import Operations"
+    },
     description="""Get detailed information about the CSV schema for importing glossary artifacts.
 
 This tool returns comprehensive schema information that helps LLMs understand how to:
@@ -109,7 +113,7 @@ The schema includes:
 
 Use this tool when you need to:
 - Generate a CSV from a document (like a policy or specification)
-- Validate CSV format before calling glossary_csv_import
+- Validate CSV format before calling import_glossary_from_csv
 - Understand what fields are available for glossary artifacts
 - Learn the constraints for each field""",
 )

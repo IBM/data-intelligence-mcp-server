@@ -104,7 +104,7 @@ async def _search_data_product_subscriptions(
     with optional filtering, sorting, and pagination.
     """
     LOGGER.info(
-        f"In data_product_search_data_product_subscriptions tool, "
+        f"In search_data_product_subscriptions tool, "
         f"query={request.query}, limit={request.limit}, start={request.start}, sort={request.sort}"
     )
     
@@ -118,7 +118,7 @@ async def _search_data_product_subscriptions(
         response_data = await tool_helper_service.execute_get_request(
             url=asset_lists_url,
             params=params,
-            tool_name="data_product_search_data_product_subscriptions"
+            tool_name="search_data_product_subscriptions"
         )
         
         return _build_response(response_data)
@@ -134,7 +134,7 @@ async def _search_data_product_subscriptions(
 
 
 @service_registry.tool(
-    name="data_product_search_data_product_subscriptions",
+    name="search_data_product_subscriptions",
     description="""
     Search and filter data product subscriptions (asset lists) from IBM Cloud Data Product Hub.
     
@@ -155,7 +155,7 @@ async def _search_data_product_subscriptions(
     
     **CRITICAL: Finding Subscriptions for a Specific Data Product**
     
-    When data_product_get_data_product_details returns data product information, it includes multiple IDs:
+    When get_data_product_details returns data product information, it includes multiple IDs:
     - `id` (top-level): The DATA PRODUCT VERSION ID
       Example: "6d80d7d4-ca55-4fb0-8b70-bb799a2881dd@b34d014d-82d1-4374-9de2-4478e350a5f6"
       The part BEFORE the @ symbol is the asset ID: "6d80d7d4-ca55-4fb0-8b70-bb799a2881dd"
@@ -165,7 +165,7 @@ async def _search_data_product_subscriptions(
       Example: "b34d014d-82d1-4374-9de2-4478e350a5f6"
     
     To find subscriptions for a data product:
-    1. Extract the asset ID from data_product_get_data_product_details response:
+    1. Extract the asset ID from get_data_product_details response:
        - Use `asset.id` field directly, OR
        - Take the part BEFORE the @ symbol from the top-level `id` field
     2. Query subscriptions with: asset.id=="<asset_id_here>"
@@ -209,7 +209,11 @@ async def _search_data_product_subscriptions(
         SearchDataProductSubscriptionsResponse: Object containing subscriptions list, total_count, and pagination info
     """,
     tags={"read", "data_product", "subscriptions"},
-    meta={"version": "1.0", "service": "data_product"}
+    meta={"version": "1.0", "service": "data_product"},
+    annotations={
+        "title": "Search Data Product Subscription and Filter with CEL Query Support",
+        "readOnlyHint": True
+    }
 )
 @auto_context
 async def search_data_product_subscriptions(

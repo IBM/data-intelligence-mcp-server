@@ -46,9 +46,53 @@ from app.shared.utils.utils_tools import format_search_results_for_table
 MAX_QUERY_GENERATION_ATTEMPTS = 2
 
 
-async def _search(
-    request: TextToQuerySearchAssetRequest
+def _create_response_with_ui(
+    results: List[GlobalSearchAssetResponse],
+    query_data: dict,
+    response: dict,
+    show_table_selection: bool
 ) -> TextToQuerySearchAssetResponse:
+    """Create response with appropriate UI based on selection mode."""
+    message = response.get("message", "") if response.get("too_many_results", False) else None
+    formatted_results = format_search_results_for_table(results)
+    
+    if show_table_selection:
+        selected_assets = ui_message_context.send_table_selector_msg(
+            tool_name="dynamic_query_search",
+            data=results,
+            formatted_data=formatted_results,
+            title="Assets",
+            description="Please select the asset(s) you'd like to use.",
+            unique_keys=["Name", "Artifact Type"]
+        )
+        return TextToQuerySearchAssetResponse(
+            generated_query=query_data,
+            response=selected_assets or [],
+            message=None if selected_assets else "No assets were selected.",
+        )
+    
+    ui_message_context.add_table_ui_message(
+        tool_name="dynamic_query_search",
+        formatted_data=formatted_results,
+        title="Search Results"
+    )
+    return TextToQuerySearchAssetResponse(
+        generated_query=query_data, response=results, message=message
+    )
+
+
+async def _search(
+    request: TextToQuerySearchAssetRequest,
+    show_table_selection: bool = False
+) -> TextToQuerySearchAssetResponse:
+    """
+    Internal search function that supports both display-only and selection modes for agentic UI contexts.
+    
+    Args:
+        request: The search request
+        show_table_selection: If True, shows a selection table UI and returns selected assets.
+                            If False, shows display-only table UI and returns search results.
+    """
     validate_request(request)
     container_id = ""
     container_details = None
@@ -100,33 +144,20 @@ async def _search(
         results = _process_search_results(response, source_fields)
 
         if results:
-            message = (
-                response.get("message", "")
-                if response.get("too_many_results", False)
-                else None
-            )
-
             ui_message_context.create_markdown_code_snippet(
                 code=str(query_data),
                 language="json"
             )
-
-            # Add UI table message for search results
-            formatted_results = format_search_results_for_table(results)
-            ui_message_context.add_table_ui_message(
-                tool_name="dynamic_query_search",
-                formatted_data=formatted_results,
-                title="Search Results"
-            )
-        
-            return TextToQuerySearchAssetResponse(
-                generated_query=query_data, response=results, message=message
-            )
+            return _create_response_with_ui(results, query_data, response, show_table_selection)
         return await _fallback_response(request, query_data)
     except ExternalAPIError as e:
         LOGGER.error("External API failure executing search with generated query: %s", e)
         return await _fallback_response(request, query_data)
     except Exception as e:
+        # Check for GraphInterrupt by name to avoid dependency on langgraph
+        # Re‑raise GraphInterrupt so the agent pauses for user asset selection
+        if type(e).__name__ == "GraphInterrupt": 
+            raise
         LOGGER.error("Error executing search with generated query: %s", e)
         return await _fallback_response(request, query_data)
 
@@ -318,14 +349,9 @@ async def _fallback_response(
     query: dict | None = None,
 ) -> TextToQuerySearchAssetResponse:
     """Return a fallback response using the basic search_asset function."""
-    # Create SearchAssetRequest with only compatible fields from the original request
-    search_request = SearchAssetRequest(
-        search_prompt=request.search_prompt,
-        container_type=request.container_type,
-        container_name=request.container_name
-    )
-    
-    response = await search_asset(search_request)
+    response = await search_asset(search_prompt=request.search_prompt,
+        container_type=request.container_type or "catalog",
+        container_name=request.container_name)
     return TextToQuerySearchAssetResponse(
         generated_query=query or {}, response=response, message=None
     )
@@ -461,6 +487,10 @@ def _process_search_results(response: dict, source_fields: Optional[List[str]] =
 @service_registry.tool(
     name="dynamic_query_search",
     description=TOOL_DESCRIPTION,
+    annotations={
+        "readOnlyHint": True,
+        "title": "Natural Language Asset Search with Query Generation"
+    },
 )
 @auto_context
 async def search(
@@ -469,6 +499,7 @@ async def search(
     container_name: Optional[str],
     artifact_types: Optional[list[str]],
     names_mapping: Optional[list[dict]] = None,
+    show_table_selection: bool = False, 
 ) -> TextToQuerySearchAssetResponse:
     """Wrapper version of dynamic_query_search."""
 
@@ -481,6 +512,6 @@ async def search(
     )
 
     # Call the original search function
-    return await _search(request)
+    return await _search(request, show_table_selection=show_table_selection)
 
 #Made with Bob

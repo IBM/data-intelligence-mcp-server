@@ -105,6 +105,10 @@ async def _execute_term_generation(
 
 @service_registry.tool(
     name="execute_term_generation",
+    annotations={
+        "title": "Execute Term Generation within a Specified Project",
+        "destructiveHint": True
+    },
     description="""Executes term generation on an existing metadata enrichment asset within a specified project.
 
     This tool executes term generation on an metadata enrichment asset (MDE), running for all the data assets and data asset columns that are associated with the metadata enrichment asset.

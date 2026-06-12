@@ -20,7 +20,7 @@ async def _publish_data_product(
     request: PublishDataProductRequest,
 ) -> PublishDataProductResponse:
     LOGGER.info(
-        f"In the data_product_publish_data_product tool, publishing data product draft {request.data_product_draft_id}."
+        f"In the publish_data_product tool, publishing data product draft {request.data_product_draft_id}."
     )
 
     # first get the data product draft to validate if it has all mandatory fields set.
@@ -33,11 +33,11 @@ async def _publish_data_product(
 
     await tool_helper_service.execute_post_request(
         url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/drafts/{request.data_product_draft_id}/publish",
-        tool_name="data_product_publish_data_product",
+        tool_name="publish_data_product",
     )
 
     LOGGER.info(
-        f"In the data_product_publish_data_product tool, data product draft {request.data_product_draft_id} published successfully."
+        f"In the publish_data_product tool, data product draft {request.data_product_draft_id} published successfully."
     )
     return PublishDataProductResponse(
         message=f"Data product draft {request.data_product_draft_id} published successfully.",
@@ -102,7 +102,7 @@ async def _validate_if_draft_has_delivery_method_added_to_each_data_asset(respon
 
 
 @service_registry.tool(
-    name="data_product_publish_data_product",
+    name="publish_data_product",
     description="""
     This tool publishes a data product draft.
     Make sure to call this tool after all the required fields are filled in the data product draft, like name, domain, contract URL, delivery methods, etc.
@@ -114,6 +114,10 @@ async def _validate_if_draft_has_delivery_method_added_to_each_data_asset(respon
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
+    annotations={
+        "title": "Data Product Draft Publication and Validation",
+        "destructiveHint": True
+    }
 )
 @auto_context
 async def publish_data_product(

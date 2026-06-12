@@ -23,7 +23,7 @@ from app.services.tool_utils import (
 )
 from app.shared.exceptions.base import ServiceError
 from app.shared.utils.tool_helper_service import tool_helper_service
-from app.shared.utils.helpers import is_uuid
+from app.shared.utils.helpers import is_uuid_bool
 from app.services.constants import CAMS_ASSETS_BASE_ENDPOINT
 
 async def _get_asset_details(
@@ -55,9 +55,7 @@ async def _get_asset_details(
     container_id = await retrieve_container_id(container_id, container_type)
 
     asset_id = request.asset.strip()
-    try:
-        is_uuid(asset_id)
-    except ServiceError:
+    if not is_uuid_bool(asset_id):
         asset_id = await find_asset_id(asset_id, container_id, container_type)
 
     params = {
@@ -85,6 +83,10 @@ async def _get_asset_details(
 
 @service_registry.tool(
     name="get_asset_details",
+    annotations={
+        "readOnlyHint": True,
+        "title": "Get Comprehensive Metadata and Details for a Specific Asset"
+    },
     description="""Understand user's request about getting an asset's details / metadata and return the retrieved metadata.
                     Possible details that the user could be looking for include: asset usage, rov, member roles, collaborators, sub-container,
                     asset name, asset description, asset tags, asset type, origin country, resource key, identity key, delete processing state,

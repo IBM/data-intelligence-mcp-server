@@ -64,6 +64,10 @@ Raises:
     ExternalServiceError: If the data quality rule service request fails.""",
     tags={"update", "data_quality"},
     meta={"version": "1.0", "service": "data_quality"},
+    annotations={
+        "title": "Establish Relationship Between Data Quality Rule and Data Asset Column",
+        "destructiveHint": True
+    }
 )
 @auto_context
 async def set_validates_data_quality_of_relation(

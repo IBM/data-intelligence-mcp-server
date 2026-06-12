@@ -16,13 +16,13 @@ Always start by understanding what the user wants to accomplish and which entry 
 
 ### Entry Path A: Direct Lineage Search (Lineage-First)
 Use when the user mentions an asset name but doesn't specify a catalog/project context, or when they want to search across all lineage assets.
-- **Tool**: `lineage_search_lineage_assets`
+- **Tool**: `search_lineage_assets`
 - **Best for**: "Find the lineage for CUSTOMER_360", "What feeds into the sales table?"
 - **Supports**: Optional filters for technology type and asset type
 
 ### Entry Path B: Catalog Asset Lookup (Catalog-First)
 Use when the user references a known catalog or project asset, or provides specific container context.
-- **Tools**: `search_asset` → `lineage_convert_to_lineage_id`
+- **Tools**: `search_asset` → `convert_asset_to_lineage_id`
 - **Best for**: "Show lineage for the ORDERS table in the sales catalog", "Trace the customer_data asset in AgentTest project"
 - **Requires**: Container context (catalog or project name)
 
@@ -39,7 +39,7 @@ Locate the starting asset(s) in the lineage graph using the appropriate entry pa
 
 <Steps>
 <Step>
-1. Call `lineage_search_lineage_assets` with the asset name provided by the user. Include optional filters if the user specifies:
+1. Call `search_lineage_assets` with the asset name provided by the user. Include optional filters if the user specifies:
    - `technology_name`: Only if user mentions specific technology (e.g., "PostgreSQL", "Azure SQL")
    - `asset_type`: Only if user mentions specific type (e.g., "Table", "Column", "View")
    - `tag`: If user mentions tagged assets
@@ -79,7 +79,7 @@ Locate the starting asset(s) in the lineage graph using the appropriate entry pa
 3. Ask the user to confirm which asset they want to explore.
 </Step>
 <Step>
-4. Once confirmed, call `lineage_convert_to_lineage_id` with:
+4. Once confirmed, call `convert_asset_to_lineage_id` with:
    - `container_id`: The catalog or project ID from the search result
    - `asset_id`: The asset ID from the search result
 </Step>
@@ -93,7 +93,7 @@ Locate the starting asset(s) in the lineage graph using the appropriate entry pa
 
 **Important Validation**:
 - Lineage IDs must be exactly 64 hexadecimal characters
-- If you receive a shorter ID or UUID, you MUST use `lineage_convert_to_lineage_id` to convert it
+- If you receive a shorter ID or UUID, you MUST use `convert_asset_to_lineage_id` to convert it
 - Never proceed to Phase 2 without a valid 64-character lineage ID
 
 ## Phase 2: Lineage Graph Traversal
@@ -102,7 +102,7 @@ Retrieve and present the upstream and downstream lineage relationships.
 
 ### Critical: Inform User About Traversal Depth
 
-**BEFORE calling `lineage_get_lineage_graph`, you MUST**:
+**BEFORE calling `get_lineage_graph`, you MUST**:
 
 <Steps>
 <Step>
@@ -127,7 +127,7 @@ Retrieve and present the upstream and downstream lineage relationships.
 
 <Steps>
 <Step>
-4. Based on the user's depth preference, call `lineage_get_lineage_graph` with:
+4. Based on the user's depth preference, call `get_lineage_graph` with:
    - `lineage_ids`: The 64-character lineage ID(s) from Phase 1 (can be a single ID or list of IDs)
    - `hop_up`: Number of upstream levels
      - "1" for immediate upstream
@@ -177,7 +177,7 @@ Retrieve and present the upstream and downstream lineage relationships.
 **Finding Path Between Two Assets**:
 - If user asks "trace from Asset A to Asset B" or "path between X and Y":
   1. Get lineage IDs for both assets (Phase 1)
-  2. Call `lineage_get_lineage_graph` with:
+  2. Call `get_lineage_graph` with:
      - `lineage_ids`: [lineage_id_A, lineage_id_B]
      - `hop_up`: "50"
      - `hop_down`: "50"
@@ -198,7 +198,7 @@ Retrieve and present the upstream and downstream lineage relationships.
 
 ## Phase 3: Historical Lineage Comparison (Optional)
 
-**Note**: This phase depends on the `lineage_get_lineage_versions` tool which provides version timestamps for historical comparison.
+**Note**: This phase depends on the `list_lineage_versions` tool which provides version timestamps for historical comparison.
 
 Use this phase when the user wants to understand how the data pipeline has changed over time.
 
@@ -212,7 +212,7 @@ Use this phase when the user wants to understand how the data pipeline has chang
    - "what's new in the data flow"
 </Step>
 <Step>
-2. If historical comparison is requested, convert any natural language dates to ISO 8601 format, then call `lineage_get_lineage_versions` with:
+2. If historical comparison is requested, convert any natural language dates to ISO 8601 format, then call `list_lineage_versions` with:
    - `since`: Start date in ISO 8601 format (e.g., "2025-01-01T00:00:00Z" or "2025Z" for year)
    - `until`: End date in ISO 8601 format (e.g., "2025-12-31T23:59:59Z" or "2025Z" for year)
    
@@ -231,7 +231,7 @@ Use this phase when the user wants to understand how the data pipeline has chang
 4. Select two versions to compare (typically first and last, or user-specified dates).
 </Step>
 <Step>
-5. If user wants version comparison done for assets, call `lineage_search_lineage_assets` with `dates` parameter. Otherwise, if user wants comparison to be done for graph, use `lineage_get_lineage_graph` with the `dates` parameter:
+5. If user wants version comparison done for assets, call `search_lineage_assets` with `dates` parameter. Otherwise, if user wants comparison to be done for graph, use `get_lineage_graph` with the `dates` parameter:
    - Call with `dates` parameter containing the two version timestamps
    - This retrieves the lineage graph as it existed at those two points in time
 </Step>
@@ -239,15 +239,15 @@ Use this phase when the user wants to understand how the data pipeline has chang
 6. Compare the two lineage graphs and identify changes:
    
    **If user is comparing assets:**
-   - Call `lineage_get_lineage_comparison` with:
+   - Call `get_lineage_comparison` with:
      - `compared_lineage_assets`: Asset IDs to compare
      - `base_version`: Later date (more recent version)
      - `compared_version`: Earlier date (older version)
    
    **If user is comparing graphs:**
-   - Call `lineage_get_lineage_comparison` with:
-     - `initial_lineage_assets`: Asset IDs that were passed to `lineage_get_lineage_graph` as `lineage_ids`
-     - `compared_lineage_assets`: All asset IDs returned by `lineage_get_lineage_graph`
+   - Call `get_lineage_comparison` with:
+     - `initial_lineage_assets`: Asset IDs that were passed to `get_lineage_graph` as `lineage_ids`
+     - `compared_lineage_assets`: All asset IDs returned by `get_lineage_graph`
      - `base_version`: Later date (more recent version)
      - `compared_version`: Earlier date (older version)
 </Step>
@@ -265,23 +265,23 @@ Use this phase when the user wants to understand how the data pipeline has chang
 User: "Has anything changed in the pipeline for our revenue dashboard in the last month?"
 
 1. Find the revenue dashboard asset (Phase 1)
-2. Call `lineage_get_lineage_versions` with since="2025-11-01Z" and until="2025-12-01Z"
+2. Call `list_lineage_versions` with since="2025-11-01Z" and until="2025-12-01Z"
 3. Get version timestamps (e.g., ["2025-11-01T00:00:00Z", "2025-11-15T00:00:00Z", "2025-12-01T00:00:00Z"])
-4. Call `lineage_get_lineage_graph` with dates=["2025-11-01T00:00:00Z", "2025-12-01T00:00:00Z"]
-5. Call `lineage_get_lineage_comparison` with:
-   - `initial_lineage_assets`: Same asset IDs used as `lineage_ids` in `lineage_get_lineage_graph`
-   - `compared_lineage_assets`: All asset IDs returned by `lineage_get_lineage_graph`
+4. Call `get_lineage_graph` with dates=["2025-11-01T00:00:00Z", "2025-12-01T00:00:00Z"]
+5. Call `get_lineage_comparison` with:
+   - `initial_lineage_assets`: Same asset IDs used as `lineage_ids` in `get_lineage_graph`
+   - `compared_lineage_assets`: All asset IDs returned by `get_lineage_graph`
    - `base_version`: "2025-12-01T00:00:00Z" (later date)
    - `compared_version`: "2025-11-01T00:00:00Z" (earlier date)
 
 ## Important Guidelines
 
 ### Lineage ID Validation
-- **CRITICAL**: `lineage_get_lineage_graph` ONLY accepts 64-character hexadecimal lineage IDs
-- Before calling `lineage_get_lineage_graph`, verify each lineage_id:
+- **CRITICAL**: `get_lineage_graph` ONLY accepts 64-character hexadecimal lineage IDs
+- Before calling `get_lineage_graph`, verify each lineage_id:
   - Length is exactly 64 characters
   - Contains only hexadecimal characters (0-9, a-f)
-- If validation fails, use `lineage_convert_to_lineage_id` or `lineage_search_lineage_assets` to get valid IDs
+- If validation fails, use `convert_asset_to_lineage_id` or `search_lineage_assets` to get valid IDs
 
 ### Hop Depth Best Practices
 - **Always inform the user** about the 3-hop default limitation before executing
@@ -304,7 +304,7 @@ User: "Has anything changed in the pipeline for our revenue dashboard in the las
 
 ### Multi-Asset Queries
 - When user provides multiple asset names, get lineage IDs for all of them
-- Pass all lineage IDs together to `lineage_get_lineage_graph` to see relationships between them
+- Pass all lineage IDs together to `get_lineage_graph` to see relationships between them
 - Use hop_up="50" and hop_down="50" for multi-asset queries to capture connections
 
 ## Skill Completion

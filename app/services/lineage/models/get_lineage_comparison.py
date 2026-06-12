@@ -32,7 +32,7 @@ class GetLineageComparisonRequest(BaseModel):
     compared_lineage_assets: Union[str, List[str]] = Field(
         ...,
         description="""The list of asset IDs of assets to be compared.
-        For graphs, this should contain all asset IDs returned by lineage_get_lineage_graph.
+        For graphs, this should contain all asset IDs returned by get_lineage_graph.
         For single asset comparison, this contains the asset ID(s) to compare.""",
     )
     
@@ -40,7 +40,7 @@ class GetLineageComparisonRequest(BaseModel):
         None,
         description="""Lineage configuration containing initial asset IDs.
         Required when comparing lineage graphs. Should be None when comparing single assets.
-        Contains the root asset ID(s) used in the original lineage_get_lineage_graph call.""",
+        Contains the root asset ID(s) used in the original get_lineage_graph call.""",
     )
     
     base_version: str = Field(

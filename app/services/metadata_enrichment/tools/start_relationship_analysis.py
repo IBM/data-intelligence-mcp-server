@@ -166,6 +166,10 @@ async def _start_relationship_analysis(
 
 @service_registry.tool(
     name="start_metadata_relationship_analysis",
+    annotations={
+        "title": "Start Metadata Relationship Analysis",
+        "destructiveHint": True
+    },
     description="""Starts a relationship analysis for a metadata enrichment area (MDE).
 
     This tool initiates relationship analysis on datasets within a metadata enrichment area.

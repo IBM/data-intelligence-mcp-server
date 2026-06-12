@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from app.services.workflow.models.list_user_tasks_approval_data_for_artifact import UserTask
-from app.services.constants import WORKFLOW_TASK_ENDPOINT
+from app.services.workflow.tools.get_workflow_tasks_from_my_inbox import transform_base_url_to_ui_url
 from app.services.workflow.utils.task_formatters import calculate_task_age
 from app.shared.logging import LOGGER
 
@@ -132,9 +132,9 @@ def format_candidate_users(candidate_users: Optional[List[str]]) -> str:
     return ", ".join(candidate_users)
 
 
-def build_user_task_url(base_url: str, task_id: str) -> str:
+def build_user_task_url(base_url: str, task_id: Optional[str]) -> str:
     """
-    Build the URL to access a user task instance in Workflow.
+    Build the URL to access a user task instance in Workflow UI.
     
     Args:
         base_url: Base URL of the Data Intelligence service
@@ -143,9 +143,10 @@ def build_user_task_url(base_url: str, task_id: str) -> str:
     Returns:
         Complete URL to the task
     """
-    # Remove trailing slash from base_url if present to avoid double slashes
-    base_url = base_url.rstrip('/')
-    task_link = f"{base_url}{task_id}"
+    if not task_id:
+        return ""
+
+    task_link = f"https://{transform_base_url_to_ui_url(base_url)}{task_id}"
     LOGGER.debug(f"Building user task URL: {task_link}")
     return task_link
 
@@ -210,19 +211,19 @@ def format_user_tasks_as_table(user_tasks: List[UserTask], base_url: str) -> str
         return ""
     
     # Build table header
-    table = "| Task Name | State | Assignee | Completed At | Candidate Users |\n"
-    table += "|-----------|-------|----------|--------------|-----------------|\n"
+    table = "| Task Title | Claimed at | Claimed | Candidate Users |\n"
+    table += "|------------|------------|---------|-----------------|\n"
     
     # Build table rows
     for user_task in user_tasks:
-        task_url = build_user_task_url(base_url, user_task.name)
-        name_link = f"[{user_task.name}]({task_url})"
-        state = format_user_task_state(user_task.state)
-        assignee = user_task.assignee or "Unassigned"
-        completed_at = format_completed_at(user_task.completed_at)
+        task_title = user_task.task_title or user_task.name
+        task_url = build_user_task_url(base_url, user_task.task_id)
+        title_link = f"[{task_title}]({task_url})" if task_url else task_title
+        claimed_at = format_completed_at(user_task.claimed_at) if user_task.claimed_at else "--"
+        claimed = user_task.assignee or "--"
         candidates = format_candidate_users(user_task.candidate_users)
         
-        table += f"| {name_link} | {state} | {assignee} | {completed_at} | {candidates} |\n"
+        table += f"| {title_link} | {claimed_at} | {claimed} | {candidates} |\n"
     
     return table
 
@@ -243,25 +244,22 @@ def format_user_tasks_as_list(user_tasks: List[UserTask], base_url: str) -> str:
     
     output = []
     for user_task in user_tasks:
-        task_url = build_user_task_url(base_url, user_task.name)
-        state = format_user_task_state(user_task.state)
-        assignee = user_task.assignee or "Unassigned"
-        completed_at = format_completed_at(user_task.completed_at)
+        task_title = user_task.task_title or user_task.name
+        task_url = build_user_task_url(base_url, user_task.task_id)
+        claimed_at = format_completed_at(user_task.claimed_at) if user_task.claimed_at else "--"
+        claimed = user_task.assignee or "--"
         candidates = format_candidate_users(user_task.candidate_users)
         
-        output.append(f"**{user_task.name}**")
-        output.append(f"  - State: {state}")
-        output.append(f"  - Assignee: {assignee}")
-        output.append(f"  - Completed At: {completed_at}")
+        output.append(f"**{task_title}**")
+        output.append(f"  - Claimed at: {claimed_at}")
+        output.append(f"  - Claimed: {claimed}")
         output.append(f"  - Candidate Users: {candidates}")
-        
-        if user_task.task_title:
-            output.append(f"  - Title: {user_task.task_title}")
         
         if user_task.task_instruction:
             output.append(f"  - Instruction: {user_task.task_instruction}")
         
-        output.append(f"  - [View Task]({task_url})")
+        if task_url:
+            output.append(f"  - [View Task]({task_url})")
         output.append("")
     
     return "\n".join(output)

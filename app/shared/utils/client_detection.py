@@ -7,10 +7,50 @@ MCP Client Detection Utilities
 
 This module provides utilities for detecting MCP client types,
 particularly for identifying clients that do not support rich text formatting.
+Also provides a minimal context implementation for testing and fallback scenarios.
 """
 
+import asyncio
+from typing import Any
 from fastmcp.server.context import Context
 from app.shared.logging import LOGGER
+
+
+class MinimalContext:
+    """
+    Minimal context implementation for testing and fallback scenarios.
+    
+    This class provides a stub implementation of the MCP Context interface
+    that can be used when the real context is not available (e.g., in tests
+    or when FastMCP context injection fails).
+    
+    The elicit method returns None to indicate that elicitation is not supported,
+    allowing tools to gracefully handle the absence of user interaction.
+    """
+    
+    request_context = None
+    
+    async def elicit(self, message: str, response_type: Any = None) -> None:
+        """
+        Stub elicitation method that logs the request and returns None.
+        
+        This method is async to match the MCP Context interface signature.
+        Uses asyncio.sleep(0) to properly yield control to the event loop,
+        satisfying async requirements while performing no actual I/O.
+        
+        Args:
+            message: The elicitation message
+            response_type: The expected response type (unused in stub implementation)
+            
+        Returns:
+            None to indicate elicitation is not supported
+        """
+        # Use _ prefix to indicate intentionally unused parameter
+        _ = response_type
+        LOGGER.info(f"MinimalContext elicitation skipped: {message}")
+        # Yield control to event loop to satisfy async requirements
+        await asyncio.sleep(0)
+        return None
 
 
 def supports_rich_text_format(ctx: Context) -> bool:

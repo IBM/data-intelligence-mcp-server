@@ -126,6 +126,10 @@ async def _execute_advanced_profiling(
 
 @service_registry.tool(
     name="execute_advanced_profiling",
+    annotations={
+        "title": "Execute Advanced Data Profiling with Configurable Sampling",
+        "destructiveHint": True
+    },
     description="""Executes advanced profiling on a metadata enrichment asset for selected datasets.
 
     This tool runs advanced profiling on specified datasets within a metadata enrichment asset.

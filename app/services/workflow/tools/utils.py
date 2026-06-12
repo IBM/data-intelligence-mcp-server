@@ -19,6 +19,7 @@ from app.services.constants import SEARCH_PATH, GLOSSARY_ARTIFACT_TYPES_ENDPOINT
 from fastmcp.exceptions import ToolError
 
 ZERO_MINUTES = "+00:00"
+ELICITATION_WATERMARK = 10
 
 
 def _create_artifact_from_item(item: dict, artifact_type: str):
@@ -98,7 +99,9 @@ async def _query_artifact_in_draft_by_term(search_term: str, artifact_type: str,
     # Validate input parameters
     validate_search_params(search_term, artifact_type, max_results)
     
-    params = {"sub_string": search_term, "enabled": "both", "limit": max_results}
+    params = {"enabled": "both", "limit": max_results}
+    if len(search_term) > 0 and search_term != '*':
+        params['sub_string'] = search_term
     try:
         response = await tool_helper_service.execute_get_request(
             url=f"{tool_helper_service.base_url}{GLOSSARY_ARTIFACT_TYPES_ENDPOINT}/{artifact_type}",
