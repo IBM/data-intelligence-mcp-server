@@ -1545,6 +1545,12 @@ task_action_description="""
     - Claim a task (assign it to yourself)
     - Complete a task (finish it) with required form property values collected via elicitation
     - Unclaim a task (release it if previously claimed)
+
+    CRITICAL: Never assume, infer, or present available task actions to the user 
+    without first calling this tool with action="complete" to retrieve the valid 
+    actions for that specific task. Actions vary by task type and workflow state 
+    and must always be read directly from the tool response before presenting 
+    options to the user.
     
     CRITICAL SAFETY RULE FOR action="complete":
     Do not create, invent, infer, assume, summarize, paraphrase, default, auto-fill, or guess any form_values yourself.
