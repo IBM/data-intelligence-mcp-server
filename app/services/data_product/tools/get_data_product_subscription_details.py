@@ -11,6 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Annotated
+from pydantic import Field
+
 from app.core.registry import service_registry
 from app.services.data_product.models.get_data_product_subscription_details import (
     GetDataProductSubscriptionDetailsRequest,
@@ -92,7 +95,7 @@ async def _get_data_product_subscription_details(
 
 @service_registry.tool(
     name="get_data_product_subscription_details",
-    description="""
+    description="""Use this tool when you have a subscription ID and want to see: - What data products are being delivered - The delivery status of each item - How to access the delivered data (flight descriptors)
     Retrieve the actual content (items) being delivered in a specific data product subscription.
     
     **IMPORTANT**: This tool requires a subscription ID. To find subscription IDs, first use
@@ -106,19 +109,10 @@ async def _get_data_product_subscription_details(
     - Output assets (flight descriptors for accessing data)
     - Copy text for accessing the data
     
-    Use this tool when you have a subscription ID and want to see:
-    - What data products are being delivered
-    - The delivery status of each item
-    - How to access the delivered data (flight descriptors)
-    
     Features:
     - Retrieve all items from a subscription
     - Detailed delivery state for each item
     - Access information (flight descriptors, copy text)
-    
-    Returns:
-    - List of items in the subscription with delivery details
-    - Total count of items
     
     **Workflow**: 
     1. Use search_data_product_subscriptions to find subscriptions
@@ -129,13 +123,8 @@ async def _get_data_product_subscription_details(
     - Which data assets are being delivered
     - The delivery state of each asset
     - Flight descriptors or URLs to access the data
-    
-    Args:
-        subscription_id: The ID of the subscription (asset list) to retrieve items from.
-                        This is a UUID obtained from search_data_product_subscriptions.
-    
-    Returns:
-        GetDataProductSubscriptionDetailsResponse: Object containing items list, total_count, and subscription_id
+
+    Returns: List of items in the subscription with delivery details, total count of items, and the subscription ID that was queried
     """,
     tags={"read", "data_product", "subscriptions"},
     meta={"version": "1.0", "service": "data_product"},
@@ -146,7 +135,7 @@ async def _get_data_product_subscription_details(
 )
 @auto_context
 async def get_data_product_subscription_details(
-    subscription_id: str
+    subscription_id: Annotated[str, Field(description="The ID of the subscription (asset list) to retrieve items from. This is a UUID obtained from search_data_product_subscriptions.")]
 ) -> GetDataProductSubscriptionDetailsResponse:
     """Wrapper version that expands GetDataProductSubscriptionDetailsRequest object into individual parameters."""
     

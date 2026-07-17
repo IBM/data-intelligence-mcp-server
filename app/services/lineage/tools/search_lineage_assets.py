@@ -5,7 +5,8 @@
 import re
 
 from difflib import get_close_matches
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Annotated
+from pydantic import Field
 
 from app.services.lineage.models.lineage_asset import LineageAsset, QualityScore
 from app.services.lineage.models.search_lineage_assets import (
@@ -22,7 +23,7 @@ from app.services.lineage.constants import (
 )
 from app.services.lineage.utils import handle_500_error
 from app.services.stubs import caller_context, trigger_interrupt_with_ui
-from app.shared.exceptions.base import ExternalAPIError, ServiceError
+from app.shared.exceptions.base import ExternalAPIError, ServiceError, ValidationError
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.helpers import verify_dates
@@ -310,7 +311,8 @@ async def _get_lineage_technology_type(technology_type: str, filters_not_found: 
     technology_types = technology_types_list.get("technologies", [])
     if len(technology_types) == 0:
         raise ServiceError(
-            f"Couldn't find any technology types with the name '{technology_type}'. No technology types available."
+            f"Couldn't find any technology types with the name '{technology_type}'. No technology types available.",
+            remediation_steps="Verify if technology name does not contain typos or do not pass technology type"
         )
     """
     closest_technology = chat_llm_request(
@@ -365,7 +367,8 @@ async def _get_lineage_asset_type(asset_type: str, filters_not_found: Optional[L
     asset_types = asset_types_list.get("lineage_asset_types", [])
 
     if len(asset_types) == 0:
-        raise ServiceError("Couldn't find any asset types to filter by")
+        raise ServiceError("Couldn't find any asset types to filter by",
+        remediation_steps="Pick another asset type or do not pass this value")
 
     closest_name = get_close_matches(
         word=asset_type.lower(),
@@ -379,7 +382,8 @@ async def _get_lineage_asset_type(asset_type: str, filters_not_found: Optional[L
                 return asset_type_name
         # If we found a close match but couldn't find it in asset_types (shouldn't happen, but just in case)
         raise ServiceError(
-            f"Found a close match for '{asset_type}' but couldn't retrieve the asset type details"
+            f"Found a close match for '{asset_type}' but couldn't retrieve the asset type details",
+            remediation_steps="Try to call this tool again"
         )
     else:
         if filters_not_found is not None:
@@ -623,8 +627,9 @@ def _validate_dates(dates: Optional[str]) -> Optional[list]:
     
     verified_dates = verify_dates(dates=dates)
     if verified_dates and len(verified_dates) != 2:
-        raise ServiceError(
-            f"dates parameter must contain exactly 2 ISO 8601 dates, got {len(verified_dates)} dates"
+        raise ValidationError(
+            f"dates parameter must contain exactly 2 ISO 8601 dates, got {len(verified_dates)} dates",
+            remediation_steps="Pass two dates with ISO-8601 format"
         )
     return verified_dates
 
@@ -782,7 +787,7 @@ async def _search_lineage_assets(
         "readOnlyHint": True,
         "title": "Search and Filter Lineage Assets by Multiple Criteria"
     },
-    description="""Searches for assets in the Lineage system based on name and optional filters.
+    description="""Use this tool when you need to searches for assets in the Lineage system based on name and optional filters.
     
     This tool finds lineage assets matching the provided name query, with filtering
     by technology name, asset type, and Data Source Definition (DSD). Results are sorted by relevance, with exact matches first.
@@ -808,30 +813,7 @@ async def _search_lineage_assets(
     1. Call this tool with asset name → Get lineage ID from results
     2. Pass the lineage ID to get_lineage_graph → Get lineage graph
     
-    Args:
-        name_query (str): Search pattern for asset names. Use "*" to match all assets.
-            Exact matches are prioritized over partial matches.
-        is_operational (bool): Filter for operational asset types only. Default: False
-        tag (Optional[str]): Filter assets by specific tag
-        data_quality_operator (Optional[str]): Comparison operator for data quality score
-            ("equals", "greater_than", "greater_than_or_equal", "less_than", "less_than_or_equal")
-        data_quality_value (float): Numerical threshold for data quality filtering (valid range: 0.0-100.0).
-            Used with data_quality_operator. Note: The internal sentinel value -0.01 is reserved
-            and automatically set when no value is provided.
-        business_term (Optional[str]): Filter by business glossary term
-        business_classification (Optional[str]): Filter by business classification
-        technology_name (str): Filter by technology name (e.g., "PostgreSQL").
-            Only use when explicitly specified by user
-        asset_type (str): Filter by asset type (e.g., "Table", "Column").
-            Only use when explicitly specified by user
-        dsd_id (str): Filter by Data Source Definition ID.
-            Only use when explicitly specified by user
-        dsd_name (str): Filter by Data Source Definition name.
-            Only use when explicitly specified by user
-        dates (Optional[str]): ISO 8601 dates to validate if assets were available in that version. Used when comparing versions
-    
-    Returns:
-        str: Search results containing:
+    Returns: Search results containing:
             - lineage_assets: List of matching assets with properties:
                 * id: **64-character hexadecimal lineage ID** (use this for get_lineage_graph)
                 * name: Display name of the asset
@@ -857,18 +839,18 @@ async def _search_lineage_assets(
 )
 @auto_context
 async def search_lineage_assets(
-    name_query: str,
-    is_operational: Optional[bool] = None,
-    tag: Optional[str] = None,
-    data_quality_operator: Optional[str] = None,
-    data_quality_value: Optional[float] = None,
-    business_term: Optional[str] = None,
-    business_classification: Optional[str] = None,
-    technology_name: Optional[str] = None,
-    asset_type: Optional[str] = None,
-    dsd_id: Optional[str] = None,
-    dsd_name: Optional[str] = None,
-    dates: Optional[str] = None,
+    name_query: Annotated[str, Field(description="Search pattern for asset names. Use '*' to match all assets. Exact matches are prioritized over partial matches")],
+    is_operational: Annotated[Optional[bool], Field(description="Filter for operational asset types only. Default: False")] = None,
+    tag: Annotated[Optional[str], Field(description="Filter assets by specific tag")] = None,
+    data_quality_operator: Annotated[Optional[str], Field(description="Comparison operator for data quality score ('equals', 'greater_than', 'greater_than_or_equal', 'less_than', 'less_than_or_equal')")] = None,
+    data_quality_value: Annotated[Optional[float], Field(description="Numerical threshold for data quality filtering (valid range: 0.0-100.0). Used with data_quality_operator. Note: The internal sentinel value -0.01 is reserved and automatically set when no value is provided")] = None,
+    business_term: Annotated[Optional[str], Field(description="Filter by business glossary term")] = None,
+    business_classification: Annotated[Optional[str], Field(description="Filter by business classification")] = None,
+    technology_name: Annotated[Optional[str], Field(description="Filter by technology name (e.g., 'PostgreSQL'). Only use when explicitly specified by user")] = None,
+    asset_type: Annotated[Optional[str], Field(description="Filter by asset type (e.g., 'Table', 'Column'). Only use when explicitly specified by user")] = None,
+    dsd_id: Annotated[Optional[str], Field(description="Filter by Data Source Definition ID. Only use when explicitly specified by user")] = None,
+    dsd_name: Annotated[Optional[str], Field(description="Filter by Data Source Definition name. Only use when explicitly specified by user")] = None,
+    dates: Annotated[Optional[str], Field(description="ISO 8601 dates to validate if assets were available in that version. Used when comparing versions")] = None,
 ) -> SearchLineageAssetsResponse:
     """Wrapper for search_lineage_assets."""
 

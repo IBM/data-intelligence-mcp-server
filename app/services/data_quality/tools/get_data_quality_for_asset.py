@@ -2,10 +2,10 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 from datetime import datetime
 
-
+from pydantic import Field
 from app.core.registry import service_registry
 from app.shared.logging import LOGGER, auto_context
 from app.shared.ui_message.ui_message_context import ui_message_context
@@ -100,10 +100,7 @@ async def _get_data_quality_for_asset(request: GetDataQualityForAssetRequest) ->
         "readOnlyHint": True,
         "title": "Get Data Quality Metrics and Assessment Scores for Specific Asset"
     },
-    description="""Wrapper for get_data_quality_for_asset.
-
-    
-Retrieve data quality metrics and information for a specific asset. This tool fetches quality metrics for a data asset, including overall quality score and specific dimensions like consistency, validity, and completeness. This information helps assess the reliability and usability of the data.
+    description="""Use this tool when you need to retrieve data quality metrics and information for a specific asset. This tool fetches quality metrics for a data asset, including overall quality score and specific dimensions like consistency, validity, and completeness. This information helps assess the reliability and usability of the data.
 
 You can pass either IDs or names for both asset and container.
 
@@ -118,13 +115,7 @@ When asking for missing information:
 - If container type is missing: Ask "Is this in a project or catalog?"
 - If user mentions "project" or "catalog", use that value directly
 
-Args:
-    asset_id_or_name (str): Asset UUID or name. Examples: 'customer_data_2023', 'sales_records_q2', 'inventory_management'
-    container_id_or_name (str): Project or catalog UUID or name. Examples: 'marketing_analytics', 'financial_reports', 'supply_chain'
-    container_type (Literal["project", "catalog"]): Type of container. Must be either 'catalog' or 'project'. Enum: ['project', 'catalog']
-
-Returns:
-    GetDataQualityForAssetResponse: The tool returns quality metrics including overall quality score, consistency score, validity score, completeness score, and a URL to the detailed quality dashboard.
+Returns: Quality metrics including overall quality score, consistency score, validity score, completeness score, and a URL to the detailed quality dashboard.
 
 Raises:
     ToolProcessFailedError: If quality metrics cannot be retrieved or the service call fails.""",
@@ -133,9 +124,9 @@ Raises:
 )
 @auto_context
 async def get_data_quality_for_asset(
-    asset_id_or_name: str,
-    container_id_or_name: str,
-    container_type: Literal["catalog", "project"],
+    asset_id_or_name: Annotated[str, Field(description="Asset UUID or name. Examples: 'customer_data_2023', 'sales_records_q2', 'inventory_management'")],
+    container_id_or_name: Annotated[str, Field(description="Project or catalog UUID or name. Examples: 'marketing_analytics', 'financial_reports', 'supply_chain'")],
+    container_type: Annotated[Literal["catalog", "project"], Field(description="Type of container. Must be either 'catalog' or 'project'. Enum: ['project', 'catalog']")],
 ) -> GetDataQualityForAssetResponse:
     """
     Wrapper that builds request model and delegates to main tool.

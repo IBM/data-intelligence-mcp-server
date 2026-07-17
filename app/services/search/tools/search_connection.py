@@ -5,11 +5,12 @@
 from app.core.registry import service_registry
 from app.services.search.models.search_connection import SearchConnectionRequest, SearchConnectionResponse, ContainerType
 
-from typing import List, Literal, Optional
+from typing import List, Optional, Annotated
+from pydantic import Field
 from urllib.parse import urlencode
 
 from app.shared.logging import LOGGER, auto_context
-from app.shared.exceptions.base import ServiceError
+from app.shared.exceptions.base import ServiceError, ValidationError
 from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.helpers import append_context_to_url, is_uuid_bool
@@ -116,10 +117,11 @@ async def _search_connection(
         "readOnlyHint": True,
         "title": "Search and Filter Database Connections Across Containers"
     },
-    description="""Understand user's request about searching connections and return a list of
-                    retrieved connections. Users can choose to filter the results based on 
+    description="""Use this tool when you need to find database connections across containers, with optional filtering by name, type, or creator.
+                    Understand user's request about searching connections and return a list of
+                    retrieved connections. Users can choose to filter the results based on
                     the optional input parameters: container, connection name,
-                    data source type, and creator. If no filters are provided, then all available 
+                    data source type, and creator. If no filters are provided, then all available
                     connections are retrieved.
                     Example: Find all connections.
                     In this case, all input parameters will be None.
@@ -135,13 +137,18 @@ async def _search_connection(
                     - container_type must be one of: "catalog", "project", or "all"
                     - if no container_type is provided, it defaults to "all"
                     - container and container_type must be provided if one or more of connection_name, datasource_type, or creator is provided
-                    - Invalid values will result in errors""",
+                    - Invalid values will result in errors
+                    Return: A list of objects, each containing connection details including ID, name, URL, creation time, creator ID, datasource type information, and container details.""",
     tags={"search", "connection"},
     meta={"version": "1.0", "service": "search"}
 )
 @auto_context
 async def search_connection(
-    container: Optional[str], connection_name: Optional[str], datasource_type: Optional[str], creator: Optional[str], container_type: str = "all",
+    container: Annotated[Optional[str], Field(description="Name or UUID of the project or catalog to search the connection within.")] = None,
+    connection_name: Annotated[Optional[str], Field(description="Name of the connection to filter the connections by.")] = None,
+    datasource_type: Annotated[Optional[str], Field(description="Datasource type name or UUID to filter connections by.")] = None,
+    creator: Annotated[Optional[str], Field(description="Name, username, or ID of the creator of connection to filter connections by.")] = None,
+    container_type: Annotated[str, Field(description="The container type in which to search connections")] = "all",
 ) -> List[SearchConnectionResponse]:
     """Wrapper that expands SearchConnectionRequest object into individual parameters."""
 
@@ -228,15 +235,16 @@ async def search_connection_global_search() -> List[SearchConnectionResponse]:
     return output
 
 def _validate_connection_request(request: SearchConnectionRequest) -> None:
+    remediation_step = "Invoke the list_containers tool with container type 'all' to list possible containers for connection search"
     if request.container and request.container_type == ContainerType.ALL:
         error_msg = "Container identifier cannot be provided with 'all' container type. Please provide either catalog or project as the type."
         LOGGER.error(error_msg)
-        raise ServiceError(error_msg)
+        raise ValidationError(error_msg, remediation_steps=remediation_step)
 
     if (request.connection_name or request.datasource_type or request.creator) and not (request.container and request.container_type != ContainerType.ALL):
         error_msg = "Cannot filter by name, data source type or creator without container information. Please provide container name and type."
         LOGGER.error(error_msg)
-        raise ServiceError(error_msg)
+        raise ValidationError(error_msg, remediation_steps=remediation_step)
 
 def _create_connection_url(conn_id: str, container_id: str, container_type: str) -> str:
     if container_type == "project":

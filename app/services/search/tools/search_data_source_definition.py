@@ -5,7 +5,8 @@
 from app.core.registry import service_registry
 from app.services.search.models.search_data_source_definition import SearchDataSourceDefinitionRequest, SearchDataSourceDefinitionResponse
 
-from typing import List, Optional
+from typing import List, Optional, Annotated
+from pydantic import Field
 from urllib.parse import urlencode
 
 from app.shared.exceptions.base import ServiceError
@@ -98,7 +99,8 @@ async def _search_data_source_definition(
         "readOnlyHint": True,
         "title": "Query and Search Data Source Definitions with Advanced Filtering"
     },
-    description="""Understand user's request about searching data source definitions aka DSD
+    description="""Use this tool when you need to find data source definitions (DSDs) by name, type, endpoint, or physical collection.
+                    Understand user's request about searching data source definitions aka DSD
                     and return a list of retrieved DSDs. Users can choose to filter the
                     results based on the optional input parameters: name, data source type,
                     hostname, port, or physical collection. If no filters are provided, then
@@ -128,13 +130,18 @@ async def _search_data_source_definition(
                         - Hostname + port + name
                         - Hostname + port + physical collection
                         - Hostname + port + physical collection + name
-                    - Invalid values will result in errors""",
+                    - Invalid values will result in errors
+                    Return: A list of objects, each containing data source definition details including ID, name, creation time, creator ID, datasource type information, and URL.""",
     tags={"search", "data_source_definition"},
     meta={"version": "1.0", "service": "search"}
 )
 @auto_context
 async def search_data_source_definition(
-    name: Optional[str], datasource_type: Optional[str], hostname: Optional[str], port: Optional[str], physical_collection: Optional[str]
+    name: Annotated[Optional[str], Field(description="Name of the data source definition to search for.")],
+    datasource_type: Annotated[Optional[str], Field(description="Datasource type name or UUID to filter data source definitions by.")],
+    hostname: Annotated[Optional[str], Field(description="Hostname/IP address of the data source to filter data source definitions by.")],
+    port: Annotated[Optional[str], Field(description="Port number of the hostname of the data source to filter data source definitions by.")],
+    physical_collection: Annotated[Optional[str], Field(description="Database name, bucket name, or project ID of the data source to filter data source definitions by.")]
 ) -> List[SearchDataSourceDefinitionResponse]:
     """Wrapper that expands SearchDataSourceDefinitionRequest object into individual parameters."""
 

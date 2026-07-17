@@ -4,7 +4,8 @@
 
 """Tool for importing glossary artifacts from CSV files."""
 
-from typing import Optional
+from typing import Annotated, Optional
+from pydantic import Field
 from fastmcp import Context
 
 from app.core.registry import service_registry
@@ -79,7 +80,7 @@ async def _glossary_csv_import(
 
 @service_registry.tool(
     name="import_glossary_from_csv",
-    description="""Import business glossary terms and categories from CSV files.
+    description="""Use this tool when you need to import business glossary terms and categories from CSV files.
 
 Wrapper that accepts parameters directly.
 
@@ -168,6 +169,7 @@ Returns structured errors with:
 - Error message
 - Problematic value
 
+Returns: Import/validation status, counts of created and updated categories and terms, any validation errors, and optional process tracking information.
 This enables LLMs to generate properly formatted CSVs and validate user-provided CSVs before import.""",
     annotations={
         "title": "Import and Create Glossary Terms and Categories from CSV Content",
@@ -176,9 +178,12 @@ This enables LLMs to generate properly formatted CSVs and validate user-provided
 )
 @auto_context
 async def import_glossary_from_csv(
-    csv_content: str,
-    validate_only: bool = False,
-    merge_option: str = "all",
+    csv_content: Annotated[str, Field(description="CSV content as a string. Must follow IBM watsonx.data intelligence format (https://dataplatform.cloud.ibm.com/docs/content/wsj/governance/csv-import.html)")],
+    validate_only: Annotated[bool, Field(description="If true, only validate the CSV without importing. Returns validation errors if any.")] = False,
+    merge_option: Annotated[str, Field(description="""Import merge option for handling existing artifacts: 
+                                       - 'all': Imported values will replace all existing values in catalog (default) 
+                                       - 'specified': Only non-empty imported values replace existing values 
+                                       - 'empty': Imported values replace only empty values in catalog""")] = "all",
     ctx: Optional[Context] = None,
 ) -> CSVImportResult:
     """ 

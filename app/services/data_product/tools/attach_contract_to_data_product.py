@@ -2,7 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Optional
+from typing import Optional, Annotated
+from pydantic import Field
+
 from app.core.registry import service_registry
 from app.services.data_product.models.attach_contract_to_data_product import (
     AttachURLContractToDataProductRequest,
@@ -10,6 +12,7 @@ from app.services.data_product.models.attach_contract_to_data_product import (
     ContractTemplate,
     AttachContractTemplateToDataProductRequest,
     CreateAndAttachCustomContractRequest,
+    AttachURLContractToDataProductResponse,
 )
 from app.services.data_product.utils.common_utils import add_catalog_id_suffix
 from app.services.tool_utils import validate_url
@@ -52,15 +55,8 @@ async def _attach_url_contract_to_data_product(
 
 @service_registry.tool(
     name="attach_url_contract_to_data_product",
-    description="""
-    This tool attaches the given URL contract to a data product draft.
-    Appropriate success message is sent if the URL contract is attached to the data product draft.
-    
-    Args:
-        contract_url (str): The URL of the contract.
-        contract_name (str): The name of the contract.
-        contract_terms_id (str): The ID of the contract terms asset. This should be fetched from the context (not from the user).
-        data_product_draft_id (str): The ID of the data product draft to which the contract is to be attached.
+    description="""Use this tool when you need to attach the given URL contract to a data product draft.
+    Return: A success message confirming that the URL contract has been attached to the data product draft, including the contract URL and data product draft ID.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
@@ -70,10 +66,10 @@ async def _attach_url_contract_to_data_product(
     }
 )
 async def attach_url_contract_to_data_product(
-    contract_url: str,
-    contract_name: str,
-    contract_terms_id: str,
-    data_product_draft_id: str
+    contract_url: Annotated[str, Field(description="The URL of the contract.")],
+    contract_name: Annotated[str, Field(description="The name of the contract.")],
+    contract_terms_id: Annotated[str, Field(description="The ID of the contract terms asset. This should be fetched from the context (not from the user).")],
+    data_product_draft_id: Annotated[str, Field(description="The ID of the data product draft to which the contract is to be attached.")]
 ) -> str:
     """Wrapper version that expands AttachURLContractToDataProductRequest object into individual parameters."""
 
@@ -107,12 +103,13 @@ async def _list_data_product_contract_templates()-> GetContractTemplateResponse:
 
 @service_registry.tool(
     name="list_data_product_contract_templates",
-    description="""
+    description="""Use this tool when you need to view available contract templates before attaching one to a data product draft.
     This tool gets all contract templates defined in the system.
     This is sometimes called before calling `attach_contract_template_to_data_product` tool.
     Example 1: Add contract1 template to the draft
          - This will first call `list_data_product_contract_templates` to get the list of contract templates (if contract template ID is not known) and passes the contract template ID of contract1 to the next tool `attach_contract_template_to_data_product`.
     Example 2: What are my contract templates?
+    Return: A list of contract templates, where each template contains: The ID of the contract template, The name of the contract template
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
@@ -410,7 +407,7 @@ async def _attach_contract_template_to_data_product(
 
 @service_registry.tool(
     name="attach_contract_template_to_data_product",
-    description="""
+    description="""Use this tool when you need to attach a predefined contract template to a data product draft, either with default values or customized terms.
     This tool attaches the selected contract template to data product draft.
     Call `list_data_product_contract_templates` tool before calling this tool, if you don't know the ID of the contract template.
     Also, it is a good idea to list all contract templates to user so the user can choose from the list.
@@ -439,14 +436,7 @@ async def _attach_contract_template_to_data_product(
          - Combine multiple: {"description": {"limitations": "unlimited"}, "custom_properties": [{"property": "refresh", "value": "daily"}]}
    
     The deep_merge preserves all template defaults while applying your customizations.
-    
-    Args:
-        contract_template_id (str): The ID of the contract template.
-        data_product_draft_id (str): The ID of the data product draft.
-        contract_terms_id (str): The ID of the contract terms asset.
-        contract_terms (dict, optional): Optional contract terms values to customize the template. If None, displays template defaults for review (first call). If empty dict {}, uses template defaults and attaches (second call). If provided with values, deep merges with template defaults and attaches. Must follow the schema structure shown in first call.
-    Returns:
-        str: The message indicating the success of the operation or displaying contract terms for review.
+    Returns: The message indicating the success of the operation or displaying contract terms for review.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
@@ -456,10 +446,10 @@ async def _attach_contract_template_to_data_product(
     }
 )
 async def attach_contract_template_to_data_product(
-    contract_template_id: str,
-    data_product_draft_id: str,
-    contract_terms_id: str,
-    contract_terms: Optional[dict] = None
+    contract_template_id: Annotated[str, Field(description="The ID of the contract template.")],
+    data_product_draft_id: Annotated[str, Field(description="The ID of the data product draft.")],
+    contract_terms_id: Annotated[str, Field(description="The ID of the contract terms asset.")],
+    contract_terms: Annotated[Optional[dict], Field(description="Optional contract terms values to customize the template. If None, displays template defaults for review (first call). If empty dict {}, uses template defaults and attaches (second call). If provided with values, deep merges with template defaults and attaches. Must follow the schema structure shown in first call.")] = None
 )-> str:
     request = AttachContractTemplateToDataProductRequest(
         contract_template_id=contract_template_id,
@@ -475,7 +465,7 @@ async def attach_contract_template_to_data_product(
 
 async def _create_and_attach_custom_contract(
     request: CreateAndAttachCustomContractRequest
-) -> str:
+) -> AttachURLContractToDataProductResponse:
     LOGGER.info(f"In create_attach_custom_data_product_contract, creating custom contract for data product draft {request.data_product_draft_id} with contract terms {request.contract_terms_id}")
     
     # If contract_terms is not provided, this is the first call - display the schema documentation
@@ -501,11 +491,11 @@ async def _create_and_attach_custom_contract(
         result_message += "For example, to set the name in overview, use: {\"overview\": {\"name\": \"My Product\"}}\n\n"
         result_message += "To proceed:\n"
         result_message += "- Call this tool again WITH contract_terms={...} containing your values (following the structure above)"
-        return result_message
+        return AttachURLContractToDataProductResponse(message=result_message)
     
     # User has provided contract_terms - validate it's not empty
     if not request.contract_terms:
-        return "Empty custom contract is not allowed. Please provide contract_terms with at least some values following the schema structure shown in the first call."
+        return AttachURLContractToDataProductResponse(message="Empty custom contract is not allowed. Please provide contract_terms with at least some values following the schema structure shown in the first call.")
     
     # Clean the user-provided contract terms by removing None values and empty structures
     # This prevents backend deserialization errors
@@ -527,13 +517,12 @@ async def _create_and_attach_custom_contract(
     result_message = f"Successfully created and attached custom contract to the data product draft {request.data_product_draft_id}. "
     result_message += f"Contract includes values for the following fields: {list(request.contract_terms.keys())}"
     
-    return result_message
+    return AttachURLContractToDataProductResponse(message=result_message)
 
 
 @service_registry.tool(
     name="create_attach_custom_data_product_contract",
-    description="""
-    This tool creates a custom contract from scratch and attaches it to a data product draft.
+    description="""Use this tool when you need to creates a custom contract from scratch and attaches it to a data product draft.
     Unlike the template-based tool, this does not use any predefined template. Instead, it allows
     users to create a completely custom contract by providing their own values.
     
@@ -552,13 +541,7 @@ async def _create_and_attach_custom_contract(
     
     Note: Not all fields are mandatory. Users only need to provide values for the fields they want to include.
     Empty dict is not allowed - custom contracts must have at least some values.
-    
-    Args:
-        data_product_draft_id (str): The ID of the data product draft.
-        contract_terms_id (str): The ID of the contract terms asset.
-        contract_terms (dict, optional): Custom contract terms values to create and attach to the data product. Must follow the exact nested structure from the schema. If None, the empty schema will be shown. If provided with values, the contract will be created and attached (empty dict not allowed for custom contracts).
-    Returns:
-        str: The message indicating the success of the operation or displaying the schema for review.
+    Returns: The message indicating the success of the operation or displaying the schema for review.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
@@ -568,10 +551,10 @@ async def _create_and_attach_custom_contract(
     }
 )
 async def create_and_attach_custom_contract(
-    data_product_draft_id: str,
-    contract_terms_id: str,
-    contract_terms: Optional[dict] = None
-) -> str:
+    data_product_draft_id: Annotated[str, Field(description="The ID of the data product draft.")],
+    contract_terms_id: Annotated[str, Field(description="The ID of the contract terms asset.")],
+    contract_terms: Annotated[Optional[dict], Field(description="Custom contract terms values to create and attach to the data product. Must follow the exact nested structure from the schema. If None, the empty schema will be shown. If provided with values, the contract will be created and attached (empty dict not allowed for custom contracts).")] = None
+) -> AttachURLContractToDataProductResponse:
     request = CreateAndAttachCustomContractRequest(
         data_product_draft_id=data_product_draft_id,
         contract_terms_id=contract_terms_id,

@@ -4,6 +4,9 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
+from typing import Annotated
+from pydantic import Field
+
 from app.core.registry import service_registry
 from app.services.data_product.models.find_delivery_methods_based_on_connection import (
     FindDeliveryMethodsBasedOnConnectionRequest,
@@ -96,19 +99,14 @@ def get_available_delivery_methods(response, datasource_type):
 
 @service_registry.tool(
     name="find_data_product_delivery_methods_based_on_connection",
-    description="""
-    This tool finds delivery methods available for the connection type of the data asset.
+    description="""Use this tool when you need to finds delivery methods available for the connection type of the data asset.
     Finds delivery methods for data asset (data_asset_id) in container_type (ID: container_id).
     This is called before `add_delivery_methods_to_data_product()` to find the delivery methods available for the given data asset.
     Example: 'Find delivery methods for customer asset in the data product draft' - This gets the container type ('catalog' or 'project') where this asset is in, the ID of the container, and the data asset ID.
     If you are not sure about the container ID, use the `list_containers` tool to find it out.
     If you are not sure about the data asset ID of the requested data asset, use the `search_asset` tool to find it out.
     Prompt user to choose delivery methods from the list of available delivery methods.
-    
-    Args:
-        container_id: The ID of the container (catalog or project) where the data asset is located.
-        container_type: The type of the container (either 'catalog' or 'project').
-        data_asset_id: The ID of the data asset for which delivery methods are being requested.
+    Return: A list of available delivery methods for the data asset, including their IDs, names, and descriptions.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
@@ -119,9 +117,9 @@ def get_available_delivery_methods(response, datasource_type):
 )
 @auto_context
 async def find_data_product_delivery_methods_based_on_connection(
-    container_id: str,
-    container_type: str,
-    data_asset_id: str
+    container_id: Annotated[str, Field(description="The ID of the container (catalog or project) where the data asset is located.")],
+    container_type: Annotated[str, Field(description="The type of the container (either 'catalog' or 'project').")],
+    data_asset_id: Annotated[str, Field(description="The ID of the data asset for which delivery methods are being requested.")]
 ) -> FindDeliveryMethodsBasedOnConnectionResponse:
     """Wrapper version that expands FindDeliveryMethodsBasedOnConnectionRequest object into individual parameters."""
 

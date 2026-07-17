@@ -11,8 +11,10 @@ from app.shared.utils.crn_validator import CRNValidator
 import time
 from app.services.constants import PROJECTS_BASE_ENDPOINT
 from app.core.settings import settings, ENV_MODE_SAAS, ENV_MODE_CPD
-from app.shared.exceptions.base import ExternalAPIError
-from typing import List, Optional
+from app.core.auth import is_aws_environment
+from app.shared.exceptions.base import ExternalAPIError, ValidationError
+from typing import Annotated, List, Optional
+from pydantic import Field
 
 from app.shared.utils.helpers import append_context_to_url, get_project_or_space_type_based_on_context
 from app.services.tool_utils import (
@@ -26,6 +28,7 @@ from app.services.tool_utils import (
 
 PROJECT_TYPE_WX = "wx"
 STORAGE_TYPE_BMCOS = "bmcos_object_storage"
+AWS_STORAGE = "amazon_s3"
 STORAGE_TYPE_ASSETFILES = "assetfiles"
 GENERATOR_DF = "df-portal-projects"
 GENERATOR_CPDAAS = "cpdaas-portal-projects"
@@ -102,18 +105,21 @@ async def check_get_project_name(request_name) -> str:
         A valid project name
         
     Raises:
-        ValueError: If the name is empty or already exists
+        ValidationError: If the name is empty or already exists
     """
     if is_empty(request_name):
-        raise ValueError(
-            "Project name is required. Please provide a meaningful name for your project."
+        raise ValidationError(
+            "Project name is required. Please provide a meaningful name for your project.",
+            tool="create_project"
         )
     
     is_exist, project_type, project_id = await is_project_exist_by_name(request_name)
     if is_exist:
         project_location = build_project_location_url(project_id, project_type)
-        raise ValueError(
-            f"Given project name {request_name} already exists. Project URL: {project_location}"
+        raise ValidationError(
+            f"Given project name {request_name} already exists. Project URL: {project_location}",
+            remediation_steps="Call the list_containers tool with container_type set to 'project' to retrieve the list of available projects. Then provide a project name that does not exist in that list.",
+            tool="create_project"
         )
     
     return request_name
@@ -166,28 +172,44 @@ async def get_storage(request_storage):
     """
     storage = {}
     storage["type"] = get_storage_type()
-    
-    # Only process cloud storage in SaaS mode
+
+    # CPD (assetfiles) uses platform-managed storage, so no IBM Cloud Object
+    # Storage resource lookup is needed outside of IBM Cloud SaaS mode.
     if settings.di_env_mode.upper() != ENV_MODE_SAAS:
         return storage
-    
-    # Handle CRN format directly
+
+    # If the user explicitly provided a CRN, validate its format up front so a
+    # malformed value is rejected on any cloud (IBM Cloud or AWS) rather than
+    # being silently ignored.
+    crn_components = None
     if request_storage and request_storage.lower().startswith("crn:"):
-        # check for valid crn
         validator = CRNValidator()
-        is_valid, error, components = validator.validate_crn(request_storage)
-        if is_valid and components:
-            storage["resource_crn"] = request_storage
-            storage["guid"] = components["resource_id"]
-            return storage
-        else:
-            raise ValueError(f"Invalid CRN format: {error}")
-        
-    # Fetch COS storage list
+        is_valid, error, crn_components = validator.validate_crn(request_storage)
+        if not is_valid or not crn_components:
+            raise ValidationError(f"Invalid CRN format: {error}",
+                                  tool="create_project")
+
+    # AWS uses platform-managed Amazon S3 storage. The transactional projects API
+    # requires a `properties` object on the storage; sending an empty object lets
+    # the platform auto-provision the S3 bucket from the account's storage
+    # delegation settings (role_arn, bucket_region, bucket_name are filled in by
+    # the platform). IBM Cloud Object Storage CRNs do not apply on AWS.
+    if is_aws_environment():
+        storage["properties"] = {}
+        return storage
+
+    # IBM Cloud SaaS: a valid COS CRN can be used directly.
+    if crn_components:
+        storage["resource_crn"] = request_storage
+        storage["guid"] = crn_components["resource_id"]
+        return storage
+
+    # Otherwise look up the COS instance from the IBM Cloud resource controller.
+
     cos_storage_list = await get_cos_storage_list(
         cos_instance=request_storage if request_storage else None
     )
-    
+
     # Validate and set storage from list
     validate_and_set_storage(storage, cos_storage_list, request_storage)
     return storage
@@ -195,15 +217,17 @@ async def get_storage(request_storage):
 def validate_and_set_storage(storage, cos_storage_list, request_storage):
     """Validate COS storage list and set storage configuration."""
     if not cos_storage_list:
-        raise ValueError("Cloud Object Storage instance is missing")
+        raise ValidationError("Cloud Object Storage instance is missing",
+                              tool="create_project")
     
     if len(cos_storage_list) > 1 and not request_storage:
         storage_names = [
             s.get("name", s.get("crn", "unknown")) for s in cos_storage_list
         ]
-        raise ValueError(
+        raise ValidationError(
             f"Multiple storage instances found: {storage_names}. "
-            "Please specify one using its name or CRN and provide new prompt with this."
+            "Please specify one using its name or CRN and provide new prompt with this.",
+            tool="create_project"
         )
     
     # Set storage from first (or only) result
@@ -227,7 +251,8 @@ async def get_cos_storage_list(cos_instance=None) -> List:
         res for res in resources_list if "cloud-object-storage" in res.get("id", "")
     ]
     if not resource_cos:
-        raise ExternalAPIError("Cannot create project, no storage resource found")
+        raise ExternalAPIError("Cannot create project, no storage resource found",
+                               tool="create_project")
 
     return resource_cos
 
@@ -240,8 +265,8 @@ def get_storage_type() -> str:
     """
     if settings.di_env_mode.upper() == ENV_MODE_CPD:
         return STORAGE_TYPE_ASSETFILES
-    # elif settings.di_env_mode.upper() == ENV_MODE_AWS:
-    #     return "amazon_s3"
+    elif is_aws_environment():
+        return AWS_STORAGE
     else:
         return STORAGE_TYPE_BMCOS
 
@@ -264,12 +289,13 @@ def prepare_response(response, project_type):
 
 
 @service_registry.tool(name="create_project",
-    description="Creates a new project with the specified name. "
+    description="Use this tool when you need to creates a new project with the specified name. "
     "A project name is required - if not provided, ask the user for a meaningful name. "
     "If a duplicate project name is detected, an error is thrown with a link to the existing project. "
     "For storage configuration, the system validates available COS storage instances. "
     "When multiple storage instances are found, the user is prompted to specify one by name or CRN before proceeding. "
-    "Once the user provides the required information, the project is generated with the validated configuration in the given context.",
+    "Once the user provides the required information, the project is generated with the validated configuration in the given context." \
+    "Return: The name of the newly created project and the API location URL to access it.",
     annotations={
         "title": "Creates a New Project with the Given Name",
         "destructiveHint": True
@@ -277,11 +303,11 @@ def prepare_response(response, project_type):
 
 @auto_context
 async def create_project(
-    name: Optional[str] = None,
-    description: str = "MCP generated project",
-    type: Optional[str] = None,
-    storage: Optional[str] = None,
-    tags: List = [],
+    name: Annotated[Optional[str], Field(description="The name of the new project")] = None,
+    description: Annotated[str, Field(description="A description for the new project")] = "MCP generated project",
+    type: Annotated[Optional[str], Field(description="The project type: 'cpd' for IBM Cloud Pak for Data projects, 'wx' or 'df' for IBM watsonx/Data Fabric projects")] = None,
+    storage: Annotated[Optional[str], Field(description="Storage identifier: Cloud Object Storage instance name or CRN (for SaaS), or 'assetfiles' (for CPD)")] = None,
+    tags: Annotated[List, Field(description="List of user-defined tags to attach to the project")] = [],
 ) -> CreateProjectResponse:
     """Wrapper that expands CreateProjectRequest object into individual parameters."""
 

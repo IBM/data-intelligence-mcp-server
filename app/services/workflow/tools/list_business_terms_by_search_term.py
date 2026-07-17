@@ -11,7 +11,8 @@ This module provides functionality to query the glossary API for business terms
 using a search term, similar to data classes search functionality.
 """
 
-from typing import List, Dict, Literal
+from typing import Annotated, List, Dict, Literal
+from pydantic import Field
 from app.core.registry import service_registry
 from app.services.constants import SEARCH_PATH, GLOSSARY_ARTIFACT_TYPES_ENDPOINT
 from app.services.workflow.models.list_business_terms_by_search_term import (
@@ -105,11 +106,13 @@ async def _handle_elicitation(
 
 
 list_business_terms_by_search_term_description="""
+Use this tool when you need to find business terms that are part of governance workflows, especially when working with draft/unpublished business terms or when you need the artifact_id for workflow operations.
 list_business_terms_by_search_term returns a list of all business terms as objects of a data governance workflow with the artifact_id included.
 Always define the draft parameter: if the text refers to future approvals set it true, otherwise false.
 Use list_business_terms_by_search_term ONLY for requests about unpublished, draft business terms or for workflow related requests, otherwise use search_governance_artifacts.
 If you find markdown text in the result show it to the user.
 ALWAYS use a request json object to encapsulate the parameters.
+Returns: The list of business terms matching the search criteria, total count, name-to-artifact-ID mapping, and optionally a formatted markdown table or user selection prompt.
 """
 
 async def _list_business_terms_by_search_term(
@@ -204,10 +207,10 @@ async def _list_business_terms_by_search_term(
 )
 @auto_context
 async def list_business_terms_by_search_term(
-    search_term: str,
-    max_results: int = 50,
-    draft: bool = False,
-    format: str = "table",
+    search_term: Annotated[str, Field(description="Search term for name or description of the business terms")],
+    max_results: Annotated[int, Field(description="Maximum number of business terms to return")] = 50,
+    draft: Annotated[bool, Field(description="Data class in draft or published")] = False,
+    format: Annotated[str, Field(description="Output format: 'table' for formatted markdown table, 'json' for raw data")] = "table",
     ctx: Context = None,
 ) -> ListBusinessTermsResponse:
     """Wrapper version of list_business_terms_by_search_term."""

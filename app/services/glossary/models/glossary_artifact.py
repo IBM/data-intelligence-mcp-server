@@ -4,8 +4,10 @@
 
 """Models for glossary artifacts."""
 
+from email import message
 from typing import Optional
 from pydantic import BaseModel, Field
+from app.shared.models import BaseResponseModel
 
 
 class GlossaryArtifact(BaseModel):
@@ -25,7 +27,7 @@ class ExplainGlossaryArtifactRequest(BaseModel):
     )
 
 
-class GlossaryArtifactDescription(BaseModel):
+class GlossaryArtifactDescription(BaseResponseModel):
     glossary_artifact: Optional[GlossaryArtifact] = Field(
         None,
         description="Details about the glossary artifact (id, name, type, url)"
@@ -56,4 +58,10 @@ class GetGlossaryArtifactsForAssetRequest(BaseModel):
     container_type: str = Field(
         ...,
         description="Type of container - either 'project' or 'catalog'"
+    )
+
+class GetGlossaryArtifactsForAssetResponse(BaseResponseModel):
+    message: str = Field(
+        ...,
+        description="Message indicating the response of the operation"
     )

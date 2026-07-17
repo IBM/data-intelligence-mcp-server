@@ -2,7 +2,8 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Optional, Literal, Union, List
+from typing import Optional, Literal, Union, List, Annotated
+from pydantic import Field
 from app.core.registry import service_registry
 from app.services.user_search.models.search_user_groups_roles import (
     UnifiedSearchRequest,
@@ -16,7 +17,7 @@ from app.services.user_search.utils.search_utils import (
     search_groups_by_query,
     search_roles_by_query,
 )
-from app.shared.exceptions.base import ExternalAPIError, ServiceError
+from app.shared.exceptions.base import ExternalAPIError, ServiceError, ValidationError
 from app.shared.logging import LOGGER, auto_context
 from app.core.settings import settings, ENV_MODE_SAAS
 from app.shared.ui_message.ui_message_context import ui_message_context
@@ -121,7 +122,7 @@ async def _execute_search_by_type(request: UnifiedSearchRequest):
                          formatted_data=format_response, title=TABLE_TITLE_SEARCH_USER_ROLES)
         return results, total_count, "role", "role_key"
     
-    raise ValueError(f"Invalid search_type: {request.search_type}. Must be 'user', 'group', or 'role'.")
+    raise ValidationError(f"Invalid search_type: {request.search_type}. Must be 'user', 'group', or 'role'.")
 
 
 def _build_empty_response(request: UnifiedSearchRequest, entity_name: str) -> UnifiedSearchResponse:
@@ -179,7 +180,7 @@ async def _search_user_groups_roles(
     Raises:
         ExternalAPIError: When API call fails or permission is denied
         ServiceError: When unexpected error occurs during search
-        ValueError: When search_type="role" is used in SaaS environment
+        ValidationError: When search_type="role" is used in SaaS environment
     """
     query_display = f"query='{request.query}'" if request.query else f"list all {request.search_type}s"
     LOGGER.info(f"Unified search: search_type='{request.search_type}', {query_display}")
@@ -218,9 +219,9 @@ async def _search_user_groups_roles(
             query=request.query
         )
     
-    except ValueError as e:
+    except ValidationError as e:
         LOGGER.error(f"Validation error during unified search: {str(e)}")
-        raise ValueError(str(e))
+        raise ValidationError(str(e))
     except ExternalAPIError as e:
         LOGGER.error(f"External API error during unified search: {str(e)}")
         raise ExternalAPIError(
@@ -240,7 +241,7 @@ async def _search_user_groups_roles(
         "title": "Unified Identity Search for Users, Groups, and Roles"
     },
     description="""
-    Unified tool to search and retrieve users, user groups, or user roles in watsonx.data intelligence.
+    Use this tool when you need to search and retrieve users, user groups, or user roles in watsonx.data intelligence.
     
     This tool enables AI agents to quickly find the right identity record by specifying the search type
     (user, group, or role) and an optional query. It uses intelligent fuzzy matching to find the best 
@@ -277,14 +278,15 @@ async def _search_user_groups_roles(
         - "Give marketing analysts read access" → search_type="group", query="marketing", then use group_id
         - "Apply data protection rule to jacob@ibm.com" → search_type="user", query="jacob@ibm.com"
         - "What roles can I assign?" → search_type="role", query=None (CP4D only)
+    Returns: The search type, total and returned counts, list of matching results (users, groups, or roles with their IDs and metadata), a status message, and the original query.
     """,
     tags={"search", "user_search", "identity", "access_management", "unified"},
     meta={"version": "1.0", "service": "user_search"},
 )
 @auto_context
 async def search_user_groups_roles(
-    search_type: Literal["user", "group", "role"],
-    query: Optional[str] = None
+    search_type: Annotated[Literal["user", "group", "role"], Field(description="Type of identity to search for: 'user' for users, 'group' for user groups, or 'role' for user roles (CP4D only)")],
+    query: Annotated[Optional[str], Field(description="Optional search term to filter results. If not provided or empty, returns all items of the specified type. For users: searches name, email, username, or user ID. For groups: searches group name or group ID. For roles: searches role name.")] = None
 ) -> UnifiedSearchResponse:
     """
     Wrapper version that expands UnifiedSearchRequest into individual parameters.

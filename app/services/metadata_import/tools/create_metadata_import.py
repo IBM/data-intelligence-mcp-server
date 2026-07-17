@@ -4,7 +4,8 @@
 from string import Template
 import json
 import uuid
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Annotated
+from pydantic import Field
 from app.shared.logging import LOGGER, auto_context
 from app.core.registry import service_registry
 from app.services.tool_utils import find_project_id, find_connection_id
@@ -116,7 +117,8 @@ async def _create_metadata_import(input: CreateMetadataImportRequest) -> CreateM
 
 @service_registry.tool(
     name="create_metadata_import",
-    description="Create a metadata import (MDI) in a project. PREREQUISITE: Must call list_connection_paths FIRST if schemas are not explicitly provided by user.",
+    description="""Use this tool when you need to create a metadata import (MDI) in a project. PREREQUISITE: Must call list_connection_paths FIRST if schemas are not explicitly provided by user.
+    Return: A confirmation message, the UI URL to view the created metadata import asset, and the name of the created metadata import asset.""",
     tags={"metadata-import"},
     meta={"version": "1.0", "service": "metadata-import"},
     annotations={
@@ -126,10 +128,10 @@ async def _create_metadata_import(input: CreateMetadataImportRequest) -> CreateM
 )
 @auto_context
 async def create_metadata_import(
-    project_name: str,
-    connection_name: str,
-    scope: Union[List[str], str],
-    name: Optional[str] = None
+    project_name: Annotated[str, Field(description="Name of the project where the metadata import will be created.")],
+    connection_name: Annotated[str, Field(description="Name of the connection to use for the metadata import.")],
+    scope: Annotated[Union[List[str], str], Field(description="List of schema/table paths to import. Use ['/'] to import all schemas. Provide as a flat list of strings, e.g., ['schema1', 'schema2'] or ['/'].")],
+    name: Annotated[Optional[str], Field(description="Optional custom name for the metadata import. If not provided, a name will be auto-generated.")] = None
 ) -> CreateMetadataImportResponse:
     """Wrapper that expands CreateMetadataImportRequest object into individual parameters."""
     request = CreateMetadataImportRequest(

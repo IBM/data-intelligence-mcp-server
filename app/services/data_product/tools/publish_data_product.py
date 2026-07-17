@@ -4,6 +4,9 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
+from typing import Annotated
+from pydantic import Field
+
 from app.core.registry import service_registry
 from app.services.data_product.models.publish_data_product import (
     PublishDataProductRequest,
@@ -103,14 +106,11 @@ async def _validate_if_draft_has_delivery_method_added_to_each_data_asset(respon
 
 @service_registry.tool(
     name="publish_data_product",
-    description="""
-    This tool publishes a data product draft.
+    description="""Use this tool when you need to publish a data product draft.
     Make sure to call this tool after all the required fields are filled in the data product draft, like name, domain, contract URL, delivery methods, etc.
     Example: 'Publish data product draft' - Get the data product draft ID from context.
     This receives the data product draft ID to publish the data product draft.
-    
-    Args:
-        data_product_draft_id (str): The ID of the data product draft to publish.
+    Returns: The URL of the published data product with success message.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
@@ -121,7 +121,7 @@ async def _validate_if_draft_has_delivery_method_added_to_each_data_asset(respon
 )
 @auto_context
 async def publish_data_product(
-    data_product_draft_id: str,
+    data_product_draft_id: Annotated[str, Field(description="The ID of the data product draft to publish.")],
 ) -> PublishDataProductResponse:
     """Wrapper version that expands PublishDataProductRequest object into individual parameters."""
 

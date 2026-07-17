@@ -2,8 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Optional
+from typing import Annotated, Optional
 
+from pydantic import Field
 from app.core.registry import service_registry
 from app.shared.logging import LOGGER, auto_context
 
@@ -59,20 +60,12 @@ async def _find_data_quality_rules(request: FindDataQualityRulesRequest) -> Find
         "readOnlyHint": True,
         "title": "List Data Quality Rules in Project"
     },
-    description="""Wrapper for list_data_quality_rules.
+    description="""Use this tool when you need to find data quality rules in the given project. If data quality rule name is not provided, then return all the data quality rules from this project.
 
-Find data quality rules in the given project. If data quality rule name is not provided, then return all the data quality rules from this project.
-
-Use this tool when the user wants to view, list, search, or inspect existing data quality rules.
 Do NOT use for running/executing rules (use run_data_quality_rule instead).
 Do NOT use for creating, updating, or deleting rules.
 
-Args:
-    project_id_or_name (str): The ID or name of the project. Examples: 'customer_analytics_project', 'financial_reporting_2023', 'supply_chain_optimization'
-    data_quality_rule_name (Optional[str]): The name of the data quality rule to find. If this is not provided, return all the data quality rules. This parameter is optional. Examples: 'validate_customer_email_format', 'check_sales_transaction_completeness', 'verify_inventory_data_consistency'
-
-Returns:
-    FindDataQualityRulesResponse: The tool returns a list of DataQualityRule objects, each containing the rule ID, project ID, UI URL, and name. If no data quality rules are found, the tool returns an empty list with a message.
+Returns:A list of objects, each containing the rule ID, project ID, UI URL, and name. If no data quality rules are found, the tool returns an empty list with a message.
 
 Raises:
     ToolProcessFailedError: If the data quality rule find fails.
@@ -82,8 +75,8 @@ Raises:
 )
 @auto_context
 async def list_data_quality_rules(
-    project_id_or_name: str,
-    data_quality_rule_name: Optional[str] = None,
+    project_id_or_name: Annotated[str, Field(description="The ID or name of the project. Examples: 'customer_analytics_project', 'financial_reporting_2023', 'supply_chain_optimization'")],
+    data_quality_rule_name: Annotated[Optional[str], Field(description="The name of the data quality rule to find. If this is not provided, return all the data quality rules. This parameter is optional. Examples: 'validate_customer_email_format', 'check_sales_transaction_completeness', 'verify_inventory_data_consistency'")] = None,
 ) -> FindDataQualityRulesResponse:
     """
     Wrapper that builds request model and delegates to main tool.

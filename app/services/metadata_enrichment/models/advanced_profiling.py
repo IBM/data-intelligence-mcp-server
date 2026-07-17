@@ -179,6 +179,7 @@ class AdvancedProfilingRequest(BaseModel):
         default=None,
         description="Custom sampling configuration. Required only when sampling_preset is 'custom'."
     )
+    job_name: Optional[str] = Field(None, description="The name of the job to execute the metadata enrichment asset.")
 
 
 class AdvancedProfilingResponse(BaseResponseModel):

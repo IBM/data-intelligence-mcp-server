@@ -2,12 +2,15 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
+from typing import Annotated
+from pydantic import Field
+
 from app.core.registry import service_registry
 from app.services.constants import LINEAGE_BASE_ENDPOINT
 from app.services.lineage.constants import SERVICE_UNAVAILABLE_MESSAGE
 from app.services.lineage.utils import handle_500_error
 from app.services.lineage.models.get_lineage_versions import GetLineageVersionsRequest, GetLineageVersionsResponse
-from app.shared.exceptions.base import ExternalAPIError, ServiceError
+from app.shared.exceptions.base import ExternalAPIError, ValidationError
 from app.shared.logging.generate_context import auto_context
 from app.shared.logging.utils import LOGGER
 from app.shared.utils.helpers import is_valid_iso_date
@@ -19,9 +22,11 @@ async def _get_lineage_versions(
 ) -> GetLineageVersionsResponse:
     # Validate input dates
     if not is_valid_iso_date(input.since):
-        raise ServiceError(f"Invalid ISO-8601 date format for 'since': {input.since}")
+        raise ValidationError(f"Invalid ISO-8601 date format for 'since': {input.since}", 
+        remediation_steps="Pass date in ISO-8601 format")
     if not is_valid_iso_date(input.until):
-        raise ServiceError(f"Invalid ISO-8601 date format for 'until': {input.until}")
+        raise ValidationError(f"Invalid ISO-8601 date format for 'until': {input.until}",
+        remediation_steps="Pass date in ISO-8601 format")
 
     LOGGER.info(
         "list_lineage_versions called with dates since: %s until: %s",
@@ -66,18 +71,10 @@ async def _get_lineage_versions(
         "readOnlyHint": True,
         "title": "Retrieve Available Lineage Versions Within Date Range"
     },
-    description="""Returns a list of versions of lineage that user can use for comparison.
-    This tool takes two dates as input and returns a list of lineage versions that are available between the two dates.
+    description="""Use this tool when you need to fetch versions within a given date range so users can compare them.
     Data returned by this tool is used by the lineage_comparison tool and get_lineage_graph tool.
 
-    Args:
-        since (str): starting date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ) Other ISO-8601 formats are also supported,
-            notably: single year ("2025Z"), month ("2025-03Z"), week date format ("2025-W13Z", a week starts with Monday and ends with Sunday)
-        until (str): ending date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ) Other ISO-8601 formats are also supported,
-            notably: single year ("2025Z"), month ("2025-03Z"), week date format ("2025-W13Z", a week starts with Monday and ends with Sunday)
-
-    Returns:
-        GetLineageVersionsResponse: An object containing a list of lineage versions that are available between the two dates.
+    Returns: A list of lineage versions that are available between the two dates.
 
     Raises:
         ExternalServiceError: If the API request fails (status code != 200)
@@ -86,7 +83,8 @@ async def _get_lineage_versions(
 )
 @auto_context
 async def list_lineage_versions(
-    since: str, until: str
+    since: Annotated[str, Field(description="Starting date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ). Other ISO-8601 formats are also supported, notably: single year ('2025Z'), month ('2025-03Z'), week date format ('2025-W13Z', a week starts with Monday and ends with Sunday)")],
+    until: Annotated[str, Field(description="Ending date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ). Other ISO-8601 formats are also supported, notably: single year ('2025Z'), month ('2025-03Z'), week date format ('2025-W13Z', a week starts with Monday and ends with Sunday)")]
 ) -> GetLineageVersionsResponse:
     """Wrapper that expands GetLineageVersionsRequest object into individual parameters."""
 

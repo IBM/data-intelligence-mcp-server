@@ -3,9 +3,10 @@
 # See the LICENSE file in the project root for license information.
 
 import time
-from typing import Any, cast
+from typing import Any, cast, Annotated
 from collections import defaultdict
 from urllib.parse import urlencode
+from pydantic import Field
 
 from app.core.registry import service_registry
 from app.services.data_product.models.import_remote_assets_to_dph_catalog import (
@@ -1222,10 +1223,10 @@ async def _import_remote_assets_to_dph_catalog(
 @service_registry.tool(
     name="import_remote_assets_to_data_product_catalog",
     description=(
-        "Import remote assets from catalogs or projects to the DPH (Data Product Hub) catalog. "
+        "Use this tool when you import remote assets from catalogs or projects to the DPH (Data Product Hub) catalog. "
         "This tool validates assets, checks for duplicates, copies them to DPH catalog, "
         "creates revisions, and sets up part assets with relationships. "
-        "Returns target_asset_ids that can be used to create data products. "
+        "Returns: A success message, the list of target_asset_ids in the DPH catalog (ready for data product creation), and the total count of imported assets."
         "Use this tool BEFORE creating a data product to prepare the assets."
     ),
     tags={"data_product", "import", "dph_catalog"},
@@ -1236,7 +1237,7 @@ async def _import_remote_assets_to_dph_catalog(
     }
 )
 async def import_remote_assets_to_data_product_catalog(
-    input: ImportRemoteAssetsToDphCatalogRequest
+    input: Annotated[ImportRemoteAssetsToDphCatalogRequest, Field(description="Request containing source asset IDs, container information, and import options.")]
 ) -> ImportRemoteAssetsToDphCatalogResponse:
     """
     Import remote assets to DPH catalog.

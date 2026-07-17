@@ -1,7 +1,8 @@
 # Copyright [2025] [IBM]
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
-from typing import Optional
+from typing import Optional, Annotated
+from pydantic import Field
 from app.shared.logging import LOGGER, auto_context
 from app.core.registry import service_registry
 from app.services.tool_utils import find_project_id, find_connection_id
@@ -56,8 +57,7 @@ async def _list_connection_paths(
         "readOnlyHint": True,
         "title": "List Available Schema and Table Paths from Data Connection"
     },
-    description="""
-    List available schema/table paths for a connection.
+    description="""Use this tool when you need to list available schema/table paths for a connection.
     
     ⚠️ CALL THIS TOOL FIRST when:
     - User mentions "first N schemas" (e.g., "first 7 schemas")
@@ -72,15 +72,18 @@ async def _list_connection_paths(
     After calling this tool, use the returned schema list as the 'scope' parameter
     when calling create_metadata_import.
     
-    Returns:
-        ListConnectionPathsResponse: Response containing list of schema/table paths and count.
+    Returns: Response containing list of schema/table paths and count.
     """,
     tags={"list_connection", "metadata-import"},
     meta={"version": "1.0", "service": "metadata-import"},
 )
 @auto_context
 async def list_connection_paths(
-    project_name: str, connection_name: str, offset: Optional[int] = 1, limit: Optional[int] = 10, filter_text: Optional[str] = None
+    project_name: Annotated[str, Field(description="Project name where the connection resides")],
+    connection_name: Annotated[str, Field(description="The name of the connection to list paths for")],
+    offset: Annotated[Optional[int], Field(description="Pagination offset (starts at 1)")] = 1,
+    limit: Annotated[Optional[int], Field(description="Maximum number of items to return, -1 for all")] = 10,
+    filter_text: Annotated[Optional[str], Field(description="Optional substring to filter path names")] = None
 ) -> ListConnectionPathsResponse:
     """Wrapper that expands params into a `ListConnectionPathsRequest` and calls the tool."""
 

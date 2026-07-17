@@ -2,6 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
+from typing import Annotated
+
+from pydantic import Field
 from app.core.registry import service_registry
 from app.shared.logging import LOGGER, auto_context
 
@@ -46,18 +49,9 @@ async def _set_validates_data_quality_of_relation(
 
 @service_registry.tool(
     name="set_validates_data_quality_of_relation",
-    description="""Wrapper for set_validates_data_quality_of_relation.
+    description="""Use this tool when you need to establishes a relationship between a data quality rule and a column in a data asset within a project. This relationship is used to report the data quality score for the specified column using the logic defined in the data quality rule. The tool returns details of the data quality rule, including its ID, project ID, UI URL, and name.
 
-Establishes a relationship between a data quality rule and a column in a data asset within a project. This relationship is used to report the data quality score for the specified column using the logic defined in the data quality rule. The tool returns details of the data quality rule, including its ID, project ID, UI URL, and name.
-
-Args:
-    project_id_or_name (str): The ID or name of the project containing the data quality rule. Examples: 'customer_analytics_project', 'financial_reporting_2023', 'supply_chain_optimization'
-    data_quality_rule_id_or_name (str): The ID or name of the data quality rule to execute. Examples: 'validate_customer_email_format', 'check_sales_transaction_completeness', 'verify_inventory_data_consistency'
-    data_asset_id_or_name (str): The ID or name of the data asset. Examples: 'customer_data_2023', 'sales_records_q2', 'inventory_management'
-    column_name (str): The name of column. Examples: 'customer_id', 'transaction_date', 'product_category'
-
-Returns:
-    SetValidatesDataQualityOfRelationResponse: The tool returns a DataQualityRule object containing the rule ID, project ID, UI URL, and name of the data quality rule.
+Returns: The rule ID, project ID, UI URL, and name of the data quality rule.
 
 Raises:
     ToolProcessFailedError: If the data quality rule relation set operation fails.
@@ -71,10 +65,10 @@ Raises:
 )
 @auto_context
 async def set_validates_data_quality_of_relation(
-    project_id_or_name: str,
-    data_quality_rule_id_or_name: str,
-    data_asset_id_or_name: str,
-    column_name: str,
+    project_id_or_name: Annotated[str, Field(description="The ID or name of the project containing the data quality rule. Examples: 'customer_analytics_project', 'financial_reporting_2023', 'supply_chain_optimization'")],
+    data_quality_rule_id_or_name: Annotated[str, Field(description="The ID or name of the data quality rule to execute. Examples: 'validate_customer_email_format', 'check_sales_transaction_completeness', 'verify_inventory_data_consistency'")],
+    data_asset_id_or_name: Annotated[str, Field(description="The ID or name of the data asset. Examples: 'customer_data_2023', 'sales_records_q2', 'inventory_management'")],
+    column_name: Annotated[str, Field(description="The name of column. Examples: 'customer_id', 'transaction_date', 'product_category'")],
 ) -> SetValidatesDataQualityOfRelationResponse:
     """
     Wrapper that builds request model and delegates to main tool.

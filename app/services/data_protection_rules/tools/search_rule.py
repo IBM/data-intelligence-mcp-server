@@ -1,6 +1,9 @@
 # Copyright [2025] [IBM]
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
+
+from typing import Annotated
+from pydantic import Field
 from app.core.registry import service_registry
 from app.services.data_protection_rules.models.search_rule import (
     SearchDataProtectionRuleRequest,
@@ -99,18 +102,19 @@ def format_data_protection_rule_for_table(data_protection_rules: list[dict]) -> 
         "title": "Search and List All Data Protection Rules by Name or Description"
     },
     description="""
-    This tool searches all data protection rules to return data protection rules that match the given search query.
+    Use this tool when you need to search all data protection rules to return data protection rules that match the given search query.
     Example: 'Find all data protection rules with Deny name.'
     In this case, search_data_protection_rules_query is 'Deny', and this tool returns all data protection rules that have Deny in their name or description.
     Example: 'Show me all data protection rules'
     In this case, search_data_protection_rules_query is '*'.
+    Return: List of data protection rules matching the search query, with detailed information about each rule including its name, description, last modification date, and a direct URL to access it and total count.
     """,
     tags={"search", "data_protection_rules"},
     meta={"version": "1.0", "service": "data_protection_rules"},
 )
 @auto_context
 async def search_rules(
-    search_data_protection_rules_query: str
+    search_data_protection_rules_query: Annotated[str, Field(description='The search query to search for data protection rules. If the user wants to search for data protection rules with a specific name or description, this is the name to search for. If user wants to search for all data protection rules, this value should be "*".')]
 ) -> SearchDataProtectionRuleResponse:
     """Wrapper version that expands SearchDataProtectionRuleRequest object into individual parameters."""
 

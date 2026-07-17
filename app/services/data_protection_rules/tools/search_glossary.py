@@ -2,7 +2,8 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Literal
+from typing import Annotated, Literal
+from pydantic import Field
 from app.core.registry import service_registry
 from app.services.data_protection_rules.models.search_glossary import (
     SearchGovernanceArtifactRequest,
@@ -114,9 +115,8 @@ def format_artifacts_for_table(artifacts: list[GovernanceArtifact]) -> list:
         "readOnlyHint": True,
         "title": "Search Governance Artifacts"
     },
-    description="""
+    description="""Use this tool when you need to search for existing governance artifacts by correct names in IBM Knowledge Catalog.
     This tool searches for governance artifacts (classifications, data classes, or glossary terms) by query and returns matching results.
-    Use this tool to search for existing governance artifacts by correct names in IBM Knowledge Catalog.
     
     Examples:
         - "Find all classifications related to Personally Identifiable Information data"
@@ -124,14 +124,15 @@ def format_artifacts_for_table(artifacts: list[GovernanceArtifact]) -> list:
         - "Look up business terms about account"
         - "Search for data classes social security data"
         - "Check if we already have a classification for sensitive personal data"
+    Returns: List of matching governance artifacts with count and status message.
     """,
     tags={"search", "data_protection_rules", "governance"},
     meta={"version": "1.0", "service": "data_protection_rules"},
 )
 @auto_context
 async def search_governance_artifacts(
-    rhs_type: Literal["classification", "data_class", "glossary_term"],
-    query_value: str
+    rhs_type: Annotated[Literal["classification", "data_class", "glossary_term"], Field(description="Governance artifacts type name. Must be one of: 'classification', 'data_class', or 'glossary_term'(another name is business term).")],
+    query_value: Annotated[str, Field(description="The search query string to find matching governance artifacts.Cannot be empty.")]
 ) -> SearchGovernanceArtifactResponse:
     """Wrapper version that expands SearchGovernanceArtifactRequest object into individual parameters."""
     

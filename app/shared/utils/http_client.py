@@ -15,6 +15,7 @@ import httpx
 from app.core.settings import settings
 from app.shared.exceptions.base import ExternalAPIError
 from app.shared.utils.ssl_utils import get_ssl_verify_setting
+from app.shared.utils.retry_utils import retry_on_failure
 from app.shared.utils.http_constants import (
     APPLICATION_FORM_URL_ENCODED,
     HTTP_CLIENT_STATS_LOG_MSG,
@@ -61,6 +62,16 @@ class AsyncHttpClient:
         self._client: httpx.AsyncClient | None = None
         self._request_count = 0
         self._error_count = 0
+        self._closed = False
+
+    async def __aenter__(self):
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit - ensures proper cleanup."""
+        await self.close()
+        return False
 
     @property
     async def client(self) -> httpx.AsyncClient:
@@ -117,7 +128,12 @@ class AsyncHttpClient:
         request_func: Callable[[httpx.AsyncClient], Awaitable[httpx.Response]],
     ) -> dict[str, Any]:
         """
-        Common request execution logic with semaphore-based concurrency control and error handling.
+        Common request execution logic with semaphore-based concurrency control,
+        retry logic for rate limiting (HTTP 429), and error handling.
+
+        Uses the retry_on_failure decorator to handle 429 errors with exponential backoff.
+        The retry logic is applied OUTSIDE the semaphore context to release the slot
+        during backoff delays, preventing resource starvation.
 
         Args:
             request_func: Async callable that makes the HTTP request and returns the response
@@ -128,32 +144,56 @@ class AsyncHttpClient:
         Raises:
             ExternalAPIError: If the request fails or returns an error status
         """
-        semaphore = get_ibm_api_semaphore()
-        async with semaphore:
-            try:
+        # Define retry condition: only retry on HTTP 429 (rate limit) errors
+        def should_retry_429(e: Exception) -> bool:
+            return (
+                isinstance(e, httpx.HTTPStatusError)
+                and e.response.status_code == 429
+            )
+        
+        # Apply retry decorator with 429-specific condition
+        @retry_on_failure(
+            max_retries=settings.retry_max_attempts - 1,  # -1 because decorator counts initial attempt
+            backoff_factor=settings.retry_backoff_base,
+            exceptions=(httpx.HTTPStatusError,),
+            retry_condition=should_retry_429,
+            context_label="HTTP_429_retry"
+        )
+        async def _execute_request():
+            semaphore = get_ibm_api_semaphore()
+            async with semaphore:
                 self._request_count += 1
                 self._log_stats_if_needed(semaphore)
                 
-                client = await self.client
-                response = await request_func(client)
-                response.raise_for_status()
-                
-                # Handle different content types
-                content_type = response.headers.get("content-type", "").lower()
-                if "application/json" in content_type:
-                    return response.json()
-                else:
-                    return {"content": response.content, "content_type": content_type}
-            except httpx.HTTPStatusError as e:
-                self._error_count += 1
-                handle_api_exception(e)
-                raise  # This line is never reached but satisfies type checker
-            except httpx.RequestError as e:
-                self._error_count += 1
-                raise ExternalAPIError(f"HTTP request failed: {str(e)}")
-            except Exception as e:
-                self._error_count += 1
-                raise ExternalAPIError(f"Request failed: {str(e)}")
+                try:
+                    client = await self.client
+                    response = await request_func(client)
+                    response.raise_for_status()
+                    
+                    # Handle different content types
+                    content_type = response.headers.get("content-type", "").lower()
+                    if "application/json" in content_type:
+                        return response.json()
+                    else:
+                        return {"content": response.content, "content_type": content_type}
+                        
+                except httpx.HTTPStatusError as e:
+                    self._error_count += 1
+                    # If it's a 429, let the retry decorator handle it
+                    if e.response.status_code == 429:
+                        raise
+                    # For non-429 errors, handle and raise immediately
+                    handle_api_exception(e)
+                    raise  # This line is never reached but satisfies type checker
+                    
+                except httpx.RequestError as e:
+                    self._error_count += 1
+                    raise ExternalAPIError(f"HTTP request failed: {str(e)}")
+                except Exception as e:
+                    self._error_count += 1
+                    raise ExternalAPIError(f"Request failed: {str(e)}")
+        
+        return await _execute_request()
 
     async def get(
         self,
@@ -389,10 +429,26 @@ class AsyncHttpClient:
         return await self._make_request(request_func)
 
     async def close(self) -> None:
-        """Close the async HTTP client and clean up resources."""
-        if self._client:
-            await self._client.aclose()
-            self._client = None
+        """
+        Close the async HTTP client and clean up resources.
+        
+        This method is idempotent and safe to call multiple times.
+        """
+        if self._closed:
+            return
+            
+        if self._client is not None:
+            LOGGER.debug("Closing HTTP client and releasing connections")
+            try:
+                await self._client.aclose()
+            except Exception as e:
+                LOGGER.warning(f"Error during HTTP client cleanup: {e}")
+            finally:
+                self._client = None
+                self._closed = True
+                LOGGER.debug("HTTP client closed successfully")
+        else:
+            self._closed = True
 
 
 # Global shared client instance

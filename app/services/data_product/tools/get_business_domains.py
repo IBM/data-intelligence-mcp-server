@@ -1,3 +1,6 @@
+from typing import Annotated
+from pydantic import Field
+
 from app.core.registry import service_registry
 from app.services.data_product.utils.common_utils import get_dph_catalog_id_for_user
 from app.services.data_product.models.get_business_domains import BusinessDomain, GetBusinessDomainsRequest, GetBusinessDomainsResponse
@@ -43,17 +46,14 @@ async def _get_business_domains(
 
 @service_registry.tool(
     name="list_data_product_business_domains",
-    description="""
+    description="""Use this tool if user is not sure of the business domain name or if the user asks for the list of business domains.
     This tool gets all business domains listed in the system.
-    Use this tool if user is not sure of the business domain name or if the user asks for the list of business domains.
     Example: What are the domains available?
     Call: list_data_product_business_domains with keyword as None.
     Optionally, user can provide a keyword to search for business domains. In this case, call the tool with the keyword.
     Example: What are the domains available for customer data?
     Call: list_data_product_business_domains with keyword as "customer".
-
-    Args:
-        keyword (str): A keyword to search for business domains. This is an optional field.
+    Returns: A list of business domains. (The unique identifier of the domain, The name of the business domain, The description of the business domain)
     """,
     tags={"sample", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
@@ -64,7 +64,7 @@ async def _get_business_domains(
 )
 @auto_context
 async def get_business_domains(
-    keyword: str | None = None
+    keyword: Annotated[str | None, Field(description="A keyword to search for business domains. This is an optional field.")] = None
 ) -> GetBusinessDomainsResponse:
 
     request = GetBusinessDomainsRequest(

@@ -12,9 +12,10 @@ This module provides functionality to monitor workflows you've created, with two
 - Deep dive mode (deep_dive=True): Returns comprehensive analysis with task details, activity tracking, and metrics
 """
 
-from typing import List, Optional
+from typing import Annotated, List, Optional
 from datetime import datetime, timezone
 import json
+from pydantic import Field
 
 from app.core.registry import service_registry
 from app.services.constants import WORKFLOW_BASE_ENDPOINT, WORKFLOW_TASK_ENDPOINT
@@ -883,7 +884,7 @@ def _build_deep_dive_json_response(
     )
 
 get_my_workflows_description="""
-    Retrieve workflows initiated by current user.
+    Use this tool when you need to retrieve workflows initiated by current user.
 
     This tool fetches workflow instances that you have created/initiated, with two modes:
     - Light mode (deep_dive=False): Returns basic workflow information for quick overview. If called in light mode, ask the user whether he would like to see the details.
@@ -972,13 +973,13 @@ async def _get_my_workflows(
 )
 @auto_context
 async def get_my_workflows(
-    max_results: int = 50,
-    state: Optional[str] = None,
-    deep_dive: bool = False,
-    include_tasks: bool = True,
-    stalled_days: Optional[int] = None,
-    workflow_id: Optional[str] = None,
-    format: str = "table",
+    max_results: Annotated[int, Field(description="Maximum number of workflows to return")] = 50,
+    state: Annotated[Optional[str], Field(description="Filter by workflow state (active, completed, suspended, etc.)")] = None,
+    deep_dive: Annotated[bool, Field(description="When True, performs comprehensive analysis with task details, activity tracking, and metrics. When False, returns basic workflow information only.")] = False,
+    include_tasks: Annotated[bool, Field(description="Include detailed task information for each workflow (only applicable when deep_dive=True)")] = True,
+    stalled_days: Annotated[Optional[int], Field(description="Threshold for considering a workflow stalled (no activity in X days). Set to None to disable stalled detection (only applicable when deep_dive=True).")] = None,
+    workflow_id: Annotated[Optional[str], Field(description="Get details for a specific workflow by ID (ignores other filters)")] = None,
+    format: Annotated[str, Field(description="Output format: 'table' for formatted markdown tables, 'json' for raw data (only applicable when deep_dive=True)")] = "table",
     ctx: Optional[Context] = None
 ) -> GetMyWorkflowsResponse:
     """Wrapper version of get_my_workflows."""

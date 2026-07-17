@@ -4,7 +4,8 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-from typing import Any, List
+from typing import Any, List, Annotated
+from pydantic import Field
 
 from app.core.registry import service_registry
 from app.services.constants import GS_BASE_ENDPOINT
@@ -129,18 +130,22 @@ async def _search_asset(
         "readOnlyHint": True,
         "title": "Semantic Search for Data Assets Across Catalogs and Projects"
     },
-    description="""Understand user's request about searching data assets and return list of retrieved assets.
+    description="""Use this tool when you need to find data assets by name, description, or semantic search across catalogs and projects.
+                       Understand user's request about searching data assets and return list of retrieved assets.
                        This function takes a user's search prompt as input and may take container type: project or catalog. Default container type to catalog.
                        It then returns list of asset that has been found.
                        
                        IMPORTANT CONSTRAINTS:
                        - search_prompt cannot be empty
                        - container_type must be one of: "catalog", "project"
-                       - Invalid values will result in errors""",
+                       - Invalid values will result in errors
+                       Return: A list of objects, each containing the asset's unique ID, name, container IDs (catalog or project), and URL.""",
 )
 @auto_context
 async def search_asset(
-    search_prompt: str, container_type: str = "catalog", container_name: str | None = None
+    search_prompt: Annotated[str, Field(description="The search prompt from the user about data assets potentially with additional searching details")],
+    container_type: Annotated[str, Field(description="The container type in which to search assets, defaults to catalog")] = "catalog",
+    container_name: Annotated[str | None, Field(description="Optional container name to resolve to ID and filter results")] = None
 ) -> List[SearchAssetResponse]:
     """Wrapper that expands SearchAssetRequest object into individual parameters."""
     
@@ -159,7 +164,9 @@ def _construct_search_asset(row: Any):
     entity = row.get("entity", {})
     assets = entity.get("assets", {})
     catalog_id = assets.get("catalog_id", None)
+    catalog_name = assets.get("catalog_name", None)
     project_id = assets.get("project_id", None)
+    project_name = assets.get("project_name", None)
     base_url = (
         f"{tool_helper_service.ui_base_url}/data/catalogs/{catalog_id}/asset/{asset_id}"
         if catalog_id
@@ -175,6 +182,8 @@ def _construct_search_asset(row: Any):
         id=asset_id,
         name=asset_name,
         catalog_id=catalog_id,
+        catalog_name=catalog_name,
         project_id=project_id,
+        project_name=project_name,
         url=url,
     )

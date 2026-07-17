@@ -2,8 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Optional
+from typing import Annotated, Optional
 
+from pydantic import Field
 from app.core.registry import service_registry
 from app.shared.logging import LOGGER, auto_context
 
@@ -48,19 +49,10 @@ async def _create_data_quality_rule_from_sql_query(
 
 @service_registry.tool(
     name="create_data_quality_rule_from_sql_query",
-    description="""Wrapper for create_data_quality_rule_from_sql_query.
+    description="""Use this tool when you need to creates a new data quality rule based on a provided SQL query. This tool allows you to define a data quality rule by specifying a SQL query that will be used to evaluate data quality. The tool returns details of the created data quality rule, including its ID, project ID, UI URL, and name.
+Query API Reference: https://cloud.ibm.com/apidocs/knowledge-catalog
 
-Creates a new data quality rule based on a provided SQL query. This tool allows you to define a data quality rule by specifying a SQL query that will be used to evaluate data quality. The tool returns details of the created data quality rule, including its ID, project ID, UI URL, and name.
-
-Args:
-    project_id_or_name (str): The ID or name of the project where the data quality rule will be created. Examples: 'customer_analytics_project', 'financial_reporting_2023', 'supply_chain_optimization'
-    connection_id_or_name (str): The ID or name of the connection to be used for the data quality rule. Examples: 'salesforce_connection', 'aws_redshift_connection', 'postgresql_connection'
-    sql_query (str): The SQL query that defines the data quality rule. Examples: 'SELECT COUNT(*) FROM customers WHERE email IS NOT NULL', "SELECT AVG(transaction_amount) FROM sales WHERE transaction_date > '2023-01-01'", 'SELECT product_id, SUM(quantity) FROM inventory GROUP BY product_id HAVING SUM(quantity) < 10'
-    data_quality_rule_name (str): The name of the data quality rule to be created. Examples: 'validate_customer_email_format', 'check_sales_transaction_completeness', 'verify_inventory_data_consistency'
-    data_quality_dimension_name (Optional[str]): The name of the data quality dimension associated with the rule. This parameter is optional. Examples: 'completeness', 'validity', 'consistency'
-
-Returns:
-    CreateDataQualityRuleFromSQLQueryResponse: The tool returns a DataQualityRule object containing the rule ID, project ID, UI URL, and name of the created data quality rule.
+Returns: The rule ID, project ID, UI URL, and name of the created data quality rule.
 
 Raises:
     ToolProcessFailedError: If the data quality rule creation fails fails.
@@ -77,11 +69,11 @@ Note:
 )
 @auto_context
 async def create_data_quality_rule_from_sql_query(
-    project_id_or_name: str,
-    connection_id_or_name: str,
-    sql_query: str,
-    data_quality_rule_name: str,
-    data_quality_dimension_name: Optional[str] = None,
+    project_id_or_name: Annotated[str, Field(description="The ID or name of the project where the data quality rule will be created. Examples: 'customer_analytics_project', 'financial_reporting_2023', 'supply_chain_optimization'")],
+    connection_id_or_name: Annotated[str, Field(description="The ID or name of the connection to be used for the data quality rule. Examples: 'salesforce_connection', 'aws_redshift_connection', 'postgresql_connection'")],
+    sql_query: Annotated[str, Field(description="The SQL query that defines the data quality rule. Examples: 'SELECT COUNT(*) FROM customers WHERE email IS NOT NULL', \"SELECT AVG(transaction_amount) FROM sales WHERE transaction_date > '2023-01-01'\", 'SELECT product_id, SUM(quantity) FROM inventory GROUP BY product_id HAVING SUM(quantity) < 10'")],
+    data_quality_rule_name: Annotated[str, Field(description="The name of the data quality rule to be created. Examples: 'validate_customer_email_format', 'check_sales_transaction_completeness', 'verify_inventory_data_consistency'")],
+    data_quality_dimension_name: Annotated[Optional[str], Field(description="The name of the data quality dimension associated with the rule. This parameter is optional. Examples: 'completeness', 'validity', 'consistency'")] = None,
 ) -> CreateDataQualityRuleFromSQLQueryResponse:
     """
     Wrapper that builds request model and delegates to main tool.

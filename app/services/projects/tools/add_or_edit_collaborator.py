@@ -8,7 +8,7 @@ from app.services.projects.models.add_or_edit_collaborator import (
 )
 from app.core.auth import get_bss_account_id
 from app.shared.utils.helpers import is_uuid_bool, get_exact_or_fuzzy_matches
-from app.shared.exceptions.base import ServiceError
+from app.shared.exceptions.base import ServiceError, ValidationError
 from app.services.tool_utils import (
     is_project_exist_by_name,
     is_project_exist_by_id,
@@ -19,7 +19,8 @@ from app.services.tool_utils import (
 from app.services.constants import CATALOGS_BASE_ENDPOINT, PROJECTS_BASE_ENDPOINT
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service , create_default_headers
-from typing import List, Dict, Set, Sequence, Optional, Literal, cast
+from typing import Annotated, List, Dict, Set, Sequence, Optional, Literal, cast
+from pydantic import Field
 from app.core.settings import settings
 from app.services.constants import JSON_CONTENT_TYPE
 
@@ -75,7 +76,7 @@ async def _add_or_edit_collaborator(request: AddOrEditCollaboratorRequest) -> Ad
             - message: Detailed success message with member summary
         
     Raises:
-        ValueError: When container doesn't exist or API operations fail
+        ValidationError: When container doesn't exist or API operations fail
         ServiceError: When multiple matches are found requiring user clarification
     """
     # Validate and get container ID
@@ -105,13 +106,15 @@ async def _add_or_edit_collaborator(request: AddOrEditCollaboratorRequest) -> Ad
     )
 
     if not users_to_add and not users_to_update:
-        raise ValueError(
+        raise ValidationError(
             "No valid users or groups found to add or update. "
-            "Please verify the user list is correct."
+            "Please verify the user list is correct.",
+            remediation_steps="Call the search_user_groups_roles tool with search_type set to 'user' or 'group' to retrieve the list of users or groups. Then provide a user or group from the returned list.",
+            tool="add_or_edit_collaborator"
         )
 
     # Validate that the container will have at least one admin after the operation
-    await validate_admin_requirement(existing_members, users_to_add, users_to_update)
+    validate_admin_requirement(existing_members, users_to_add, users_to_update)
 
     # Prepare members for API calls using helper function to avoid duplication
     members_to_add = create_collaborator_members(users_to_add)
@@ -176,19 +179,23 @@ async def _validate_container_by_id(container_id: str, container_type: str) -> N
         container_type: Type of container ('project' or 'catalog')
         
     Raises:
-        ValueError: When the container does not exist
+        ValidationError: When the container does not exist
     """
     if container_type == "project":
         if not await is_project_exist_by_id(container_id):
-            raise ValueError(
+            raise ValidationError(
                 f"Project with ID '{container_id}' does not exist. "
-                f"Please verify the project ID is correct and you have access to it."
+                f"Please verify the project ID is correct and you have access to it.",
+                remediation_steps="Call the list_containers tool with container_type set to 'project' to retrieve the list of available projects. Then provide a project ID from the list.",
+                tool="add_or_edit_collaborator"
             )
     else:  # catalog
         if not await is_catalog_exist_by_id(container_id):
-            raise ValueError(
+            raise ValidationError(
                 f"Catalog with ID '{container_id}' does not exist. "
-                f"Please verify the catalog ID is correct and you have access to it."
+                f"Please verify the catalog ID is correct and you have access to it.",
+                remediation_steps="Call the list_containers tool with container_type set to 'catalog' to retrieve the list of available catalogs. Then provide a catalogs ID from the list.",
+                tool="add_or_edit_collaborator"
             )
 
 
@@ -204,23 +211,27 @@ async def _find_container_by_name(container_identifier: str, container_type: str
         str: The container UUID
         
     Raises:
-        ValueError: When the container cannot be found
+        ValidationError: When the container cannot be found
     """
     if container_type == "project":
         is_exist, _, container_id = await is_project_exist_by_name(container_identifier)
         if is_exist:
             return container_id
-        raise ValueError(
+        raise ValidationError(
             f"Project '{container_identifier}' could not be found. "
-            f"Please verify the project name is spelled correctly and you have access to it."
+            f"Please verify the project name is spelled correctly and you have access to it.",
+            remediation_steps="Call the list_containers tool with container_type set to 'project' to retrieve the list of available projects. Then provide a project name from the list.",
+            tool="add_or_edit_collaborator"
         )
     else:  # catalog
         is_exist, _, container_id = await is_catalog_exist_by_name(container_identifier)
         if is_exist:
             return container_id
-        raise ValueError(
+        raise ValidationError(
             f"Catalog '{container_identifier}' could not be found. "
-            f"Please verify the catalog name is spelled correctly and you have access to it."
+            f"Please verify the catalog name is spelled correctly and you have access to it.",
+            remediation_steps="Call the list_containers tool with container_type set to 'catalog' to retrieve the list of available catalogs. Then provide a catalog name from the list.",
+            tool="add_or_edit_collaborator"
         )
 
 
@@ -239,7 +250,7 @@ async def validate_and_get_container_id(container_identifier: str, container_typ
         str: The validated container UUID
         
     Raises:
-        ValueError: When the container cannot be found by ID or name
+        ValidationError: When the container cannot be found by ID or name
     """
     # Check if it's a UUID
     if is_uuid_bool(container_identifier):
@@ -267,7 +278,7 @@ async def get_existing_members_data(container_id: str, container_type: str) -> t
             - Set of all existing member IDs for O(1) lookup
         
     Raises:
-        ValueError: When unable to retrieve container members due to API failure or permission issues
+        ValidationError: When unable to retrieve container members due to API failure or permission issues
     """
     # Build URL based on container type
     url = build_container_members_url(container_id, container_type)
@@ -291,9 +302,10 @@ async def get_existing_members_data(container_id: str, container_type: str) -> t
         return members, member_ids
     except Exception as e:
         LOGGER.error(f"Unable to retrieve {container_type} members: {str(e)}")
-        raise ValueError(
+        raise ValidationError(
             f"Could not retrieve the member list for {container_type} '{container_id}'. "
-            f"Please ensure you have the necessary permissions to view {container_type} members."
+            f"Please ensure you have the necessary permissions to view {container_type} members.",
+            tool="add_or_edit_collaborator"
         )
 
 
@@ -312,7 +324,7 @@ def get_member_id(member: Dict) -> str:
     return member.get("id") or member.get("user_iam_id") or member.get("access_group_id", "")
 
 
-async def validate_admin_requirement(
+def validate_admin_requirement(
     existing_members: List[Dict],
     users_to_add: List[Dict],
     users_to_update: List[Dict]
@@ -332,7 +344,7 @@ async def validate_admin_requirement(
         users_to_update: List of existing users being updated
         
     Raises:
-        ValueError: When the operation would result in a container with no admin users
+        ValidationError: When the operation would result in a container with no admin users
     """
     
     # Get current admin member IDs (works for both projects and catalogs)
@@ -366,10 +378,12 @@ async def validate_admin_requirement(
     total_admins_after = len(remaining_admin_ids) + len(new_admin_ids) + len(promoted_to_admin_ids)
     
     if total_admins_after == 0:
-        raise ValueError(
+        raise ValidationError(
             "Cannot complete this operation: The project or catalog must have at least one admin user. "
             "This operation would result in a project or catalog with no admin users. "
-            "Please ensure at least one user has the 'admin' role."
+            "Please ensure at least one user has the 'admin' role.",
+            remediation_steps="Call the search_user_groups_roles tool with search_type set to 'role' and query set to 'admin', then verify the user's role.",
+            tool="add_or_edit_collaborator"
         )
     
     LOGGER.info(f"Admin validation passed: Project will have {total_admins_after} admin(s) after operation")
@@ -423,13 +437,16 @@ async def search_and_validate_members(
             )
             raise ServiceError(
                 f"Multiple {entity_type}s match the search term '{user_name}':\n{result_list}\n\n"
-                f"Please provide a more specific {entity_type} name or use the exact ID to avoid ambiguity."
+                f"Please provide a more specific {entity_type} name or use the exact ID to avoid ambiguity.",
+                tool="add_or_edit_collaborator"
             )
         
         if not search_results:
             raise ServiceError(
                 f"No {entity_type} found matching '{user_name}'. "
-                f"Please verify the {entity_type} name or email is correct and exists in this account."
+                f"Please verify the {entity_type} name or email is correct and exists in this account.",
+                remediation_steps="Call the search_user_groups_roles tool with search_type set to 'user' to retrieve the list of users. Then provide a username and email from the list.",
+                tool="add_or_edit_collaborator"
             )
         
         # Check if already a member - if yes, add to update list; if no, add to add list
@@ -466,7 +483,7 @@ async def add_members_to_container(
         dict: The API response containing confirmation of added members
         
     Raises:
-        ValueError: When the API call fails due to permission issues or invalid data
+        ValidationError: When the API call fails due to permission issues or invalid data
     """
     # Build URL based on container type
     url = build_container_members_url(container_id, container_type)
@@ -498,9 +515,11 @@ async def add_members_to_container(
         return response
     except Exception as e:
         LOGGER.error(f"API error while adding members to {container_type}: {str(e)}")
-        raise ValueError(
+        raise ValidationError(
             f"Unable to add collaborators to {container_type} '{container_id}'. "
-            f"Please ensure you have admin or editor permissions for this {container_type}."
+            f"Please ensure you have admin or editor permissions for this {container_type}.",
+            remediation_steps="Call the search_user_groups_roles tool with search_type set to 'role', then verify the user's role 'admin' or 'editor'.",
+            tool="add_or_edit_collaborator"
         )
 
 
@@ -523,7 +542,7 @@ async def update_members_in_container(
         dict: The API response containing confirmation of updated members
         
     Raises:
-        ValueError: When the API call fails due to permission issues or invalid data
+        ValidationError: When the API call fails due to permission issues or invalid data
     """
     member_word = "member" if len(members) == 1 else "members"
     LOGGER.info(f"Updating {len(members)} {member_word} in {container_type} {container_id}")
@@ -559,9 +578,11 @@ async def update_members_in_container(
             
     except Exception as e:
         LOGGER.error(f"API error while updating members in {container_type}: {str(e)}")
-        raise ValueError(
+        raise ValidationError(
             f"Unable to update collaborators in {container_type} '{container_id}' for {str(e)}. "
-            f"Please ensure you have admin permissions for this {container_type}."
+            f"Please ensure you have admin permissions for this {container_type}.",
+            remediation_steps="Call the search_user_groups_roles tool with search_type set to 'role' and query set to 'admin', then verify the user's role.",
+            tool="add_or_edit_collaborator"
         )
 
 
@@ -649,12 +670,13 @@ async def search_members(
             - state: The member's state (e.g., 'ACTIVE')
         
     Raises:
-        ValueError: When API call fails, permission is denied, or invalid member_type is provided
+        ValidationError: When API call fails, permission is denied, or invalid member_type is provided
     """
     if member_type not in ("user", "group"):
-        raise ValueError(
+        raise ValidationError(
             f"Invalid member_type '{member_type}' specified. "
-            f"Must be either 'user' or 'group'."
+            f"Must be either 'user' or 'group'.",
+            tool="add_or_edit_collaborator"
         )
     
     entity_type = "access group" if member_type == "group" else "user"
@@ -685,9 +707,10 @@ async def search_members(
                 raw_data = await _fetch_saas_users()
     except Exception as e:
         LOGGER.error(f"API error while fetching {entity_type}s from account: {str(e)}")
-        raise ValueError(
+        raise ValidationError(
             f"Unable to search for {entity_type}s in this account. "
-            f"Please verify you have the necessary permissions to list {entity_type}s."
+            f"Please verify you have the necessary permissions to list {entity_type}s.",
+            tool="add_or_edit_collaborator"
         )
     
     if not raw_data:
@@ -751,14 +774,15 @@ async def search_users(account_id: str, user_search_str: str) -> List[Dict]:
 
 @service_registry.tool(
     name="add_or_edit_collaborator",
-    description="Add or update one or more collaborators (users or groups) in a project or catalog with specified roles. "
+    description="Use this tool when you need to add or update one or more collaborators (users or groups) in a project or catalog with specified roles. "
     "Intelligently searches for users or access groups using fuzzy matching on names and emails. "
     "For new members: Adds them to the container with the specified role. "
     "For existing members: Updates their role to the new specified role. "
     "Automatically detects whether members are new or existing and handles them appropriately. "
     "Supports role assignment (admin, editor, viewer) with 'viewer' as the default role. "
     "Supports mixed user and group types - specify type for each collaborator or omit to default to 'user' for all. "
-    "Works with both projects and catalogs - specify container_type as 'project' or 'catalog' (defaults to 'project'). ",
+    "Works with both projects and catalogs - specify container_type as 'project' or 'catalog' (defaults to 'project'). "
+    "Return: The container ID and type, a list of successfully added/updated collaborator members with their roles, and a success message.",
     annotations={
         "title": "Add or Update Collaborators in a Project with Specified Roles",
         "destructiveHint": True
@@ -766,11 +790,11 @@ async def search_users(account_id: str, user_search_str: str) -> List[Dict]:
 )
 @auto_context
 async def add_or_edit_collaborator(
-    container_identifier: str,
-    user_names: List[str],
-    role: Optional[List[str]] = None,
-    type: Optional[List[str]] = None,
-    container_type: Optional[str] = None,
+    container_identifier: Annotated[str, Field(description="The project or catalog name or UUID")],
+    user_names: Annotated[List[str], Field(description="The usernames or group names to add as collaborators. Must match the length of the role list.")],
+    role: Annotated[Optional[List[str]], Field(description="Roles to assign to the collaborators. Must match the length of user_names list. Defaults to 'editor' for each user if not specified.")] = None,
+    type: Annotated[Optional[List[str]], Field(description="The member types: 'user' for individual users or 'group' for access groups. Must match the length of user_names list. Defaults to list of 'user' for each member if not specified.")] = None,
+    container_type: Annotated[Optional[str], Field(description="The type of container: 'project' or 'catalog'. Defaults to 'project'.")] = None,
 ) -> AddOrEditCollaboratorResponse:
     """Wrapper that expands AddOrEditCollaboratorRequest object into individual parameters."""
     

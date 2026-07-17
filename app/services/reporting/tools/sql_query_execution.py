@@ -5,6 +5,8 @@
 import sqlglot
 from sqlglot import errors
 from sqlglot.expressions import Select, With
+from typing import Annotated
+from pydantic import Field
 
 from app.core.auth import get_bss_account_id
 from app.core.registry import service_registry
@@ -178,15 +180,19 @@ async def _sql_query_execution(
         "readOnlyHint": True,
         "title": "Execute Reporting Select Query"
     },
-    description="Execute a user-provided SQL SELECT query against a tenant-specific reporting database. This tool enforces read-only access (only SELECT statements) and includes basic query validation for safety.",
+    description="""Use this tool when you need to execute a user-provided SQL SELECT query against a tenant-specific reporting database. This tool enforces read-only access (only SELECT statements) and includes basic query validation for safety.
+  Query API Reference: https://api.dataplatform.cloud.ibm.com/v3/reporting/apidoc/explorer/
+  Return: The execution status ("success" or "failed"), and either the SQL result with query rows on success or an error message on failure.""",
 )
 @auto_context
-async def sql_query_execution(sql_query: str) -> SqlQueryExecutionResponse:
+async def sql_query_execution(
+    sql_query: Annotated[str, Field(description="The SQL SELECT query to execute. Must be a syntactically valid and read-only query.")]
+) -> SqlQueryExecutionResponse:
     """
     Wrapper that expands SqlQueryExecutionRequest object into individual parameters.
 
     Args:
-        sql_query (str): The SQL SELECT query to execute. Must be a syntactically valid and read-only query.
+        sql_query: The SQL SELECT query to execute. Must be a syntactically valid and read-only query.
 
     Returns:
         SqlQueryExecutionResponse: The result of the SQL execution.

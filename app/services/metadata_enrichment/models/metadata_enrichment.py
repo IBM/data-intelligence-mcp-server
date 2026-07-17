@@ -28,22 +28,6 @@ class MetadataEnrichmentCreationRequest(BaseModel):
     metadata_enrichment_name: str = Field(
         ..., description="The name of the metadata enrichment asset. Used to find existing MDE (for update) or as the name for new MDE (for create)."
     )
-    objective_names: list[str] | str = Field(
-        ...,
-        description="""List of names of objectives for the enrichment job.
-        Supported objectives are 'profile', 'dq_gen_constraints', 'analyze_quality', 'assign_terms', 'analyze_relationships', 'dq_sla_assessment', 'semantic_expansion', and 'data_search'.
-        Required for both create and update modes.""",
-    )
-    category_names: Optional[list[str] | str] = Field(
-        None,
-        description="""Category names for governance scope.
-        - CREATE mode: Required (must be provided)
-        - UPDATE mode: Optional (only updates if provided)""",
-    )
-    primary_category_name: Optional[str] = Field(
-        None,
-        description="""Identifier of the category that is used to store generated terms."""
-    )
     dataset_names: Optional[list[str] | str] = Field(
         None,
         description="""Dataset names to include in the metadata enrichment asset.
@@ -102,6 +86,10 @@ class MetadataEnrichmentExecutionRequest(BaseModel):
     metadata_enrichment_name: str = Field(
         ..., description="The name of the metadata enrichment you want to execute."
     )
+    job_name: Optional[str] = Field(
+        None,
+        description="The name of the job to execute the metadata enrichment asset.",
+    )
     dataset_names: Optional[list[str] | str] = Field(
         None,
         description="Dataset names of the specified datasets to be enriched with metadata."
@@ -121,6 +109,7 @@ class MetadataEnrichmentAnalysisRequest(BaseModel):
         If a single category name is provided, it should be a string. If multiple categories are specified,
         they should be provided as a list of strings.""",
     )
+    job_name: Optional[str] = Field(None, description="The name of the job to execute the metadata enrichment asset.")
 
 
 class RelationshipAnalysisType(str, Enum):
@@ -226,10 +215,6 @@ class MetadataEnrichmentObjective(str, Enum):
     ANALYZE_RELATIONSHIPS = "analyze_relationships"
     DQ_SLA_ASSESSMENT = "dq_sla_assessment"
     DATA_SEARCH = "data_search"
-
-
-class MetadataEnrichmentAssetEnrichmentJob(BaseModel):
-    name: str = Field(description="The name of the metadata enrichment job.")
 
 
 class ContainerAssets(BaseModel):
@@ -453,6 +438,10 @@ class MetadataEnrichmentAssetObjective(BaseModel):
         description="Term assignment objective prototype of a metadata enrichment asset",
     )
 
+class MetadataEnrichmentGlobalSettings(BaseModel):
+    disable_all_job_run_notifications: Optional[bool] = Field(
+        True, description="Whether to disable all job run notifications."
+    )
 
 class MetadataEnrichmentAsset(BaseModel):
     tags: Optional[list[str]] = Field(
@@ -462,21 +451,21 @@ class MetadataEnrichmentAsset(BaseModel):
     name: str = Field(
         description="The name of the metadata enrichment asset to be created."
     )
-    job: MetadataEnrichmentAssetEnrichmentJob = Field(
-        description="Initialization information for the metadata enrichment asset enrichment job"
+    description: Optional[str] = Field(
+        None,
+        description="The description of the metadata enrichment asset.",
+    )
+    global_settings: Optional[MetadataEnrichmentGlobalSettings] = Field(
+        None,
+        description="Global settings objective for metadata enrichment asset.",
     )
     data_scope: MetadataEnrichmentAssetDataScope = Field(
         MetadataEnrichmentAssetDataScope(),
         description="Initialization information for a metadata enrichment asset's data scope definition.",
     )
-    objective: MetadataEnrichmentAssetObjective = Field(
-        MetadataEnrichmentAssetObjective(),
-        description="Initialization information for metadata enrichment asset objectives.",
-    )
 
     def __init__(self, name: str):
-        super().__init__(name=name, job=MetadataEnrichmentAssetEnrichmentJob(name=name))
-
+        super().__init__(name=name)
 
 class OperationStatusEnum(str, Enum):
     ACCEPTED = "accepted"
@@ -487,8 +476,11 @@ class OperationStatusEnum(str, Enum):
     SUCCEEDED = "succeeded"
     SUCCEEDED_WITH_ERRORS = "succeeded_with_errors"
 
+class DataScopeOperationSummary(BaseModel):
+    project_id: str = Field(description="Project ID.")
+    mde_asset_id: str = Field(description="MDE Asset ID.")
 
-class DataScopeOperation(BaseModel):
+class DataScopeOperation(BaseResponseModel):
     id: str = Field(description="The unique identifier of this resource.")
     status: OperationStatusEnum = Field(
         description="Status of a metadata enrichment asset operation."
@@ -498,6 +490,12 @@ class DataScopeOperation(BaseModel):
     )
     target_resource_location: Optional[str] = Field(
         None, description="The target resource location."
+    )
+    operation_summary: DataScopeOperationSummary = Field(
+        description="Data scope operation summary object."
+    )
+    mde_url_location: Optional[str] = Field(
+        None, description="The mde url location of the target resource."
     )
 
 
@@ -520,9 +518,17 @@ class MetadataEnrichmentAssetPatch(BaseModel):
         None,
         description="List of tags associated with the metadata enrichment asset.",
     )
-    objective: MetadataEnrichmentAssetObjectivePatch = Field(
-        MetadataEnrichmentAssetObjectivePatch(),
-        description="Objective patch of a metadata enrichment asset.",
+    name: Optional[str] = Field(
+        None,
+        description="The name of the metadata enrichment asset to be created."
+    )
+    description: Optional[str] = Field(
+        None,
+        description="The description of the metadata enrichment asset.",
+    )
+    global_settings: Optional[MetadataEnrichmentGlobalSettings] = Field(
+        None,
+        description="Global settings objective for metadata enrichment asset.",
     )
 
 
@@ -542,9 +548,10 @@ class MetadataEnrichmentAssetDataScopeUpdateRequest(BaseModel):
 class MetadataEnrichmentAssetPatchResponse(BaseResponseModel):
     id: str = Field(..., description="The unique identifier of this resource.")
     name: str = Field(..., description="The name of the metadata enrichment asset.")
+    mde_url_location: Optional[str] = Field(None, description="The mde url location of the metadata enrichment asset.")
 
 
-class MetadataEnrichmentRun(BaseModel):
+class MetadataEnrichmentRun(BaseResponseModel):
     metadata_enrichment_id: str = Field(
         ..., description="The unique identifier of the parent metadata enrichment."
     )
@@ -680,7 +687,7 @@ class TermGenerationBatchResponse(BaseResponseModel):
     )
 
 
-class TermGenerationResult(BaseModel):
+class TermGenerationResult(BaseResponseModel):
     metadata_enrichment_name: str = Field(
         ..., description="The name of the metadata enrichment."
     )
@@ -733,7 +740,7 @@ class MetadataEnrichmentDetails(BaseModel):
     target_category_url: str = Field(..., description="URL to the target category in the UI")
 
 
-class MetadataEnrichmentResult(BaseModel):
+class MetadataEnrichmentResult(BaseResponseModel):
     """Result model when metadata enrichment name is not specified."""
     metadata_enrichments: dict[str, MetadataEnrichmentDetails] = Field(
         ...,
@@ -752,7 +759,102 @@ class MetadataImportResponse(BaseResponseModel):
     href: str = Field(..., description="URL to the metadata import")
 
 
-class JobRunStatus(BaseModel):
+class JobRunStatus(BaseResponseModel):
     """Model representing a job run status."""
     status: str = Field(..., description="Job run status")
     run_id: str = Field(..., description="Job Run / Asset ID")
+
+class ListEnrichmentCategoriesResponse(BaseResponseModel):
+    """Model representing categories."""
+    categories: list[str] = Field(..., description="List of categories")
+
+class StartRelationshipAnalysisResponse(BaseResponseModel):
+    """Model representing relationship analysis."""
+    relationship_analysis: dict = Field(..., description="Relationship analysis response")
+
+
+class MetadataEnrichmentJobScheduleInfo(BaseModel):
+    repeat: Optional[bool] = Field(
+        False,
+        description="Whether or not to repeat this enrichment schedule."
+    )
+    start_on: Optional[float] = Field(
+        None,
+        description="The start time of the schedule."
+    )
+    end_on: Optional[float] = Field(
+        None,
+        description="The end time of the schedule."
+    )
+
+class MetadataEnrichmentJobRetentionPolicy(BaseModel):
+    days: Optional[int] = Field(
+        None,
+        description="Number of days to retain for each metadata enrichment asset."
+    )
+    amount: Optional[int] = Field(
+        None,
+        description="Amount to retain for each metadata enrichment asset."
+    )
+
+class MetadataEnrichmentJobDelegationConfiguration(BaseModel):
+    skip_notifications: Optional[bool] = Field(
+        True,
+        description="Whether or not to skip notifications when enrichment job is skipped."
+    )
+    enrichment_objective: MetadataEnrichmentAssetObjective = Field(
+        description="Objective of the metadata enrichment job.",
+        default_factory=MetadataEnrichmentAssetObjective
+    )
+
+class MetadataEnrichmentAssetEnrichmentJob(BaseModel):
+    name: str = Field(description="The name of the metadata enrichment job.")
+    description: Optional[str] = Field(
+        None,
+        description="The description of the metadata enrichment job."
+    )
+    schedule: Optional[str] = Field(
+        None,
+        description="The cron schedule of the enrichment job to create.",
+    )
+    schedule_info: Optional[MetadataEnrichmentJobScheduleInfo] = Field(
+        None,
+        description="The schedule of the enrichment job to create.",
+    )
+    retention_policy: Optional[MetadataEnrichmentJobRetentionPolicy] = Field(
+        None,
+        description="The retention policy of the enrichment job to create.",
+    )
+    delegate_configuration: MetadataEnrichmentJobDelegationConfiguration = Field(
+        description="Delegation configuration of the enrichment job.",
+        default_factory=MetadataEnrichmentJobDelegationConfiguration,
+    )
+    def __init__(self, name: str):
+        super().__init__(name=name)
+
+class MetadataEnrichmentAssetEnrichmentJobResponse(BaseResponseModel):
+    id: Optional[str] = Field(
+        None,
+        description="The id of the enrichment asset enrichment job."
+    )
+    name: Optional[str] = Field(description="The name of the metadata enrichment job.")
+    description: Optional[str] = Field(
+        None,
+        description="The description of the metadata enrichment job."
+    )
+    schedule: Optional[str] = Field(
+        None,
+        description="The cron schedule of the enrichment job to create.",
+    )
+    schedule_info: Optional[MetadataEnrichmentJobScheduleInfo] = Field(
+        None,
+        description="The schedule of the enrichment job to create.",
+    )
+    retention_policy: Optional[MetadataEnrichmentJobRetentionPolicy] = Field(
+        None,
+        description="The retention policy of the enrichment job to create.",
+    )
+    delegate_configuration: Optional[MetadataEnrichmentJobDelegationConfiguration] = Field(
+        None,
+        description="Delegation configuration of the enrichment job."
+    )

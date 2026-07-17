@@ -4,10 +4,11 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-from typing import List, Optional
+from typing import Annotated, List, Optional
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 import warnings
+from pydantic import Field
 
 from app.core.registry import service_registry
 from app.services.constants import WORKFLOW_TASK_ENDPOINT
@@ -184,7 +185,7 @@ def _build_task_url(task_id: str) -> str:
     return f"{tool_helper_service.base_url}{WORKFLOW_TASK_ENDPOINT}/{task_id}"
 
 get_workflow_tasks_from_my_inbox_description="""
-    Retrieve tasks from workflow task inbox for the current user.
+    Use this tool when you need to retrieve tasks from workflow task inbox for the current user.
 
     This tool fetches tasks assigned to you or tasks you are candidates for in governance workflows.
     
@@ -193,6 +194,7 @@ get_workflow_tasks_from_my_inbox_description="""
     ALWAYS render the result as table if called with format='table' parameter
 
     Make sure to use a request json object for the parameters.
+    Returns: The list of workflow tasks assigned to the current user, total count, and optionally a formatted markdown table for display.
     """
 
 async def _get_workflow_tasks_from_my_inbox(
@@ -262,8 +264,8 @@ async def _get_workflow_tasks_from_my_inbox(
 )
 @auto_context
 async def get_my_workflow_inbox_tasks(
-    max_results: int = 50,
-    format: str = "table",
+    max_results: Annotated[int, Field(description="Maximum number of tasks to return")] = 50,
+    format: Annotated[str, Field(description="Output format: 'table' for formatted markdown table, 'json' for raw task data")] = "table",
     ctx: Context = None,
 ) -> GetMyTasksResponse:
     """Wrapper version of get_my_workflow_inbox_tasks."""

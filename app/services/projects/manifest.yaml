@@ -4,6 +4,7 @@ service:
 system_instructions: |
   This service deals with project management tasks.
   Tools available:-
+  
   create_project - Use this tool when user wants to create a new project. This tool supports both IBM watsonx projects (wx/df) and IBM Cloud Pak for Data (CPD) projects.
   
   Key behaviors:
@@ -15,5 +16,29 @@ system_instructions: |
   - The tool supports optional parameters: description, type (wx/df/cpd), storage (CRN or instance name), and tags.
   - Default project type is 'wx' (IBM watsonx projects) if not specified.
   - Once all required information is provided, the project is created and a URL to access it is returned.
+  
+  add_asset_to_project - Use this tool when the user wants to add a catalog asset to a project.
 
-# This file has been modified with the assistance of IBM Bob AI tool
+  Key behaviors:
+  - Requires asset_id_or_name (UUID or name of the catalog asset) and project_id_or_name (UUID or name of the project).
+  - Optionally accepts catalog_id_or_name. If not provided, all accessible catalogs are searched automatically.
+  - Validates that the user has admin or editor role on the target project before adding the asset. Access is checked both by direct membership and by IAM group membership.
+  - Creates a reference to the catalog asset in the project (does not copy the underlying data).
+  - Checks for duplicates — if an asset with the same name already exists in the project, the operation is rejected.
+  - Returns asset ID, asset name, project ID, project name, catalog ID, catalog name, and a direct URL to the asset in the project.
+  - Additionally, once the asset is in the project, you can also call create_asset_from_sql_query to create a SQL view on top of it using the connection that backs the table.
+
+  Error cases:
+  - Unauthorized: "Insufficient permissions. You need 'admin' or 'editor' role on project '<name>' to add assets. Your current role: 'viewer'"
+  - Asset not found: "Asset with ID '<id>' not found in the specified catalog. Please verify the asset ID and catalog."
+  - Asset name unresolvable: "Failed to resolve asset name '<name>' in catalog. Please verify the asset name and catalog."
+  - Project not found: "Project with ID '<id>' not found or you don't have access to it"
+  - Already added: "Asset with name '<name>' already exists in this project. No need to add it again."
+
+  publish_asset_to_catalog(asset, project, catalog) - Use this tool to publish an asset from a project to a catalog.
+
+  Key behaviors:
+  - Publishes an asset from a project to a catalog using native platform publish behavior.
+  - This tool takes (asset, project, catalog) as parameter. 
+  - Publishes asset when the source is a project and the destination is a catalog
+  - If user does not have admin rights to the project where its trying to publish, an error is thrown.
