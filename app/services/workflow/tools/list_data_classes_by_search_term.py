@@ -12,7 +12,8 @@ and establish their mapping to artifact IDs.
 """
 
 import logging
-from typing import List, Dict, Optional, Literal
+from typing import Annotated, List, Dict, Optional, Literal
+from pydantic import Field
 from app.core.registry import service_registry
 from app.services.constants import SEARCH_PATH, GLOSSARY_DATA_CLASS_ENDPOINT, GLOSSARY_ARTIFACT_TYPES_ENDPOINT, GLOSSARY_DATA_CLASS
 
@@ -190,11 +191,13 @@ def _build_json_response(data_classes: List[DataClass]) -> ListDataClassesRespon
     )
 
 list_data_classes_by_search_term_description="""
+Use this tool when you need to find data classes that are part of governance workflows, especially when working with draft/unpublished data classes or when you need the artifact_id for workflow operations.
 list_data_classes_by_search_term returns a list of all data classes as objects of a data governance workflow pertaining to the search term
 with the artifact_id included. Always define the draft parameter: if the text refers to future approvals set it true, otherwise false.
 Use list_data_classes_by_search_term ONLY for requests about unpublished, draft data classes or for workflow related requests, otherwise use search_governance_artifacts.
 If you find markdown text in the result show it to the user.
 ALWAYS use a request json object to encapsulate the parameters.
+Returns: The list of data classes matching the search criteria, total count, name-to-artifact-ID mapping, and optionally a formatted markdown table for display.
 """
 
 # explicit context for MCP elicitation, no autocontext
@@ -250,10 +253,10 @@ async def _list_data_classes_by_search_term(
 )
 @auto_context
 async def list_data_classes_by_search_term(
-    search_term: str,
-    max_results: int = 50,
-    draft: bool = False,
-    format: str = "table",
+    search_term: Annotated[str, Field(description="Search term for name or description of the data classes")],
+    max_results: Annotated[int, Field(description="Maximum number of data classes to return")] = 50,
+    draft: Annotated[bool, Field(description="Data class in draft or published")] = False,
+    format: Annotated[str, Field(description="Output format: 'table' for formatted markdown table, 'json' for raw data")] = "table",
     ctx: Context = None
 ) -> ListDataClassesResponse:
     """Wrapper version of list_data_classes_by_search_term."""

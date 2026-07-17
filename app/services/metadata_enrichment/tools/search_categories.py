@@ -2,13 +2,15 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import List
+from typing import Annotated, List
 
+from pydantic import Field
 from app.core.registry import service_registry
 from app.services.constants import GS_BASE_ENDPOINT
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.ui_message.ui_message_context import ui_message_context
+from app.services.metadata_enrichment.models.metadata_enrichment import ListEnrichmentCategoriesResponse
 
 
 def _format_categories_for_table(categories_data: List[str]) -> List[dict]:
@@ -29,7 +31,7 @@ def _format_categories_for_table(categories_data: List[str]) -> List[dict]:
     ]
 
 
-async def _search_categories() -> List[str]:
+async def _search_categories() -> ListEnrichmentCategoriesResponse:
     auth_scope = "category"
     LOGGER.info("Starting searching categories...")
     payload = {
@@ -84,7 +86,7 @@ async def _search_categories() -> List[str]:
 
         categories = selected_data if selected_data is not None else categories
     
-    return categories
+    return ListEnrichmentCategoriesResponse(categories=categories)
 
 
 @service_registry.tool(
@@ -93,11 +95,12 @@ async def _search_categories() -> List[str]:
         "readOnlyHint": True,
         "title": "Search and Retrieve Available Governance Categories"
     },
-    description="""Searches for user's categories.
+    description="""Use this tool when you need to search for user's categories.
                     This function is mainly used when a user want to create or update a metadata enrichment (MDE) and does not provide a category.
-                    This function should be used to retrieve the list of categories and surface them back to the user so he can choose one of them""",
+                    This function should be used to retrieve the list of categories and surface them back to the user so he can choose one of them
+                    Return: A list of strings containing the names of all available governance categories that can be used for metadata enrichment asset configuration.""",
 )
 @auto_context
-async def list_enrichment_categories() -> List[str]:
+async def list_enrichment_categories() -> ListEnrichmentCategoriesResponse:
 
     return await _search_categories()

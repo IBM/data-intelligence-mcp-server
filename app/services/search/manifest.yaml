@@ -1,11 +1,12 @@
 service:
   name: search
-  description: "Tools for discovering and exploring data assets, connections, and data source definitions across catalogs, projects, and spaces. This service enables comprehensive search capabilities to find assets by name, metadata, or attributes, retrieve detailed asset information. Also Lists containers across projects, spaces and catalog"
+  description: "Tools for discovering and exploring data assets, connections, and data source definitions across catalogs, projects, and spaces. This service enables comprehensive search capabilities to find assets by name, metadata, or attributes, retrieve detailed asset information, and update asset metadata. Also Lists containers across projects, spaces and catalog"
 system_instructions: |
-  Tools for discovering and exploring data assets, connections, and data source definitions across catalogs, projects, and spaces. This service enables comprehensive search capabilities to find assets by name, metadata, or attributes, retrieve detailed asset information. Also Lists containers across projects, spaces and catalog.
+  Tools for discovering and exploring data assets, connections, and data source definitions across catalogs, projects, and spaces. This service enables comprehensive search capabilities to find assets by name, metadata, or attributes, retrieve detailed asset information, and update asset metadata. Also Lists containers across projects, spaces and catalog.
   
   Search Tools:
   1. search_assets(catalog_id?, project_id?, query) → find assets in a catalog or project.
   2. get_asset_details(asset, catalog?, project?) → retrieve detailed metadata for a specific asset.
   3. list_containers(container_type?) → list all available containers (catalogs, projects, or spaces).
   4. find_container(container_id_or_name, container_type?) → find a specific container by ID or name.
+  5. update_asset_metadata(asset_id_or_name, container_id_or_name, container_type, new_asset_name?, display_name?, description?, privacy?, format?, tags?, business_terms?, classifications?, related_items?) → update metadata and governance artifacts for a catalog or project asset including name, display name, description, privacy, format, tags, business terms, classifications, and related items.

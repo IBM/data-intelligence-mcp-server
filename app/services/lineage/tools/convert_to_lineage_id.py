@@ -2,13 +2,16 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
+from typing import Annotated
+from pydantic import Field
+
 from app.core.registry import service_registry
 from app.services.constants import LINEAGE_BASE_ENDPOINT
 from app.services.lineage.models.convert_to_lineage_id import (
     ConvertToLineageIdRequest,
     ConvertToLineageIdResponse,
 )
-from app.shared.exceptions.base import ServiceError
+from app.shared.exceptions.base import ValidationError
 from app.shared.logging.generate_context import auto_context
 from app.shared.logging.utils import LOGGER
 from app.shared.utils.helpers import is_uuid
@@ -40,8 +43,9 @@ async def _convert_to_lineage_id(
 
     entities = response.get("entities")
     if not entities:
-        raise ServiceError(
-            "Tool convert_asset_to_lineage_id finished successfully but no entities were found."
+        raise ValidationError(
+            "Tool convert_asset_to_lineage_id finished successfully but no entities were found.",
+            remediation_steps="Verify if lineage is enabled, reimport this asset or try different one."
         )
 
     return ConvertToLineageIdResponse(
@@ -55,11 +59,14 @@ async def _convert_to_lineage_id(
         "readOnlyHint": True,
         "title": "Convert Asset and Container IDs to Lineage Identifier"
     },
-    description="Converts asset IDs from container scope into a unique lineage identifier required by other lineage tools.",
+    description="Use this tool when you converts asset IDs from container scope into a unique lineage identifier required by other lineage tools."
+    "This is an alternative to search_lineage_assets when you already know the exact container and asset IDs. " \
+    "Return: A unique 64-character hexadecimal lineage identifier that can be used with other lineage tools.",
 )
 @auto_context
 async def convert_asset_to_lineage_id(
-    container_id: str, asset_id: str
+    container_id: Annotated[str, Field(description="The container identifier - can be either a catalog ID or project ID (must be valid UUID)")],
+    asset_id: Annotated[str, Field(description="The asset identifier within the container (must be valid UUID)")]
 ) -> ConvertToLineageIdResponse:
     """Wrapper that expands ConvertToLineageIdRequest object into individual parameters."""
 

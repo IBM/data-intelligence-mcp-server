@@ -51,6 +51,7 @@ GLOSSARY_DATA_CLASS = "data_class"
 GLOSSARY_BUSINESS_TERM = "glossary_term"
 
 CLOUD_IAM_ENDPOINT = "/identity/token"
+AWS_IAM_ENDPOINT = "/api/2.0/apikeys/token"
 CPD_IAM_ENDPOINT = "/icp4d-api/v1/authorize"
 AWS_IAM_URL = "https://account-iam.platform.saas.ibm.com"
 AWS_IAM_TEST_URL = "https://account-iam.platform.test.saas.ibm.com"

@@ -57,5 +57,8 @@ class CreateAndAttachCustomContractRequest(BaseModel):
     contract_terms: Optional[dict] | None = Field(
         None, description="Custom contract terms values to create and attach to the data product. Must follow the exact nested structure from the schema. If None, the empty schema will be shown. If provided with values, the contract will be created and attached (empty dict not allowed for custom contracts)."
     )
-    
-    
+
+class AttachURLContractToDataProductResponse(BaseResponseModel):
+    message: str = Field(
+        ..., description="The message indicating the success of the operation."
+    )

@@ -6,15 +6,33 @@
 
 import inspect
 import re
+import typing
 from collections.abc import Callable
-from typing import Any, NamedTuple
+from typing import Any, List, NamedTuple
 from functools import wraps
 from app.core.settings import settings
-from app.shared.exceptions.base import ExternalAPIError, ServiceError
 from app.shared.logging.utils import LOGGER
 
 # Tool name validation pattern: alphanumeric, underscore, hyphen, 1-64 chars
 TOOL_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
+
+def _clean_description(description: str) -> str:
+    """
+    Clean description by replacing newlines, tabs, and multiple consecutive spaces
+    with a single space.
+    
+    Args:
+        description: The description string to clean
+        
+    Returns:
+        Cleaned description string
+    """
+    if not description:
+        return description
+    # Replace newlines, tabs, and multiple spaces with a single space
+    cleaned = re.sub(r'\s+', ' ', description)
+    # Strip leading/trailing whitespace
+    return cleaned.strip()
 
 # Experimental tool tags that should not be used in production environment
 EXPERIMENTAL_TAGS= {"experimental"}
@@ -95,7 +113,7 @@ class ServiceRegistry:
                 RegisteredTool(
                     func=func,
                     name=tool_name,
-                    description=description or "",
+                    description=_clean_description(description or ""),
                     input_model=input_model,
                     output_model=output_model,
                     tags=tags,
@@ -126,7 +144,177 @@ class ServiceRegistry:
 
         return kwargs
 
-    def _create_error_response(self, return_type, error_message: str):
+    def _handle_generic_type(self, return_type, error_message: str, remediation_steps: str = ""):
+        """Handle generic types like List[Model], Union[Model1, Model2], Dict, etc."""
+        origin = typing.get_origin(return_type)
+        
+        # Handle Union types by trying the first type in the union
+        if origin is typing.Union  or " | " in str(return_type):
+            args = typing.get_args(return_type)
+            type_to_use = self._get_union_type(args)
+            LOGGER.info(f"Union type detected, attempting to create error response using type: {type_to_use}")
+            # Recursively call _create_error_response to handle the selected Union type
+            # This will NOT call _handle_generic_type again unless the selected type is also generic
+            return self._create_error_response(type_to_use, error_message, remediation_steps)
+        
+        # Handle List types
+        if origin is list:
+            args = typing.get_args(return_type)
+            if args and len(args) > 0:
+                try:
+                    error_instance = self._create_error_response(args[0], error_message, remediation_steps)
+                    return [error_instance]
+                except Exception as e:
+                    LOGGER.debug(f"Failed to create List error response: {e}")
+                    # Return error message string as fallback
+                    return error_message
+            # List without type parameters - return error message string
+            LOGGER.debug("List type has no args, returning error message string")
+            return error_message
+        
+        # For other generic types (Dict, etc.) that we can't handle, return the error message string
+        # This allows the function to gracefully handle typing.Dict, typing.List without parameters, etc.
+        LOGGER.debug(f"Unable to handle generic type {return_type}, returning error message string")
+        return error_message
+
+    def _get_union_type(self, args):
+        """
+        Get the type to use out of union response types.
+        """
+        if not args or len(args) == 0:
+            # Empty Union args - return None
+            LOGGER.debug("Union type has no args, returning None")
+            return None
+            
+        # Filter out NoneType for Optional types
+        non_none_args = [arg for arg in args if arg is not type(None)]
+        if not non_none_args:
+            # All args were NoneType - return None
+            LOGGER.debug("Union type has only NoneType args, returning None")
+            return None
+        
+        # Use the second non-None type if available, otherwise use the first
+        type_to_use = non_none_args[1] if len(non_none_args) > 1 else non_none_args[0]
+        return type_to_use
+
+    def _try_simple_strategies(self, return_type, error_message: str, remediation_steps: str = ""):
+        """Try simple constructor strategies for creating error response."""
+        strategies = [
+            lambda: return_type(error=error_message, success=False, remediation_steps=remediation_steps),
+            lambda: return_type(error=error_message, remediation_steps=remediation_steps),
+            lambda: return_type(error=error_message, success=False),
+            lambda: return_type(error=error_message),
+            lambda: return_type(error_message),
+        ]
+        
+        for strategy in strategies:
+            try:
+                return strategy()
+            except Exception as e:
+                LOGGER.debug(f"Strategy failed: {e}")
+        return None
+
+    def _try_default_with_setattr(self, return_type, error_message: str, remediation_steps: str = ""):
+        """Try creating default instance and setting error attributes."""
+        try:
+            response = return_type()
+            if hasattr(response, 'error'):
+                response.error = error_message
+            if hasattr(response, 'success'):
+                response.success = False
+            if hasattr(response, 'remediation_steps') and remediation_steps:
+                response.remediation_steps = remediation_steps
+            return response
+        except Exception as e:
+            LOGGER.debug(f"Failed to create default response: {e}")
+        return None
+
+    def _get_default_value_for_field(self, field_type, field_info, error_message: str = ""):
+        """Get appropriate default value for a field based on its type."""
+        if hasattr(field_type, '__origin__'):
+            return self._handle_generic_field_type(field_type, field_info)
+        
+        return self._handle_basic_field_type(field_type, field_info, error_message)
+
+    def _handle_generic_field_type(self, field_type, field_info):
+        """Handle generic field types like Optional, List, Dict."""
+        origin = field_type.__origin__
+        args = getattr(field_type, '__args__', ())
+        
+        if origin is typing.Union and type(None) in args:
+            return None
+        elif origin is list:
+            return []
+        elif origin is dict:
+            return {}
+        
+        return None if not field_info.is_required() else ""
+
+    def _handle_basic_field_type(self, field_type, field_info, error_message: str = ""):
+        """Handle basic field types like str, int, bool, Enum, etc."""
+        from enum import Enum
+        
+        type_defaults = {
+            str: "",
+            int: 0,
+            float: 0.0,
+            bool: False,
+            list: [],
+            dict: {}
+        }
+        
+        if field_type in type_defaults:
+            return type_defaults[field_type]
+        
+        # Handle Enum types by returning the first enum value
+        if isinstance(field_type, type) and issubclass(field_type, Enum):
+            try:
+                # Get the first enum value
+                first_value = next(iter(field_type))
+                LOGGER.debug(f"Using first enum value '{first_value.value}' for field type {field_type}")
+                return first_value
+            except (StopIteration, AttributeError) as e:
+                LOGGER.debug(f"Failed to get first enum value for {field_type}: {e}")
+        
+        if hasattr(field_type, 'model_fields'):
+            return self._create_nested_model_default(field_type, field_info, error_message)
+        
+        return None if not field_info.is_required() else ""
+
+    def _create_nested_model_default(self, field_type, field_info, error_message: str = ""):
+        """Create default value for nested Pydantic models."""
+        try:
+            return self._create_error_response(field_type, error_message)
+        except Exception:
+            try:
+                return field_type()
+            except Exception:
+                return None if not field_info.is_required() else {}
+
+    def _try_field_inspection(self, return_type, error_message: str, remediation_steps: str = ""):
+        """Try creating error response by inspecting Pydantic model fields."""
+        if not hasattr(return_type, 'model_fields'):
+            return None
+        
+        try:
+            kwargs = {'error': error_message, 'success': False}
+            
+            # Add remediation_steps if provided and field exists
+            if remediation_steps and 'remediation_steps' in return_type.model_fields:
+                kwargs['remediation_steps'] = remediation_steps
+
+            for field_name, field_info in return_type.model_fields.items():
+                if field_name not in kwargs and field_info.is_required():
+                    kwargs[field_name] = self._get_default_value_for_field(
+                        field_info.annotation, field_info, error_message
+                    )
+            
+            return return_type(**kwargs)
+        except Exception as e:
+            LOGGER.error(f"Failed to create error response with field inspection: {e}")
+            raise
+
+    def _create_error_response(self, return_type, error_message: str, remediation_steps: str = ""):
         """
         Attempt to create an error response object with the given error message.
         Tries multiple strategies to accommodate different response model structures.
@@ -134,45 +322,23 @@ class ServiceRegistry:
         Args:
             return_type: The return type annotation of the function
             error_message: The error message to include in the response
+            remediation_steps: Optional guidance on how to handle the error
             
         Returns:
             An instance of return_type with error information, or raises if unable to create
         """
-        # Check if return_type is a typing generic (like List, Dict, etc.)
-        # These cannot be instantiated directly, so create a generic error response
-        import typing
         if hasattr(typing, 'get_origin') and typing.get_origin(return_type) is not None:
-            return str(error_message)
+            return self._handle_generic_type(return_type, error_message, remediation_steps)
         
-        # Strategy 1: Try with both error and success fields
-        try:
-            return return_type(error=error_message, success=False)
-        except Exception as e1:
-            LOGGER.debug(f"Failed to create error response with error+success: {e1}")
+        result = self._try_simple_strategies(return_type, error_message, remediation_steps)
+        if result is not None:
+            return result
         
-        # Strategy 2: Try with just error field
-        try:
-            return return_type(error=error_message)
-        except Exception as e2:
-            LOGGER.debug(f"Failed to create error response with just error: {e2}")
-
-        # Strategy 3: Try with just error
-        try:
-            return return_type(error_message)
-        except Exception as e3:
-            LOGGER.debug(f"Failed to create error response with just error: {e3}")
+        result = self._try_default_with_setattr(return_type, error_message, remediation_steps)
+        if result is not None:
+            return result
         
-        # Strategy 4: Create with defaults and set fields if they exist
-        try:
-            response = return_type()
-            if hasattr(response, 'error'):
-                response.error = error_message
-            if hasattr(response, 'success'):
-                response.success = False
-            return response
-        except Exception as e4:
-            LOGGER.error(f"Failed to create default response: {e4}")
-            raise
+        return self._try_field_inspection(return_type, error_message, remediation_steps)
 
     def _create_error_wrapper(self, func: Callable, tool_name: str) -> Callable:
         """
@@ -198,6 +364,9 @@ class ServiceRegistry:
                 LOGGER.error(f"Tool '{tool_name}' failed with error: {error_message}")
                 LOGGER.error(f"Stack trace:\n{stack_trace}")
                 
+                # Extract remediation_steps from exception if available
+                remediation_steps = getattr(e, 'remediation_steps', "")
+
                 # Get the return type annotation
                 sig = inspect.signature(func)
                 return_type = sig.return_annotation
@@ -208,10 +377,14 @@ class ServiceRegistry:
                 
                 # Try to create error response
                 try:
-                    return self._create_error_response(return_type, error_message)
-                except Exception:
+                    error_response = self._create_error_response(return_type, error_message, remediation_steps)
+                    LOGGER.info(f"Successfully created error response for tool '{tool_name}'")
+                    return error_response
+                except Exception as create_error:
                     # If all strategies fail, re-raise original error
-                    LOGGER.error(f"Unable to create error response for {tool_name}")
+                    LOGGER.error(f"Unable to create error response for {tool_name}: {create_error}")
+                    import traceback
+                    LOGGER.error(f"Error response creation traceback:\n{traceback.format_exc()}")
                     raise e
         
         return wrapper

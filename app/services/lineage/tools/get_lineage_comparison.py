@@ -2,7 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Annotated
+from pydantic import Field
+
 from app.core.registry import service_registry
 from app.services.constants import LINEAGE_BASE_ENDPOINT
 from app.services.lineage.constants import SERVICE_UNAVAILABLE_MESSAGE
@@ -14,14 +16,13 @@ from app.services.lineage.models.get_lineage_comparison import (
     LineageComparisonEdge,
     LineageRequestBodyPart,
 )
-from app.shared.exceptions.base import ExternalAPIError, ServiceError
+from app.shared.exceptions.base import ExternalAPIError, ValidationError
 from app.shared.logging.generate_context import auto_context
 from app.shared.logging.utils import LOGGER
 from app.shared.utils.helpers import parse_list_of_ids, verify_dates
 from app.shared.utils.tool_helper_service import tool_helper_service
 
-TOOLS_DESCRIPTION = """
-    Performs a comparison of assets between two versions. It can be either for singular assets coming from search_lineage_assets
+TOOLS_DESCRIPTION = """ Use this tool when you need to performs a comparison of assets between two versions. It can be either for singular assets coming from search_lineage_assets
     or for graphs coming from get_lineage_graph. Returns a list of assets with their status and optionally a list of edges with statuses for graphs.
     
     **CRITICAL** - this tool should be used after user used either search_lineage_assets or get_lineage_graph on their own or
@@ -57,14 +58,7 @@ TOOLS_DESCRIPTION = """
            )
         6. Return results
 
-    Args:
-        compared_lineage_assets (List[str]): List of asset IDs to be compared.
-        lineage (Optional[LineageRequestBodyPart]): Nested object containing initial_asset_ids for graph comparison. Required for graph comparison, None for single asset comparison.
-        base_version (str): Base version datetime in ISO-8601 format (earlier version). Example: "2025-11-12T10:00:00Z"
-        compared_version (str): Compared version datetime in ISO-8601 format (later version). Example: "2025-11-12T12:00:00Z"
-
-    Returns:
-        GetLineageComparisonResponse: An object containing a list of lineage assets that are available between the two dates with their statuses.
+    Returns: A list of lineage assets that are available between the two dates with their statuses.
 
     Raises:
         ExternalServiceError: If the API request fails (status code != 200)
@@ -154,8 +148,9 @@ async def _get_lineage_comparison(
     dates_verified = verify_dates([request.base_version, request.compared_version])
     
     if not dates_verified or len(dates_verified) != 2:
-        raise ServiceError(
-            f"Invalid dates provided. Expected 2 valid ISO-8601 dates, got: base_version={request.base_version}, compared_version={request.compared_version}"
+        raise ValidationError(
+            f"Invalid dates provided. Expected 2 valid ISO-8601 dates, got: base_version={request.base_version}, compared_version={request.compared_version}",
+            remediation_steps="Provide dates in valid ISO-8601 format"
         )
 
     # Parse compared lineage IDs
@@ -227,10 +222,12 @@ async def _get_lineage_comparison(
 )
 @auto_context
 async def get_lineage_comparison(
-    compared_lineage_assets: str,
-    base_version: str,
-    compared_version: str,
-    initial_lineage_assets: Optional[str] = None,
+    compared_lineage_assets: Annotated[str, Field(description="""The list of asset IDs of assets to be compared.
+        For graphs, this should contain all asset IDs returned by get_lineage_graph.
+        For single asset comparison, this contains the asset ID(s) to compare.""")],
+    base_version: Annotated[str, Field(description="Base version datetime in ISO-8601 format specifying the earlier lineage version to compare. Example: '2025-11-12T10:00:00Z'")],
+    compared_version: Annotated[str, Field(description="Compared version datetime in ISO-8601 format specifying the later lineage version to compare. Example: '2025-11-12T12:00:00Z'")],
+    initial_lineage_assets: Annotated[Optional[str], Field(description="Optional comma-separated list of initial asset IDs for graph comparison. Required for graph comparison, None for single asset comparison")] = None,
 ) -> GetLineageComparisonResponse:
     """
     Wrapper version that expands GetLineageComparisonRequest object into individual parameters.

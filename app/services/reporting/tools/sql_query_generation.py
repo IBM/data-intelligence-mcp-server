@@ -2,6 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
+from typing import Annotated
+from pydantic import Field
+
 from app.core.auth import get_bss_account_id
 from app.core.registry import service_registry
 from app.services.constants import (
@@ -213,7 +216,9 @@ async def _sql_query_generation(
 
 @service_registry.tool(
     name="generate_reporting_sql_query",
-    description="Generate a SQL query from a natural language input for a given project using a text-to-SQL service for reporting-related use cases. The tool verifies reporting service connectivity, resolves the project ID, and generates the SQL query based on the project context and SQL dialect.",
+    description="""Use this tool when you need to generate a SQL query from a natural language input for a given project using a text-to-SQL service for reporting-related use cases. The tool verifies reporting service connectivity, resolves the project ID, and generates the SQL query based on the project context and SQL dialect.
+  Query API Reference: https://api.dataplatform.cloud.ibm.com/semantic_automation/v1/swagger-ui/index.html
+  Return: The generation status ("success" or "failed"), and on success: the project ID, generated SQL query, and SQL dialect used; or on failure: an error message.""",
     annotations={
         "readOnlyHint": True,
         "title": "Generate SQL Query from Natural Language for Reporting"
@@ -221,19 +226,19 @@ async def _sql_query_generation(
 )
 @auto_context
 async def sql_query_generation(
-    project_name: str,
-    query: str,
-    instructions: list | None = None,
-    raw_output: bool = False,
+    project_name: Annotated[str, Field(description="Name of the project containing the data model for SQL generation.")],
+    query: Annotated[str, Field(description="Natural language request to convert to SQL.")],
+    instructions: Annotated[list | None, Field(description="Instructions for SQL generation. Example: ['Do not use tech_start, tech_end, ts_id in the output column.']")] = None,
+    raw_output: Annotated[bool, Field(description="Whether to return raw output from the model.")] = False,
 ) -> SqlQueryGenerationResponse:
     """
     Wrapper that expands SqlQueryGenerationRequest object into individual parameters.
 
     Args:
-        project_name (str): Name of the project containing the data model for SQL generation.
-        query (str): Natural language request to convert to SQL.
-        instructions (list): Instructions for SQL generation. Defaults to empty list.
-        raw_output (bool): Whether to return raw output from the model. Defaults to False.
+        project_name: Name of the project containing the data model for SQL generation.
+        query: Natural language request to convert to SQL.
+        instructions: Instructions for SQL generation. Defaults to empty list.
+        raw_output: Whether to return raw output from the model. Defaults to False.
 
     Returns:
         SqlQueryGenerationResponse: The result of the SQL query generation.

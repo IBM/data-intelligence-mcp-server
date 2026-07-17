@@ -2,6 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
+from typing import Annotated
+
+from pydantic import Field
 from app.core.registry import service_registry
 from app.shared.logging import LOGGER, auto_context
 
@@ -49,12 +52,8 @@ async def _run_data_quality_rule(
     
     Wrapper that accepts direct parameters instead of a request object.
     
-    Args:
-        project_id_or_name (str): The ID or name of the project containing the data quality rule.
-        data_quality_rule_id_or_name (str): The ID or name of the data quality rule to execute.
-    
     Returns:
-        RunDataQualityRuleResponse: An object containing complete information about the data quality rule:
+        An object containing complete information about the data quality rule:
             - data_quality_rule_id: The ID of the data quality rule
             - project_id: The ID of the project
             - data_quality_rule_ui_url: URL to view the data quality rule in the UI
@@ -68,8 +67,8 @@ async def _run_data_quality_rule(
 )
 @auto_context
 async def run_data_quality_rule(
-    project_id_or_name: str,
-    data_quality_rule_id_or_name: str,
+    project_id_or_name: Annotated[str, Field(description="The ID or name of the project containing the data quality rule.")],
+    data_quality_rule_id_or_name: Annotated[str, Field(description="The ID or name of the data quality rule to execute.")],
 ) -> RunDataQualityRuleResponse:
     """
     Wrapper that builds request model and delegates to main tool.

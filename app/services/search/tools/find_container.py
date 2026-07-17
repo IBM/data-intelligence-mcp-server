@@ -5,6 +5,9 @@
 # This file has been modified with the assistance of IBM Bob AI tool
 
 
+from typing import Annotated
+from pydantic import Field
+
 from app.core.registry import service_registry
 from app.services.search.models.container import (
     FindContainerRequest,
@@ -88,7 +91,7 @@ async def _find_container(
         "readOnlyHint": True,
         "title": "Find Specific Container (Catalog, Project, or Space) by ID or name"
     },
-    description="""Finds a specific container (catalog, project or space) by ID or name.
+    description="""Use this tool when you need to finds a specific container (catalog, project or space) by ID or name.
     
     This tool searches for a container using either its UUID or name.
     
@@ -98,12 +101,12 @@ async def _find_container(
     - For UUID: performs direct lookup
     - For name: uses fuzzy matching to find closest match
     - container_type must be one of: "catalog", "project", "space"
-    - Returns container details including ID, name, type, and URL""",
+    Returns: Container details including ID, name, type, and URL""",
 )
 @auto_context
 async def find_container(
-    container_id_or_name: str,
-    container_type: str = "catalog"
+    container_id_or_name: Annotated[str, Field(description="The ID or name of the container to find")],
+    container_type: Annotated[str, Field(description="The type of the container - 'project', 'catalog', or 'space'. Defaults to 'catalog'")] = "catalog"
 ) -> FindContainerResponse:
     """Wrapper that expands FindContainerRequest object into individual parameters."""
     

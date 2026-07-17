@@ -1,0 +1,3 @@
+
+CREATE_OR_UPDATE_METADATA_ENRICHMENT_ASSET_TOOL_NAME="create_or_update_metadata_enrichment_asset"
+CREATE_OR_UPDATE_METADATA_ENRICHMENT_ASSET_JOBS_TOOL_NAME="create_or_metadata_enrichment_asset_jobs"

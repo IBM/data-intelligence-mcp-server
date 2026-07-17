@@ -85,6 +85,7 @@ async def execute_advanced_profiling_job(
     project_id: str,
     dataset_ids: list[str],
     sampling_config: StructuredSampling,
+    job_id: str,
     unique_value_table_info: dict | None = None,
 ) -> AdvancedProfilingResponse:
     """
@@ -95,6 +96,7 @@ async def execute_advanced_profiling_job(
         project_id: The ID of the project
         dataset_ids: List of dataset IDs to profile
         sampling_config: The sampling configuration to use
+        job_id: The job ID to use
         unique_value_table_info: Optional unique value table configuration dict with connection_id already resolved
         
     Returns:
@@ -103,7 +105,7 @@ async def execute_advanced_profiling_job(
     Raises:
         ServiceError: If the advanced profiling job fails to execute
     """
-    post_url = f"{METADATA_ENRICHMENT_SERVICE_URL}/metadata_enrichment_assets/{metadata_enrichment_id}/start_advanced_profiling"
+    post_url = f"{METADATA_ENRICHMENT_SERVICE_URL}/metadata_enrichment_assets/{metadata_enrichment_id}/jobs/{job_id}/start_advanced_profiling"
     query_params = {
         "project_id": project_id,
     }
@@ -141,7 +143,8 @@ async def execute_advanced_profiling_job(
             )
         else:
             raise ServiceError(
-                f"The execution of advanced profiling for metadata enrichment ID:'{metadata_enrichment_id}' failed. No job_run_id returned."
+                message=f"The execution of advanced profiling for metadata enrichment ID:'{metadata_enrichment_id}' failed. No job_run_id returned.",
+                remediation_steps="Please try again later.",
             )
     except ExternalAPIError as eae:
         LOGGER.error(

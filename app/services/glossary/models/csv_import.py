@@ -6,7 +6,9 @@
 
 from enum import Enum
 from typing import Optional, List, Dict, Any
+from unittest.mock import Base
 from pydantic import BaseModel, Field, field_validator, ConfigDict
+from app.shared.models import BaseResponseModel
 
 class CSVRowError(BaseModel):
     """Error information for a specific CSV row."""
@@ -305,10 +307,10 @@ Risk Management,category,,Category for risk-related terms
         return v.lower()
 
 
-class CSVImportResult(BaseModel):
+class CSVImportResult(BaseResponseModel):
     """Result of CSV import operation."""
     
-    success: bool = Field(..., description="Whether the import was successful")
+    success: bool = Field(default=True, description="Whether the import was successful")
     total_rows: int = Field(..., description="Total number of data rows processed (excluding header)")
     categories_created: int = Field(0, description="Number of categories created")
     terms_created: int = Field(0, description="Number of terms created")
@@ -429,7 +431,7 @@ class CSVImportResult(BaseModel):
         return "\n".join(lines)
 
 
-class CSVSchemaInfo(BaseModel):
+class CSVSchemaInfo(BaseResponseModel):
     """Information about the CSV schema for LLM consumption."""
     
     description: str = Field(

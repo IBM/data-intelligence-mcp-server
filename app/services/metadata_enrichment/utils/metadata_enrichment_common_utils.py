@@ -7,6 +7,7 @@ from functools import partial
 from string import Template
 from typing import Final, Optional, Dict, Any, Callable
 
+from pydantic import TypeAdapter
 from tenacity import RetryError
 
 from app.core.settings import settings, ENV_MODE_SAAS
@@ -18,6 +19,8 @@ from app.services.constants import (
     JOBS_BASE_ENDPOINT,
     WORKFLOW_BASE_ENDPOINT,
 )
+from app.services.metadata_enrichment.constants import CREATE_OR_UPDATE_METADATA_ENRICHMENT_ASSET_TOOL_NAME, \
+    CREATE_OR_UPDATE_METADATA_ENRICHMENT_ASSET_JOBS_TOOL_NAME
 from app.services.metadata_enrichment.models.metadata_enrichment import (
     ENRICHMENT_OBJECTIVES_MAP,
     DataScopeAssetSelection,
@@ -37,7 +40,8 @@ from app.services.metadata_enrichment.models.metadata_enrichment import (
     AssetProcessingResult,
     MetadataEnrichmentDetails,
     EnrichmentAssetsInfo,
-    DataAssets, ContainerAssets, JobRunStatus, MetadataEnrichmentAssetResponse, TermAssignmentObjective, MetadataEnrichmentCreationRequest,
+    DataAssets, ContainerAssets, JobRunStatus, TermAssignmentObjective, MetadataEnrichmentCreationRequest,
+    MetadataEnrichmentAssetEnrichmentJob, MetadataEnrichmentAssetEnrichmentJobResponse,
 )
 from app.services.tool_utils import (
     ARTIFACT_TYPE_DATA_ASSET,
@@ -49,7 +53,7 @@ from app.services.tool_utils import (
     find_metadata_enrichment_id,
     find_project_id, find_metadata_import_id,
 )
-from app.shared.exceptions.base import ExternalAPIError, ServiceError
+from app.shared.exceptions.base import ExternalAPIError, ServiceError, ValidationError
 from app.shared.logging.utils import LOGGER
 from app.shared.utils.helpers import append_context_to_url, confirm_uuid
 from app.shared.utils.tool_helper_service import tool_helper_service
@@ -66,7 +70,7 @@ CHECK_MDE_OPERATION_MAX_TRIAL = 5
 METADATA_ENRICHMENT_SERVICE_URL = BASE_URL + METADATA_ENRICHMENT_BASE_ENDPOINT
 MDE_START_SELECTIVE_ASSETS_TEMPLATE = (
         METADATA_ENRICHMENT_SERVICE_URL
-        + "/metadata_enrichment_assets/${mde_id}/start_selective_enrichment"
+        + "/metadata_enrichment_assets/${mde_id}/jobs/${job_id}/start_enrichment"
 )
 MDE_WITH_ID_TEMPLATE = (
         METADATA_ENRICHMENT_SERVICE_URL
@@ -75,6 +79,9 @@ MDE_WITH_ID_TEMPLATE = (
 CAMS_ASSETS_SERVICE_URL = BASE_URL + CAMS_ASSETS_BASE_ENDPOINT
 JOBS_SERVICE_URL = BASE_URL + JOBS_BASE_ENDPOINT
 MDE_UI_DISPLAY_URL = UI_BASE_URL + "/gov/metadata-enrichments/display"
+MDE_UI_DISPLAY_TEMPLATE = (
+        MDE_UI_DISPLAY_URL + "/${mde_id}?project_id=${project_id}&context=df"
+)
 MDE_UI_URL_TEMPLATE = (
         MDE_UI_DISPLAY_URL
         + "/${mde_id}/structured/columns?project_id=${project_id}&context=df"
@@ -182,14 +189,18 @@ async def execute_metadata_enrichment_job(job_id: str, project_id: str) -> str:
 
 
 async def execute_metadata_enrichment_with_assets(
-        mde_id: str, project_id: str, dataset_uuids: list[str] | str
+        mde_id: str,
+        project_id: str,
+        job_id: str,
+        dataset_uuids: list[str] | str
 ) -> str:
     """
     Execute the metadata enrichment with the job ID
 
     Args:
-        mde_id (str): The ID of the job in the metadata enrichment.
-        project_id (uuid.UUID): The ID of the project you want to execute a metadata enrichment.
+        mde_id (str): The ID of the the metadata enrichment.
+        project_id (uuid.UUID): The ID of the project you want to execute a metadata enrichment job.
+        job_id (str): The ID of the job in the metadata enrichment.
         dataset_uuids (list[str]): List of UUIDs of target datasets to be enriched with metadata.
 
     Returns:
@@ -201,7 +212,7 @@ async def execute_metadata_enrichment_with_assets(
     """
 
     template = Template(MDE_START_SELECTIVE_ASSETS_TEMPLATE)
-    post_url = template.substitute(mde_id=mde_id)
+    post_url = template.substitute(mde_id=mde_id, job_id=job_id)
     query_params = {
         "project_id": project_id,
     }
@@ -257,14 +268,38 @@ def set_metadata_enrichment_objective(
             case _:
                 raise ValueError(f"Invalid objective: {objective}")
 
+def set_job_objective(
+        job_run: MetadataEnrichmentAssetEnrichmentJob,
+        objectives: list[MetadataEnrichmentObjective],
+):
+    job_run_options = job_run.delegate_configuration.enrichment_objective.enrichment_options.structured
+    for objective in objectives:
+        match objective:
+            case MetadataEnrichmentObjective.PROFILE:
+                job_run_options.profile = True
+            case MetadataEnrichmentObjective.DQ_GEN_CONSTRAINTS:
+                job_run_options.dq_gen_constraints = True
+            case MetadataEnrichmentObjective.ANALYZE_QUALITY:
+                job_run_options.analyze_quality = True
+            case MetadataEnrichmentObjective.SEMANTIC_EXPANSION:
+                job_run_options.semantic_expansion = True
+            case MetadataEnrichmentObjective.ASSIGN_TERMS:
+                job_run_options.assign_terms = True
+            case MetadataEnrichmentObjective.ANALYZE_RELATIONSHIPS:
+                job_run_options.analyze_relationships = True
+            case MetadataEnrichmentObjective.DQ_SLA_ASSESSMENT:
+                job_run_options.dq_sla_assessment = True
+            case MetadataEnrichmentObjective.DATA_SEARCH:
+                job_run_options.data_search = True
+            case _:
+                raise ValueError(f"Invalid objective: {objective}")
+
 
 def generate_metadata_enrichment_asset(
     asset_name: str,
+    description: str,
     dataset_uuids: list[str],
-    category_uuids: list[str],
-    objectives: list[MetadataEnrichmentObjective],
     metadata_import_uuids: Optional[list[str]] = None,
-    primary_category_uuid: Optional[str] = None,
     tags: Optional[list[str]] = None,
 ) -> MetadataEnrichmentAsset:
     """
@@ -272,25 +307,49 @@ def generate_metadata_enrichment_asset(
 
     Args:
         asset_name (str): The name of the MetadataEnrichmentAsset.
+        description (str): The description of the MetadataEnrichmentAsset.
         dataset_uuids (list[str]): List of dataset UUIDs for the asset.
-        category_uuids (list[str]): List of category UUIDs for governance scope.
-        objectives (list[MetadataEnrichmentObjective]): List of objectives of the MetadataEnrichmentAsset.
         metadata_import_uuids (list[str]): List of MDI UUIDs for the asset.
-        primary_category_uuid (str): The primary category UUID for the asset.
         tags (list[str]): List of tags for the asset.
 
     Returns:
         MetadataEnrichmentAsset: A default configured MetadataEnrichmentAsset.
     """
     mde_asset = MetadataEnrichmentAsset(name=asset_name)
+    mde_asset.description = description
     mde_asset.data_scope.enrichment_assets = dataset_uuids
     mde_asset.tags=tags
     if metadata_import_uuids:
         metadata_imports = ContainerAssets(metadata_imports=metadata_import_uuids)
         mde_asset.data_scope.container_assets = metadata_imports
-    set_metadata_enrichment_objective(mde_asset, objectives)
+    return mde_asset
+
+def generate_metadata_enrichment_job_run(
+    job_name: str,
+    category_uuids: list[str],
+    objectives: list[MetadataEnrichmentObjective],
+    job_description: Optional[str] = None,
+    primary_category_uuid: Optional[str] = None,
+) -> MetadataEnrichmentAssetEnrichmentJob:
+    """
+    Generates a default MetadataEnrichmentAssetEnrichmentJob with specified parameters.
+
+    Args:
+        job_name (str): The name of the MetadataEnrichmentAssetEnrichmentJob.
+        category_uuids (list[str]): List of category UUIDs for governance scope.
+        objectives (list[MetadataEnrichmentObjective]): List of objectives of the MetadataEnrichmentAssetEnrichmentJob.
+        job_description (Optional[str]): The description of the MetadataEnrichmentAssetEnrichmentJob.
+        primary_category_uuid (str): The primary category UUID for the asset.
+
+    Returns:
+        MetadataEnrichmentAssetEnrichmentJob: A default configured MetadataEnrichmentAssetEnrichmentJob.
+    """
+    job_run: MetadataEnrichmentAssetEnrichmentJob = MetadataEnrichmentAssetEnrichmentJob(name=job_name)
+    job_run.description = job_description
+
+    set_job_objective(job_run, objectives)
     for category_uuid in category_uuids:
-        mde_asset.objective.governance_scope.append(
+        job_run.delegate_configuration.enrichment_objective.governance_scope.append(
             GovernanceScopeCategory(id=category_uuid)
         )
     # set primary category id if provided
@@ -298,7 +357,7 @@ def generate_metadata_enrichment_asset(
         term_assignement_objective = TermAssignmentObjective(
             term_generation_target_category_id=primary_category_uuid
         )
-        mde_asset.objective.term_assignment = term_assignement_objective
+        job_run.delegate_configuration.enrichment_objective.term_assignment = term_assignement_objective
     # sets data quality parameters
     list_of_dq_checks_suggested = [
         SuggestedDataQualityCheck(id="case", enabled=True),
@@ -320,11 +379,11 @@ def generate_metadata_enrichment_asset(
     quality_origins = QualityOrigins(
         profiling=True, business_terms=False, relationships=False
     )
-    mde_asset.objective.data_quality.structured.dq_checks_suggested = (
+    job_run.delegate_configuration.enrichment_objective.data_quality.structured.dq_checks_suggested = (
         list_of_dq_checks_suggested
     )
-    mde_asset.objective.data_quality.structured.quality_origins = quality_origins
-    return mde_asset
+    job_run.delegate_configuration.enrichment_objective.data_quality.structured.quality_origins = quality_origins
+    return job_run
 
 
 async def do_metadata_enrichment_process(
@@ -332,6 +391,7 @@ async def do_metadata_enrichment_process(
         dataset_names: list[str] | str,
         category_names: list[str] | str,
         objectives: list[MetadataEnrichmentObjective],
+        job_name: str,
 ) -> list[MetadataEnrichmentRun]:
     """
     Initiates the metadata enrichment process for specified datasets within a project.
@@ -350,6 +410,7 @@ async def do_metadata_enrichment_process(
         category_names (list[str] | str): Names of categories for metadata enrichment.
             If a single string is provided, it will be treated as a list containing that string.
         objectives (list[MetadataEnrichmentObjective]): List of metadata enrichment objectives.
+        job_name (str): The name of the job for metadata enrichment.
 
     Returns:
         list[MetadataEnrichmentRun]: A list of results from executing metadata enrichment objectives.
@@ -373,12 +434,12 @@ async def do_metadata_enrichment_process(
             data_asset_ids=dataset_ids,
             category_ids=category_ids,
             objectives=objectives,
+            job_name=job_name,
         )
     )
-
     response_operation = []
     for mde_asset in list_of_mde_assets:
-        result = await execute_mde_objective(project_id, mde_asset)
+        result = await execute_mde_objective(project_id, job_name, mde_asset)
         response_operation.append(result)
     return response_operation
 
@@ -406,7 +467,7 @@ async def call_create_metadata_enrichment_asset(
         "project_id": project_id,
     }
     response = await tool_helper_service.execute_post_request(
-        url=f"{METADATA_ENRICHMENT_SERVICE_URL}/metadata_enrichment_legacy_assets",
+        url=f"{METADATA_ENRICHMENT_SERVICE_URL}/metadata_enrichment_assets",
         json=mde_asset.model_dump(exclude_none=True),
         params=query_params,
     )
@@ -435,6 +496,7 @@ async def create_or_find_metadata_enrichment_assets_from_data_asset_ids(
         data_asset_ids: list[str],
         category_ids: list[str],
         objectives: list[MetadataEnrichmentObjective],
+        job_name: Optional[str] = None,
 ) -> list[MetadataEnrichmentAssetInfo]:
     """
     Create or find Metadata Enrichment Assets based on provided data asset IDs.
@@ -446,6 +508,7 @@ async def create_or_find_metadata_enrichment_assets_from_data_asset_ids(
         data_asset_ids (list[str]): A list of data asset IDs for which to find or create Metadata Enrichment Assets.
         category_ids (list[str]): A list of category IDs associated with the Metadata Enrichment Assets.
         objectives (list[MetadataEnrichmentObjective]): A list of objectives for the Metadata Enrichment Assets.
+        job_name (str, optional): The job ID for the Metadata Enrichment Assets. Defaults to None.
 
     Returns:
         list[MetadataEnrichmentAssetInfo]: A list of MetadataEnrichmentAssetInfo objects containing the metadata enrichment IDs and their corresponding data asset IDs.
@@ -472,22 +535,26 @@ async def create_or_find_metadata_enrichment_assets_from_data_asset_ids(
             # if a mde exists, the data asset ids are passed as is.
             mde_to_datasets.setdefault(mde_id, []).append(data_asset_id)
 
-    # update existing mde with defined objectives
+    # update existing mde with defined objectives if default MDE exists
     for mde_id in mde_to_datasets:
-        await call_update_metadata_enrichment_asset(
-            project_id, mde_id, category_ids, objectives
-        )
+        # No need to update the MDE since is no longer contain the objectives and categories.
+        # attempt to update the asset job. If more than one job is defined
+        # and the user did not select a job, a ServiceError will be thrown
+        await attempt_update_metadata_enrichment_asset_job(
+            project_id, mde_id, category_ids, objectives, job_name=job_name)
+
+
 
     if data_asset_ids_not_belonging_to_mde:
         if default_mde_id:
-            # update default mde with defined objectives,
+            # update default mde with the new assets to be added,
             await call_update_metadata_enrichment_asset(
-                project_id, default_mde_id, category_ids, objectives
+                project_id, default_mde_id, datasets_to_add_uuids=data_asset_ids_not_belonging_to_mde
             )
-            # and add data assets not belonging to mde to default mde
-            result_operation = await call_update_data_scope(
-                project_id, default_mde_id, data_asset_ids_not_belonging_to_mde
-            )
+            # attempt to update the asset job. If more than one job is defined
+            # and the user did not select a job, a ServiceError will be thrown
+            await attempt_update_metadata_enrichment_asset_job(
+                project_id, default_mde_id, category_ids, objectives, job_name=job_name)
             mde_to_datasets.setdefault(default_mde_id, []).extend(
                 data_asset_ids_not_belonging_to_mde
             )
@@ -496,24 +563,28 @@ async def create_or_find_metadata_enrichment_assets_from_data_asset_ids(
             # for data asset not belonging to mde if default MDE doesn't exist
             mde_asset = generate_metadata_enrichment_asset(
                 asset_name=DEFAULT_MDE_NAME,
+                description=DEFAULT_MDE_NAME,
                 dataset_uuids=data_asset_ids_not_belonging_to_mde,
-                category_uuids=category_ids,
-                objectives=objectives,
             )
             result_operation = await call_create_metadata_enrichment_asset(
                 project_id, mde_asset
             )
+            # the new MDE V3 API (Multi Jobs support) requires creating the job separetly
+            mde_asset_id = result_operation.operation_summary.mde_asset_id
+            await attempt_create_metadata_enrichment_asset_job(
+                project_id, mde_asset_id, DEFAULT_MDE_NAME, DEFAULT_MDE_NAME, category_ids, objectives
+            )
             mde_to_datasets[result_operation.target_resource_id] = (
                 data_asset_ids_not_belonging_to_mde
             )
-        # created/updated metadata enrichment will be executed later
-        # so confirm data scope operation is ready
-        try:
-            await confirm_ready_data_scope_operation(project_id, result_operation.id)
-        except RetryError:
-            raise ServiceError(
-                f"The data scope background operation of metadata enrichment asset: {result_operation.target_resource_id} did not finish."
-            )
+            # created/updated metadata enrichment will be executed later
+            # so confirm data scope operation is ready
+            try:
+                await confirm_ready_data_scope_operation(project_id, result_operation.id)
+            except RetryError:
+                raise ServiceError(
+                    f"The data scope background operation of metadata enrichment asset: {result_operation.target_resource_id} did not finish."
+                )
 
     return [
         MetadataEnrichmentAssetInfo(
@@ -522,6 +593,61 @@ async def create_or_find_metadata_enrichment_assets_from_data_asset_ids(
         for mde_id in mde_to_datasets
     ]
 
+
+async def attempt_create_metadata_enrichment_asset_job(
+        project_id: str,
+        metadata_enrichment_id: str,
+        job_name: str,
+        job_description: str,
+        category_ids: list[str],
+        objectives: list[MetadataEnrichmentObjective],
+
+):
+    job_config: MetadataEnrichmentAssetEnrichmentJob = generate_metadata_enrichment_job_run(
+        job_name=job_name,
+        job_description=job_description,
+        objectives=objectives,
+        category_uuids=category_ids,
+        primary_category_uuid=None
+    )
+    await call_create_metadata_enrichment_job_run(metadata_enrichment_id, project_id, job_config)
+
+async def attempt_update_metadata_enrichment_asset_job(
+        project_id: str,
+        metadata_enrichment_id: str,
+        category_ids: list[str],
+        objectives: list[MetadataEnrichmentObjective],
+        job_name: Optional[str] = None,
+        job_description: Optional[str] = None,
+        job_id: Optional[str] = None
+
+):
+
+    if job_id is None:
+        mde_jobs = await get_metadata_enrichment_asset_jobs(project_id, metadata_enrichment_id)
+
+        if len(mde_jobs) > 1:
+            LOGGER.info(f"Found more than one metadata enrichment job for the MDE with ID: {metadata_enrichment_id} Skipping the update.")
+            raise ServiceError(
+                f"Found more than one metadata enrichment job for the MDE with ID: {metadata_enrichment_id}"
+                f"the user must select a job to be updated."
+            )
+        elif len(mde_jobs) == 1:
+            job_id = mde_jobs[0].id if hasattr(mde_jobs[0], 'id') else mde_jobs[0]
+
+    if job_id is None:
+        raise ServiceError(
+            f"Could not find a job for the MDE with ID: {metadata_enrichment_id}"
+        )
+
+    job_config: MetadataEnrichmentAssetEnrichmentJob = generate_metadata_enrichment_job_run(
+        job_name=job_name,
+        job_description=job_description,
+        objectives=objectives,
+        category_uuids=category_ids,
+        primary_category_uuid=None
+    )
+    await call_patch_metadata_enrichment_job_run(metadata_enrichment_id, project_id, job_id, job_config)
 
 async def call_retrieve_data_scope_operation(
         project_id: str, operation_id: str
@@ -555,7 +681,9 @@ async def confirm_ready_data_scope_operation(
 
 
 async def execute_mde_objective(
-        project_id: str, metadata_enrichment_asset: MetadataEnrichmentAssetInfo
+        project_id: str,
+        job_name: str,
+        metadata_enrichment_asset: MetadataEnrichmentAssetInfo
 ) -> MetadataEnrichmentRun:
     """
     Executes the Metadata Enrichment (MDE) objective for a given project and asset.
@@ -566,6 +694,7 @@ async def execute_mde_objective(
 
     Args:
         project_id (str): The ID of the project for which the MDE objective is to be executed.
+        job_name (str): The name of the job to be executed.
         metadata_enrichment_asset (MetadataEnrichmentAssetInfo): The asset information containing
             datasets to be enriched.
 
@@ -574,10 +703,26 @@ async def execute_mde_objective(
     """
 
     mde_id = metadata_enrichment_asset.metadata_enrichment_id
-    job_id = await find_job_id_in_metadata_enrichment(mde_id, project_id)
+    if job_name is None:
+        mde_jobs = await get_metadata_enrichment_asset_jobs(project_id, mde_id)
+        if len(mde_jobs) == 1:
+            job_id = mde_jobs[0].id
+        else:
+            raise ServiceError(
+                f"Found multiple jobs for the the MDE {mde_id} and project {project_id}"
+                f"Please selected which Job you want to execute"
+            )
+    else:
+        job_id = await confirm_uuid(job_name,
+                                    partial(find_asset_id_exact_match, container_id=project_id, artifact_type="job", raise_errors=False))
+    if not job_id:
+        raise ServiceError(
+            f"No job found with the name {job_name} in the MDE {mde_id}"
+        )
     job_run_id = await execute_metadata_enrichment_with_assets(
         mde_id=mde_id,
         project_id=project_id,
+        job_id=job_id,
         dataset_uuids=metadata_enrichment_asset.dataset_ids,
     )
 
@@ -595,24 +740,17 @@ async def execute_mde_objective(
     return response_operation
 
 async def create_metadata_enrichment(
-        category_ids: list[str],
-        objectives: list[MetadataEnrichmentObjective],
         project_id: str,
         request: MetadataEnrichmentCreationRequest,
-        primary_category_id: Optional[str] = None
 ) -> DataScopeOperation:
     LOGGER.info(f"Creating new MDE '{request.metadata_enrichment_name}'")
 
-    if not request.category_names:
-        raise ServiceError(
-            "category_names is required when creating a new metadata enrichment asset. "
-            "Please provide at least one category."
-        )
-
     if not request.dataset_names and not request.metadata_import_names:
-        raise ServiceError(
-            "dataset_names or metadata_import_names are required when creating a new metadata enrichment asset."
-            "Please provide at least one dataset."
+        raise ValidationError(
+            message="dataset_names or metadata_import_names are required when creating a new metadata enrichment asset."
+            "Please provide at least one dataset.",
+            tool=CREATE_OR_UPDATE_METADATA_ENRICHMENT_ASSET_TOOL_NAME,
+            remediation_steps="Provide one or more dataset names or metadata import names."
         )
 
     dataset_ids: list[str] = await check_and_confirm_dataset_names(request.dataset_names, project_id)
@@ -627,26 +765,61 @@ async def create_metadata_enrichment(
             )
             for metadata_import_name in metadata_import_names
         ]
-    mde_asset = generate_metadata_enrichment_asset(
+    mde_asset: MetadataEnrichmentAsset = generate_metadata_enrichment_asset(
         asset_name=request.metadata_enrichment_name,
+        description=request.description,
         dataset_uuids=dataset_ids,
-        category_uuids=category_ids,
-        objectives=objectives,
         metadata_import_uuids=metadata_imports_ids,
-        primary_category_uuid=primary_category_id,
         tags=request.tags,
     )
 
     return await call_create_metadata_enrichment_asset(project_id, mde_asset)
 
 
+async def call_create_metadata_enrichment_job_run(
+        mde_asset_id: str,
+        project_id: str,
+        job_run_config: MetadataEnrichmentAssetEnrichmentJob
+)-> MetadataEnrichmentAssetEnrichmentJobResponse:
+    LOGGER.info(f"Creating new Job for MDE '{mde_asset_id}'")
+
+    query_params = {
+        "project_id": project_id,
+    }
+    response = await tool_helper_service.execute_post_request(
+        url=f"{METADATA_ENRICHMENT_SERVICE_URL}/metadata_enrichment_assets/{mde_asset_id}/jobs",
+        json=job_run_config.model_dump(exclude_none=True),
+        params=query_params,
+    )
+    LOGGER.info(f"Successfully created metadata enrichment asset Job. Response: {response}")
+    return MetadataEnrichmentAssetEnrichmentJobResponse.model_validate(response)
+
+async def call_patch_metadata_enrichment_job_run(
+        mde_asset_id: str,
+        project_id: str,
+        job_id: str,
+        job_run_config: MetadataEnrichmentAssetEnrichmentJob
+)-> MetadataEnrichmentAssetEnrichmentJobResponse:
+    LOGGER.info(f"Patching Job for MDE '{mde_asset_id}'")
+
+    query_params = {
+        "project_id": project_id,
+    }
+    LOGGER.info(f"Patching metadata enrichment asset Job with body {job_run_config.model_dump(exclude_none=True)} for job ID:: {job_id}")
+    response = await tool_helper_service.execute_patch_request(
+        url=f"{METADATA_ENRICHMENT_SERVICE_URL}/metadata_enrichment_assets/{mde_asset_id}/jobs/{job_id}",
+        json=job_run_config.model_dump(exclude_none=True),
+        params=query_params,
+        headers={"Content-Type": "application/merge-patch+json"},
+    )
+    LOGGER.info(f"Successfully patched metadata enrichment asset Job. Response: {response}")
+    return MetadataEnrichmentAssetEnrichmentJobResponse.model_validate(response)
+
+
 async def update_metadata_enrichment(
-        category_ids: list[str],
         metadata_enrichment_id: str,
-        objectives: list[MetadataEnrichmentObjective],
         project_id: str,
         request: MetadataEnrichmentCreationRequest,
-        primary_category_id: Optional[str] = None
 ) -> MetadataEnrichmentAssetPatchResponse:
     LOGGER.info(f"Updating existing MDE {metadata_enrichment_id}")
 
@@ -665,11 +838,8 @@ async def update_metadata_enrichment(
     return await call_update_metadata_enrichment_asset(
         project_id=project_id,
         metadata_enrichment_id=metadata_enrichment_id,
-        category_ids=category_ids,
-        objectives=objectives,
         name=new_name,
         description=request.description,
-        primary_category_id=primary_category_id,
         datasets_to_add_uuids=datasets_to_add_ids,
         datasets_to_remove_uuids=datasets_to_remove_ide,
         tags=request.tags,
@@ -699,26 +869,20 @@ async def check_and_confirm_dataset_names(dataset_names: list[str], project_id: 
 async def call_update_metadata_enrichment_asset(
     project_id: str,
     metadata_enrichment_id: str,
-    category_ids: list[str],
-    objectives: list[MetadataEnrichmentObjective],
     name: Optional[str] = None,
     description: Optional[str] = None,
-    primary_category_id: Optional[str] = None,
     datasets_to_add_uuids: Optional[list[str]] = None,
     datasets_to_remove_uuids: Optional[list[str]] = None,
     tags: Optional[list[str]] = None,
 ) -> MetadataEnrichmentAssetPatchResponse:
     """
     Update an existing metadata enrichment asset.
-    
+
     Args:
         project_id: The ID of the project containing the MDE
         metadata_enrichment_id: The ID of the MDE to update
-        category_ids: List of category IDs for governance scope
-        objectives: List of objectives to set
         name: Optional new name for the MDE
         description: Optional new description for the MDE
-        primary_category_id: Optional primary category ID for the governance scope
         datasets_to_add_uuids: Optional list of dataset UUIDs
         datasets_to_remove_uuids: Optional list of dataset UUIDs
         tags: Optional list of tags associated with the governance scope
@@ -727,31 +891,17 @@ async def call_update_metadata_enrichment_asset(
         MetadataEnrichmentAssetPatchResponse with updated MDE details
     """
     mde_patch = MetadataEnrichmentAssetPatch()
-    set_metadata_enrichment_objective(mde_patch, objectives)
     mde_patch.tags = tags
-    for category_id in category_ids:
-        mde_patch.objective.governance_scope.append(
-            GovernanceScopeCategory(id=category_id)
-        )
-
-    # update the primary category id if provided
-    if primary_category_id:
-        term_assignement_objective = TermAssignmentObjective(
-            term_generation_target_category_id=primary_category_id
-        )
-        mde_patch.objective.term_assignment = term_assignement_objective
-
-    # Build the patch payload with optional name and description
-    patch_payload = mde_patch.model_dump(exclude_none=True)
-
     # Add name and description to the patch if provided
     if name is not None:
-        patch_payload["name"] = name
+        mde_patch.name = name
     if description is not None:
-        patch_payload["description"] = description
+        mde_patch.description = description
+
+    patch_payload = mde_patch.model_dump(exclude_none=True)
 
     response = await tool_helper_service.execute_patch_request(
-        url=f"{METADATA_ENRICHMENT_SERVICE_URL}/metadata_enrichment_legacy_assets/{metadata_enrichment_id}",
+        url=f"{METADATA_ENRICHMENT_SERVICE_URL}/metadata_enrichment_assets/{metadata_enrichment_id}",
         json=patch_payload,
         params={"project_id": project_id},
         headers={"Content-Type": "application/merge-patch+json"},
@@ -762,34 +912,103 @@ async def call_update_metadata_enrichment_asset(
         LOGGER.info(f"Datasets to add: {datasets_to_add_uuids} | Datasets to remove: {datasets_to_remove_uuids}")
         await call_update_data_scope(project_id, metadata_enrichment_id, datasets_to_add_uuids, datasets_to_remove_uuids)
 
-
-    return MetadataEnrichmentAssetPatchResponse.model_validate(response)
-
-
-async def get_metadata_enrichment_asset_by_id(
-        project_id: str,
-        metadata_enrichment_id: str,
-) -> MetadataEnrichmentAssetResponse:
-    """
-    Get an existing metadata enrichment asset.
-    Args:
-        project_id: The ID of the project for which the MDE objective is to be executed.
-        metadata_enrichment_id: The ID of the MDE to update
-    """
-
-    LOGGER.info(f"Retrieving metadata enrichment asset for project ID: <{project_id}> and MDE ID: <{metadata_enrichment_id}>")
-    response = await tool_helper_service.execute_get_request(
-        url=f"{METADATA_ENRICHMENT_SERVICE_URL}/metadata_enrichment_legacy_assets/{metadata_enrichment_id}",
-        params={"project_id": project_id},
-        headers={"Content-Type": "application/json"},
+    mde_url_location = Template(MDE_UI_DISPLAY_TEMPLATE).substitute(
+        mde_id=metadata_enrichment_id,
+        project_id=project_id,
     )
-    LOGGER.info(f"Successfully retrieved metadata enrichment asset. Response: {response}")
 
-    return MetadataEnrichmentAssetResponse.model_validate(response)
+    return MetadataEnrichmentAssetPatchResponse(
+        id=metadata_enrichment_id,
+        name=response.get("name"),
+        mde_url_location=mde_url_location,
+    )
+
+async def get_metadata_enrichment_asset_jobs(
+    project_id: str,
+    metadata_enrichment_id: str )-> list[MetadataEnrichmentAssetEnrichmentJobResponse]:
+
+    LOGGER.info(f"Retrieving Jobs for project ID: {project_id} AND MDE ID: {metadata_enrichment_id}")
+
+
+    response = await tool_helper_service.execute_get_request(
+        url=f"{METADATA_ENRICHMENT_SERVICE_URL}/metadata_enrichment_assets/{metadata_enrichment_id}/jobs",
+        params={"project_id": project_id, "internal": False},
+    )
+
+    LOGGER.info(f"Found {len(response.get('jobs'))} jobs. Response: {response}")
+
+    return TypeAdapter(list[MetadataEnrichmentAssetEnrichmentJobResponse]).validate_python(response.get("jobs"))
+
+
+async def call_create_or_update_metadata_enrichment_asset_jobs(
+        project_name,
+        metadata_enrichment_name,
+        job_name,
+        category_names: list[str],
+        objective_names: list[str] | str,
+        job_description,
+        primary_category_name) -> MetadataEnrichmentAssetEnrichmentJobResponse:
+
+
+    project_id = await confirm_uuid(project_name, find_project_id)
+    if not project_id:
+        LOGGER.info(f"Project ID <{project_name}> not found.")
+        raise ServiceError(
+            message="Project ID <{project_name}> not found.",
+            tool=CREATE_OR_UPDATE_METADATA_ENRICHMENT_ASSET_JOBS_TOOL_NAME,
+            remediation_steps="Invoke the tool 'list_containers' with input 'project' to list the available projects.",
+        )
+
+    metadata_enrichment_id = await confirm_uuid(
+        metadata_enrichment_name,
+        partial(find_metadata_enrichment_id, project_id=project_id)
+    )
+
+    if not metadata_enrichment_id:
+        LOGGER.info(f"MDE '{metadata_enrichment_name}' not found.")
+        raise ServiceError(
+            message=f"MDE '{metadata_enrichment_name}' not found.",
+            tool=CREATE_OR_UPDATE_METADATA_ENRICHMENT_ASSET_JOBS_TOOL_NAME,
+            remediation_steps="The metadata enrichment with the provided name was not found.",
+        )
+
+    LOGGER.info(f"Found existing MDE with ID: {metadata_enrichment_id}. Using UPDATE mode.")
+
+    objectives = [
+        MetadataEnrichmentObjective(objective)
+        for objective in confirm_list_str(objective_names)
+    ]
+
+    category_ids = [
+        await confirm_uuid(category_name, find_category_id)
+        for category_name in confirm_list_str(category_names)
+    ]
+
+    primary_category_id = None
+    if primary_category_name:
+        primary_category_id = await confirm_uuid(primary_category_name, find_category_id)
+
+    job_config: MetadataEnrichmentAssetEnrichmentJob = generate_metadata_enrichment_job_run(
+        job_name=job_name,
+        job_description=job_description,
+        objectives=objectives,
+        category_uuids=category_ids,
+        primary_category_uuid=primary_category_id
+    )
+
+    job_id = await find_asset_id_exact_match(job_name, project_id, "project", "job", raise_errors= False)
+
+    if job_id:
+        LOGGER.info(f"Found existing job with ID: {job_id}, using UPDATE mode.")
+        return await call_patch_metadata_enrichment_job_run(metadata_enrichment_id, project_id, job_id, job_config)
+
+    LOGGER.info(f"No job was found with the name: {job_name}, using CREATE mode.")
+    return await call_create_metadata_enrichment_job_run(metadata_enrichment_id, project_id, job_config)
 
 
 async def call_update_data_scope(
-        project_id: str, metadata_enrichment_id: str,
+        project_id: str,
+        metadata_enrichment_id: str,
         assets_to_add: list[str],
         assets_to_remove: Optional[list[str]] = None,
 ):
@@ -822,7 +1041,7 @@ async def find_metadata_enrichment_id_containing_dataset(
         json={"query": {"bool": {"must": must_match}}},
         params={"auth_cache": True, "tenant_scope": True},
     )
-
+    LOGGER.info(f"DEBUG:: data_set_id: {dataset_id} ==> metadata result: {response}")
     for row in response.get("rows", []):
         metadata = row["metadata"]
         if metadata["artifact_type"] == ARTIFACT_TYPE_DATA_ASSET:

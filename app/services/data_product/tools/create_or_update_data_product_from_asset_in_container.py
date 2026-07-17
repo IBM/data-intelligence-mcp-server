@@ -5,7 +5,8 @@
 # This file has been modified with the assistance of IBM Bob AI tool
 
 import time
-from typing import Any, cast
+from typing import Any, cast, Annotated
+from pydantic import Field
 
 from app.core.registry import service_registry
 from app.services.data_product.models.create_or_update_data_product_from_asset_in_container import (
@@ -185,8 +186,7 @@ def get_patch_data_asset_items_to_draft_payload(
 
 @service_registry.tool(
     name="create_update_data_product_from_asset_in_container",
-    description="""
-    This tool creates or updates a data product draft using pre-imported DPH catalog assets.
+    description="""Use this tool when you need to creates or updates a data product draft using pre-imported DPH catalog assets.
     
     IMPORTANT: This tool expects target_asset_ids from the import_remote_assets_to_data_product_catalog tool.
     It does NOT import assets - use import_remote_assets_to_data_product_catalog first to prepare assets.
@@ -204,12 +204,7 @@ def get_patch_data_asset_items_to_draft_payload(
     Example 2 - Add assets to an existing data product draft:
         target_asset_ids=["dph-asset-id-3"]
         existing_data_product_draft_id="existing-draft-id-123"
-
-    Args:
-        name (str | None): The name of the data product. Required for CREATE operations.
-        description (str | None): The description of the data product. Required for CREATE operations.
-        target_asset_ids (list[str]): List of DPH catalog asset IDs (from import_remote_assets_to_data_product_catalog tool).
-        existing_data_product_draft_id (str | None, optional): The ID of the existing data product draft. Provide only for UPDATE operations.
+    Returns: This tool returns detailed information about the created or updated data product draft, including its unique identifier, associated contract terms ID, and a direct URL to access the draft.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
@@ -220,10 +215,10 @@ def get_patch_data_asset_items_to_draft_payload(
 )
 @auto_context
 async def create_or_update_data_product_from_asset_in_container(
-    target_asset_ids: list[str],
-    name: str | None = None,
-    description: str | None = None,
-    existing_data_product_draft_id: str | None = None,
+    target_asset_ids: Annotated[list[str], Field(description="List of DPH catalog asset IDs (from import_remote_assets_to_data_product_catalog tool).")],
+    name: Annotated[str | None, Field(description="The name of the data product. Required for CREATE operations.")] = None,
+    description: Annotated[str | None, Field(description="The description of the data product. Required for CREATE operations.")] = None,
+    existing_data_product_draft_id: Annotated[str | None, Field(description="The ID of the existing data product draft. Provide only for UPDATE operations.")] = None,
 ) -> CreateOrUpdateDataProductFromAssetInContainerResponse:
     """Create or update a data product draft using pre-imported DPH catalog assets."""
     

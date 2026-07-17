@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     # Semaphore Settings (Application-level concurrency control)
     ibm_api_max_concurrent_calls: int = 50  # Max concurrent IBM API calls (protects downstream services)
     
+    # Retry Settings for Rate Limiting (HTTP 429)
+    retry_max_attempts: int = 3  # Maximum number of retry attempts for rate-limited requests
+    retry_backoff_base: float = 2.0  # Base for exponential backoff (2^0=1s, 2^1=2s, 2^2=4s, 2^3=8s...)
+    
     # Server-side Connection Settings (for HTTP transport mode)
     server_limit_concurrency: int = 300  # Max concurrent incoming client connections
     server_timeout_keep_alive: int = 60  # Keep-alive timeout for client connections (seconds)

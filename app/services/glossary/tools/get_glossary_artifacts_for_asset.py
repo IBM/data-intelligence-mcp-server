@@ -2,8 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Dict, List, Literal, Optional
+from typing import Annotated, Dict, List, Literal, Optional
 
+from pydantic import Field
 from app.core.registry import service_registry
 from app.services.constants import GS_BASE_ENDPOINT
 from app.services.glossary.constants import (
@@ -14,6 +15,7 @@ from app.services.glossary.constants import (
 from app.services.glossary.models.glossary_artifact import (
     GetGlossaryArtifactsForAssetRequest,
     GlossaryArtifact,
+    GetGlossaryArtifactsForAssetResponse
 )
 from app.services.tool_utils import find_asset_id, find_catalog_id, find_project_id
 from app.shared.logging import LOGGER, auto_context
@@ -125,7 +127,7 @@ def _format_glossary_artifacts_for_display(artifacts: List[GlossaryArtifact]) ->
 
 async def _get_glossary_artifacts_for_asset(
     request: GetGlossaryArtifactsForAssetRequest,
-) -> str:
+) -> GetGlossaryArtifactsForAssetResponse:
     """
     Retrieve glossary artifacts associated with an asset.
     
@@ -196,21 +198,23 @@ async def _get_glossary_artifacts_for_asset(
 
     rows = response.get("rows", [])
     if not rows:
-        return NO_GLOSSARY_ARTIFACTS_FOR_ASSET_IN_CONTAINER_MESSAGE.format(
+        return GetGlossaryArtifactsForAssetResponse(
+            message=NO_GLOSSARY_ARTIFACTS_FOR_ASSET_IN_CONTAINER_MESSAGE.format(
             asset=request.asset_id_or_name,
             container_type=request.container_type,
             container=request.container_id_or_name
-        )
+        ))
     
     metadata = rows[0].get("metadata", {})
     results = _extract_glossary_artifacts_from_metadata(metadata)
 
     if not results:
-        return NO_GLOSSARY_ARTIFACTS_FOR_ASSET_IN_CONTAINER_MESSAGE.format(
+        return GetGlossaryArtifactsForAssetResponse(
+            message=NO_GLOSSARY_ARTIFACTS_FOR_ASSET_IN_CONTAINER_MESSAGE.format(
             asset=request.asset_id_or_name,
             container_type=request.container_type,
             container=request.container_id_or_name
-        )
+        ))
 
     if results:
         ui_message_context.add_table_ui_message(
@@ -218,7 +222,7 @@ async def _get_glossary_artifacts_for_asset(
             formatted_data=_format_glossary_artifacts_for_table(results),
             title="Glossary artifacts",
         )
-    return _format_glossary_artifacts_for_display(results)
+    return GetGlossaryArtifactsForAssetResponse(message=_format_glossary_artifacts_for_display(results))
 
 
 @service_registry.tool(
@@ -227,18 +231,19 @@ async def _get_glossary_artifacts_for_asset(
         "readOnlyHint": True,
         "title": "Get All Business Terms and Classifications Associated with a Specific Asset"
     },
-    description="""Retrieve all business terms and classifications (these are the only two supported types of glossary artifacts) associated with a specific asset.
+    description="""Use this tool when you need to retrieve all business terms and classifications (these are the only two supported types of glossary artifacts) associated with a specific asset.
     When a user requests "get/list glossary items" without specifying asset details, prompt them to provide the following required parameters: asset_id_or_name, container_id_or_name, and container_type.
     
     This tool finds all glossary terms and classification that have been assigned to a particular asset.
-    This helps understand the business context and semantic meaning of the asset.""",
+    This helps understand the business context and semantic meaning of the asset.
+    Return: A formatted string listing all business terms and classifications associated with the specified asset, or a message indicating no glossary artifacts were found for the asset in the container.""",
 )
 @auto_context
 async def get_asset_glossary_artifacts(
-    asset_id_or_name: str,
-    container_id_or_name: str,
-    container_type: Literal["catalog", "project"],
-) -> str:
+    asset_id_or_name: Annotated[str, Field(description="UUID or name of the asset to retrieve glossary artifacts for")],
+    container_id_or_name: Annotated[str, Field(description="UUID or name of the project or catalog containing the asset")],
+    container_type: Annotated[Literal["catalog", "project"], Field(description="Type of container - either 'project' or 'catalog'")],
+) -> GetGlossaryArtifactsForAssetResponse:
     """Wrapper for get_asset_glossary_artifacts."""
     request = GetGlossaryArtifactsForAssetRequest(
         asset_id_or_name=asset_id_or_name,

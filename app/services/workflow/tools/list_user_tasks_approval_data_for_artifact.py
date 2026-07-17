@@ -10,7 +10,8 @@ Tool for listing user tasks based on artifact id as object of a task.
 This module provides functionality to query workflow API for user tasks.
 """
 
-from typing import Any, Dict, List, Optional, cast
+from typing import Annotated, Any, Dict, List, Optional, cast
+from pydantic import Field
 from app.core.registry import service_registry
 from app.services.constants import WORKFLOW_BASE_ENDPOINT, WORKFLOW_TASK_ENDPOINT
 from app.services.workflow.utils.task_utils import _parse_task_title_from_json
@@ -169,6 +170,7 @@ async def _query_user_tasks_by_artifact(artifact_id: str, draft: bool, max_resul
         return []
 
 list_user_tasks_approval_data_for_artifact_description="""
+Use this tool when you need to see the approval history, approvers, and workflow status for a specific artifact identified by artifact_id.
 list_user_tasks_approval_data_for_artifact returns a list user tasks in a data governance workflow for a specific artifact id along with
 final state of the workflow to find out approvers in user task data.
 ALWAYS define draft parameter: if text refers to future approvals set it true, otherwise false.
@@ -176,6 +178,7 @@ ALWAYS define draft parameter: if text refers to future approvals set it true, o
 Use format='json' for raw task data or format='table' (default) for formatted output.
 If you find markdown text in the result show it to the user.
 ALWAYS render the result as table if called with format='table' parameter
+Returns: The list of user tasks associated with the specified artifact, total count, and optionally a formatted markdown table or list showing approval history and workflow status.
 """
 
 
@@ -274,10 +277,10 @@ async def _list_user_tasks_approval_data_for_artifact(
 )
 @auto_context
 async def list_user_tasks_approval_data_for_artifact(
-    artifact_id: str,
-    max_results: int = 50,
-    draft: bool = False,
-    format: str = "table",
+    artifact_id: Annotated[str, Field(description="Artifact ID as object of a workflow")],
+    max_results: Annotated[int, Field(description="Maximum number of user tasks to return")] = 50,
+    draft: Annotated[bool, Field(description="Artifact in draft or published")] = False,
+    format: Annotated[str, Field(description="Output format: 'table' for formatted markdown table, 'json' for raw data")] = "table",
     ctx: Optional[Context] = None,
 ) -> ListUserTasksResponse:
     """Wrapper version of list_user_tasks_approval_data_for_artifact."""

@@ -2,11 +2,13 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
+from email import message
 import json
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Annotated
 from urllib.parse import urlencode
+from pydantic import Field
 
 from app.core.registry import service_registry
 from app.services.constants import LINEAGE_BASE_ENDPOINT, LINEAGE_UI_BASE_ENDPOINT
@@ -20,7 +22,7 @@ from app.services.lineage.models.get_lineage_graph import (
     GetLineageGraphResponse,
 )
 from app.services.lineage.tools.search_lineage_assets import _transform_lineage_assets
-from app.shared.exceptions.base import ExternalAPIError, ServiceError
+from app.shared.exceptions.base import ExternalAPIError, ServiceError, ValidationError
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import append_context_to_url, are_lineage_ids, verify_dates
 from app.shared.utils.tool_helper_service import tool_helper_service
@@ -276,7 +278,8 @@ async def _call_get_lineage_graph(
 
 async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraphResponse:
     if len(request.lineage_ids) < 1:
-        raise ServiceError("No assets were passed to the tool.")
+        raise ValidationError(message="No assets were passed to the tool.",
+        remediation_steps="Call search_lineage_assets tool or pass lineage ids")
 
     are_lineage_ids(request.lineage_ids)
 
@@ -288,8 +291,9 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
     if request.dates:
         dates_verified = verify_dates(dates=request.dates)
         if dates_verified and len(dates_verified) != 2:
-            raise ServiceError(
-                f"dates parameter must contain exactly 2 ISO 8601 dates, got {len(dates_verified)} dates"
+            raise ValidationError(
+                f"dates parameter must contain exactly 2 ISO 8601 dates, got {len(dates_verified)} dates",
+                remediation_steps="Pass exactly two dates in ISO 8601 format"
             )
 
     LOGGER.info(
@@ -322,7 +326,8 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
     
     if not (lineage_graph_response.get("assets_in_view")):
         raise ServiceError(
-            "call_get_lineage_graph finished successfully but no assets_in_view or/and edges_in_view were found."
+            "call_get_lineage_graph finished successfully but no assets_in_view or/and edges_in_view were found.",
+            remediation_steps="Try calling this tool again. If no assets are returned - return empty result."
         )
     return _construct_get_lineage_graph_response(
         lineage_ids,
@@ -338,7 +343,7 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
         "readOnlyHint": True,
         "title": "Get Upstream and Downstream Lineage Graph"
     },
-    description="""Retrieves upstream and downstream lineage graph using 64-character hexadecimal lineage IDs.
+    description="""Use this tool when you need to retrieves upstream and downstream lineage graph using 64-character hexadecimal lineage IDs.
     
     This tool generates a data lineage graph showing data flow relationships both upstream
     (data sources) and downstream (data consumers) from the specified assets. The graph depth
@@ -366,20 +371,7 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
     - Contains only hexadecimal characters (0-9, a-f)
     - If validation fails, call search_lineage_assets instead
     
-    Args:
-        lineage_ids (Union[str, List[str]]): One or more 64-character hexadecimal lineage IDs
-            (MUST be obtained from search_lineage_assets results or convert_asset_to_lineage_id results)
-        hop_up (Optional[str]): Number of upstream levels to traverse ("0", "1", "3", or "50").
-            Use "50" when user mentions "between", "ultimate source", or provides multiple lineage_ids. If only hop_down is specified use "0".
-        hop_down (Optional[str]): Number of downstream levels to traverse ("0", "1", "3", or "50").
-            Use "50" when user mentions "between", "ultimate target", or provides multiple lineage_ids. If only hop_up is specified use "0".
-        ultimate (Optional[str]): Specifies ultimate endpoint search mode
-            ("source", "target", "both", "", or None)
-        dates (Optional[str]): Two ISO 8601 dates used when user wants to compare two versions of graph.
-            Either a valid ISO 8601 dates or None.
-    
-    Returns:
-        UpstreamDownstreamLineage: Lineage graph containing:
+    Returns: Lineage graph containing:
             - lineage_assets: Complete list of assets in the lineage graph with metadata
             - edges_in_view: Connections between assets showing data flow in format - edge from: AssetA, to: AssetB, relation: RelationType
             - url: Direct link to visualize the lineage graph in the UI
@@ -434,11 +426,11 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
 )
 @auto_context
 async def get_lineage_graph(
-    lineage_ids: Union[str, List[str]],
-    hop_up: str = "3",
-    hop_down: str = "3",
-    ultimate: Optional[str] = None,
-    dates: Optional[str] = None
+    lineage_ids: Annotated[Union[str, List[str]], Field(description="One or more 64-character hexadecimal lineage IDs (MUST be obtained from search_lineage_assets results or convert_asset_to_lineage_id results)")],
+    hop_up: Annotated[str, Field(description="Number of upstream levels to traverse ('0', '1', '3', or '50'). Use '50' when user mentions 'between', 'ultimate source', or provides multiple lineage_ids. If only hop_down is specified use '0'")] = "3",
+    hop_down: Annotated[str, Field(description="Number of downstream levels to traverse ('0', '1', '3', or '50'). Use '50' when user mentions 'between', 'ultimate target', or provides multiple lineage_ids. If only hop_up is specified use '0'")] = "3",
+    ultimate: Annotated[Optional[str], Field(description="Specifies ultimate endpoint search mode ('source', 'target', 'both', '', or None)")] = None,
+    dates: Annotated[Optional[str], Field(description="Two ISO 8601 dates used when user wants to compare two versions of graph. Either valid ISO 8601 dates or None")] = None
 ) -> GetLineageGraphResponse:
     """Wrapper for get_lineage_graph."""
 

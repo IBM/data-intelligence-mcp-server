@@ -8,9 +8,10 @@
 
 
 from functools import partial
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 from string import Template
 
+from pydantic import Field
 from app.core.registry import service_registry
 from app.services.metadata_enrichment.models.metadata_enrichment import (
     TermGenerationRequest,
@@ -109,7 +110,7 @@ async def _execute_term_generation(
         "title": "Execute Term Generation within a Specified Project",
         "destructiveHint": True
     },
-    description="""Executes term generation on an existing metadata enrichment asset within a specified project.
+    description="""Use this tool when you need to executes term generation on an existing metadata enrichment asset within a specified project.
 
     This tool executes term generation on an metadata enrichment asset (MDE), running for all the data assets and data asset columns that are associated with the metadata enrichment asset.
     This tool has two modes depending on if a metadata_enrichment_name was provided by the user:
@@ -123,7 +124,7 @@ async def _execute_term_generation(
         1. A list of objectives
         2. The name of the MDE
         3. The id of the associated data assets, the count of missing terms, published terms and draft terms
-    - Returns MetadataEnrichmentResult with details of each MDE found in the project. Provide all details of the MDE in a user friendly format such as a table.
+    - Returns: MetadataEnrichmentResult with details of each MDE found in the project. Provide all details of the MDE in a user friendly format such as a table.
 
     metadata_enrichment_name IS provided:
     - Requires: project_identifier, metadata_enrichment_name
@@ -131,12 +132,12 @@ async def _execute_term_generation(
     - Gets a count of how many draft terms are currently in the workflow, prior to running term generation
     - Executes term generation in batches on the data assets, if there are any failures these are reported back to the user
     - Gets a count of how many draft terms are now in the workflow, after running term generation
-    - Returns TermGenerationResult with the count of term generated, the failed term generation attempts and URLs to the UI. Provide the response in a user friendly format such as a table""",
+    - Returns: TermGenerationResult with the count of term generated, the failed term generation attempts and URLs to the UI. Provide the response in a user friendly format such as a table""",
 )
 @auto_context
 async def execute_term_generation(
-    project_name: str,
-    metadata_enrichment_name: Optional[str] = None,
+    project_name: Annotated[str, Field(description="The name of the project you want to execute a metadata enrichment.")],
+    metadata_enrichment_name: Annotated[Optional[str], Field(description="The name of the metadata enrichment asset to run on.")] = None,
 ) -> TermGenerationResult | MetadataEnrichmentResult:
     """Wrapper that expands TermGenerationRequest into individual parameters."""
 

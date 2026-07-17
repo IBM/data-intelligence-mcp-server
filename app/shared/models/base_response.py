@@ -17,6 +17,10 @@ class BaseResponseModel(BaseModel):
         default=None, 
         description="Error message if the operation failed"
     )
+    remediation_steps: Optional[str] = Field(
+        default=None, 
+        description="Guidance on how to handle the error"
+    )
     success: bool = Field(
         default=True, 
         description="Whether the operation was successful"

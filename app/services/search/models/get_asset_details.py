@@ -25,7 +25,7 @@ class AssetUsage(BaseModel):
     access_count: int = Field(..., description="Number of times asset has been accessed")
 
 class MemberRoles(BaseModel):
-    user_iam_id: str = Field(..., description="IAM ID of a member of the asset")
+    user_iam_id: Optional[str] = Field(None, description="IAM ID of a member of the asset")
     roles: Optional[List[str]] = Field(None, description="Roles attached to the corresponding member of the asset")
 
 class Rov(BaseModel):

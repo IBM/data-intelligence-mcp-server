@@ -5,7 +5,8 @@
 # This file has been modified with the assistance of IBM Bob AI tool
 
 from datetime import datetime, timezone
-from typing import Optional, Union, Literal
+from typing import Optional, Union, Literal, Annotated
+from pydantic import Field
 
 from app.core.registry import service_registry
 from app.services.data_product.models.search_data_products import (
@@ -319,8 +320,7 @@ def _add_date_range_filter(
 
 @service_registry.tool(
     name="search_data_products",
-    description="""
-    Search for data products in the Data Product Hub with flexible filtering by name, domain, state, and creation date.
+    description="""Use this tool when you need to search for data products in the Data Product Hub with flexible filtering by name, domain, state, and creation date.
     Please note that the date filter is only for creation date. If the query is about a different date not related to product creation, please do not provide creation dates.
 
     This tool searches the Data Product Hub catalog and returns matching data products. Multiple filters can be
@@ -384,13 +384,7 @@ def _add_date_range_filter(
         
         # Combined filters
         search_data_products(product_search_query="Sales", domain="Finance", created_date_after="2026-01-01", state_filter="published")
-
-    Args:
-        product_search_query (str): Search query for product name or description. Use "*" for all products.
-        domain (Optional[str]): Business domain name to filter by. Must match an existing domain.
-        state_filter (Optional[str]): Filter by product state ("draft", "published", or None for all).
-        created_date_after (Optional[str]): Include products created on or after this date (YYYY-MM-DD format).
-        created_date_before (Optional[str]): Include products created on or before this date (YYYY-MM-DD format).
+    Returns: A comprehensive list of data products matching the search criteria, with detailed information about each product including its versioning, state, domain, and associated assets.
 """,
     tags={"search", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
@@ -401,11 +395,11 @@ def _add_date_range_filter(
 )
 @auto_context
 async def search_data_products(
-    product_search_query: Union[Literal["*"], str],
-    domain: Optional[str] = None,
-    state_filter: Optional[Union[Literal["draft"], Literal["published"]]] = None,
-    created_date_after: Optional[str] = None,
-    created_date_before: Optional[str] = None
+    product_search_query: Annotated[Union[Literal["*"], str], Field(description='The search query to search for data products and data product drafts. If the user wants to search for data products or drafts with a specific name, this is the name to search for. If user wants to search for all data products or drafts, this value should be "*".')],
+    domain: Annotated[Optional[str], Field(description="Filter by business domain name (e.g., 'Finance', 'Business Management').")] = None,
+    state_filter: Annotated[Optional[Union[Literal["draft"], Literal["published"]]], Field(description='Filter by data product state. Options: "draft" (unpublished products), "published" (published products). If None, searches both draft and published products.')] = None,
+    created_date_after: Annotated[Optional[str], Field(description="Filter products created on or after this date. Format: YYYY-MM-DD (e.g., '2026-01-15').")] = None,
+    created_date_before: Annotated[Optional[str], Field(description="Filter products created on or before this date. Format: YYYY-MM-DD (e.g., '2026-01-31').")] = None
 ) -> SearchDataProductsResponse:
     """Wrapper version that expands SearchDataProductsRequest object into individual parameters."""
 

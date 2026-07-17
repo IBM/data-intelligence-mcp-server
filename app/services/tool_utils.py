@@ -591,18 +591,20 @@ async def find_datasource_type_asset_id(datasource_type: str) -> str:
         params=params
     )
 
-    total_types = response.get("total_count")
+    total_types = response.get("total_count") or 0
     offset = params["offset"]
     datasource_type = datasource_type.lower()
 
-    while offset <= total_types:
+    while True:
         for resource in response.get('resources', []):
             datasource_type_name = resource['entity']['name'].lower()
             datasource_type_label = resource['entity']['label'].lower()
             if datasource_type == datasource_type_name or datasource_type == datasource_type_label:
                 return resource['metadata']['asset_id']
         offset += 100
-        params["offset"] += offset
+        if offset >= total_types:   # no more pages, stop before making an invalid request
+            break
+        params["offset"] = offset
         response = await tool_helper_service.execute_get_request(
             url=str(tool_helper_service.base_url) + DATASOURCE_TYPES_BASE_ENDPOINT, 
             headers=headers,
@@ -1259,3 +1261,63 @@ def _map_metadata_import(row: Any) -> MetadataImportResponse:
         asset_id=asset_id,
         href=href,
     )
+
+
+async def check_catalog_access(catalog_id: str, required_roles: list[str] | None = None) -> bool:
+    """
+    Check if the current user has the required access level to a catalog.
+    
+    Args:
+        catalog_id: The UUID of the catalog to check access for
+        required_roles: List of required roles (e.g., ["admin", "editor"]). 
+                       Defaults to ["admin", "editor"] if not provided.
+    
+    Returns:
+        bool: True if user has one of the required roles, False otherwise
+    
+    Raises:
+        ServiceError: If unable to retrieve catalog members or user information
+    """
+    
+    if required_roles is None:
+        required_roles = ["admin", "editor"]
+    
+    try:
+        # Get current user's identifier
+        current_user_id = await get_user_identifier()
+        if not current_user_id:
+            LOGGER.error("Unable to retrieve current user identifier")
+            raise ServiceError("Unable to retrieve current user information")
+        
+        # Build URL to get catalog members
+        url = build_container_members_url(catalog_id, "catalog")
+        
+        # Get catalog members
+        response = await tool_helper_service.execute_get_request(
+            url=url, tool_name="check_catalog_access"
+        )
+        members = response.get("members", [])
+        
+        # Check if current user is in the members list with required role
+        for member in members:
+            member_id = member.get("user_iam_id") or member.get("access_group_id")
+            member_role = member.get("role", "").lower()
+            
+            if member_id == current_user_id and member_role in required_roles:
+                LOGGER.info(
+                    f"User {current_user_id} has {member_role} access to catalog {catalog_id}"
+                )
+                return True
+        
+        LOGGER.warning(
+            f"User {current_user_id} does not have required access ({', '.join(required_roles)}) "
+            f"to catalog {catalog_id}"
+        )
+        return False
+        
+    except Exception as e:
+        LOGGER.error(f"Error checking catalog access: {str(e)}")
+        raise ServiceError(
+            f"Unable to verify access permissions for catalog '{catalog_id}'. "
+            f"Error: {str(e)}"
+        )

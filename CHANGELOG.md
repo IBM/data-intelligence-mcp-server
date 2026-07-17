@@ -2,6 +2,36 @@
 
 > All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project **adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)**.
 
+## [1.3.0] - Jul 17th, 2026
+
+### Added
+- **Metadata Enrichment**
+  - `create_or_metadata_enrichment_asset_jobs` - New tool to create a new Job for a given MDE in a given project.
+  - `list_metadata_enrichment_asset_jobs` - New tool to list the available jobs for a given MDE in a given project.
+- **Projects**:
+  - `publish_asset_to_catalog` - New tool to publish an asset from a source project to a target catalog using the platform's publish behavior.
+  - `add_asset_to_project` - New tool to add a catalog asset to a project by creating a reference. Supports asset and project lookup by ID or name, validates admin/editor access on the target project (including IAM group-based access), automatically searches all accessible catalogs when no catalog is specified, and checks for duplicates before adding. Returns asset ID, project ID/name, catalog ID/name, and a direct asset URL. Additionally, once the asset is in the project, you can also call `create_asset_from_sql_query` to create a SQL view on top of it.
+- **Search**:
+  - `update_asset_metadata` - New tool for updating asset metadata in catalogs or projects. Supports updating asset name, display name, description, privacy (ROV), format, tags, business terms, classifications, and related items (assets, artifacts, columns).
+- **Data Product Hub (DPH)**:
+  - `get_data_contract_test_results` - Retrieve data contract test results for draft or published data products, including test status, last tested time, test summary, and other metadata.
+
+### Changed
+- **Metadata Enrichment**
+  - `create_or_update_metadata_enrichment_asset` - The tool was updated to follow the new `Multi Jobs` support. With the new feature we create separately the MDE (without objectives and categories) and then we create one or more jobs with different objectives, categories, etc.
+  - `execute_metadata_enrichment_asset` - Updated the tool to support the new `Multi Jobs` feature.
+- **Glossary**:
+  - `explain_glossary_artifact` - Improved disambiguation logic to avoid false matches when an artifact name is similar to non-glossary artifact names.
+
+### Fixed
+- **Projects**:
+  - `create_project` - Added AWS SaaS storage handling by returning `amazon_s3` with empty `properties`, while continuing to validate CRN input and preserve IBM Cloud COS lookup behavior for non-AWS SaaS environments.
+- **Search**:
+  - `get_asset_details` - Fixed inability to fetch asset owner details in certain environments.
+- **Text to SQL**:
+  - `enable_container_for_text_to_sql` - Fixed onboarding for catalogs. Users will now provide a project when onboarding catalogs to create an onboarding job in.
+  - `check_if_onboarding_job_is_completed` - Fixed checking onboarding job status for catalogs. Users will now provide the project in which onboarding job was created when checking onboarding status for catalogs.
+
 ## [1.2.0] - June 12th, 2026
 
 ### Added
@@ -9,7 +39,7 @@
   - `data-product-creation` - New skill for orchestrating data product creation workflow with guided steps for asset selection, delivery method configuration, and publishing
 - **Text to SQL**:
   - `get_semantic_model` - Retrieve schema assets and metadata for text-to-SQL operations. Searches for relevant data assets based on user queries and returns detailed schema information including column metadata, primary keys, foreign keys, and profiling data. Supports filtering by container (project/catalog), connection, asset IDs, data source definitions, and document libraries.
-  
+
 ### Changed 
 - **Projects**:
   - `add_or_edit_collaborator` - Enhanced to support both **projects** and **catalogs**. Added `container_type` parameter (defaults to "project" for backward compatibility). Tool now works seamlessly with catalog collaborator management, automatically handling API differences between projects and catalogs (e.g., `user_iam_id`/`access_group_id` for catalogs vs `id` for projects).

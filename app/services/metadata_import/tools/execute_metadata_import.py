@@ -7,6 +7,8 @@
 # temporary discrepancies in behavior may occur between API updates and tool updates.
 
 from string import Template
+from typing import Annotated
+from pydantic import Field
 
 from app.core.registry import service_registry
 from app.services.constants import METADATA_IMPORT_BASE_ENDPOINT, JOBS_BASE_ENDPOINT
@@ -188,7 +190,7 @@ async def _execute_metadata_import(
 
 @service_registry.tool(
     name="execute_metadata_import",
-    description="""Execute a metadata import job in a project.
+    description="""Use this tool when you need to execute a metadata import job in a project.
 
     ERROR HANDLING:
     - If project not found: Use 'list_containers' to find available projects or verify the project name
@@ -203,8 +205,8 @@ async def _execute_metadata_import(
 )
 @auto_context
 async def execute_metadata_import(
-    project_name: str,
-    metadata_import_name: str,
+    project_name: Annotated[str, Field(description="The name of the project containing the metadata import asset.")],
+    metadata_import_name: Annotated[str, Field(description="The name of the metadata import asset to execute.")],
 ) -> ExecuteMetadataImportResponse:
     """Wrapper that expands ExecuteMetadataImportRequest object into individual parameters."""
 

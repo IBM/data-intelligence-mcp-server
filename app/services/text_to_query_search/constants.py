@@ -44,7 +44,7 @@ GOVERNANCE_GLOSSARY_PATHS: dict[str, str] = {
     "reference_data": "refdata",
 }
 
-TOOL_DESCRIPTION = """Understand user's request about searched items and return list of fetched data.
+TOOL_DESCRIPTION = """Use this tool when you need to searched items and return list of fetched data.
                        This tool is capable of generating dynamic search queries and executing them against search engine based on natural language input.
                        It may find data based on items metadata ( linked connection, tags, assigned business terms, schema details, etc.)
                        It may find different types of data. Possible artifact types: [data_asset, data_asset_column, connection, ibm_data_source, data_rule, data_rule_definition, glossary_term, category, job, classification, data_class, data_protection_rule, reference_data, metadata_import, metadata_enrichment_area ]
@@ -94,6 +94,8 @@ TOOL_DESCRIPTION = """Understand user's request about searched items and return 
                             - Search for assets created by user jacob: names_mapping=[{"name": "jacob", "type": "user"}]
                        - Invalid values will result in errors
                        - ALWAYS include subset or whole list of found data in your response with all details.
-                       - If there's search query included in the response please return it."""
+                       - If there's search query included in the response please return it.                     
+                       Query API Reference: https://api.dataplatform.cloud.ibm.com/semantic_automation/v1/swagger-ui/index.html
+                       Returns: The generated search query, list of matching assets with their metadata and URLs, and an optional message if results exceed the display limit or when assets are selected."""
 
 # Made with Bob

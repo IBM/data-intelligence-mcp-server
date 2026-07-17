@@ -2,9 +2,13 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
+from typing import Annotated
+from pydantic import Field
+
 from app.core.registry import service_registry
 from app.services.data_product.models.attach_business_domain_to_data_product import (
     AttachBusinessDomainToDataProductRequest,
+    AttachBusinessDomainToDataProductResponse,
 )
 from app.services.data_product.utils.common_utils import add_catalog_id_suffix, get_dph_catalog_id_for_user
 from app.shared.exceptions.base import ServiceError
@@ -16,7 +20,7 @@ from app.shared.logging import LOGGER, auto_context
 @add_catalog_id_suffix()
 async def _attach_business_domain_to_data_product(
     request: AttachBusinessDomainToDataProductRequest,
-) -> str:
+) -> AttachBusinessDomainToDataProductResponse:
     LOGGER.info(
         f"In the attach_business_domain_to_data_product tool, attaching business domain {request.domain} to the data product draft {request.data_product_draft_id}."
     )
@@ -67,19 +71,16 @@ async def _attach_business_domain_to_data_product(
     LOGGER.info(
         f"In the attach_business_domain_to_data_product tool, business domain {request.domain} attached to the data product draft {request.data_product_draft_id}."
     )
-    return f"Business domain {request.domain} is attached to the data product draft {request.data_product_draft_id}."
+    return AttachBusinessDomainToDataProductResponse(
+        message=f"Business domain {request.domain} is attached to the data product draft {request.data_product_draft_id}."
+    )
 
 
 @service_registry.tool(
     name="attach_business_domain_to_data_product",
-    description="""
-    This tool attaches the given business domain to a data product draft.
+    description="""Use this tool when you need to attaches the given business domain to a data product draft.
     The business domain given should be a valid business domain in the system or else this returns the list of business domains available to choose from.
-    Appropriate success message is sent if the business domain is attached to the data product draft.
-    
-    Args:
-        domain (str): The business domain to be attached to the data product draft.
-        data_product_draft_id (str): The ID of the data product draft to which the business domain is to be attached.
+    Return: A success message confirming that the business domain has been attached to the data product draft, including the domain name and data product draft ID.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
@@ -90,9 +91,9 @@ async def _attach_business_domain_to_data_product(
 )
 @auto_context
 async def attach_business_domain_to_data_product(
-    domain: str,
-    data_product_draft_id: str
-) -> str:
+    domain: Annotated[str, Field(description="The business domain to be attached to the data product draft.")],
+    data_product_draft_id: Annotated[str, Field(description="The ID of the data product draft to which the business domain is to be attached.")]
+) -> AttachBusinessDomainToDataProductResponse:
     """Wrapper version that expands AttachBusinessDomainToDataProductRequest object into individual parameters."""
 
     request = AttachBusinessDomainToDataProductRequest(

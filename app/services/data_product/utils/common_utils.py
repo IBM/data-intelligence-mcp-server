@@ -4,6 +4,7 @@
 from functools import wraps
 from datetime import date, timezone, datetime
 from urllib.parse import urlencode
+from typing import Any, Dict
 
 from app.shared.exceptions.base import ServiceError
 from app.shared.utils.tool_helper_service import tool_helper_service
@@ -182,3 +183,31 @@ def validate_inputs(request, *fields_to_validate):
             msg = f"{field.capitalize()} is a mandatory field. Please input the value for {field.capitalize()}."
             LOGGER.error(msg)
             raise ServiceError(msg)
+
+
+def extract_contract_terms_id(response: Dict[str, Any] | bytes, context: str) -> str:
+    """Extract and validate contract terms ID from response.
+    
+    Args:
+        response: API response containing contract terms
+        context: Context description for error messages (e.g., "data product draft")
+        
+    Returns:
+        str: The contract terms ID
+        
+    Raises:
+        ServiceError: If no contract terms ID is found
+    """
+    if isinstance(response, bytes):
+        raise ServiceError(f"Expected dict response but got bytes for {context}.")
+    
+    contract_terms = response.get("contract_terms", [])
+    if not contract_terms:
+        LOGGER.info(f"No contract terms found for {context}.")
+        raise ServiceError(f"No contract terms found for {context}.")
+    
+    contract_terms_id = contract_terms[0].get("id")
+    if not contract_terms_id:
+        LOGGER.info(f"No contract terms found for {context}.")
+        raise ServiceError(f"No contract terms found for {context}.")
+    return contract_terms_id

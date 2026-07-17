@@ -3,7 +3,8 @@
 # See the LICENSE file in the project root for license information.
 
 import re
-from typing import Literal
+from typing import Literal, Optional, Annotated
+from pydantic import Field
 from app.core.registry import service_registry
 from app.services.constants import JOBS_BASE_ENDPOINT
 from app.services.text_to_sql.models.check_if_onboarding_job_is_completed import (
@@ -16,12 +17,13 @@ from app.services.tool_utils import (
     find_catalog_id,
     get_onboarding_job_run_url,
 )
-from app.shared.exceptions.base import ExternalAPIError, ServiceError
+from app.shared.exceptions.base import ServiceError, ValidationError
 from app.shared.logging.generate_context import auto_context
 from app.shared.logging.utils import LOGGER
 from app.shared.utils.helpers import confirm_uuid
 from app.shared.utils.tool_helper_service import tool_helper_service
 
+REMEDIATION_MESSAGE="Call enable_container_for_text_to_sql tool first"
 
 async def _retrieve_onboarding_job_id(container_id, container_type):
     """
@@ -53,7 +55,9 @@ async def _retrieve_onboarding_job_id(container_id, container_type):
     )
     if not jobs:
         raise ServiceError(
-            f"Couldn't find Text To SQL onboarding job for {container_type} {container_id}. Please enable it first."
+            f"Couldn't find Text To SQL onboarding job for {container_type} {container_id}. Please enable it first.",
+            remediation_steps=REMEDIATION_MESSAGE,
+            tool="check_if_onboarding_job_is_completed"
         )
     return jobs[0].get("metadata", {}).get("asset_id", "")
 
@@ -81,7 +85,9 @@ async def _retrieve_onboarding_job_run_id(container_id, container_type, job_id):
     )
     if not runs:
         raise ServiceError(
-            f"Couldn't find Text To SQL onboarding job run for {container_type} {container_id}. Please enable it first."
+            f"Couldn't find Text To SQL onboarding job run for {container_type} {container_id}. Please enable it first.",
+            remediation_steps=REMEDIATION_MESSAGE,
+            tool="check_if_onboarding_job_is_completed"
         )
     return runs[0].get("metadata", {}).get("asset_id", "")
 
@@ -106,7 +112,7 @@ async def _check_onboarding_job_status(container_id, container_type, job_id, run
     response = await tool_helper_service.execute_get_request(
         url=f"{tool_helper_service.base_url}{JOBS_BASE_ENDPOINT}/{job_id}/runs/{run_id}",
         params=params,
-        tool_name="enable_container_for_text_to_sql",
+        tool_name="check_if_onboarding_job_is_completed",
     )
     run_state = response.get("entity", {}).get("job_run", {}).get("state", "Running")
 
@@ -119,7 +125,8 @@ async def _check_onboarding_job_status(container_id, container_type, job_id, run
         "completedwitherrors",
     ]:
         raise ServiceError(
-            f"Tool check_if_onboarding_job_is_completed call finishes unsuccessfully because onboarding job had some failure for job_id: {job_id}, run_id: {run_id} in {container_type}: {container_id}. Please check the job status in the UI: {get_onboarding_job_run_url(container_id, container_type, job_id, run_id)}."
+            f"Tool check_if_onboarding_job_is_completed call finishes unsuccessfully because onboarding job had some failure for job_id: {job_id}, run_id: {run_id} in {container_type}: {container_id}. Please check the job status in the UI: {get_onboarding_job_run_url(container_id, container_type, job_id, run_id)}.",
+            tool="check_if_onboarding_job_is_completed"
         )
     return False
 
@@ -129,31 +136,43 @@ async def _check_if_onboarding_job_is_completed(
 ) -> CheckIfOnboardingJobIsCompletedResponse:
 
     LOGGER.info(
-        "Calling check_if_onboarding_job_is_completed, container_id_or_name: %s, container_type: %s",
+        "Calling check_if_onboarding_job_is_completed, container_id_or_name: %s, container_type: %s, project_id_or_name: %s",
         input.container_id_or_name,
         input.container_type,
+        input.project_id_or_name,
     )
 
     container_id = ""
+    project_for_onboarding = ""
     if input.container_type == "project":
         container_id = await confirm_uuid(input.container_id_or_name, find_project_id)
+        project_for_onboarding = container_id
     elif input.container_type == "catalog":
+        if not input.project_id_or_name:
+            raise ValidationError(
+                "project_id_or_name is required when checking status for onboarding a catalog to determine the project in which the onboarding job is.",
+                remediation_steps="Provide project_id_or_name parameter of existing project.",
+                tool="check_if_onboarding_job_is_completed"
+            )
         container_id = await confirm_uuid(input.container_id_or_name, find_catalog_id)
+        project_for_onboarding = await confirm_uuid(input.project_id_or_name, find_project_id)
 
     if not await check_if_container_is_enabled_for_text_to_sql(container_id, input.container_type):
         raise ServiceError(
-            f"Tool check_if_onboarding_job_is_completed failed because {input.container_type} {container_id} has not been enabled for Text to SQL. Please enable it first."
+            f"Tool check_if_onboarding_job_is_completed failed because {input.container_type} {container_id} has not been enabled for Text to SQL. Please enable it first.",
+            remediation_steps=REMEDIATION_MESSAGE,
+            tool="check_if_onboarding_job_is_completed"
         )
 
-    job_id = await _retrieve_onboarding_job_id(container_id, input.container_type)
-    run_id = await _retrieve_onboarding_job_run_id(container_id, input.container_type, job_id)
+    job_id = await _retrieve_onboarding_job_id(project_for_onboarding, "project")
+    run_id = await _retrieve_onboarding_job_run_id(project_for_onboarding, "project", job_id)
 
-    if await _check_onboarding_job_status(container_id, input.container_type, job_id, run_id):
+    if await _check_onboarding_job_status(project_for_onboarding, "project", job_id, run_id):
         return CheckIfOnboardingJobIsCompletedResponse(
             state="Onboarding job is completed."
         )
     return CheckIfOnboardingJobIsCompletedResponse(
-        state=f"Onboarding job is still in progress. Use this link to check the status of the job: {get_onboarding_job_run_url(container_id, input.container_type, job_id, run_id)}"
+        state=f"Onboarding job is still in progress. Use this link to check the status of the job: {get_onboarding_job_run_url(project_for_onboarding, 'project', job_id, run_id)}"
     )
 
 
@@ -163,18 +182,21 @@ async def _check_if_onboarding_job_is_completed(
         "readOnlyHint": True,
         "title": "Check Text-to-SQL Onboarding Job Status for a Project or Catalog"
     },
-    description="This tool checks if the onboarding job for enabling Text to SQL is completed.",
+    description="""Use this tool when you need to checks if the onboarding job (running in a project) for enabling Text to SQL is completed.
+    Returns: The Text-to-SQL onboarding job is completed or still in progress, with a status message and optional job monitoring URL.""",
 )
 @auto_context
 async def check_if_onboarding_job_is_completed(
-    container_id_or_name: str,
-    container_type: Literal["catalog", "project"] = "project"
+    container_id_or_name: Annotated[str, Field(description="Name or UUID of the container to onboard.")],
+    container_type: Annotated[Literal["catalog", "project"], Field(description="The container type of the container to onboard, project by default.")] = "project",
+    project_id_or_name: Annotated[Optional[str], Field(description="Name or UUID of the project to create the onboarding job in, only required when onboarding non-project container.")] = None
 ) -> CheckIfOnboardingJobIsCompletedResponse:
     """Wrapper version that expands CheckIfOnboardingJobIsCompletedRequest object into individual parameters."""
 
     request = CheckIfOnboardingJobIsCompletedRequest(
-        container_id_or_name=container_id_or_name,
-        container_type=container_type,
+        container_id_or_name=container_id_or_name, 
+        container_type=container_type, 
+        project_id_or_name=project_id_or_name
     )
 
     # Call the original check_if_onboarding_job_is_completed function

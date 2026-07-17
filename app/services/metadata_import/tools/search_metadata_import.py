@@ -2,7 +2,8 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import List, Optional
+from typing import List, Optional, Annotated
+from pydantic import Field
 
 from app.core.registry import service_registry
 from app.services.metadata_enrichment.models.metadata_enrichment import MetadataImportResponse
@@ -31,7 +32,7 @@ async def _search_metadata_import(
         "readOnlyHint": True,
         "title": "Search and List Existing Metadata Import Configurations"
     },
-    description="""Searches for the available metadata import .
+    description="""Use this tool when you need to searches for the available metadata import .
 
     This function is mainly used when a user want to create or update a metadata enrichment (MDE) and does not provide an asset or want to use a metadata import (MDI).
     This function can search for all the available metadata imports (MDI) or search a metadata imports by name
@@ -40,12 +41,12 @@ async def _search_metadata_import(
 
     This function supports wildcard search
 
-    Return the result in a table in MD format.
+    Return: The result in a table in MD format.
     """,
 )
 @auto_context
 async def search_metadata_import(
-        project: str,
-        metadata_import_name: Optional[str] = None,
+        project: Annotated[str, Field(description="Name or ID of the project to search for metadata imports")],
+        metadata_import_name: Annotated[Optional[str], Field(description="The name of the metadata import asset to execute.")] = None,
 ) -> List[MetadataImportResponse]:
     return await _search_metadata_import(project, metadata_import_name)

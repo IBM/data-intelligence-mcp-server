@@ -13,6 +13,7 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
+from typing import Annotated
 from app.core.registry import service_registry
 from app.shared.logging.generate_context import auto_context
 from app.shared.logging import LOGGER
@@ -236,7 +237,8 @@ END OF SCHEMA GUIDE
         "readOnlyHint": True,
         "title": "Get JSON Schema for Data Protection Rule Creation"
     },
-    description="Returns the complete JSON schema, valid terms, examples, and formatting rules for creating data protection rules. Call this BEFORE creating a rule to understand the correct JSON format.",
+    description="""Use this tool when you need to understand the JSON schema and format requirements before creating a data protection rule.
+    Returns: The complete JSON schema, valid terms, examples, and formatting rules for creating data protection rules.""",
     tags={"data_protection_rules", "schema", "reference"},
     meta={"version": "1.0", "service": "data_protection_rules"},
 )

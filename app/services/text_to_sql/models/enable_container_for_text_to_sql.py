@@ -4,13 +4,14 @@
 
 from pydantic import BaseModel
 from pydantic import Field
-from typing import Literal
+from typing import Literal, Optional
 from app.shared.models import BaseResponseModel
 
 
 class EnableContainerForTextToSqlRequest(BaseModel):
     container_id_or_name: str = Field(..., description="Name or UUID of the container to onboard.")
     container_type: Literal["catalog", "project"] = Field("project", description="The container type of the container to onboard, project by default.")
+    project_id_or_name: Optional[str] = Field(None, description="Name or UUID of the project to create the onboarding job in, only required when onboarding non-project container.")
 
 
 class EnableContainerForTextToSqlResponse(BaseResponseModel):

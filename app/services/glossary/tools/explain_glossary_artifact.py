@@ -3,8 +3,9 @@
 # See the LICENSE file in the project root for license information.
 
 import json
-from typing import Any, Dict, Optional
+from typing import Annotated, Any, Dict, Optional
 
+from pydantic import Field
 from fastmcp import Context
 
 from app.core.registry import service_registry
@@ -200,6 +201,20 @@ def _transform_global_search_response(
     if not rows:
         return None
 
+    # Filter to only glossary artifact types; non-glossary types (e.g. data_asset,
+    # data_asset_column) lack the artifact_id/version_id fields and would cause a crash.
+    glossary_rows = [
+        row for row in rows
+        if row.get("metadata", {}).get("artifact_type") in ARTIFACT_TYPE_MAPPING
+    ]
+    if not glossary_rows:
+        non_glossary_types = sorted({
+            row.get("metadata", {}).get("artifact_type")
+            for row in rows
+            if row.get("metadata", {}).get("artifact_type")
+        })
+        return {"non_glossary_types": non_glossary_types}
+
     def row_score(row):
         metadata = row.get("metadata", {})
         name = metadata.get("name", "").lower()
@@ -207,7 +222,7 @@ def _transform_global_search_response(
         name_match = 1 if name == artifact_name.lower() else 0
         return (name_match, score)
 
-    row = sorted(rows, key=row_score, reverse=True)[0]
+    row = sorted(glossary_rows, key=row_score, reverse=True)[0]
 
     metadata = row.get("metadata", {})
     entity = row.get("entity", {})
@@ -282,6 +297,16 @@ async def _explain_glossary_artifact(
             f"Could not find glossary artifact with name '{request.artifact_name}'"
         )
 
+    if "non_glossary_types" in transformed_data:
+        non_glossary_types = transformed_data["non_glossary_types"]
+        types_str = ", ".join(non_glossary_types) if non_glossary_types else "unknown"
+        raise ServiceError(
+            f"'{request.artifact_name}' exists but is not a glossary artifact "
+            f"(found type(s): {types_str}). "
+            f"This tool only supports glossary artifacts such as glossary terms, "
+            f"classifications, data classes, policies, rules, categories, and reference data sets."
+        )
+
     glossary_artifact = transformed_data["glossary_artifact"]
     metadata = transformed_data["metadata"]
     entity = transformed_data["entity"]
@@ -317,9 +342,7 @@ async def _explain_glossary_artifact(
         "readOnlyHint": True,
         "title": "Retrieve and Generate Detailed Explanations for Glossary Artifacts by Name"
     },
-    description="""Explain detailed information about a glossary artifact by its name.
-
-    This tool retrieves and explains metadata about a glossary artifact, which could be any of:
+    description="""Use this tool when you need to retrieves and explains metadata about a glossary artifact, which could be any of:
     - Glossary term
     - Classification
     - Data class
@@ -327,11 +350,12 @@ async def _explain_glossary_artifact(
     - Policy
     - Rule (Glossary artifact)
 
-    The explanation includes the artifact's definition, purpose, and related metadata.""",
+    The explanation includes the artifact's definition, purpose, and related metadata.
+    Return: The glossary artifact details (id, name, type, url), a textual explanation of the artifact and its purpose, and metadata indicating whether the description was AI-generated.""",
 )
 @auto_context
 async def explain_glossary_artifact(
-    artifact_name: str,
+    artifact_name: Annotated[str, Field(description="The name of the glossary artifact to look up. Can be a glossary term, classification, data class, reference data, policy, or rule.")],
     ctx: Optional[Context] = None,
 ) -> GlossaryArtifactDescription:
     """

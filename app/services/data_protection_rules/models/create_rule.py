@@ -23,7 +23,7 @@ class CreateRuleRequest(BaseModel):
 
 class CreateRuleResponse(BaseResponseModel):
     """Response model for rule creation."""
-    success: bool
+    success: bool = True
     message: str
     rule_id: str | None = None
     url: str | None = None

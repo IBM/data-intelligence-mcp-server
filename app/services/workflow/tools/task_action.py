@@ -14,7 +14,7 @@ This module provides functionality to claim, complete, or unclaim workflow tasks
 import json
 import re
 from enum import Enum
-from typing import List, Dict, Optional, Any, Type, Literal
+from typing import Annotated, List, Dict, Optional, Any, Type, Literal
 from pydantic import BaseModel, Field, create_model
 from app.core.registry import service_registry
 from app.core.auth import get_user_identifier
@@ -1539,7 +1539,7 @@ async def _handle_complete_action(
 
 
 task_action_description="""
-    Perform an action on a workflow task: claim, complete, or unclaim.
+    Use this tool when you need to perform an action on a workflow task: claim, complete, or unclaim.
     
     This tool allows you to:
     - Claim a task (assign it to yourself)
@@ -1579,6 +1579,7 @@ task_action_description="""
     For unclaim action, the tool simply releases the claimed task.
     
     Make sure to use a request json object for the parameters.
+    Returns: The status code and message indicating the result of the workflow task action (claim, complete, or unclaim).
     """
 
 
@@ -1624,9 +1625,11 @@ async def _task_action(
 )
 @auto_context
 async def perform_workflow_task_action(
-    task_id: str,
-    action: str = "claim",
-    form_values: Optional[Dict[str, str]] = None,
+    task_id: Annotated[str, Field(description="Unique identifier of the task")],
+    action: Annotated[str, Field(description="Action to perform on the task: 'claim' to assign the task, 'complete' to finish it, or 'unclaim' to release it")] = "claim",
+    form_values: Annotated[Optional[Dict[str, str]], Field(description="""Optional pre-filled form field values for the 'complete' action. 
+                                                           Use this to supply values when elicitation is not supported or on retry 
+                                                           after a 501 response. Keys must match form property IDs from the task.""")] = None,
     ctx: Context = None
 ) -> TaskActionResponse:
     """Wrapper version of perform_workflow_task_action."""

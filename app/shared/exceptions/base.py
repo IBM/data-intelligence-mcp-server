@@ -13,14 +13,22 @@ class MCPServiceError(Exception):
         message: The error message
         service: The service name where the error occurred (optional)
         tool: The tool name where the error occurred (optional)
+        remediation_steps: Guidance on how to handle the error (optional)
     """
 
-    def __init__(self, message: str, service: str = "", tool: str = "") -> None:
+    def __init__(
+        self,
+        message: str,
+        service: str = "",
+        tool: str = "",
+        remediation_steps: str = ""
+    ) -> None:
         """Initialize MCPServiceError with message and optional context."""
         super().__init__(message)
         self.message = message
         self.service = service
         self.tool = tool
+        self.remediation_steps = remediation_steps
 
 
 class ServiceError(MCPServiceError):

@@ -57,8 +57,14 @@ class GlobalSearchAssetResponse(BaseResponseModel):
     catalog_id: Optional[str] = Field(
         None, description="Catalog identifier in which the asset resides"
     )
+    catalog_name: Optional[str] = Field(
+        None, description="Catalog name in which the asset resides"
+    )
     project_id: Optional[str] = Field(
         None, description="Project identifier in which the asset resides"
+    )
+    project_name: Optional[str] = Field(
+        None, description="Project name in which the asset resides"
     )
     url: str = Field(..., description="URL of the asset")
     source_data: Optional[dict] = Field(

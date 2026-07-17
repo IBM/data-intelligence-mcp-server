@@ -5,7 +5,8 @@
 from app.core.registry import service_registry
 from app.services.connections.models.copy_connection import CopyConnectionRequest, CopyConnectionResponse
 
-from typing import Optional, Literal
+from typing import Optional, Literal, Annotated
+from pydantic import Field
 
 from app.shared.logging import LOGGER, auto_context
 from app.shared.exceptions.base import ServiceError
@@ -87,7 +88,7 @@ async def _copy_connection(
         "title": "Create Connection Copy in Target Container",
         "destructiveHint": True
     },
-    description="""Understand user's request about creating a new connetion from an existing connection,
+    description="""Use this tool when you need to create a new connetion from an existing connection,
                     in other words, copying a connection, or using an existing connection in a different
                     container, and returning the details of the new connection.
                     Users are required to provide the identifier of the existing connection to be copied
@@ -111,16 +112,17 @@ async def _copy_connection(
                     - target_container must be provided
                     - target_container_type if not provided defaults to "project"
                     - connection to be copied can only exist in a catalog
+                    Return: * id: Unique identifier of the newly created connection * name: Name of the newly created connection * create_time: Timestamp when the connection was created or copied * creator_id: Identifier of the user who copied the connection. 
                     """,
     tags={"copy", "connection"},
     meta={"version": "1.0", "service": "connections"}
 )
 @auto_context
 async def copy_connection(
-    connection_name: str,
-    target_container: str,
-    source_catalog: Optional[str] = None,
-    target_container_type: Literal["catalog", "project"] = "project",
+    connection_name: Annotated[str, Field(description="Name of the existing connection to copy.")],
+    target_container: Annotated[str, Field(description="Name or UUID of the project or catalog to copy the connection to.")],
+    source_catalog: Annotated[Optional[str], Field(description="Name or UUID of the catalog that contains the connection to copy.")] = None,
+    target_container_type: Annotated[Literal["catalog", "project"], Field(description="The container type of the target container.")] = "project",
 ) -> CopyConnectionResponse:
     """Wrapper version that expands CopyConnectionRequest object into individual parameters."""
 

@@ -4,6 +4,9 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
+from typing import Annotated
+from pydantic import Field
+
 from app.core.registry import service_registry
 from app.services.data_product.models.create_or_update_url_data_product import (
     CreateOrUpdateUrlDataProductRequest,
@@ -270,8 +273,7 @@ def get_patch_data_asset_items_with_delivery_method_to_draft_payload(
 
 @service_registry.tool(
     name="create_or_update_url_data_product",
-    description="""
-    This tool creates a data product draft from a URL or updates an existing draft to add a URL asset to it.
+    description="""Use this tool when you need to creates a data product draft from a URL or updates an existing draft to add a URL asset to it.
     It strictly follows the following rules:
     - FIRST: Search all data products to check if the URL already exists in any data product's parts_out.
     - If duplicates are found AND force=False: STOP immediately and return error with duplicate information.
@@ -284,14 +286,7 @@ def get_patch_data_asset_items_with_delivery_method_to_draft_payload(
         In this case, request.existing_data_product_draft_id is NOT null/None.
         Identifies the data product draft by request.existing_data_product_draft_id and adds the URL asset to the data product draft.
         'Add a URL asset to data product draft <url>,.....'
-
-    Args:
-        name (str): The name of the data product. Read the value from user.
-        description (str): The description of the data product. Read the value from user.
-        url_value (str): The URL value of the data product. Read the value from user.
-        url_name (str): The URL name of the data product. Read the value from user.
-        existing_data_product_draft_id (str | None, optional): The ID of the existing data product draft. This field is populated only if we are adding a URL asset item to an existing draft, otherwise this field value is None.
-        force (bool, optional): If True, creates a new draft even if a data product with the same URL already exists. If False (default), stops creation and returns error with existing data products that use the specified URL.
+    Returns: This tool returns detailed information about the created or updated URL-based data product draft, including its unique identifier, associated contract terms ID, and a direct URL to access the draft.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
@@ -302,12 +297,12 @@ def get_patch_data_asset_items_with_delivery_method_to_draft_payload(
 )
 @auto_context
 async def create_or_update_url_data_product(
-    name: str,
-    description: str,
-    url_name: str,
-    url_value: str,
-    existing_data_product_draft_id: str | None = None,
-    force: bool = False
+    name: Annotated[str, Field(description="The name of the data product. Read the value from user.")],
+    description: Annotated[str, Field(description="The description of the data product. Read the value from user.")],
+    url_name: Annotated[str, Field(description="The URL name of the data product. Read the value from user.")],
+    url_value: Annotated[str, Field(description="The URL value of the data product. Read the value from user.")],
+    existing_data_product_draft_id: Annotated[str | None, Field(description="The ID of the existing data product draft. This field is populated only if we are adding a URL asset item to an existing draft, otherwise this field value is None.")] = None,
+    force: Annotated[bool, Field(description="If True, creates a new draft even if a data product with the same URL already exists. If False (default), stops creation and returns error with existing data products that use the specified URL.")] = False
 ) -> CreateOrUpdateUrlDataProductResponse:
     """Wrapper version that expands CreateOrUpdateUrlDataProductRequest object into individual parameters."""
 

@@ -3,6 +3,8 @@
 # See the LICENSE file in the project root for license information.
 # This file has been modified with the assistance of IBM Bob AI tool
 
+from typing import Annotated
+from pydantic import Field
 from app.core.registry import service_registry
 from app.services.data_protection_rules.models.create_rule import (
     CreateRuleRequest,
@@ -40,7 +42,7 @@ WRONG_RULE_FORMAT_MESSAGE_TEMPLATE = (
     "- Support governance artifacts: Data class, Business term, Classification. \n"
     "- Specific protection action (mask column, deny access, filter rows, obfuscate column, substitute column.)")
 
-RULE_CREATION_DESCRIPTION = """Create a data protection rule from JSON string.
+RULE_CREATION_DESCRIPTION = """Use this tool when you need to create a data protection rule from JSON string.
 
 ⚠️ IMPORTANT: Call get_data_protection_rule_schema() FIRST to get the JSON format, valid terms, and examples.
 
@@ -51,12 +53,7 @@ WORKFLOW:
 2. THEN: Call this tool with preview_only=true (default) to preview the rule
 3. FINALLY: After user confirms, call again with preview_only=false to create
 
-Args:
-    rule_json: JSON string defining the rule (get format from get_data_protection_rule_schema())
-    preview_only: If true (default), shows preview. If false, creates the rule.
-
-Returns:
-    Preview or creation result with rule_id and URL
+Returns: Preview or creation result with rule_id and URL
 """
 
 async def _create_data_protection_rule(request: CreateRuleRequest) -> CreateRuleResponse:
@@ -187,8 +184,8 @@ async def _create_data_protection_rule(request: CreateRuleRequest) -> CreateRule
 )
 @auto_context
 async def create_data_protection_rule(
-    rule_json: str,
-    preview_only: bool = True
+    rule_json: Annotated[str, Field(description="JSON string defining the rule (get format from get_data_protection_rule_schema())")],
+    preview_only: Annotated[bool, Field(description="If true (default), shows preview. If false, creates the rule.")] = True
 ) -> CreateRuleResponse:
     """
     Wrapper version for rule creation.

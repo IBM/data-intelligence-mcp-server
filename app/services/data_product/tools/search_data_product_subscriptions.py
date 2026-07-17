@@ -11,7 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Annotated
+from pydantic import Field
 
 from app.core.registry import service_registry
 from app.services.data_product.models.search_data_product_subscriptions import (
@@ -135,8 +136,7 @@ async def _search_data_product_subscriptions(
 
 @service_registry.tool(
     name="search_data_product_subscriptions",
-    description="""
-    Search and filter data product subscriptions (asset lists) from IBM Cloud Data Product Hub.
+    description="""Use this tool when you need to search and filter data product subscriptions (asset lists) from IBM Cloud Data Product Hub.
     
     This tool searches asset lists of type "order" which represent data product subscriptions.
     Returns subscription METADATA including ID, state, name, and owner information.
@@ -195,18 +195,6 @@ async def _search_data_product_subscriptions(
     - List of subscriptions with metadata (ID, state, name, owner)
     - Pagination information (next, first links)
     - Total count of results
-    
-    Args:
-        query: Optional CEL query to filter subscriptions. Examples:
-               - asset.id=="6d80d7d4-ca55-4fb0-8b70-bb799a2881dd" (find subscriptions for a data product)
-               - name=="My data product" (find by name)
-               - state=="succeeded" (find successful subscriptions)
-        limit: Maximum number of results to return (1-200). Use None for no limit, 0 for count only.
-        start: Pagination start token from previous response.
-        sort: Comma-separated sort fields (e.g., 'created_at,-last_updated_at'). Prefix with '-' for descending.
-    
-    Returns:
-        SearchDataProductSubscriptionsResponse: Object containing subscriptions list, total_count, and pagination info
     """,
     tags={"read", "data_product", "subscriptions"},
     meta={"version": "1.0", "service": "data_product"},
@@ -217,10 +205,10 @@ async def _search_data_product_subscriptions(
 )
 @auto_context
 async def search_data_product_subscriptions(
-    query: Optional[str] = None,
-    limit: Optional[int] = None,
-    start: Optional[str] = None,
-    sort: Optional[str] = None
+    query: Annotated[Optional[str], Field(description="Optional CEL query to filter subscriptions. Examples: asset.id==\"6d80d7d4-ca55-4fb0-8b70-bb799a2881dd\" (find subscriptions for a data product), name==\"My data product\" (find by name), state==\"succeeded\" (find successful subscriptions)")] = None,
+    limit: Annotated[Optional[int], Field(description="Maximum number of results to return (1-200). Use None for no limit, 0 for count only.")] = None,
+    start: Annotated[Optional[str], Field(description="Pagination start token from previous response.")] = None,
+    sort: Annotated[Optional[str], Field(description="Comma-separated sort fields (e.g., 'created_at,-last_updated_at'). Prefix with '-' for descending.")] = None
 ) -> SearchDataProductSubscriptionsResponse:
     """Wrapper version that expands SearchDataProductSubscriptionsRequest object into individual parameters."""
     

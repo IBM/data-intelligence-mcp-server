@@ -4,7 +4,8 @@
 
 import asyncio
 import re
-from typing import Optional
+from typing import Optional, Annotated
+from pydantic import Field
 from app.core.registry import service_registry
 from app.services.search.models.get_asset_details import (
     GetAssetDetailsRequest,
@@ -87,12 +88,13 @@ async def _get_asset_details(
         "readOnlyHint": True,
         "title": "Get Comprehensive Metadata and Details for a Specific Asset"
     },
-    description="""Understand user's request about getting an asset's details / metadata and return the retrieved metadata.
+    description="""Use this tool when you need comprehensive metadata and details for a specific asset identified by name or UUID.
+                    Understand user's request about getting an asset's details / metadata and return the retrieved metadata.
                     Possible details that the user could be looking for include: asset usage, rov, member roles, collaborators, sub-container,
                     asset name, asset description, asset tags, asset type, origin country, resource key, identity key, delete processing state,
                     delete reason, asset rating, total asset ratings, asset creation time, asset owner, asset size, asset version, asset state,
                     asset attributes, revision id, entity information (columns etc.) etc.
-                    User could request for all details or specific details. 
+                    User could request for all details or specific details.
                     Example: Find details for asset dummy_asset in test catalog.
                     In this case, asset parameter will be 'dummy_asset', catalog parameter will be 'test' and project parameter will be None.
                     Example: Find metadata for asset testdb in agent project.
@@ -105,13 +107,16 @@ async def _get_asset_details(
                     IMPORTANT CONSTRAINTS:
                     - Asset parameter is required, either name or UUID
                     - One of catalog or project parameters is required to be not null, both cannot be null, both cannot be not null
-                    - Invalid values will result in errors""",
+                    - Invalid values will result in errors
+                    Return: Comprehensive asset metadata including usage information, ROV details, asset properties (name, description, tags, type), ownership details, creation/update timestamps, ratings, container information, and entity details.""",
     tags={"search", "asset_metadata"},
     meta={"version": "1.0", "service": "search"}
 )
 @auto_context
 async def get_asset_details(
-    asset: str, catalog: Optional[str], project: Optional[str]
+    asset: Annotated[str, Field(description="UUID or name of the asset to retrieve the metadata for")],
+    catalog: Annotated[Optional[str], Field(description="Catalog identifier (UUID or name) in which the asset resides")],
+    project: Annotated[Optional[str], Field(description="Project identifier (UUID or name) in which the asset resides")]
 ) -> GetAssetDetailsResponse:
     """Wrapper that expands GetAssetDetailsRequest object into individual parameters."""
 

@@ -7,6 +7,9 @@
 import re
 from typing import List, Set
 
+from typing import Annotated
+from pydantic import Field
+
 from app.core.registry import service_registry
 from app.core.auth import get_bss_account_id
 from app.services.constants import (
@@ -195,7 +198,7 @@ async def _list_containers(
         "readOnlyHint": True,
         "title": "List All Available Containers (Catalogs, Projects, and Spaces)"
     },
-    description="""Lists all available containers - catalogs, projects or spaces.
+    description="""Use this tool when you need to lists all available containers - catalogs, projects or spaces.
     
     This tool finds all containers (catalogs, projects or spaces) that are available to the current user.
     
@@ -204,11 +207,11 @@ async def _list_containers(
     - Also supports combinations: "catalog,project", "projects and catalogs", "catalogs, projects", etc.
     - Handles both singular and plural forms
     - Defaults to "all" if not specified
-    - Returns list of containers with their IDs, names, types, and URLs""",
+    Returns: List of containers with their IDs, names, types, and URLs""",
 )
 @auto_context
 async def list_containers(
-    container_type: str = "all"
+    container_type: Annotated[ContainerType, Field(description="Type of container to list - 'project', 'catalog', 'space', or 'all'. Defaults to 'all'.")] = ContainerType.ALL
 ) -> ListContainersResponse:
     """Wrapper that expands ListContainersRequest object into individual parameters."""
     

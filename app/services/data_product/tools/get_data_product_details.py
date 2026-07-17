@@ -11,7 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Dict, Any, List, cast
+from typing import Optional, Dict, Any, List, cast, Annotated
+from pydantic import Field
 import re
 
 from app.core.registry import service_registry
@@ -727,7 +728,7 @@ async def _get_data_product_details(
 
 @service_registry.tool(
     name="get_data_product_details",
-    description="""
+    description="""Use this tool when you need comprehensive metadata and details about a specific data product, including schema, subscriptions, and column information.
     Retrieve comprehensive information about IBM Cloud Data Product Hub data products.
     
     This tool provides detailed metadata about data products including:
@@ -765,13 +766,7 @@ async def _get_data_product_details(
        - Data classification and confidence scores indicate data sensitivity and reliability
        - flight_asset_id from subscription details enables data extraction via Flight API
        - url from subscription details provides direct access to external data sources
-    
-    Args:
-        data_product_version_id: Optional ID of the data product version. Provide either this or data_product_name.
-        data_product_name: Optional name of the data product. Provide either this or data_product_version_id.
-    
-    Returns:
-        GetDataProductDetailsResponse: Object containing data_product_details and data_product_subscription_details
+     Returns: Comprehensive data product metadata including release information, enriched asset schemas with column details and primary keys, and subscription details with flight_asset_id or URLs for successful subscriptions.
     """,
     tags={"read", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
@@ -782,8 +777,8 @@ async def _get_data_product_details(
 )
 @auto_context
 async def get_data_product_details(
-    data_product_version_id: Optional[str] = None,
-    data_product_name: Optional[str] = None
+    data_product_version_id: Annotated[Optional[str], Field(description="Optional ID of the data product version. Provide either this or data_product_name.")] = None,
+    data_product_name: Annotated[Optional[str], Field(description="Optional name of the data product. Provide either this or data_product_version_id.")] = None
 ) -> GetDataProductDetailsResponse:
     """Wrapper version that expands GetDataProductDetailsRequest object into individual parameters."""
 

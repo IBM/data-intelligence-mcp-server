@@ -98,10 +98,11 @@ Loss Given Default,glossary_term,Risk Management,The percentage of exposure the 
     },
     description="""Get detailed information about the CSV schema for importing glossary artifacts.
 
-This tool returns comprehensive schema information that helps LLMs understand how to:
-1. Generate properly formatted CSV content from unstructured documents
-2. Validate user-provided CSV files before import
-3. Understand constraints and validation rules
+Use this tool when you need to:
+- Generate a CSV from a document (like a policy or specification)
+- Validate CSV format before calling import_glossary_from_csv
+- Understand what fields are available for glossary artifacts
+- Learn the constraints for each field
 
 The schema includes:
 - Required and optional column names
@@ -111,11 +112,11 @@ The schema includes:
 - Example CSV content
 - Best practices for CSV generation
 
-Use this tool when you need to:
-- Generate a CSV from a document (like a policy or specification)
-- Validate CSV format before calling import_glossary_from_csv
-- Understand what fields are available for glossary artifacts
-- Learn the constraints for each field""",
+Returns: comprehensive schema information that helps LLMs understand how to:
+1. Generate properly formatted CSV content from unstructured documents
+2. Validate user-provided CSV files before import
+3. Understand constraints and validation rules
+""",
 )
 @auto_context
 async def get_glossary_csv_schema(

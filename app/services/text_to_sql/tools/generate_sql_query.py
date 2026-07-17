@@ -2,6 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
+from typing import Annotated
+from pydantic import Field
+
 from app.core.registry import service_registry
 from app.services.constants import (
     TEXT_TO_SQL_BASE_ENDPOINT,
@@ -67,22 +70,32 @@ async def _generate_sql_query(
             if "SAL0249E" in error_str:
                 raise ServiceError(
                     f"SQL query generation failed for '{request.container_id_or_name}'. "
-                    f"Please check if your question can be answered using {request.container_id_or_name}'s assets."
+                    f"Please check if your question can be answered using {request.container_id_or_name}'s assets.",
+                    tool = "generate_sql_query",
+                    service="semantic-automation-service"
                 )
             elif "SAL0248E" in error_str:
                 raise ServiceError(
                     f"SQL query generation failed for '{request.container_id_or_name}'. "
-                    f"DDL/DML operations detected in the question are not supported. Please try rephrasing your question."
+                    f"DDL/DML operations detected in the question are not supported. Please try rephrasing your question.",
+                    remediation_steps="Try again with rephrased question",
+                    tool = "generate_sql_query",
+                    service="semantic-automation-service"
                 )
             elif "SAL0298E" in error_str:
                 raise ServiceError(
                     f"SQL query generation failed for '{request.container_id_or_name}'. "
-                    f"Invalid query was generated. Please try rephrasing your question."
+                    f"Invalid query was generated. Please try rephrasing your question.",
+                    remediation_steps="Try again with rephrased question",
+                    tool = "generate_sql_query",
+                    service="semantic-automation-service"
                 )
             else:
                 # Generic 422 error message
                 raise ServiceError(
-                    f"SQL query generation failed for '{request.container_id_or_name}'. "
+                    f"SQL query generation failed for '{request.container_id_or_name}'. ",
+                    tool = "generate_sql_query",
+                    service="semantic-automation-service"
                 )
         raise
 
@@ -93,7 +106,9 @@ async def _generate_sql_query(
 
 @service_registry.tool(
     name="generate_sql_query",
-    description="Generate the SQL query which addresses the request of the user and utilises the specified container.",
+    description="""Use this tool when you need to generate the SQL query which addresses the request of the user and utilises the specified container.
+  Query API Reference: https://api.dataplatform.cloud.ibm.com/semantic_automation/v1/swagger-ui/index.html
+  Returns: The SQL query generated from the natural language question, which can be executed against data assets in the specified project or catalog.""",
     annotations={
         "readOnlyHint": True,
         "title": "Generate SQL Query from Natural Language"
@@ -101,7 +116,9 @@ async def _generate_sql_query(
 )
 @auto_context
 async def generate_sql_query(
-    request: str, container_id_or_name: str, container_type: str
+    request: Annotated[str, Field(description="The question the user raised.")],
+    container_id_or_name: Annotated[str, Field(description="The id or name of the container containing the data to query.")],
+    container_type: Annotated[str, Field(description="Type of the container, either 'catalog' or 'project'.")]
 ) -> GenerateSqlQueryResponse:
     """Wrapper version that expands GenerateSqlQueryRequest object into individual parameters."""
 

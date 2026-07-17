@@ -7,6 +7,7 @@
 from app.core.registry import service_registry
 from app.services.data_product.models.add_delivery_methods_to_data_product import (
     AddDeliveryMethodsToDataProductRequest,
+    AddDeliveryMethodsToDataProductResponse,
 )
 from app.services.data_product.utils.common_utils import add_catalog_id_suffix, get_dph_catalog_id_for_user, validate_inputs
 from app.shared.exceptions.base import ServiceError
@@ -14,13 +15,14 @@ from app.shared.utils.tool_helper_service import tool_helper_service
 from app.services.constants import JSON_CONTENT_TYPE, JSON_PATCH_CONTENT_TYPE
 from app.shared.logging import LOGGER, auto_context
 
-from typing import List
+from typing import List, Annotated
+from pydantic import Field
 
 
 @add_catalog_id_suffix()
 async def _add_delivery_methods_to_data_product(
     request: AddDeliveryMethodsToDataProductRequest,
-) -> str:
+) -> AddDeliveryMethodsToDataProductResponse:
     LOGGER.info(
         f"In the add_delivery_methods_to_data_product tool, adding delivery methods {request.delivery_method_ids} to data product draft id: {request.data_product_draft_id}"
     )
@@ -80,23 +82,22 @@ async def _add_delivery_methods_to_data_product(
         f"Delivery methods {request.delivery_method_ids} added to {request.data_asset_name} of the data product draft {request.data_product_draft_id} successfully."
     )
     if len(index_list) == 1:
-        return f"Delivery methods {request.delivery_method_ids} added to {request.data_asset_name} asset item of the data product draft {request.data_product_draft_id} successfully."
+        return AddDeliveryMethodsToDataProductResponse(
+            message=f"Delivery methods {request.delivery_method_ids} added to {request.data_asset_name} asset item of the data product draft {request.data_product_draft_id} successfully."
+        )
     else:
-        return f"There were multiple assets with the same name as {request.data_asset_name} in the data product draft. The given delivery methods {request.delivery_method_ids} are added to all those assets of the draft {request.data_product_draft_id}."
+        return AddDeliveryMethodsToDataProductResponse(
+            message=f"There were multiple assets with the same name as {request.data_asset_name} in the data product draft. The given delivery methods {request.delivery_method_ids} are added to all those assets of the draft {request.data_product_draft_id}."
+        )
 
 
 @service_registry.tool(
     name="add_delivery_methods_to_data_product",
-    description="""
-    This tool adds delivery methods selected by user to a data product draft. DO NOT make up delivery methods, use the corresponding ID values for the delivery methods selected by the user.
+    description="""Use this tool when you need to adds delivery methods selected by user to a data product draft. DO NOT make up delivery methods, use the corresponding ID values for the delivery methods selected by the user.
     This is called after `find_data_product_delivery_methods_based_on_connection()` to add the delivery methods selected by the user to the data product draft.
     Example: Adding two delivery methods to an asset in the draft.
         'Add flight and download delivery methods to customer asset in the data product draft'- This gets the data product draft ID from context, data asset name (in this case, customer), the delivery method IDs from context matching the delivery methods selected by the user from the previous tool call.
-    
-    Args:
-        data_product_draft_id (str): The ID of the data product draft.
-        data_asset_name (str): The name of the data asset in the data product draft for which we need to add delivery methods.
-        delivery_method_ids (List[str]): The list of IDs of delivery methods selected by the user.
+    Return: A success message indicating that the delivery methods were added to the data asset in the data product draft. If multiple assets with the same name exist, the message will indicate that delivery methods were added to all matching assets.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
@@ -107,10 +108,10 @@ async def _add_delivery_methods_to_data_product(
 )
 @auto_context
 async def add_delivery_methods_to_data_product(
-    data_product_draft_id: str,
-    data_asset_name: str,
-    delivery_method_ids: List[str],
-) -> str:
+    data_product_draft_id: Annotated[str, Field(description="The ID of the data product draft.")],
+    data_asset_name: Annotated[str, Field(description="The name of the data asset in the data product draft for which we need to add delivery methods.")],
+    delivery_method_ids: Annotated[List[str], Field(description="The list of IDs of delivery methods selected by the user.")],
+) -> AddDeliveryMethodsToDataProductResponse:
     """Wrapper version that expands AddDeliveryMethodsToDataProductRequest object into individual parameters."""
 
     request = AddDeliveryMethodsToDataProductRequest(

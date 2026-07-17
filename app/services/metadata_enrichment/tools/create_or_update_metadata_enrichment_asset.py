@@ -8,21 +8,21 @@
 
 
 from functools import partial
-from typing import Optional, Union
+from typing import Annotated, Optional, Union
+
+from pydantic import Field
 
 from app.core.registry import service_registry
+from app.services.metadata_enrichment.constants import CREATE_OR_UPDATE_METADATA_ENRICHMENT_ASSET_TOOL_NAME
 from app.services.metadata_enrichment.models.metadata_enrichment import (
     MetadataEnrichmentCreationRequest,
-    MetadataEnrichmentObjective,
     DataScopeOperation,
     MetadataEnrichmentAssetPatchResponse,
 )
 from app.services.metadata_enrichment.utils.metadata_enrichment_common_utils import (
-    get_metadata_enrichment_asset_by_id, create_metadata_enrichment, update_metadata_enrichment,
+    create_metadata_enrichment, update_metadata_enrichment,
 )
 from app.services.tool_utils import (
-    confirm_list_str,
-    find_category_id,
     find_metadata_enrichment_id,
     find_project_id, )
 from app.shared.exceptions.base import ServiceError
@@ -36,9 +36,8 @@ async def _create_or_update_metadata_enrichment_asset(
 
     LOGGER.info(
         f"create_or_update_metadata_enrichment_asset called with project_name: {request.project_name}, "
-        f"asset_name: {request.metadata_enrichment_name}, category_names: {request.category_names}, "
+        f"asset_name: {request.metadata_enrichment_name}"
         f"dataset_names: {request.dataset_names}, metadata_import_names: {request.metadata_import_names}, "
-        f"objective_names: {request.objective_names}, "
         f"description: {request.description}, new_name: {request.new_name}"
     )
 
@@ -54,64 +53,35 @@ async def _create_or_update_metadata_enrichment_asset(
     except ServiceError:
         LOGGER.info(f"MDE '{request.metadata_enrichment_name}' not found. Using CREATE mode.")
 
-    objectives = [
-        MetadataEnrichmentObjective(objective)
-        for objective in confirm_list_str(request.objective_names)
-    ]
-
-    category_ids = []
-    if request.category_names:
-        category_ids = [
-            await confirm_uuid(category_name, find_category_id)
-            for category_name in confirm_list_str(request.category_names)
-        ]
-
-    primary_category_id = None
-    if request.primary_category_name:
-        primary_category_id = await confirm_uuid(request.primary_category_name, find_category_id)
-
     if metadata_enrichment_id:
-        # Edge case: when updating an MDE in a new chat session, the category name
-        # may be missing because it is not meant to be updated. However, the API
-        # still requires objective.governance_scope.id (category_id), which leads to a 400 response.
-        if not category_ids:
-            mde_response = await get_metadata_enrichment_asset_by_id(project_id, metadata_enrichment_id)
-            category_ids = [cat.id for cat in mde_response.objective.governance_scope]
-        return await update_metadata_enrichment(category_ids, metadata_enrichment_id, objectives, project_id, request, primary_category_id)
+        return await update_metadata_enrichment(metadata_enrichment_id,project_id, request)
     else:
-        return await create_metadata_enrichment(category_ids, objectives, project_id, request, primary_category_id)
+        return await create_metadata_enrichment(project_id, request)
 
 @service_registry.tool(
-    name="create_or_update_metadata_enrichment_asset",
-    description="""Creates a new metadata enrichment (MDE) asset or updates an existing one within a specified project.
+    name=CREATE_OR_UPDATE_METADATA_ENRICHMENT_ASSET_TOOL_NAME,
+    description="""Use this tool when you need to creates a new metadata enrichment (MDE) asset or updates an existing one within a specified project.
 
-    This tool automatically detects whether to create or update based on whether an MDE with the given name exists:
-    - If MDE exists: UPDATE mode (updates existing MDE with new objectives and categories)
-    - If MDE doesn't exist: CREATE mode (creates new MDE)
-
-    If the category_names are not provided, use the 'list_enrichment_categories' tool to find the list of the available categories.
-    Return the FULL list to the user and ask him to choose one or more categories to be used to create or update the MDE.
-    Do not select categories by your self, the user should select.
+    **IMPORTANT:** 
+    - Do not make assemptions or add any values the user did not provide in his prompt.
+    - FOllow the user instructions to the letter.
+    
+    This tool automatically detects whether to create or update based on whether an MDE with the given name exists
 
     CREATE MODE (when MDE doesn't exist):
-    - Requires: metadata_enrichment_name, objective_names, category_names, dataset_names
-    - Creates a new metadata enrichment asset with the specified datasets, categories, and objectives
+    - Requires: metadata_enrichment_name, dataset_names or metadata_import_names
+    - Creates a new metadata enrichment asset with the specified datasets
     - Validates that datasets exist and aren't already assigned to other MDEs
     - Returns DataScopeOperation with details of the newly created asset
 
     UPDATE MODE (when MDE exists):
-    - Requires: metadata_enrichment_name, objective_names
-    - Optional: category_names (updates categories if provided)
-    - Ignores: dataset_names (datasets cannot be modified after creation - will log warning if provided)
-    - Updates the MDE's objectives and optionally categories
+    - Requires: metadata_enrichment_name
+    - Optional: dataset_names to specify the datasets to be added and dataset_names_to_remove to specify the datasets to be removed
     - Returns MetadataEnrichmentAssetPatchResponse with updated MDE details
-
-    The objective_names in MetadataEnrichmentCreationRequest is the list of names of objectives used in the enrichment job.
-    Supported objectives are 'profile', 'dq_gen_constraints', 'analyze_quality', 'assign_terms',
-    'analyze_relationships', 'dq_sla_assessment', 'semantic_expansion', and 'data_search'.
     
     The function assumes that the datasets provided are valid and exist.
-    It does not handle the creation of datasets or categories if they do not already exist.""",
+    It does not handle the creation of datasets or categories if they do not already exist.
+    """,
     annotations={
         "title": "Create or Update Metadata Enrichment Asset Configuration",
         "destructiveHint": True
@@ -119,26 +89,23 @@ async def _create_or_update_metadata_enrichment_asset(
 )
 @auto_context
 async def create_or_update_metadata_enrichment_asset(
-    project_name: str,
-    metadata_enrichment_name: str,
-    objective_names: list[str] | str,
-    category_names: Optional[list[str] | str] = None,
-    primary_category_name: Optional[str] = None,
-    dataset_names: Optional[list[str] | str] = None,
-    dataset_names_to_remove: Optional[list[str]] = None,
-    metadata_import_names: Optional[list[str] | str] = None,
-    description: Optional[str] = None,
-    new_name: Optional[str] = None,
-    tags: Optional[list[str]] = None,
+    project_name: Annotated[str, Field(description="The name of the project.")],
+    metadata_enrichment_name: Annotated[str, Field(description="The name of the metadata enrichment asset. Used to find existing MDE (for update) or as the name for new MDE (for create).")],
+    dataset_names: Annotated[Optional[list[str] | str], Field(description="""Dataset names to include in the metadata enrichment asset. 
+                                                              - CREATE mode: Required (must be provided)""")] = None,
+    dataset_names_to_remove: Annotated[Optional[list[str]], Field(description="""Dataset names to remove from the metadata enrichment asset. 
+                                                                  - CREATE mode: Ignored (should not be provided) 
+                                                                  - UPDATE mode: Optional (only updates if provided)""")] = None,
+    metadata_import_names: Annotated[Optional[list[str] | str], Field(description="List of names of metadata imports to import into the metadata enrichment asset.")] = None,
+    description: Annotated[Optional[str], Field(description="Description of the metadata enrichment asset. Used in both create and update modes.")] = None,
+    new_name: Annotated[Optional[str], Field(description="New name for the metadata enrichment asset. Only used in UPDATE mode to rename the MDE. Ignored in CREATE mode.")] = None,
+    tags: Annotated[Optional[list[str]], Field(description="A list of tags to assign. Max items: 1000")] = None,
 ) -> Union[DataScopeOperation, MetadataEnrichmentAssetPatchResponse]:
     """Wrapper that expands MetadataEnrichmentCreationRequest into individual parameters."""
 
     request = MetadataEnrichmentCreationRequest(
         project_name=project_name,
         metadata_enrichment_name=metadata_enrichment_name,
-        objective_names=objective_names,
-        category_names=category_names,
-        primary_category_name=primary_category_name,
         dataset_names=dataset_names,
         dataset_names_to_remove=dataset_names_to_remove,
         metadata_import_names=metadata_import_names,
