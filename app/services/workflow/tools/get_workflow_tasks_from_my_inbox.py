@@ -192,6 +192,7 @@ get_workflow_tasks_from_my_inbox_description="""
     Use format='json' for raw task data or format='table' (default) for formatted output.
     If you find markdown text in the result show it to the user.
     ALWAYS render the result as table if called with format='table' parameter
+    ALWAYS display task_title as the primary task identifier in all table and list output. Never use task_name, as it contains internal system codes that are not meaningful to end users.
 
     Make sure to use a request json object for the parameters.
     Returns: The list of workflow tasks assigned to the current user, total count, and optionally a formatted markdown table for display.
