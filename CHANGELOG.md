@@ -73,7 +73,7 @@
 
 ### Fixed
 - **Publish Asset To Catalog**:
-  - `publish_asset_to_catalog` - Switched from `/v2/assets/{id}/publish` to `/v2/assets/bulk_copy` with `auto_copy_connections_in_remote_attachments=True`, which natively handles connection copying and removes the broken manual ATTSV3055E retry path. Inline errors from the bulk_copy response (e.g. `ASTSV3221E: Cannot publish reference connection assets to PAC`) are now surfaced clearly to the user.
+  - `publish_asset_to_catalog` - Switched to bulk_copy with `auto_copy_connections_in_remote_attachments=True`, which natively handles connection copying and removes the broken manual ATTSV3055E retry path. Inline errors from the bulk_copy response (e.g. `ASTSV3221E: Cannot publish reference connection assets to PAC`) are now surfaced clearly to the user.
 - **Search**:
   - `search_asset` - Fixed Pydantic validation error when handling response fields. Asset ID hyperlinks now render correctly in all response surfaces; previously the link text was being emitted as raw markdown in certain tool contexts.
 - **Data Product Hub (DPH)**:
