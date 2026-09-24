@@ -170,4 +170,12 @@ class Settings(BaseSettings):
     # experimental tools
     use_experimental: bool = False
 
+    # Tool feature groups to enable (stdio mode only; HTTP mode uses x-tool-groups header).
+    # Accepts either a comma-separated string or a JSON array string:
+    #   TOOL_GROUPS=data_product,lineage
+    #   TOOL_GROUPS=["data_product","lineage"]
+    # Valid groups: data_product, metadata_management_and_governance, data_quality,
+    #               lineage, generative_ai
+    tool_groups: str = ""
+
 settings = Settings()

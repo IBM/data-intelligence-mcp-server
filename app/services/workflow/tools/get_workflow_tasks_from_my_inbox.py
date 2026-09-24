@@ -21,9 +21,9 @@ from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.client_detection import supports_rich_text_format
 from app.core.settings import settings, ENV_MODE_SAAS
+from app.shared.exceptions.base import ServiceError, ExternalAPIError
 
 from fastmcp.server.context import Context
-from fastmcp.exceptions import ToolError
 
 def transform_base_url_to_ui_url(input_url: str) -> str:
     """Transform API base URL to UI URL for workflow tasks."""
@@ -166,10 +166,33 @@ async def _retrieve_my_tasklist_from_workflow(
             tasks.append(task)
         return tasks
 
+    except KeyError as e:
+        error_msg = f"Missing required field in task response: {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool="get_my_workflow_inbox_tasks",
+            remediation_steps="Verify the workflow task API is returning complete data. Contact support if the issue persists."
+        ) from e
+    except (ConnectionError, TimeoutError) as e:
+        error_msg = f"Network error while retrieving tasks from workflow inbox: {str(e)}"
+        LOGGER.error(error_msg)
+        raise ExternalAPIError(
+            error_msg,
+            service="workflow",
+            tool="get_my_workflow_inbox_tasks",
+            remediation_steps="Check network connectivity and verify the workflow service is accessible. Retry the operation after ensuring network stability."
+        ) from e
     except Exception as e:
-        # Log the exception type and details for debugging
-        LOGGER.error(f"Error retrieving tasks from workflow: {type(e).__name__}: {str(e)}")
-        return []
+        error_msg = f"Unexpected error retrieving tasks from workflow inbox: {type(e).__name__}: {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool="get_my_workflow_inbox_tasks",
+            remediation_steps="Verify your authentication credentials are valid and you have permission to access workflow tasks. Check the service logs for more details."
+        ) from e
 
 
 def _build_task_url(task_id: str) -> str:
@@ -259,7 +282,7 @@ async def _get_workflow_tasks_from_my_inbox(
         "title": "Get Workflow Tasks Assigned to Me from My Inbox"
     },
     description=get_workflow_tasks_from_my_inbox_description,
-    tags={"workflow", "flowable", "tasks", "governance", "glossary"},
+    tags={"workflow", "flowable", "tasks", "governance", "glossary", "metadata_management_and_governance"},
     meta={"version": "2.0", "service": "task_inbox"},
 )
 @auto_context

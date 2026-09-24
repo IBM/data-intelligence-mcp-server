@@ -94,7 +94,7 @@ async def _create_or_update_url_data_product(
     is_create = is_data_product_draft_create(request)
     if is_create:
         LOGGER.info("Operation type: CREATE new data product draft")
-        validate_inputs_for_draft_create(request, "url_value", "url_name")
+        await validate_inputs_for_draft_create(request, "url_value", "url_name")
     else:
         LOGGER.info(f"Operation type: UPDATE existing draft {request.existing_data_product_draft_id}")
 
@@ -273,7 +273,7 @@ def get_patch_data_asset_items_with_delivery_method_to_draft_payload(
 
 @service_registry.tool(
     name="create_or_update_url_data_product",
-    description="""Use this tool when you need to creates a data product draft from a URL or updates an existing draft to add a URL asset to it.
+    description="""Use this tool when you need to create a data product draft from a URL or updates an existing draft to add a URL asset to it.
     It strictly follows the following rules:
     - FIRST: Search all data products to check if the URL already exists in any data product's parts_out.
     - If duplicates are found AND force=False: STOP immediately and return error with duplicate information.

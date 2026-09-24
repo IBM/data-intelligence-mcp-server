@@ -86,7 +86,7 @@ async def _get_data_quality_for_asset(request: GetDataQualityForAssetRequest) ->
     )
 
     ui_message_context.add_table_ui_message(
-        tool_name="get_data_quality_for_asset",
+        tool_name="get_data_quality",
         formatted_data=_format_data_quality_for_table(response),
         title="Data Quality",
     )
@@ -95,7 +95,7 @@ async def _get_data_quality_for_asset(request: GetDataQualityForAssetRequest) ->
     
 
 @service_registry.tool(
-    name="get_data_quality_for_asset",
+    name="get_data_quality",
     annotations={
         "readOnlyHint": True,
         "title": "Get Data Quality Metrics and Assessment Scores for Specific Asset"

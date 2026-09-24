@@ -186,7 +186,7 @@ def get_patch_data_asset_items_to_draft_payload(
 
 @service_registry.tool(
     name="create_update_data_product_from_asset_in_container",
-    description="""Use this tool when you need to creates or updates a data product draft using pre-imported DPH catalog assets.
+    description="""Use this tool when you need to create or update a data product draft using pre-imported DPH catalog assets.
     
     IMPORTANT: This tool expects target_asset_ids from the import_remote_assets_to_data_product_catalog tool.
     It does NOT import assets - use import_remote_assets_to_data_product_catalog first to prepare assets.

@@ -289,7 +289,7 @@ def prepare_response(response, project_type):
 
 
 @service_registry.tool(name="create_project",
-    description="Use this tool when you need to creates a new project with the specified name. "
+    description="Use this tool when you need to create a new project with the specified name. "
     "A project name is required - if not provided, ask the user for a meaningful name. "
     "If a duplicate project name is detected, an error is thrown with a link to the existing project. "
     "For storage configuration, the system validates available COS storage instances. "
@@ -299,7 +299,9 @@ def prepare_response(response, project_type):
     annotations={
         "title": "Creates a New Project with the Given Name",
         "destructiveHint": True
-    })
+    },
+    tags={"metadata_management_and_governance"}
+    )
 
 @auto_context
 async def create_project(

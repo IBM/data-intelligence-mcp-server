@@ -3,8 +3,8 @@
 **Critical Workflow for Tasks Pertaining to Workflow Objects - Always Follow This Order:**
 
 For glossary objects like data classes and business terms:
-1. Use **list_data_classes_by_search_term** or **list_business_terms_by_search_term** first to find the artifact_id
-2. Then call **list_user_tasks_approval_data_for_artifact** with the artifact_id to get approval data
+1. Use **list_data_classes** or **list_business_terms** first to find the artifact_id
+2. Then call **list_user_task_approval_data** with the artifact_id to get approval data
 3. NEVER use **get_asset_details** for data classes and business terms
 
 For task inbox management:
@@ -13,9 +13,9 @@ For task inbox management:
 3. NEVER show user ID numbers - always display user's first and last name
 
 For workflow monitoring:
-1. Use **get_my_workflows** to see workflows you've initiated
-1. Use **get_my_workflows** to see workflows you've initiated
-2. Use **get_my_workflows** with deep_dive=True for detailed analysis with stalled detection and assignee information
+1. Use **list_workflows** to see workflows you've initiated
+1. Use **list_workflows** to see workflows you've initiated
+2. Use **list_workflows** with deep_dive=True for detailed analysis with stalled detection and assignee information
 **Important Display Requirements:**
 - Show task_title instead of task_name when available
 - Display workflow status instead of state

@@ -29,8 +29,8 @@ from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.client_detection import supports_rich_text_format, MinimalContext
 from app.shared.utils.llm_utils import client_supports_elicitation
+from app.shared.exceptions.base import ValidationError
 
-from fastmcp.exceptions import ToolError
 from fastmcp.server.context import Context
 
 from mcp.server.elicitation import (
@@ -192,9 +192,9 @@ def _build_json_response(data_classes: List[DataClass]) -> ListDataClassesRespon
 
 list_data_classes_by_search_term_description="""
 Use this tool when you need to find data classes that are part of governance workflows, especially when working with draft/unpublished data classes or when you need the artifact_id for workflow operations.
-list_data_classes_by_search_term returns a list of all data classes as objects of a data governance workflow pertaining to the search term
+list_data_classes returns a list of all data classes as objects of a data governance workflow pertaining to the search term
 with the artifact_id included. Always define the draft parameter: if the text refers to future approvals set it true, otherwise false.
-Use list_data_classes_by_search_term ONLY for requests about unpublished, draft data classes or for workflow related requests, otherwise use search_governance_artifacts.
+Use list_data_classes ONLY for requests about unpublished, draft data classes or for workflow related requests, otherwise use search_governance_artifacts.
 If you find markdown text in the result show it to the user.
 ALWAYS use a request json object to encapsulate the parameters.
 Returns: The list of data classes matching the search criteria, total count, name-to-artifact-ID mapping, and optionally a formatted markdown table for display.
@@ -238,17 +238,22 @@ async def _list_data_classes_by_search_term(
     elif request.format == "json":
         return _build_json_response(data_classes)
     else:
-        raise ToolError("Invalid output format")
+        raise ValidationError(
+            f"Invalid output format '{request.format}'. Supported formats are 'table' or 'json'.",
+            service="workflow",
+            tool="list_data_classes_by_search_term",
+            remediation_steps="Use format='table' for formatted markdown output or format='json' for raw data. Default is 'table'."
+        )
 
 
 @service_registry.tool(
-    name="list_data_classes_by_search_term",
+    name="list_data_classes",
     annotations={
         "readOnlyHint": True,
         "title": "Search and List Glossary Data Classes in Governance Workflows"
     },
     description=list_data_classes_by_search_term_description,
-    tags={"workflow", "glossary", "data_classes", "governance"},
+    tags={"workflow", "glossary", "data_classes", "governance","metadata_management_and_governance"},
     meta={"version": "1.0", "service": "glossary"},
 )
 @auto_context

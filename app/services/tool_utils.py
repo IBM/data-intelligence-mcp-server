@@ -1028,7 +1028,8 @@ async def find_category_id(category_name: str) -> str:
         return result_id
     else:
         raise ServiceError(
-            f"Couldn't find any categories with the name '{category_name}'"
+            f"Couldn't find any categories with the name '{category_name}'",
+            remediation_steps="Call the list_glossary_categories tool to retrieve the available category names.",
         )
 
 async def retrieve_container_id(container_id: str, container_type: str) -> str:

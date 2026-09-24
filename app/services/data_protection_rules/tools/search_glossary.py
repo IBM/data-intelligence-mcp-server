@@ -129,7 +129,7 @@ def format_artifacts_for_table(artifacts: list[GovernanceArtifact]) -> list:
         - "Search for reference data about country codes"
     Returns: List of matching governance artifacts with count and status message.
     """,
-    tags={"search", "data_protection_rules", "governance"},
+    tags={"search", "data_protection_rules", "governance", "metadata_management_and_governance"},
     meta={"version": "1.0", "service": "data_protection_rules"},
 )
 @auto_context

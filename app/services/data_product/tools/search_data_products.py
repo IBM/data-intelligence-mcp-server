@@ -25,6 +25,7 @@ def _format_data_products_for_table(data_products: list[dict]) -> list:
     for item in data_products:
         metadata = item["metadata"]
         entity = item["entity"]
+        data_product_version = entity.get("data_product_version", {})
 
         item_row = {
             "Name": ui_message_context.create_markdown_link(
@@ -33,7 +34,9 @@ def _format_data_products_for_table(data_products: list[dict]) -> list:
             ),
             "Description": metadata.get("description", ""),
             "Created On": metadata.get("created_on", ""),
-            "Version": entity.get("data_product_version", {}).get("version", ""),
+            "Version": data_product_version.get("version", ""),
+            "Contract Test Status": data_product_version.get("contract_test_status", ""),
+            "Contract Test Last Run": data_product_version.get("contract_test_last_run_at", ""),
         }
         data_products_table.append(item_row)
     return data_products_table
@@ -123,7 +126,9 @@ def _extract_product_info(row: dict) -> DataProduct:
         state=state,
         version=data_product_version.get("version", ""),
         data_asset_items=data_asset_items,
-        tags=metadata.get("tags", [])
+        tags=metadata.get("tags", []),
+        contract_test_status=data_product_version.get("contract_test_status", ""),
+        contract_test_last_run_at=data_product_version.get("contract_test_last_run_at", ""),
     )
 
 def get_dph_search_payload(product_search_query: str,
@@ -140,6 +145,8 @@ def get_dph_search_payload(product_search_query: str,
         search_fields = [
             "metadata.name",  # NOSONAR
             "metadata.description",  # NOSONAR
+            "entity.data_product_version.contract_test_status",  # NOSONAR
+            "entity.data_product_version.contract_test_last_run_at",  # NOSONAR
         ]
         should_query.append({
             "gs_user_query": {
@@ -167,7 +174,13 @@ def get_dph_search_payload(product_search_query: str,
     
     # If no specific queries, search all products
     if not should_query:
-        search_fields = ["metadata.name", "metadata.description", "metadata.tags"]
+        search_fields = [
+            "metadata.name",
+            "metadata.description",
+            "metadata.tags",
+            "entity.data_product_version.contract_test_status",  # NOSONAR
+            "entity.data_product_version.contract_test_last_run_at",  # NOSONAR
+        ]
         parts_out_search_fields = [
             "entity.data_product_version.parts_out.name",
             "entity.data_product_version.parts_out.description",
@@ -223,7 +236,13 @@ def get_dph_search_payload(product_search_query: str,
             "metadata.tags",  # NOSONAR
             "metadata.created_on",  # NOSONAR
             "entity.assets.catalog_id",  # NOSONAR
-            "entity.data_product_version",
+            "entity.data_product_version.product_id",  # NOSONAR
+            "entity.data_product_version.state",  # NOSONAR
+            "entity.data_product_version.version",  # NOSONAR
+            "entity.data_product_version.domain_name",  # NOSONAR
+            "entity.data_product_version.parts_out",  # NOSONAR
+            "entity.data_product_version.contract_test_status",  # NOSONAR
+            "entity.data_product_version.contract_test_last_run_at",  # NOSONAR
             "custom_attributes",
         ],
         "query": {
@@ -330,6 +349,12 @@ def _add_date_range_filter(
     - "draft": Returns only unpublished/draft data products
     - "published": Returns only published data products
     - None (default): Returns both draft and published data products
+
+    Contract Test Fields (searchable):
+    - contract_test_status: The result of the last contract test run. Typical values are "Queued", "Failed", or "Completed". Note: "Completed" means the contract test passed successfully.
+    - contract_test_last_run_at: ISO 8601 timestamp of when the contract test was last executed.
+    Both fields are returned on each data product and are included in full-text search, so queries such as
+    "find data products with a Failed contract test" will match on contract_test_status.
     
     Date filters are inclusive and can be used independently or together. When only one date is provided,
     it creates an open-ended filter (e.g., only created_date_after finds all products from that date onwards).

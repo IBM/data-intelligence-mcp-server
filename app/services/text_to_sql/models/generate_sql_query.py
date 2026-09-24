@@ -22,3 +22,10 @@ class GenerateSqlQueryRequest(BaseModel):
 
 class GenerateSqlQueryResponse(BaseResponseModel):
     generated_sql_query: str = Field(..., description="Generated SQL query")
+    message: str = Field(
+        default=(
+            "SQL query generated successfully. "
+            "Return the SQL to the user and let them know they can save it as a data asset using the create_asset_from_sql_query tool if they wish. "
+        ),
+        description="Status message with guidance on what to do after receiving the generated SQL query."
+    )

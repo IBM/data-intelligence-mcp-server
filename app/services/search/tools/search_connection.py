@@ -139,7 +139,7 @@ async def _search_connection(
                     - container and container_type must be provided if one or more of connection_name, datasource_type, or creator is provided
                     - Invalid values will result in errors
                     Return: A list of objects, each containing connection details including ID, name, URL, creation time, creator ID, datasource type information, and container details.""",
-    tags={"search", "connection"},
+    tags={"search", "connection","metadata_management_and_governance"},
     meta={"version": "1.0", "service": "search"}
 )
 @auto_context

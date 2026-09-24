@@ -11,13 +11,13 @@ This module provides shared utility functions for querying glossary artifacts
 (data classes and business terms) from the workflow service.
 """
 
-from typing import Any, Dict, List, Literal
+from typing import Any, Dict, List, Literal, Optional, Tuple
+from fastmcp.exceptions import ToolError
 from app.services.workflow.models.artifact import Artifact, BusinessTerm, DataClass
 from app.shared.logging import LOGGER
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.services.constants import SEARCH_PATH, GLOSSARY_ARTIFACT_TYPES_ENDPOINT
-from fastmcp.exceptions import ToolError
-
+from app.shared.exceptions.base import ServiceError, ValidationError, ExternalAPIError
 ZERO_MINUTES = "+00:00"
 ELICITATION_WATERMARK = 10
 
@@ -99,7 +99,7 @@ async def _query_artifact_in_draft_by_term(search_term: str, artifact_type: str,
     """
     # Validate input parameters
     validate_search_params(search_term, artifact_type, max_results)
-    
+
     fetch_limit = max_results * 3
     params = {"sub_string": search_term, "limit": fetch_limit}
     try:
@@ -107,39 +107,67 @@ async def _query_artifact_in_draft_by_term(search_term: str, artifact_type: str,
             url=f"{tool_helper_service.base_url}{GLOSSARY_ARTIFACT_TYPES_ENDPOINT}/{artifact_type}",
             params=params
         )
+
+        # Handle None response or missing resources
+        if response is None:
+            LOGGER.warning(f"Received None response for artifact_type={artifact_type}")
+            return []
+
+        artifacts = []
+        item_list = response.get('resources', [])
+        if item_list is None:
+            LOGGER.warning(f"Received None resources for artifact_type={artifact_type}")
+            return []
+
+        for item in item_list:
+            # Only include artifacts that are in draft state
+            # Draft artifacts have workflow_id or draft_mode=True or state="DRAFT"
+            is_draft = (
+                item.get("workflow_id") is not None or
+                item.get("draft_mode") is True or
+                (item.get("state") and item.get("state").upper() == "DRAFT")
+            )
+
+            if is_draft:
+                artifact_obj = _create_artifact_from_item(item, artifact_type)
+                artifacts.append(artifact_obj)
+
+                # Stop once we have enough draft artifacts
+                if len(artifacts) >= max_results:
+                    break
+
+        return artifacts
+
+    except ValueError:
+        # Re-raise validation errors
+        raise
+    except KeyError as e:
+        error_msg = f"Missing required field in draft artifact response for '{artifact_type}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool="query_artifact_in_draft",
+            remediation_steps=f"Verify the glossary API is returning complete data for artifact type '{artifact_type}'. Contact support if the issue persists."
+        ) from e
+    except (ConnectionError, TimeoutError) as e:
+        error_msg = f"Network error while querying draft artifacts for '{artifact_type}' with search term '{search_term}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ExternalAPIError(
+            error_msg,
+            service="workflow",
+            tool="query_artifact_in_draft",
+            remediation_steps="Check network connectivity and verify the glossary service is accessible. Retry the operation after ensuring network stability."
+        ) from e
     except Exception as e:
-        LOGGER.error(f"Failed to fetch artifacts for {artifact_type} with search term '{search_term}': {str(e)}")
-        return []
-
-    # Handle None response or missing resources
-    if response is None:
-        LOGGER.warning(f"Received None response for artifact_type={artifact_type}")
-        return []
-
-    artifacts = []
-    item_list = response.get('resources', [])
-    if item_list is None:
-        LOGGER.warning(f"Received None resources for artifact_type={artifact_type}")
-        return []
-
-    for item in item_list:
-        # Only include artifacts that are in draft state
-        # Draft artifacts have workflow_id or draft_mode=True or state="DRAFT"
-        is_draft = (
-            item.get("workflow_id") is not None or
-            item.get("draft_mode") is True or
-            (item.get("state") and item.get("state").upper() == "DRAFT")
-        )
-        
-        if is_draft:
-            artifact_obj = _create_artifact_from_item(item, artifact_type)
-            artifacts.append(artifact_obj)
-            
-            # Stop once we have enough draft artifacts
-            if len(artifacts) >= max_results:
-                break
-
-    return artifacts[:max_results]
+        error_msg = f"Unexpected error querying glossary artifacts in draft mode for '{artifact_type}' with search term '{search_term}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool="query_artifact_in_draft",
+            remediation_steps=f"Verify that artifact type '{artifact_type}' is valid and the glossary service is functioning correctly. Check the service logs for more details."
+        ) from e
 
 
 async def _query_artifacts_by_term(search_term: str, artifact_type: str, max_results: int) -> List[Artifact]:
@@ -177,9 +205,16 @@ async def _query_artifacts_by_term(search_term: str, artifact_type: str, max_res
             json=payload
         )
 
+        if response is None:
+            LOGGER.warning(f"Received None response for artifact_type={artifact_type}")
+            return []
+
         # Schema: { "size": 3, "rows": [ { "last_updated_at": 1763108155799, "metadata": { "name": "Spanish Fiscal Identification Number", ...
         artifact_objs = []
         item_list = response.get('rows', [])
+        if item_list is None:
+            LOGGER.warning(f"Received None rows for artifact_type={artifact_type}")
+            return []
 
         for artifact in item_list:
             metadata = artifact.get("metadata", {})
@@ -205,14 +240,37 @@ async def _query_artifacts_by_term(search_term: str, artifact_type: str, max_res
     except ValueError:
         # Re-raise validation errors
         raise
+    except KeyError as e:
+        error_msg = f"Missing required field in artifact search response for '{artifact_type}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool="query_artifacts_by_term",
+            remediation_steps=f"Verify the search API is returning complete data for artifact type '{artifact_type}'. Contact support if the issue persists."
+        ) from e
+    except (ConnectionError, TimeoutError) as e:
+        error_msg = f"Network error while searching artifacts for '{artifact_type}' with search term '{search_term}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ExternalAPIError(
+            error_msg,
+            service="workflow",
+            tool="query_artifacts_by_term",
+            remediation_steps="Check network connectivity and verify the search service is accessible. Retry the operation after ensuring network stability."
+        ) from e
     except Exception as e:
-        LOGGER.error("Error querying glossary artifacts: %s", str(e))
-        # Re-raise exceptions so callers can handle them appropriately
-        raise ToolError(f"Failed to query glossary artifacts: {str(e)}")
+        error_msg = f"Unexpected error querying glossary artifacts for '{artifact_type}' with search term '{search_term}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool="query_artifacts_by_term",
+            remediation_steps=f"Verify that artifact type '{artifact_type}' is valid and the search service is functioning correctly. Check the service logs for more details."
+        ) from e
+
 
 
 # Helper functions for artifact details
-from typing import Optional
 from app.services.constants import (
     GLOSSARY_BUSINESS_TERMS_ENDPOINT,
     GLOSSARY_DATA_CLASS_ENDPOINT,
@@ -397,11 +455,96 @@ async def fetch_steward_names(steward_ids: Optional[List[str]]) -> List[str]:
     return steward_names
 
 
+def _extract_match_summary(item: dict) -> dict:
+    """Extract identifying fields from a search result item for disambiguation."""
+    metadata = item.get("metadata", {})
+    entity = item.get("entity", {}) if isinstance(item.get("entity"), dict) else {}
+
+    long_description = metadata.get("long_description") or entity.get("long_description")
+
+    return {
+        "artifact_id": extract_artifact_id(item),
+        "name": extract_artifact_name(item),
+        "long_description": long_description,
+        "created_at": metadata.get("created_at"),
+        "modified_at": metadata.get("modified_at"),
+        "workflow_state": metadata.get("workflow_state"),
+    }
+
+
+async def enrich_matches_with_long_description(
+    matches: List[dict],
+    artifact_api_endpoint: str,
+) -> List[dict]:
+    """Fetch the draft version for each match to populate long_description.
+
+    long_description lives on the version body at
+    /v3/glossary_terms/{id}/versions/{version_id}, not on the root artifact.
+    We fetch the latest draft version for each match and read it from there.
+    """
+    enriched = []
+    for match in matches:
+        artifact_id = match.get("artifact_id")
+        if not artifact_id:
+            enriched.append(match)
+            continue
+        try:
+            # Fetch the draft versions list to get the latest version_id
+            versions_response = await tool_helper_service.execute_get_request(
+                url=f"{tool_helper_service.base_url}{artifact_api_endpoint}/{artifact_id}/versions",
+                params={"status": "DRAFT", "limit": 1},
+            )
+            versions = versions_response.get("resources", []) or versions_response.get("versions", [])
+            if not versions:
+                enriched.append(match)
+                continue
+
+            # Read long_description from the version body
+            version = versions[0]
+            version_id = (
+                version.get("metadata", {}).get("version_id")
+                or version.get("version_id")
+                or version.get("metadata", {}).get("global_id")
+            )
+            if not version_id:
+                enriched.append(match)
+                continue
+
+            version_response = await tool_helper_service.execute_get_request(
+                url=f"{tool_helper_service.base_url}{artifact_api_endpoint}/{artifact_id}/versions/{version_id}",
+            )
+            entity = version_response.get("entity", {}) if isinstance(version_response.get("entity"), dict) else {}
+            metadata = version_response.get("metadata", {})
+            long_desc = (
+                entity.get("long_description")
+                or metadata.get("long_description")
+                or match.get("long_description")
+            )
+            enriched.append({**match, "long_description": long_desc})
+        except Exception as e:
+            LOGGER.warning(
+                "Could not enrich match artifact_id=%s with long_description: %s",
+                artifact_id, str(e),
+            )
+            enriched.append(match)
+    return enriched
+
+
 async def resolve_artifact_id_by_name(
     artifact_name: str,
     artifact_type: str,
-) -> str:
-    """Resolve an artifact name to an artifact ID using governance artifact types."""
+) -> Tuple[Optional[str], Optional[List[dict]]]:
+    """Resolve an artifact name to an artifact ID using governance artifact types.
+
+    Returns:
+        (artifact_id, None)  when exactly one match is found.
+        (None, matches)      when multiple exact-name matches exist; each entry is a
+                             dict with keys: artifact_id, name, short_description,
+                             created_at, modified_at, workflow_state.
+
+    Raises:
+        ToolError: when no artifact is found or artifact_id cannot be extracted.
+    """
     response = await tool_helper_service.execute_get_request(
         url=f"{tool_helper_service.base_url}{get_artifact_search_endpoint(artifact_type)}",
         params={
@@ -411,6 +554,12 @@ async def resolve_artifact_id_by_name(
     )
 
     resources = response.get("resources", [])
+    LOGGER.debug(
+        "resolve_artifact_id_by_name: artifact_name=%r, resources_count=%d, names=%r",
+        artifact_name,
+        len(resources),
+        [(extract_artifact_name(item), extract_artifact_id(item)) for item in resources],
+    )
     if not resources:
         raise ToolError(
             f"Could not find {artifact_type} artifact with name '{artifact_name}'"
@@ -421,19 +570,23 @@ async def resolve_artifact_id_by_name(
         for item in resources
         if (extract_artifact_name(item) or "").casefold() == artifact_name.casefold()
     ]
+    LOGGER.debug(
+        "resolve_artifact_id_by_name: exact_matches_count=%d",
+        len(exact_matches),
+    )
 
-    if len(exact_matches) == 1:
+    # Multiple exact-name matches — return all of them for the caller to disambiguate
+    if len(exact_matches) > 1:
+        return None, [_extract_match_summary(item) for item in exact_matches]
+
+    if exact_matches:
         selected_artifact = exact_matches[0]
     elif len(resources) == 1:
+        # No exact match but only one candidate — safe to use
         selected_artifact = resources[0]
     else:
-        candidate_names = [
-            name for name in (extract_artifact_name(item) for item in resources)
-            if name
-        ]
         raise ToolError(
-            f"Found multiple {artifact_type} artifacts matching '{artifact_name}'. "
-            f"Please use a more specific name. Candidates: {', '.join(candidate_names[:10])}"
+            f"Found multiple {artifact_type} artifacts matching '{artifact_name}' but none with that exact name"
         )
 
     artifact_id = extract_artifact_id(selected_artifact)
@@ -442,4 +595,4 @@ async def resolve_artifact_id_by_name(
             f"Could not resolve artifact_id for {artifact_type} artifact '{artifact_name}'"
         )
 
-    return artifact_id
+    return artifact_id, None

@@ -4,6 +4,7 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
+import asyncio
 from functools import partial
 from typing import Any, Callable, Dict, List, Literal, Optional
 
@@ -478,6 +479,272 @@ async def get_data_quality_for_asset(
     
     return data_quality_model
 
+
+async def _retrieve_data_quality_ids_for_assets_bulk(
+    asset_ids: List[str],
+    container_id: str,
+    container_type: Literal["project", "catalog"],
+) -> Dict[str, Optional[str]]:
+    """
+    Find data quality IDs for multiple data assets in bulk
+    
+    Args:
+        asset_ids: List[str]: List of asset IDs to retrieve data quality IDs for
+        container_id: str: Container id
+        container_type: str: Container type ("project" or "catalog")
+    
+    Returns:
+        Dict[str, Optional[str]]: Dictionary mapping each asset_id to its corresponding
+            data_quality_id. Returns None as the value for assets that don't have
+            associated data quality records.
+    """
+    params: dict[str, str] = {
+        "wkc_asset_ids": ",".join(asset_ids),
+        f"{container_type.lower()}_id": container_id,
+    }
+    
+    LOGGER.info(
+        "[DQ] Searching DQ assets for %d assets in container_id=%s, type=%s",
+        len(asset_ids),
+        container_id,
+        container_type,
+    )
+    
+    try:
+        response = await tool_helper_service.execute_post_request(
+            str(tool_helper_service.base_url)
+            + DATA_QUALITY_BASE_ENDPOINT
+            + "/search_dq_assets_bulk",
+            params=params,
+        )
+    except ExternalAPIError:
+        raise ServiceError(
+            "[DQ] Failed to retrieve data quality IDs for assets.",
+            remediation_steps=(
+                "Call `get_data_quality_for_asset` individually for each asset."
+            ),
+        )
+    
+    items: list = response if isinstance(response, list) else []
+
+    asset_dq_ids: Dict[str, Optional[str]] = {}
+    for item in items:
+        asset_id = item.get("wkc_asset_id")
+        dq_id = item.get("id")
+        if asset_id:
+            asset_dq_ids[asset_id] = dq_id
+    
+    for asset_id in asset_ids:
+        if asset_id not in asset_dq_ids:
+            asset_dq_ids[asset_id] = None
+            LOGGER.warning(
+                "[DQ] No data quality ID found for asset %s",
+                asset_id,
+            )
+    
+    return asset_dq_ids
+
+
+def _build_data_quality_entry(
+    asset_id: str,
+    dq_id: str,
+    scores_by_dq_id: Dict[str, Any],
+    container_id: str,
+    container_type: str,
+) -> Optional[DataQuality]:
+    """Build a DataQuality object for one asset from the bulk-scores response."""
+    score_entry = scores_by_dq_id.get(dq_id)
+    if not score_entry:
+        LOGGER.warning("[DQ] No score entry in bulk response for asset %s", asset_id)
+        return None
+
+    entries = score_entry if isinstance(score_entry, list) else [score_entry]
+    actual_scores = [s for s in entries if s.get("status", "").lower() == "actual"]
+    if not actual_scores:
+        LOGGER.warning("[DQ] No actual score for asset %s", asset_id)
+        return None
+
+    score = actual_scores[0]
+    scores_by_dimension: Dict[str, str] = {
+        dimension["dimension"].get("name", "").lower(): _ratio_to_percentage(dimension["score"])
+        for dimension in score.get("dimension_scores", [])
+        if dimension["dimension"].get("name", "").lower()
+    }
+
+    report_url = (
+        f"{tool_helper_service.ui_base_url}/data/catalogs/{container_id}/asset/{asset_id}/data-quality"
+        if container_type == "catalog"
+        else f"{tool_helper_service.ui_base_url}/projects/{container_id}/data-assets/{asset_id}/data-quality"
+    )
+
+    return DataQuality(
+        overall=_ratio_to_percentage(score["score"]),
+        scores_by_dimension=scores_by_dimension,
+        report_url=report_url,
+    )
+
+
+async def _retrieve_data_quality_bulk(
+    asset_dq_ids: Dict[str, Optional[str]],
+    container_id: str,
+    container_type: Literal["project", "catalog"],
+) -> Dict[str, Optional[DataQuality]]:
+    """
+    Retrieve data quality scores for multiple assets in parallel.
+
+    Args:
+        asset_dq_ids: Dict[str, Optional[str]]: Dictionary mapping each asset_id to its
+            corresponding data_quality_id (obtained from bulk search). None values indicate
+            assets without data quality records.
+        container_id: str: Container id
+        container_type: str: Container type ("project" or "catalog")
+
+    Returns:
+        Dict[str, Optional[DataQuality]]: Dictionary mapping asset_id to DataQuality object,
+            or None if no data quality data exists or retrieval fails.
+    """
+    dq_ids_with_records = {
+        asset_id: dq_id
+        for asset_id, dq_id in asset_dq_ids.items()
+        if dq_id is not None
+    }
+
+    if not dq_ids_with_records:
+        LOGGER.warning("[DQ] No DQ IDs available; skipping bulk scores fetch")
+        return dict.fromkeys(asset_dq_ids)
+
+    params: dict[str, str] = {
+        "asset.ids": ",".join(dq_ids_with_records.values()),
+        f"{container_type.lower()}_id": container_id,
+    }
+
+    LOGGER.info("[DQ] Fetching bulk scores for %d assets", len(dq_ids_with_records))
+    try:
+        response = await tool_helper_service.execute_get_request(
+            str(tool_helper_service.base_url) + DATA_QUALITY_BASE_ENDPOINT + "/bulk_scores",
+            params=params,
+        )
+    except ExternalAPIError:
+        raise ServiceError(
+            "[DQ] Failed to retrieve bulk data quality scores.",
+            remediation_steps=(
+                "Fall back to calling `get_data_quality_for_asset` individually for each asset."
+            ),
+        )
+
+    items: list = response if isinstance(response, list) else []
+    scores_by_dq_id: Dict[str, Any] = {
+        entry["asset"]["id"]: entry.get("scores", [])
+        for entry in items
+        if entry.get("asset", {}).get("id")
+    }
+
+    data_quality_map: Dict[str, Optional[DataQuality]] = {
+        asset_id: _build_data_quality_entry(asset_id, dq_id, scores_by_dq_id, container_id, container_type)
+        for asset_id, dq_id in dq_ids_with_records.items()
+    }
+
+    # Fill in None for assets that had no DQ record
+    for asset_id in asset_dq_ids:
+        data_quality_map.setdefault(asset_id, None)
+
+    success_count = sum(1 for v in data_quality_map.values() if v is not None)
+    LOGGER.info(
+        "[DQ] Successfully retrieved quality for %d/%d assets",
+        success_count,
+        len(asset_dq_ids),
+    )
+
+    return data_quality_map
+
+
+async def get_data_quality_for_assets(
+    asset_ids_or_names: List[str],
+    container_id_or_name: str,
+    container_type: Literal["catalog", "project"],
+) -> Dict[str, Optional[DataQuality]]:
+    """
+    Retrieve data quality metrics for multiple assets in bulk.
+
+    REQUIRED: ALL THREE parameters are mandatory. Ask for any missing information:
+    1. asset_ids_or_names - List of data asset names/IDs (e.g., ["CustomerTable", "OrdersTable"]) - REQUIRED
+    2. container_id_or_name - The project or catalog name/ID (e.g., "AgentsDemo") - REQUIRED
+    3. container_type - Either "project" or "catalog" - REQUIRED
+
+    When asking for missing information:
+    - If asset names are missing: Ask "Which assets would you like to check?"
+    - If container is missing: Ask "Which project or catalog contains these assets?"
+    - If container type is missing: Ask "Are these in a project or catalog?"
+    - If user mentions "project" or "catalog", use that value directly
+
+    Args:
+        asset_ids_or_names: List[str]: List of asset UUIDs or names to retrieve quality metrics for
+        container_id_or_name: str: Project or catalog UUID or name where the assets are located
+        container_type: str: Container type ("project" or "catalog")
+    
+    Returns:
+        Dict[str, Optional[DataQuality]]: Dictionary mapping each original asset name/ID to its
+            DataQuality object (overall score, dimension scores, report URL), or None if the asset
+            could not be resolved or has no quality data.
+    """
+    
+    LOGGER.info(
+        "[DQ] Calling get_data_quality_for_assets with %d assets, container_id_or_name=%s, container_type=%s",
+        len(asset_ids_or_names),
+        container_id_or_name,
+        container_type,
+    )
+    
+    container_id = await resolve_id_or_name(
+        container_id_or_name,
+        find_project_id if container_type == "project" else find_catalog_id,
+    )
+
+    async def _resolve_asset_id(asset_id_or_name: str) -> tuple[str, Optional[str]]:
+        """Helper to resolve a single asset ID."""
+        try:
+            asset_id = await resolve_id_or_name(
+                asset_id_or_name,
+                find_asset_id,
+                container_id=container_id,
+                container_type=container_type,
+            )
+            return (asset_id_or_name, asset_id)
+        except Exception:
+            return (asset_id_or_name, None)
+
+    asset_resolution_results = await asyncio.gather(
+        *[_resolve_asset_id(name) for name in asset_ids_or_names],
+        return_exceptions=False,
+    )
+
+    name_to_id_map = dict(asset_resolution_results)
+    resolved_ids = [aid for aid in name_to_id_map.values() if aid is not None]
+
+    if not resolved_ids:
+        LOGGER.error("[DQ] No assets could be resolved")
+        return dict.fromkeys(asset_ids_or_names)
+
+    asset_dq_ids: Dict[str, str | None] = await _retrieve_data_quality_ids_for_assets_bulk(
+        asset_ids=resolved_ids,
+        container_id=container_id,
+        container_type=container_type,
+    )
+
+    quality_map = await _retrieve_data_quality_bulk(
+        asset_dq_ids=asset_dq_ids,
+        container_id=container_id,
+        container_type=container_type,
+    )
+
+    result: Dict[str, Optional[DataQuality]] = {}
+    for original_name in asset_ids_or_names:
+        resolved_id = name_to_id_map.get(original_name)
+        result[original_name] = quality_map.get(resolved_id) if resolved_id else None
+
+    return result
+
+
 async def list_data_quality_rules(
     project_id_or_name: str, data_quality_rule_name: Optional[str] = None
 ) -> List[DataQualityRule]:
@@ -913,7 +1180,7 @@ async def create_data_quality_rule_from_sql_query(
         response = await tool_helper_service.execute_post_request(
             url=url,
             json=payload,
-            tool_name="create_data_quality_rule_from_sql_query",
+            tool_name="create_data_quality_rule",
         )
     except ExternalAPIError as ese:
         LOGGER.error(

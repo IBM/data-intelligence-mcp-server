@@ -239,7 +239,7 @@ END OF SCHEMA GUIDE
     },
     description="""Use this tool when you need to understand the JSON schema and format requirements before creating a data protection rule.
     Returns: The complete JSON schema, valid terms, examples, and formatting rules for creating data protection rules.""",
-    tags={"data_protection_rules", "schema", "reference"},
+    tags={"data_protection_rules", "schema", "reference", "metadata_management_and_governance"},
     meta={"version": "1.0", "service": "data_protection_rules"},
 )
 @auto_context

@@ -36,6 +36,8 @@ USER_PROFILES_BASE_ENDPOINT = "/v2/user_profiles"
 REPORTING_BASE_ENDPOINT = "/v3/reporting"
 METADATA_IMPORT_BASE_ENDPOINT = "/v2/metadata_imports"
 GROUPS_BASE_ENDPOINT = "/v2/groups"
+DATA_PROFILES_BASE_ENDPOINT = "/v2/data_profiles"
+
 METADATA_ENRICHMENT_BASE_ENDPOINT = "/metadata_enrichment/v3"
 WORKFLOW_BASE_ENDPOINT = "/v3/workflows"
 

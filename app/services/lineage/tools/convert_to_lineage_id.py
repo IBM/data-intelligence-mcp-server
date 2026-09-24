@@ -25,7 +25,7 @@ async def _convert_to_lineage_id(
     is_uuid(input.asset_id)
 
     LOGGER.info(
-        "convert_asset_to_lineage_id called with container_id: %s and asset_id: %s",
+        "get_lineage_id called with container_id: %s and asset_id: %s",
         input.container_id,
         input.asset_id,
     )
@@ -44,7 +44,7 @@ async def _convert_to_lineage_id(
     entities = response.get("entities")
     if not entities:
         raise ValidationError(
-            "Tool convert_asset_to_lineage_id finished successfully but no entities were found.",
+            "Tool get_lineage_id finished successfully but no entities were found.",
             remediation_steps="Verify if lineage is enabled, reimport this asset or try different one."
         )
 
@@ -54,11 +54,12 @@ async def _convert_to_lineage_id(
 
 
 @service_registry.tool(
-    name="convert_asset_to_lineage_id",
+    name="get_lineage_id",
     annotations={
         "readOnlyHint": True,
         "title": "Convert Asset and Container IDs to Lineage Identifier"
     },
+    tags={"lineage"},
     description="Use this tool when you converts asset IDs from container scope into a unique lineage identifier required by other lineage tools."
     "This is an alternative to search_lineage_assets when you already know the exact container and asset IDs. " \
     "Return: A unique 64-character hexadecimal lineage identifier that can be used with other lineage tools.",
@@ -72,5 +73,5 @@ async def convert_asset_to_lineage_id(
 
     request = ConvertToLineageIdRequest(container_id=container_id, asset_id=asset_id)
 
-    # Call the original convert_asset_to_lineage_id function
+    # Call the original get_lineage_id function
     return await _convert_to_lineage_id(request)

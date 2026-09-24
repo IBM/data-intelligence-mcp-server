@@ -88,7 +88,7 @@ async def _copy_connection(
         "title": "Create Connection Copy in Target Container",
         "destructiveHint": True
     },
-    description="""Use this tool when you need to create a new connetion from an existing connection,
+    description="""Use this tool when you need to create a new connection from an existing connection,
                     in other words, copying a connection, or using an existing connection in a different
                     container, and returning the details of the new connection.
                     Users are required to provide the identifier of the existing connection to be copied
@@ -114,7 +114,7 @@ async def _copy_connection(
                     - connection to be copied can only exist in a catalog
                     Return: * id: Unique identifier of the newly created connection * name: Name of the newly created connection * create_time: Timestamp when the connection was created or copied * creator_id: Identifier of the user who copied the connection. 
                     """,
-    tags={"copy", "connection"},
+    tags={"copy", "connection", "metadata_management_and_governance"},
     meta={"version": "1.0", "service": "connections"}
 )
 @auto_context

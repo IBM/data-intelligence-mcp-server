@@ -36,13 +36,13 @@ async def _list_metadata_enrichment_asset_jobs(
     Lists all metadata enrichment jobs for a given metadata enrichment asset.
     The tool retrieves the list of all the available jobs for a given metadata enrichment asset.
     The user should provide the MDE name or its UUID and the project name or its UUID.
-    The tool will return a list of job details: id, name, description, schedule_info, objectives, categories, ... or an empty list if no job is defined.
-    For the user only show the name, description and the ID of the job
+    The tool returns a list of job details: id, name, description, schedule_info, objectives, categories, ... or an empty list if no job is defined.
     """,
     annotations={
         "title": "List all metadata enrichment jobs for a given project",
         "destructiveHint": True
-    }
+    },
+    tags={"metadata_management_and_governance"}
 )
 @auto_context
 async def list_metadata_enrichment_asset_jobs(

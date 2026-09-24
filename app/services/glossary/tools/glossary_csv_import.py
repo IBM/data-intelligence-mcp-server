@@ -174,7 +174,8 @@ This enables LLMs to generate properly formatted CSVs and validate user-provided
     annotations={
         "title": "Import and Create Glossary Terms and Categories from CSV Content",
         "destructiveHint": True
-    }
+    },
+    tags={"metadata_management_and_governance"}
 )
 @auto_context
 async def import_glossary_from_csv(

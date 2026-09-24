@@ -78,7 +78,7 @@ async def _attach_business_domain_to_data_product(
 
 @service_registry.tool(
     name="attach_business_domain_to_data_product",
-    description="""Use this tool when you need to attaches the given business domain to a data product draft.
+    description="""Use this tool when you need to attach the given business domain to a data product draft.
     The business domain given should be a valid business domain in the system or else this returns the list of business domains available to choose from.
     Return: A success message confirming that the business domain has been attached to the data product draft, including the domain name and data product draft ID.
     """,

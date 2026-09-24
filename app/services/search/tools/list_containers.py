@@ -11,7 +11,7 @@ from typing import Annotated
 from pydantic import Field
 
 from app.core.registry import service_registry
-from app.core.auth import get_bss_account_id
+from app.core.auth import get_bss_account_id, get_sub_from_iam_id, get_user_identifier
 from app.services.constants import (
     PROJECTS_BASE_ENDPOINT,
     CATALOGS_BASE_ENDPOINT,
@@ -69,12 +69,14 @@ def _parse_container_types(container_type_str: str) -> Set[str]:
     return container_types if container_types else {"catalog", "project", "space"}
 
 
-async def _list_single_container_type(container_type: str) -> List[Container]:
+async def _list_single_container_type(container_type: str, roles: List[str] | None = None) -> List[Container]:
     """
     List all containers of a single given type.
     
     Args:
         container_type: The type of the container - "project", "catalog", or "space"
+        roles: Optional list of roles to filter projects by (only for "project" type).
+               When provided, the current user's member identifier is used as the member filter.
         
     Returns:
         List[Container]: List of container objects of given type
@@ -83,7 +85,13 @@ async def _list_single_container_type(container_type: str) -> List[Container]:
     
     if container_type == "project":
         params["bss_account_id"] = await get_bss_account_id()
-            
+
+        if roles:
+            iam_id = await get_user_identifier()
+            member = await get_sub_from_iam_id(iam_id)
+            params["member"] = member
+            params["roles"] = ",".join(roles)
+
         response = await tool_helper_service.execute_get_request(
             url=str(tool_helper_service.base_url) + PROJECTS_BASE_ENDPOINT,
             params=params,
@@ -124,12 +132,14 @@ async def _list_single_container_type(container_type: str) -> List[Container]:
         ]
 
 
-async def _list_asset_containers(container_type: ContainerType) -> List[Container]:
+async def _list_asset_containers(container_type: ContainerType, roles: List[str] | None = None) -> List[Container]:
     """
     List all containers of given type(s).
     
     Args:
         container_type: The type of the container - supports various formats
+        roles: Optional list of roles to filter projects by the current user's membership role.
+               Only applied when listing projects.
         
     Returns:
         List[Container]: List of container objects of given type
@@ -145,7 +155,7 @@ async def _list_asset_containers(container_type: ContainerType) -> List[Containe
         all_containers.extend(catalogs)
     
     if "project" in container_types:
-        projects = await _list_single_container_type("project")
+        projects = await _list_single_container_type("project", roles=roles)
         all_containers.extend(projects)
     
     if "space" in container_types:
@@ -162,17 +172,18 @@ async def _list_containers(
     Lists all available containers based on the specified type.
     
     Args:
-        request: ListContainersRequest containing container_type
+        request: ListContainersRequest containing container_type and optional roles
         
     Returns:
         ListContainersResponse with list of containers and metadata
     """
     LOGGER.info(
-        "Starting list_containers with container_type: '%s'",
+        "Starting list_containers with container_type: '%s', roles: '%s'",
         request.container_type,
+        request.roles,
     )
 
-    containers = await _list_asset_containers(request.container_type)
+    containers = await _list_asset_containers(request.container_type, roles=request.roles)
 
     LOGGER.info(
         "Found %d containers of type '%s'",
@@ -198,7 +209,8 @@ async def _list_containers(
         "readOnlyHint": True,
         "title": "List All Available Containers (Catalogs, Projects, and Spaces)"
     },
-    description="""Use this tool when you need to lists all available containers - catalogs, projects or spaces.
+    tags={"metadata_management_and_governance"},
+    description="""Use this tool when you need to list all available containers - catalogs, projects or spaces.
     
     This tool finds all containers (catalogs, projects or spaces) that are available to the current user.
     
@@ -211,13 +223,21 @@ async def _list_containers(
 )
 @auto_context
 async def list_containers(
-    container_type: Annotated[ContainerType, Field(description="Type of container to list - 'project', 'catalog', 'space', or 'all'. Defaults to 'all'.")] = ContainerType.ALL
+    container_type: Annotated[ContainerType, Field(description="Type of container to list - 'project', 'catalog', 'space', or 'all'. Defaults to 'all'.")] = ContainerType.ALL,
+    roles: Annotated[
+        List[str] | None,
+        Field(
+            description="Filter projects by the current user's role(s). Only applicable when listing projects. "
+                        "Valid values: 'admin', 'editor', 'viewer'. "
+                        "Example: use ['editor'] to list projects where I am an Editor.",
+        ),
+    ] = None,
 ) -> ListContainersResponse:
     """Wrapper that expands ListContainersRequest object into individual parameters."""
     
     # Convert string to ContainerType enum
     container_type_enum = ContainerType(container_type)
-    request = ListContainersRequest(container_type=container_type_enum)
+    request = ListContainersRequest(container_type=container_type_enum, roles=roles)
     
     # Call the original list_containers function
     return await _list_containers(request)

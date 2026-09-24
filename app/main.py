@@ -21,7 +21,12 @@ from fastmcp import FastMCP
 import app.services
 from app.core.registry import prompt_registry, service_registry
 from app.core.settings import settings
-from app.core.middleware import ValidationErrorHandlingMiddleware
+from app.core.middleware import (
+    ValidationErrorHandlingMiddleware,
+    SessionInitMiddleware,
+    KNOWN_TOOL_GROUPS,
+    DEFAULT_ENABLED_TOOL_GROUPS,
+)
 
 # Ensure the project root is in the Python path for module resolution
 project_root = Path(__file__).parent.parent
@@ -99,8 +104,17 @@ def create_server() -> FastMCP:
 
     mcp = FastMCP("WXDI MCP Server", version="1.0.0")
 
+    # Disable optional tool groups globally at startup.
+    # Groups in DEFAULT_ENABLED_TOOL_GROUPS are left enabled so clients that
+    # supply no x-tool-groups header / TOOL_GROUPS env var get them.
+    # SessionInitMiddleware re-enables non-default groups per session based on
+    # the x-tool-groups request header (or TOOL_GROUPS env var for stdio).
+    for feature in KNOWN_TOOL_GROUPS - DEFAULT_ENABLED_TOOL_GROUPS:
+        mcp.disable(tags={feature})
+
     # Add middleware for enhanced error messages
     mcp.add_middleware(ValidationErrorHandlingMiddleware())
+    mcp.add_middleware(SessionInitMiddleware())
 
     # Register tools first to get the actual count
     service_registry.register_all(mcp)

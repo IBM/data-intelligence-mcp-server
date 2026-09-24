@@ -21,7 +21,7 @@ ArtifactType = Literal["glossary_term", "data_class"]
 class GetArtifactDetailsRequest(BaseModel):
     """Request model for getting artifact details."""
 
-    artifact_name: str = Field(..., description="The artifact name to retrieve details for")
+    artifact_name: str = Field("", description="The artifact name to retrieve details for")
     artifact_type: ArtifactType = Field(
         ...,
         description="Type of artifact: 'glossary_term' or 'data_class'"
@@ -30,6 +30,34 @@ class GetArtifactDetailsRequest(BaseModel):
         "table",
         description="Output format: 'table' for formatted output, 'json' for structured data"
     )
+    # Internal fields: populated by the tool after the user selects from a multiple-matches list.
+    # Never exposed in the public tool signature — the LLM supplies them on the follow-up call.
+    artifact_id: Optional[str] = Field(
+        None,
+        description="Single artifact ID to fetch directly, bypassing name resolution"
+    )
+    artifact_ids: Optional[List[str]] = Field(
+        None,
+        description="Multiple artifact IDs to fetch in parallel, bypassing name resolution"
+    )
+
+
+class ArtifactMatch(BaseModel):
+    """Lightweight summary of one artifact returned when multiple share the same name."""
+
+    artifact_id: str = Field(..., description="Unique artifact ID")
+    name: str = Field(..., description="Artifact name")
+    long_description: Optional[str] = Field(
+        None,
+        description=(
+            "Long description as entered by the user in the UI. "
+            "Used to help identify the right artifact when multiple share the same name. "
+            "May be absent if the artifact has no description set."
+        )
+    )
+    created_at: Optional[str] = Field(None, description="Creation timestamp")
+    modified_at: Optional[str] = Field(None, description="Last modification timestamp")
+    workflow_state: Optional[str] = Field(None, description="Workflow state")
 
 
 class RelationshipSummary(BaseModel):
@@ -76,9 +104,22 @@ class ArtifactDetails(BaseModel):
 class GetArtifactDetailsResponse(BaseResponseModel):
     """Response model for getting artifact details."""
 
-    artifact_details: ArtifactDetails = Field(
-        ...,
-        description="Available details about the artifact"
+    artifact_details: Optional[ArtifactDetails] = Field(
+        None,
+        description="Full details for a single artifact. None when multiple_matches is populated."
+    )
+    all_artifact_details: Optional[List[ArtifactDetails]] = Field(
+        None,
+        description="Full details for multiple artifacts, populated when artifact_ids is supplied."
+    )
+    multiple_matches: Optional[List[ArtifactMatch]] = Field(
+        None,
+        description=(
+            "Populated when multiple artifacts share the same name. "
+            "Present these to the user as a numbered list and ask whether they want details "
+            "for one, several, or all of them. Then re-call with artifact_id (single) or "
+            "artifact_ids (multiple/all) accordingly."
+        )
     )
     formatted_output: Optional[str] = Field(
         None,

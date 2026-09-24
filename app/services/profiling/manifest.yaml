@@ -1,0 +1,6 @@
+service:
+  name: profiling
+  description: "This service contains tools to work with data profiling and analysis"
+system_instructions: |
+  Profiling service tools:
+  1. create_data_profiles → Create data profiles for datasets with configurable analysis options (DQA, bivariate statistics, classification, historical data collection)

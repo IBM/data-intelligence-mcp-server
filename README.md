@@ -1,6 +1,6 @@
 # Data Intelligence MCP Server
 
-The IBM Data Intelligence MCP Server provides a modular and scalable implementation of the Model Context Protocol (MCP), purpose-built to integrate with IBM Data Intelligence services. It enables secure and extensible interaction between MCP clients and IBM’s data intelligence capabilities.
+The IBM Data Intelligence MCP Server provides a modular and scalable implementation of the Model Context Protocol (MCP), purpose-built to integrate with IBM Data Intelligence services. It enables secure and extensible interaction between MCP clients and IBM's data intelligence capabilities.
 
 For the list of `tools` supported in this version and sample prompts, refer to [TOOLS_PROMPTS.md](TOOLS_PROMPTS.md)
 
@@ -51,7 +51,11 @@ Resources:
 5. [Configuration](#configuration)
    - [Client Settings](#client-settings)
    - [SSL/TLS Configuration](#ssltls-configuration)
-6. [Privacy Policy](#privacy-policy)
+6. [Tool Groups](#tool-groups)
+   - [Available Groups](#available-groups)
+   - [HTTP Mode — x-tool-groups Header](#http-mode--x-tool-groups-header)
+   - [stdio Mode — TOOL_GROUPS Environment Variable](#stdio-mode--tool_groups-environment-variable)
+7. [Privacy Policy](#privacy-policy)
 
 ---
 
@@ -318,6 +322,88 @@ e.g:
 ### SSL/TLS Configuration
 
 If running in CPD environment, you might need to configure SSL certificate for client connection. Please look into [SSL_CERTIFICATE_GUIDE.md](readme_guides/SSL_CERTIFICATE_GUIDE.md) for more details.
+
+---
+
+## Tool Groups
+
+All tools in this MCP server are organised into named **tool groups**. At startup, only the **Default** group is enabled; all other groups are globally disabled until a connecting client explicitly requests them. Each session activates only the groups that client needs, keeping the active tool list small and focused.
+
+> **Default behaviour**: If no groups are specified, `metadata_management_and_governance` is enabled automatically. All other groups must be requested explicitly.
+
+### Available Groups
+
+| Group Name | Included capabilities | When to enable |
+|---|---|---|
+| `metadata_management_and_governance` | Metadata import/enrichment, glossary management, data protection rules, workflow/approval tasks, reporting SQL tools, and governance artifacts | Enabled by default. Use for the core governance and cataloguing workflows — metadata onboarding, business glossary, data protection policies, and governance approvals. |
+| `data_product` | Create, publish, search, and manage data products and subscriptions; import remote assets into a Data Product Hub catalog | Enable when working with **IBM Data Product Hub (DPH)**. Required for creating or consuming data products, managing subscriptions, attaching contracts, or publishing assets to a DPH catalog. Verify that IBM Data Product Hub is installed before enabling this group — see [Preparing to install watsonx.data intelligence](https://www.ibm.com/docs/en/software-hub/5.4.x?topic=intelligence-preparing-install) for Cloud Pak for Data. |
+| `data_quality` | Data quality rules, profiling analysis, quality scoring, SLA management, and quality remediation (including ODCS/SLA violation explanations) | Enable when you need to assess, monitor, or remediate data quality. Applicable when working with data quality rules, SLA thresholds, quality scores, or contract test results. Verify that the **Watson Knowledge Catalog** data quality features are installed before enabling this group — see [Preparing to install watsonx.data intelligence](https://www.ibm.com/docs/en/software-hub/5.4.x?topic=intelligence-preparing-install) for Cloud Pak for Data. |
+| `lineage` | Data lineage graphs, upstream/downstream traversal, lineage version comparison, and asset ID conversion | Enable when you need to trace data origins, understand pipeline dependencies, or compare lineage snapshots across time. Verify that the **IBM Manta Data Lineage** service is installed before enabling this group — see [Preparing to install watsonx.data intelligence](https://www.ibm.com/docs/en/software-hub/5.4.x?topic=intelligence-preparing-install) for Cloud Pak for Data. |
+| `generative_ai` | Text-to-SQL query generation, semantic model access, SQL-view asset creation, glossary generation from files, and AI-powered dynamic search | Enable when **Generative AI features are activated** in your IBM Data Intelligence instance. These tools rely on LLM-backed services — including text-to-SQL, semantic search, and AI-assisted term generation — that must be explicitly enabled in the product settings before use. Verify that the generative AI capabilities are installed before enabling this group — see [Preparing to install watsonx.data intelligence](https://www.ibm.com/docs/en/software-hub/5.4.x?topic=intelligence-preparing-install) for Cloud Pak for Data. |
+
+### HTTP Mode — `x-tool-groups` Header
+
+When the server runs in `http` transport mode, each connecting client sends the `x-tool-groups` HTTP request header to declare which groups it wants enabled. Groups are resolved per session, so two clients connected simultaneously can have different active tool sets.
+
+#### Format
+
+The header value accepts below formats:
+
+**Single string**:
+```
+x-tool-groups: data_product
+```
+
+**JSON array**:
+```
+x-tool-groups: ["data_product","lineage"]
+```
+
+#### IBM Bob — http with tool groups
+
+```json
+{
+  "servers": {
+    "wxdi-mcp-server": {
+      "url": "<url_to_mcp_server>",
+      "type": "http",
+      "headers": {
+        "x-api-key": "your api key",
+        "x-tool-groups": ["data_product,lineage"]
+      }
+    }
+  }
+}
+```
+
+### stdio Mode — `TOOL_GROUPS` Environment Variable
+
+When the server runs in `stdio` transport mode set the `TOOL_GROUPS` environment variable. The value is read once at session initialisation.
+
+#### Claude Desktop — stdio with tool groups
+
+```json
+{
+  "mcpServers": {
+    "wxdi-mcp-server": {
+      "command": "uvx",
+      "args": ["ibm-watsonx-data-intelligence-mcp-server", "--transport", "stdio"],
+      "env": {
+        "DI_SERVICE_URL": "https://api.dataplatform.cloud.ibm.com",
+        "DI_APIKEY": "<data intelligence api key>",
+        "DI_ENV_MODE": "SaaS",
+        "LOG_FILE_PATH": "/tmp/di-mcp-server-logs",
+        "TOOL_GROUPS": "[\"data_product\",\"lineage\"]"
+      }
+    }
+  }
+}
+```
+
+**Key Points:**
+- Group names are **case-insensitive** and leading/trailing whitespace is ignored.
+- Unknown group names are silently skipped .
+- If no groups are specified, `metadata_management_and_governance` is enabled by default. 
 
 ---
 

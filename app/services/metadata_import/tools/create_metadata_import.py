@@ -153,7 +153,7 @@ async def _create_metadata_import(input: CreateMetadataImportRequest) -> CreateM
         "update_column_descriptions (default True), delete_when_deleted_at_source (default True), "
         "delete_when_removed_from_scope (default False)."
     ),
-    tags={"metadata-import"},
+    tags={"metadata-import","metadata_management_and_governance"},
     meta={"version": "1.0", "service": "metadata-import"},
     annotations={
         "title": "Create Metadata Import in a Project",

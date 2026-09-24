@@ -831,6 +831,11 @@ class JobRunStatus(BaseResponseModel):
     status: str = Field(..., description="Job run status")
     run_id: str = Field(..., description="Job Run / Asset ID")
 
+class CategoryInfo(BaseResponseModel):
+    """Model representing a single category."""
+    name: str = Field(..., description="Category name")
+    category_id: str = Field(..., description="Unique identifier for the category")
+
 class ListEnrichmentCategoriesResponse(BaseResponseModel):
     """Model representing categories."""
     categories: list[str] = Field(..., description="List of categories")

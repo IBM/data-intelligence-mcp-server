@@ -69,7 +69,7 @@ async def _find_container(
             container.type,
         )
 
-        ui_message_context.add_table_ui_message("find_container", format_containers_for_table([container]), title="Containers")
+        ui_message_context.add_table_ui_message("get_container", format_containers_for_table([container]), title="Containers")
         return FindContainerResponse(container=container)
     
     except ServiceError as e:
@@ -86,12 +86,13 @@ async def _find_container(
 
 
 @service_registry.tool(
-    name="find_container",
+    name="get_container",
     annotations={
         "readOnlyHint": True,
         "title": "Find Specific Container (Catalog, Project, or Space) by ID or name"
     },
-    description="""Use this tool when you need to finds a specific container (catalog, project or space) by ID or name.
+    tags={"metadata_management_and_governance"},
+    description="""Use this tool when you need to find a specific container (catalog, project or space) by ID or name.
     
     This tool searches for a container using either its UUID or name.
     

@@ -109,7 +109,7 @@ async def _get_asset_details(
                     - One of catalog or project parameters is required to be not null, both cannot be null, both cannot be not null
                     - Invalid values will result in errors
                     Return: Comprehensive asset metadata including usage information, ROV details, asset properties (name, description, tags, type), ownership details, creation/update timestamps, ratings, container information, and entity details.""",
-    tags={"search", "asset_metadata"},
+    tags={"search", "asset_metadata", "metadata_management_and_governance"},
     meta={"version": "1.0", "service": "search"}
 )
 @auto_context

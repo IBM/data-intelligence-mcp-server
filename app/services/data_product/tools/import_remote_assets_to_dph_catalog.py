@@ -1165,7 +1165,34 @@ async def _import_remote_assets_to_dph_catalog(
         assets_by_container[container_key].append((idx, asset_info))
     
     # Step 3: Batch fetch asset details by container
-    all_asset_details = await _batch_fetch_all_asset_details(assets_by_container)
+    # A ServiceError raised here (e.g. YPQA CAMS returning HTTP 404 "catalog does not
+    # exist" before returning any asset data) would otherwise escape uncaught all the way
+    # to the FastMCP tool handler, which serialises it differently in hosted mode than in
+    # local mode — breaking result.structured_content assertions.  Catch it here and
+    # re-raise in the same structured validation-error shape that _validate_all_assets uses
+    # so both modes always produce a consistent {"error": ..., "success": false} response.
+    try:
+        all_asset_details = await _batch_fetch_all_asset_details(assets_by_container)
+    except ServiceError as e:
+        error_summary = _format_error_report(
+            errors=[
+                {
+                    "asset_name": asset_info.asset_id,
+                    "asset_id": asset_info.asset_id,
+                    "container_id": asset_info.container_id,
+                    "container_type": asset_info.container_type,
+                    "error_type": type(e).__name__,
+                    "error": str(e),
+                }
+                for asset_info in request.assets
+            ],
+            successes=[],
+            total_count=asset_count,
+            phase="Validation",
+            state_changed=False,
+        )
+        LOGGER.error(error_summary)
+        raise ServiceError(error_summary)
     
     # Step 4: Validate all assets - collect all validation errors
     assets_by_container_with_details, _, _ = await _validate_all_assets(

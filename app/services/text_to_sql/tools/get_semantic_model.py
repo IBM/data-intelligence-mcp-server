@@ -173,6 +173,8 @@ def _build_request_context(
         context["data_source_definition_asset_id"] = dsd_id
     if request.document_library_ids:
         context["document_library_ids"] = request.document_library_ids
+    if request.schema_names:
+        context["schema_names"] = request.schema_names
     return context
 
 
@@ -250,6 +252,8 @@ def _validate_request(request: GetSemanticModelRequest) -> None:
 
     The 'other fields' are: connection_ids_or_names, asset_ids,
     data_source_definition_id_or_name, document_library_ids
+    Validate that schema_names is provided with EITHER connections 
+    OR dsd NOT both AND NOT alone
     """
     # Check the format of container_info
     if request.container_info:
@@ -300,6 +304,23 @@ def _validate_request(request: GetSemanticModelRequest) -> None:
             tool="get_semantic_model"
         )
 
+    # Check schema_names, valid scenarios:
+    # 1. schema_names with connection_ids_or_names
+    # 2. schema_names with data_source_definition_id_or_name
+    has_schema_names = request.schema_names is not None
+    schema_names_validation_remediation_steps_msg = """
+            - Provide schema_names with connection_ids_or_names
+            OR with data_source_definition_id_or_name
+            - schema_names cannot be provided by itself
+    """
+    if has_schema_names:
+        if request.connection_ids_or_names is None and request.data_source_definition_id_or_name is None:
+            raise ValidationError(
+                "Schema names cannot be provided by itself, it needs to be provided with either connections or data source definition",
+                remediation_steps=schema_names_validation_remediation_steps_msg,
+                tool="get_semantic_model"
+            )
+
 async def _get_semantic_model(
     request: GetSemanticModelRequest,
 ) -> GetSemanticModelResponse:
@@ -332,12 +353,13 @@ async def _get_semantic_model(
     dsd_id = await _resolve_data_source_definition_id(request.data_source_definition_id_or_name)
 
     LOGGER.info(
-        "Calling get_semantic_model for containers: %s, connection ids: %s, asset IDs: %s, data source definition ID: %s, document library IDs: %s",
+        "Calling get_semantic_model for containers: %s, connection ids: %s, asset IDs: %s, data source definition ID: %s, document library IDs: %s, schema_names: %s",
         container_ids,
         connection_ids,
         request.asset_ids,
         dsd_id,
         request.document_library_ids,
+        request.schema_names
     )
 
     # Build query parameters and request body
@@ -387,8 +409,9 @@ async def _get_semantic_model(
         "readOnlyHint": True,
         "title": "Get Relevant Semantic Model Assets for a User Question"
     },
+    tags={"generative_ai"},
     description="""Use this tool when you need to find schema and assets to answer a question and return list of retrieved assets.
-                       This function takes in a user's search prompt (query) as required parameter.
+                       This tool takes in a user's search prompt (query) as required parameter.
                        Optionally the user can also provide container info: container and container type, connection id or name, asset ids,
                        data source definition asset ids, document library ids.
                        The tool then returns a list of assets that have been found.
@@ -403,6 +426,7 @@ async def _get_semantic_model(
                        - container_info should be in the format: [{"container_id_or_name": "string", "container_type": "string"}, {"container_id_or_name": "string", "container_type": "string"}, ...] where container_id_or_name is the name or id
                          of the container and container_type is either "project" or "catalog". "container_type" is an optional key with default value "project".
                          Example: [{'container_id_or_name': 'testCatalog', 'container_type': 'catalog'}, {'container_id_or_name': 'testProject'}]
+                       - schema_names parameter must be provided with exactly one of connection_ids_or_names or data_source_definition_id_or_name (not both, not standalone)
                        - optional parameters should be set to None if not provided
                        - Invalid values will result in errors
                        Query API Reference: https://api.dataplatform.cloud.ibm.com/semantic_automation/v1/swagger-ui/index.html
@@ -416,15 +440,16 @@ async def get_semantic_model(
     asset_ids: Annotated[Optional[List[str]], Field(description="Optional list of specific asset IDs to retrieve schema for.")] = None,
     data_source_definition_id_or_name: Annotated[Optional[str], Field(description="Optional data source definition name or asset ID.")] = None,
     document_library_ids: Annotated[Optional[str], Field(description="The document libraries to use (for Lakehouse only) for schema linking to assets. If empty, all document libraries will be used.")] = None,
+    schema_names: Annotated[Optional[List[str]], Field(description="Optional list of schema names to filter assets to specific schemas.")] = None,
 ) -> GetSemanticModelResponse:
     """Wrapper version of get_semantic_model."""
     
     LOGGER.info(
         "get_semantic_model called with: container_info=%s, query=%s, "
-        "connection_ids_or_names=%s, asset_ids=%s (type=%s), data_source_definition_id_or_name=%s, document_library_ids=%s",
+        "connection_ids_or_names=%s, asset_ids=%s (type=%s), data_source_definition_id_or_name=%s, document_library_ids=%s , schema_names=%s",
         container_info, query, connection_ids_or_names,
         asset_ids, type(asset_ids).__name__ if asset_ids is not None else "NoneType",
-        data_source_definition_id_or_name, document_library_ids
+        data_source_definition_id_or_name, document_library_ids, schema_names
     )
 
     request = GetSemanticModelRequest(
@@ -433,6 +458,7 @@ async def get_semantic_model(
         asset_ids=asset_ids,
         data_source_definition_id_or_name=data_source_definition_id_or_name,
         document_library_ids=document_library_ids,
+        schema_names=schema_names,
         query=query,
     )
     return await _get_semantic_model(request)

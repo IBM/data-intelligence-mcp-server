@@ -787,7 +787,8 @@ async def _search_lineage_assets(
         "readOnlyHint": True,
         "title": "Search and Filter Lineage Assets by Multiple Criteria"
     },
-    description="""Use this tool when you need to searches for assets in the Lineage system based on name and optional filters.
+    tags={"lineage"},
+    description="""Use this tool when you need to search for assets in the Lineage system based on name and optional filters.
     
     This tool finds lineage assets matching the provided name query, with filtering
     by technology name, asset type, and Data Source Definition (DSD). Results are sorted by relevance, with exact matches first.

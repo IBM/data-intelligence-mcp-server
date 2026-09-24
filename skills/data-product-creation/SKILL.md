@@ -46,7 +46,7 @@ CALL: `list_data_product_business_domains` tool
 
 WHEN: User asks about available delivery methods for a data asset (e.g., "What delivery methods are available for asset_name?")
 
-CALL: `find_data_product_delivery_methods_based_on_connection` tool
+CALL: `list_data_product_delivery_methods` tool
 
 ---
  
@@ -172,7 +172,7 @@ Use `search_asset` to find candidate assets, then `get_asset_details` to retriev
  
 **For URL-based products:** Delivery method is automatically "Open URL" — no configuration needed.
  
-**Leave method_id as placeholder** if not yet discovered. Note that `find_data_product_delivery_methods_based_on_connection` will be called during publication to get actual IDs.
+**Leave method_id as placeholder** if not yet discovered. Note that `list_data_product_delivery_methods` will be called during publication to get actual IDs.
  
 ### 2.5 File: `contract_spec.json`
  
@@ -497,7 +497,7 @@ Asset-based data products use a **two-step workflow** for better performance and
 
 **Discover available methods:**
   ```
-  Call: find_data_product_delivery_methods_based_on_connection
+  Call: list_data_product_delivery_methods
   Input:
     - data_product_draft_id: from step 5.2
     - data_asset_name: from delivery_config.json

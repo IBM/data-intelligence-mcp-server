@@ -5,7 +5,7 @@
 """Shared utility for generating Elasticsearch DSL queries from natural language.
 
 This module is intentionally *not* an MCP tool — it is a pure utility used by
-both ``dynamic_query_search`` and ``execute_gs_query`` to convert a plain-English
+both ``dynamic_query_search`` and ``run_gs_query`` to convert a plain-English
 prompt into a valid Global Search ES DSL query body.
 """
 

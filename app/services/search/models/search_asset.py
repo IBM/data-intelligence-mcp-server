@@ -4,7 +4,7 @@
 
 from pydantic import BaseModel, Field
 from app.shared.models import BaseResponseModel
-from typing import Optional, List
+from typing import Any, Optional, List
 
 class SearchAssetRequest(BaseModel):
     """Request model for searching assets."""
@@ -22,13 +22,15 @@ class SearchAssetRequest(BaseModel):
 
 class SearchAssetResponse(BaseResponseModel):
     """Search assets response model"""
-    id: str = Field(..., description="Unique id of the asset")
-    name: str = Field(..., description="Name of the asset")
-    catalog_id: Optional[str] = Field(None, description="Catalog identifier in which the asset resides")
-    catalog_name: Optional[str] = Field(None, description="Catalog name in which the asset resides")
-    project_id: Optional[str] = Field(None, description="Project identifier in which the asset resides")
-    project_name: Optional[str] = Field(None, description="Project name in which the asset resides")
-    url: str = Field(...,description="URL of the asset")
+    id: str = Field(..., description="Internal unique id of the asset. Do not show to the user unless explicitly requested.")
+    name: str = Field(..., description="Name of the asset. Always display as a hyperlink using the url field.")
+    description: Optional[str] = Field(None, description="Description of the asset. Always show this field; display '-' when empty.")
+    catalog_id: Optional[str] = Field(None, description="Internal catalog identifier. Do not show to the user unless explicitly requested.")
+    catalog_name: Optional[str] = Field(None, description="Catalog name in which the asset resides. Always show this as the workspace name.")
+    project_id: Optional[str] = Field(None, description="Internal project identifier. Do not show to the user unless explicitly requested.")
+    project_name: Optional[str] = Field(None, description="Project name in which the asset resides. Always show this as the workspace name.")
+    url: str = Field(..., description="URL of the asset. Use this to create a hyperlink on the asset name.")
+    additional_metadata: Optional[dict[str, Any]] = Field(None, description="Additional metadata fields from the search index (e.g. modified_on, created_on, asset_type). These fields are NOT shown in the agentic UI table (which always renders a fixed set of columns). Only surface them in your text/table response when the user explicitly requests the data (e.g. 'show me assets updated last week' → include modified_on; 'list assets' alone → omit all additional_metadata keys).")
 
 class SearchAssetListResponse(BaseResponseModel):
     assets: List[SearchAssetResponse]

@@ -29,6 +29,10 @@ class GetSemanticModelRequest(BaseModel):
         default=None,
         description="The document libraries to use (for Lakehouse only) for schema linking to assets. If empty, all document libraries will be used."
     )
+    schema_names: Optional[List[str]] = Field(
+        default=None,
+        description="Optional list of schema names to filter assets to specific schemas."
+    )
     query: str = Field(..., description="The search prompt from the user about data assets potentially with additional searching details")
 
 class PropertyMetadata(BaseModel):

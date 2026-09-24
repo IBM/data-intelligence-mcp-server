@@ -41,6 +41,14 @@ class DataProduct(BaseModel):
     state: Optional[str] = None
     version: Optional[str] = None
     tags: Optional[List[str]] = None
+    contract_test_status: Optional[str] = Field(
+        default=None,
+        description='The result of the last contract test run. Typical values are "Queued", "Failed", or "Completed".'
+    )
+    contract_test_last_run_at: Optional[str] = Field(
+        default=None,
+        description="ISO 8601 timestamp of when the contract test was last executed."
+    )
 
 
 class SearchDataProductsResponse(BaseResponseModel):

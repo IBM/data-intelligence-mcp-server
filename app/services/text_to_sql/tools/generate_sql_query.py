@@ -67,35 +67,46 @@ async def _generate_sql_query(
     except Exception as e:
         if "422" in str(e):
             error_str = str(e)
-            if "SAL0249E" in error_str:
+            if "SAL0363E" in error_str:
+                raise ServiceError(
+                    f"SQL query generation failed for '{request.container_id_or_name}'. "
+                    f"No relevant schema information was found for the requested assets.",
+                    remediation_steps=(
+                        "Ensure that the data assets (especially CSV or file assets) have been profiled "
+                        "or metadata enriched in the project or catalog before generating SQL queries."
+                    ),
+                    tool="create_sql_query",
+                    service="semantic-automation-service",
+                )
+            elif "SAL0249E" in error_str:
                 raise ServiceError(
                     f"SQL query generation failed for '{request.container_id_or_name}'. "
                     f"Please check if your question can be answered using {request.container_id_or_name}'s assets.",
-                    tool = "generate_sql_query",
-                    service="semantic-automation-service"
+                    tool="create_sql_query",
+                    service="semantic-automation-service",
                 )
             elif "SAL0248E" in error_str:
                 raise ServiceError(
                     f"SQL query generation failed for '{request.container_id_or_name}'. "
                     f"DDL/DML operations detected in the question are not supported. Please try rephrasing your question.",
                     remediation_steps="Try again with rephrased question",
-                    tool = "generate_sql_query",
-                    service="semantic-automation-service"
+                    tool="create_sql_query",
+                    service="semantic-automation-service",
                 )
             elif "SAL0298E" in error_str:
                 raise ServiceError(
                     f"SQL query generation failed for '{request.container_id_or_name}'. "
                     f"Invalid query was generated. Please try rephrasing your question.",
                     remediation_steps="Try again with rephrased question",
-                    tool = "generate_sql_query",
-                    service="semantic-automation-service"
+                    tool="create_sql_query",
+                    service="semantic-automation-service",
                 )
             else:
                 # Generic 422 error message
                 raise ServiceError(
                     f"SQL query generation failed for '{request.container_id_or_name}'. ",
-                    tool = "generate_sql_query",
-                    service="semantic-automation-service"
+                    tool="create_sql_query",
+                    service="semantic-automation-service",
                 )
         raise
 
@@ -105,7 +116,7 @@ async def _generate_sql_query(
 
 
 @service_registry.tool(
-    name="generate_sql_query",
+    name="create_sql_query",
     description="""Use this tool when you need to generate the SQL query which addresses the request of the user and utilises the specified container.
   Query API Reference: https://api.dataplatform.cloud.ibm.com/semantic_automation/v1/swagger-ui/index.html
   Returns: The SQL query generated from the natural language question, which can be executed against data assets in the specified project or catalog.""",
@@ -113,6 +124,7 @@ async def _generate_sql_query(
         "readOnlyHint": True,
         "title": "Generate SQL Query from Natural Language"
     },
+    tags={"generative_ai"}
 )
 @auto_context
 async def generate_sql_query(

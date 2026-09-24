@@ -944,7 +944,7 @@ Examples:
 **IMPORTANT CONSTRAINTS:**
 - At least one of new_asset_name, display_name, description, privacy, format, tags, business_terms, classifications, or related_items must be provided
 - For privacy field, only values 0 or 16 are valid""",
-    tags={"update", "search", "asset_metadata", "edit", "metadata"},
+    tags={"update", "search", "asset_metadata", "edit", "metadata", "metadata_management_and_governance"},
     meta={"version": "1.0", "service": "search"},
     annotations={
         "title": "Update Asset Metadata Including Tags, Terms, Classifications, and Relationships",

@@ -237,12 +237,13 @@ async def _execute_term_generation(
 
 
 @service_registry.tool(
-    name="execute_term_generation",
+    name="run_term_generation",
     annotations={
         "title": "Execute Term Generation within a Specified Project",
         "destructiveHint": True
     },
-    description="""Use this tool when you need to executes term generation on an existing metadata enrichment asset within a specified project.
+    tags={"metadata_management_and_governance"},
+    description="""Use this tool when you need to execute term generation on an existing metadata enrichment asset within a specified project.
 
     This tool executes term generation on a metadata enrichment asset (MDE), running for all data assets and columns associated with the MDE.
     It supports both legacy MDEs and new MDE v3 multi-job architecture.
@@ -265,7 +266,7 @@ async def _execute_term_generation(
     - Executes term generation on all data assets with the configured category
     - Returns: TermGenerationResult with count of draft terms generated and category URL
     - NOTE: For legacy MDEs, the target category is pre-configured in the MDE asset settings.
-      The tool automatically uses this category - DO NOT call list_enrichment_categories
+      The tool automatically uses this category - DO NOT call list_glossary_categories
       or prompt user to select a category for legacy MDEs.
     - **PRESENTATION**: Always format results as a markdown table showing: MDE Name, Project, Draft Terms Generated, Target Category (with URL if available), Task Inbox URL, MDE URL
 

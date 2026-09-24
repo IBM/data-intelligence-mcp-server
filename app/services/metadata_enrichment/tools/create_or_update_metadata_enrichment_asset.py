@@ -60,10 +60,10 @@ async def _create_or_update_metadata_enrichment_asset(
 
 @service_registry.tool(
     name=CREATE_OR_UPDATE_METADATA_ENRICHMENT_ASSET_TOOL_NAME,
-    description="""Use this tool when you need to creates a new metadata enrichment (MDE) asset or updates an existing one within a specified project.
+    description="""Use this tool when you need to create a new metadata enrichment (MDE) asset or updates an existing one within a specified project.
 
     **IMPORTANT:** 
-    - Do not make assemptions or add any values the user did not provide in his prompt.
+    - Do not make assumptions or add any values the user did not provide in his prompt.
     - FOllow the user instructions to the letter.
     
     This tool automatically detects whether to create or update based on whether an MDE with the given name exists
@@ -85,7 +85,8 @@ async def _create_or_update_metadata_enrichment_asset(
     annotations={
         "title": "Create or Update Metadata Enrichment Asset Configuration",
         "destructiveHint": True
-    }
+    },
+    tags={"metadata_management_and_governance"}
 )
 @auto_context
 async def create_or_update_metadata_enrichment_asset(

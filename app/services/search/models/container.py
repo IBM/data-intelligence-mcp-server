@@ -7,7 +7,7 @@
 from enum import StrEnum
 from pydantic import BaseModel, Field
 from app.shared.models import BaseResponseModel
-from typing import Optional, List
+from typing import Optional, List, Literal
 
 
 class ContainerType(StrEnum):
@@ -33,6 +33,11 @@ class ListContainersRequest(BaseModel):
     container_type: ContainerType = Field(
         default=ContainerType.ALL,
         description="Type of container to list - 'project', 'catalog', 'space', or 'all'. Defaults to 'all'."
+    )
+    roles: Optional[List[Literal["admin", "editor", "viewer"]]] = Field(
+        default=None,
+        description="Filter projects by the current user's role(s). Only applicable for project container type. "
+                    "Valid values: 'admin', 'editor', 'viewer'."
     )
 
 

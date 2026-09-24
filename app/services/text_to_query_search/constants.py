@@ -95,8 +95,15 @@ TOOL_DESCRIPTION = """Use this tool when you need to searched items and return l
                             Example:
                             - Search for assets created by user jacob: names_mapping=[{"name": "jacob", "type": "user"}]
                        - Invalid values will result in errors
-                       - ALWAYS include subset or whole list of found data in your response with all details.
-                       - If there's search query included in the response please return it.                     
+                       - ALWAYS include subset or whole list of found data in your response.
+                       - If there's search query included in the response please return it.
+                       - PRESENTATION RULES for asset lists: Render a compact table with exactly three columns: asset name (as a hyperlink), workspace name, and description. Rules:
+                            * Asset name is a hyperlink to the asset URL — do NOT create a separate "View" or "Link" column.
+                            * Show workspace (project or catalog) name — do NOT show workspace IDs or asset IDs unless the user explicitly asks for them.
+                            * Always show the description field (show "-" when empty).
+                            * Never surface id, catalog_id, project_id, asset_type, or any additional_metadata fields unless the user specifically requests them.
+                            * Only add extra columns when the user's request explicitly calls for that data (e.g. "show assets modified last week" → add modified_on column; "list all assets" → three columns only).
+                            * If a column value is the same for every row (e.g. all results are from the same project the user already named), omit that column to avoid redundant output.
                        Query API Reference: https://api.dataplatform.cloud.ibm.com/semantic_automation/v1/swagger-ui/index.html
                        Returns: The generated search query, list of matching assets with their metadata and URLs, and an optional message if results exceed the display limit or when assets are selected."""
 

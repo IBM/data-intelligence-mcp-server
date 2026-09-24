@@ -221,7 +221,7 @@ async def _get_policy_metrics(
     Returns: A list of metric records, each containing an aggregate dimension value and
     its corresponding enforcement count, plus the total number of records returned.
     """,
-    tags={"data_protection_rules", "metrics"},
+    tags={"data_protection_rules", "metrics","metadata_management_and_governance"},
     meta={"version": "1.0", "service": "data_protection_rules"},
 )
 @auto_context
