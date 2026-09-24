@@ -96,6 +96,7 @@ Loss Given Default,glossary_term,Risk Management,The percentage of exposure the 
         "readOnlyHint": True,
         "title": "Get CSV Format Schema and Validation Rules for Glossary Import Operations"
     },
+    tags={"metadata_management_and_governance"},
     description="""Get detailed information about the CSV schema for importing glossary artifacts.
 
 Use this tool when you need to:

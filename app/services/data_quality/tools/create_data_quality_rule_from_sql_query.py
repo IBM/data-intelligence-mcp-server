@@ -48,8 +48,8 @@ async def _create_data_quality_rule_from_sql_query(
 
 
 @service_registry.tool(
-    name="create_data_quality_rule_from_sql_query",
-    description="""Use this tool when you need to creates a new data quality rule based on a provided SQL query. This tool allows you to define a data quality rule by specifying a SQL query that will be used to evaluate data quality. The tool returns details of the created data quality rule, including its ID, project ID, UI URL, and name.
+    name="create_data_quality_rule",
+    description="""Use this tool when you need to create a new data quality rule based on a provided SQL query. This tool allows you to define a data quality rule by specifying a SQL query that will be used to evaluate data quality. The tool returns details of the created data quality rule, including its ID, project ID, UI URL, and name.
 Query API Reference: https://cloud.ibm.com/apidocs/knowledge-catalog
 
 Returns: The rule ID, project ID, UI URL, and name of the created data quality rule.

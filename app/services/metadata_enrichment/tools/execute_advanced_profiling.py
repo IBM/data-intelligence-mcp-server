@@ -155,7 +155,8 @@ async def _execute_advanced_profiling(
         "title": "Execute Advanced Data Profiling with Configurable Sampling",
         "destructiveHint": True
     },
-    description="""Use this tool when you need to executes advanced profiling on a metadata enrichment asset for selected datasets.
+    tags={"metadata_management_and_governance"},
+    description="""Use this tool when you need to execute advanced profiling on a metadata enrichment asset for selected datasets.
 
     This tool runs advanced profiling on specified datasets within a metadata enrichment asset.
     Advanced profiling provides detailed analysis including unique value distributions and 

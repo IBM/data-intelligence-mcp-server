@@ -28,8 +28,7 @@ from app.services.workflow.tools.utils import ZERO_MINUTES
 from app.services.workflow.utils.user_mappers import convert_iam_id_to_email, process_candidate_users
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
-from app.shared.exceptions.base import ServiceError
-from fastmcp.exceptions import ToolError
+from app.shared.exceptions.base import ServiceError, ExternalAPIError
 from fastmcp.server.context import Context
 from app.shared.utils.client_detection import supports_rich_text_format
 
@@ -89,11 +88,33 @@ async def _retrieve_my_tasklist_from_workflow_inbox(
 
         return usertasks
 
+    except KeyError as e:
+        error_msg = f"Missing required field in task response from workflow inbox: {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool="list_user_tasks_approval_data_for_artifact",
+            remediation_steps="Verify the workflow task API is returning complete data. Contact support if the issue persists."
+        ) from e
+    except (ConnectionError, TimeoutError) as e:
+        error_msg = f"Network error while retrieving tasks from workflow inbox: {str(e)}"
+        LOGGER.error(error_msg)
+        raise ExternalAPIError(
+            error_msg,
+            service="workflow",
+            tool="list_user_tasks_approval_data_for_artifact",
+            remediation_steps="Check network connectivity and verify the workflow service is accessible. Retry the operation."
+        ) from e
     except Exception as e:
-        LOGGER.error(f"Error retrieving tasks from workflow inbox: {str(e)}")
-        #raise ServiceError(f"Failed to retrieve tasks from workflow: {str(e)}")
-        # return an empty list instead
-        return usertasks
+        error_msg = f"Unexpected error retrieving tasks from workflow inbox: {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool="list_user_tasks_approval_data_for_artifact",
+            remediation_steps="Verify your authentication credentials and permissions. Check the service logs for more details."
+        ) from e
 
 
 async def _query_user_tasks_by_artifact(artifact_id: str, draft: bool, max_results: int) -> List[UserTask]:
@@ -165,13 +186,37 @@ async def _query_user_tasks_by_artifact(artifact_id: str, draft: bool, max_resul
 
         return user_tasks 
 
+    except KeyError as e:
+        error_msg = f"Missing required field in workflow user tasks response for artifact '{artifact_id}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool="list_user_tasks_approval_data_for_artifact",
+            remediation_steps="Verify the workflow API is returning complete data. Contact support if the issue persists."
+        ) from e
+    except (ConnectionError, TimeoutError) as e:
+        error_msg = f"Network error while querying workflow user tasks for artifact '{artifact_id}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ExternalAPIError(
+            error_msg,
+            service="workflow",
+            tool="list_user_tasks_approval_data_for_artifact",
+            remediation_steps="Check network connectivity and verify the workflow service is accessible. Retry the operation."
+        ) from e
     except Exception as e:
-        LOGGER.error(f"Error querying workflow user tasks: {str(e)}")
-        return []
+        error_msg = f"Unexpected error querying workflow user tasks for artifact '{artifact_id}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool="list_user_tasks_approval_data_for_artifact",
+            remediation_steps=f"Verify that artifact ID '{artifact_id}' exists and you have permission to access its workflow tasks. Check if the artifact is part of an active workflow."
+        ) from e
 
 list_user_tasks_approval_data_for_artifact_description="""
 Use this tool when you need to see the approval history, approvers, and workflow status for a specific artifact identified by artifact_id.
-list_user_tasks_approval_data_for_artifact returns a list user tasks in a data governance workflow for a specific artifact id along with
+list_user_task_approval_data returns a list user tasks in a data governance workflow for a specific artifact id along with
 final state of the workflow to find out approvers in user task data.
 ALWAYS define draft parameter: if text refers to future approvals set it true, otherwise false.
 
@@ -266,13 +311,13 @@ async def _list_user_tasks_approval_data_for_artifact(
 
 
 @service_registry.tool(
-    name="list_user_tasks_approval_data_for_artifact",
+    name="list_user_task_approval_data",
     annotations={
         "readOnlyHint": True,
         "title": "List User Task Approval History and Data for Specific Artifacts"
     },
     description=list_user_tasks_approval_data_for_artifact_description,
-    tags={"workflow", "glossary", "user_tasks", "governance"},
+    tags={"workflow", "glossary", "user_tasks", "governance","metadata_management_and_governance"},
     meta={"version": "1.0", "service": "workflow"},
 )
 @auto_context

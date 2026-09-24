@@ -13,6 +13,10 @@ from app.services.search.models.search_asset import (
     SearchAssetRequest,
     SearchAssetResponse,
 )
+from app.services.search.utils.container_name_enrichment import (
+    fetch_container_names,
+    enrich_with_container_names,
+)
 from app.services.text_to_query_search.utils.entity_resolver import find_container_id
 from app.services.text_to_query_search.utils.query_generator import inject_must_not_exclusions
 from app.shared.utils.helpers import is_none, append_context_to_url
@@ -45,26 +49,63 @@ def _add_ui_message_if_results(results: List[SearchAssetResponse], show_table_se
 
     return results
 
-async def _search_asset(
-    request: SearchAssetRequest, show_table_selection: bool = False
-) -> List[SearchAssetResponse]:
-    # Validate search_prompt is not empty
-    if not request.search_prompt or request.search_prompt.strip() == "":
+def _validate_search_prompt(search_prompt: str) -> None:
+    """Validate that search prompt is not empty."""
+    if not search_prompt or search_prompt.strip() == "":
         error_msg = "Search prompt cannot be empty. Please provide a valid search term."
         LOGGER.error(error_msg)
         raise ServiceError(error_msg)
-    
-    # Validate container_type
+
+def _get_auth_scope(container_type: str | None) -> str:
+    """Validate and convert container_type to auth_scope."""
     valid_container_types = ["project", "catalog", "project_and_catalog"]
-    auth_scope = "catalog"  # Default
-    
-    if not is_none(request.container_type):
-        if request.container_type not in valid_container_types:
-            error_msg = f"Invalid container_type: '{request.container_type}'. Valid values are: {valid_container_types}"
-            LOGGER.error(error_msg)
-            raise ServiceError(error_msg)
-        # Convert project_and_catalog to the format expected by the API
-        auth_scope = "project,catalog" if request.container_type == "project_and_catalog" else request.container_type
+
+    if is_none(container_type):
+        return "catalog"
+
+    if container_type not in valid_container_types:
+        error_msg = f"Invalid container_type: '{container_type}'. Valid values are: {valid_container_types}"
+        LOGGER.error(error_msg)
+        raise ServiceError(error_msg)
+
+    return "project,catalog" if container_type == "project_and_catalog" else container_type
+
+def _normalize_search_string(search_prompt: str) -> str:
+    """Convert 'list all' patterns to wildcard search."""
+    normalized_prompt = search_prompt.strip().lower()
+    list_all_patterns = [
+        "list all", "show all", "get all", "find all", "return all",
+        "all assets", "every asset", "all the assets", "give me all"
+    ]
+
+    if any(pattern in normalized_prompt for pattern in list_all_patterns):
+        LOGGER.info("Detected 'list all' pattern in search prompt - using wildcard search")
+        return "*"
+
+    return search_prompt
+
+def _build_container_filter(container_id: str, container_type: str) -> dict:
+    """Build the container filter clause based on type."""
+    if container_type == "project":
+        return {"term": {"entity.assets.project_id": container_id}}
+    elif container_type == "catalog":
+        return {"term": {"entity.assets.catalog_id": container_id}}
+    else:  # project_and_catalog
+        return {
+            "bool": {
+                "should": [
+                    {"term": {"entity.assets.project_id": container_id}},
+                    {"term": {"entity.assets.catalog_id": container_id}}
+                ],
+                "minimum_should_match": 1
+            }
+        }
+
+async def _search_asset(
+    request: SearchAssetRequest, show_table_selection: bool = False
+) -> List[SearchAssetResponse]:
+    _validate_search_prompt(request.search_prompt)
+    auth_scope = _get_auth_scope(request.container_type)
 
     # Resolve container_name to container_id if provided
     container_id = None
@@ -84,33 +125,21 @@ async def _search_asset(
         container_id,
     )
 
+    search_string = _normalize_search_string(request.search_prompt)
+
     # Build query with optional container filter
     must_clauses = [
         {
             "gs_user_query": {
-                "search_string": request.search_prompt,
+                "search_string": search_string,
                 "semantic_search_enabled": True,
             }
         }
     ]
-    
+
     # Add container filter if container_id is resolved
-    if container_id:
-        if request.container_type == "project":
-            must_clauses.append({"term": {"entity.assets.project_id": container_id}})
-        elif request.container_type == "catalog":
-            must_clauses.append({"term": {"entity.assets.catalog_id": container_id}})
-        elif request.container_type == "project_and_catalog":
-            # For project_and_catalog, use should clause with both options
-            must_clauses.append({
-                "bool": {
-                    "should": [
-                        {"term": {"entity.assets.project_id": container_id}},
-                        {"term": {"entity.assets.catalog_id": container_id}}
-                    ],
-                    "minimum_should_match": 1
-                }
-            })
+    if container_id and request.container_type:
+        must_clauses.append(_build_container_filter(container_id, request.container_type))
 
     payload = {
         "query": {
@@ -133,6 +162,14 @@ async def _search_asset(
     search_response = response.get("rows", [])
     results = list(map(_construct_search_asset, search_response)) if search_response else []
 
+    if results:
+        try:
+            container_names = await fetch_container_names(results)
+            if container_names:
+                enrich_with_container_names(results, container_names)
+        except Exception as e:
+            LOGGER.warning("Failed to enrich results with container names: %s", str(e))
+
     return _add_ui_message_if_results(results, show_table_selection)
 
 
@@ -142,16 +179,18 @@ async def _search_asset(
         "readOnlyHint": True,
         "title": "Semantic Search for Data Assets Across Catalogs and Projects"
     },
+    tags={"metadata_management_and_governance"},
     description="""Use this tool when you need to find data assets by name, description, or semantic search across catalogs and projects.
                        Understand user's request about searching data assets and return list of retrieved assets.
-                       This function takes a user's search prompt as input and may take container type: project or catalog. Default container type to catalog.
+                       This tool takes a user's search prompt as input and may take container type: project or catalog. Default container type to catalog.
                        It then returns list of asset that has been found.
                        
                        IMPORTANT CONSTRAINTS:
                        - search_prompt cannot be empty
                        - container_type must be one of: "catalog", "project"
                        - Invalid values will result in errors
-                       Return: A list of objects, each containing the asset's unique ID, name, container IDs (catalog or project), and URL.""",
+                       PRESENTATION RULES: When displaying results, render a compact table with exactly three columns: asset name (as a hyperlink, do NOT create a separate link column), workspace name, and description. Never surface asset IDs, workspace IDs, asset_type, or any additional_metadata fields unless the user explicitly asks for them. Only add extra columns when the user's request specifically calls for that data (e.g. "show me assets modified last week" → add a modified_on column). If a column value is the same for every row in the result set (e.g. all assets are from the same project), omit that column entirely to avoid redundant output.
+                       Return: A list of objects, each containing the asset name (linked to the asset URL), workspace name, and description.""",
 )
 @auto_context
 async def search_asset(
@@ -172,13 +211,20 @@ async def search_asset(
     return await _search_asset(request, show_table_selection=show_table_selection)
 
 
+def _extract_str(value: Any) -> str | None:
+    """Return the value as a plain string, unwrapping single-element lists if needed."""
+    if isinstance(value, list):
+        return value[0] if value else None
+    return value
+
+
 def _construct_search_asset(row: Any):
     asset_id = row["artifact_id"]
     entity = row.get("entity", {})
     assets = entity.get("assets", {})
-    catalog_id = assets.get("catalog_id", None)
+    catalog_id = _extract_str(assets.get("catalog_id", None))
     catalog_name = assets.get("catalog_name", None)
-    project_id = assets.get("project_id", None)
+    project_id = _extract_str(assets.get("project_id", None))
     project_name = assets.get("project_name", None)
     base_url = (
         f"{tool_helper_service.ui_base_url}/data/catalogs/{catalog_id}/asset/{asset_id}"
@@ -190,13 +236,21 @@ def _construct_search_asset(row: Any):
 
     metadata = row.get("metadata", {})
     asset_name = metadata.get("name", "")
+    description = metadata.get("description", None)
+
+    _EXCLUDED_METADATA_KEYS = {"name", "description", "artifact_id"}
+    additional_metadata = {
+        k: v for k, v in metadata.items() if k not in _EXCLUDED_METADATA_KEYS and v is not None
+    } or None
 
     return SearchAssetResponse(
         id=asset_id,
         name=asset_name,
+        description=description,
         catalog_id=catalog_id,
         catalog_name=catalog_name,
         project_id=project_id,
         project_name=project_name,
         url=url,
+        additional_metadata=additional_metadata,
     )

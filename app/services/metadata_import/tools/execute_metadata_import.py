@@ -58,7 +58,7 @@ async def find_job_id_in_metadata_import(
     response = await tool_helper_service.execute_get_request(
         url=get_url,
         params=query_params,
-        tool_name="execute_metadata_import",
+        tool_name="run_metadata_import",
     )
 
     result_id = response.get("entity", {}).get("job_id", None)
@@ -111,7 +111,7 @@ async def execute_metadata_import_job(
             url=post_url,
             params=query_params,
             json={"job_run": {}},
-            tool_name="execute_metadata_import",
+            tool_name="run_metadata_import",
         )
         
         LOGGER.debug("Received response from metadata import job execution")
@@ -190,14 +190,14 @@ async def _execute_metadata_import(
 
 
 @service_registry.tool(
-    name="execute_metadata_import",
+    name="run_metadata_import",
     description="""Use this tool when you need to execute a metadata import job in a project.
 
     ERROR HANDLING:
     - If project not found: Use 'list_containers' to find available projects or verify the project name
     - If metadata import asset not found: Use 'create_metadata_import' to create the asset first
     Returns: Job ID, run ID, state, and monitoring URL.""",
-    tags={"run-metadata-import", "execute-metadata-import", "start-metadata-import"},
+    tags={"run-metadata-import", "execute-metadata-import", "start-metadata-import", "metadata_management_and_governance"},
     meta={"version": "1.0", "service": "metadata-import"},
     annotations={
         "title": "Execute Metadata Import Job in a Project",

@@ -9,9 +9,6 @@ def format_connections_or_dsds_for_table(
     connections: list
 ) -> list:
     from app.services.search.models.search_connection import SearchConnectionResponse
-    from app.services.search.models.search_data_source_definition import (
-        SearchDataSourceDefinitionResponse,
-    )
     
     output = []
     for item in connections:
@@ -155,48 +152,52 @@ def _get_items_iterator(item):
         return ((k, item[k]) for k in item.keys())
     return None
 
+def _resolve_container_info(item) -> tuple[str, str, str]:
+    """Resolve container type, ID and display name from a search result item."""
+    from app.shared.logging import LOGGER
+
+    if item.project_id:
+        project_name = getattr(item, 'project_name', None)
+        container_name = project_name if project_name else item.project_id
+        LOGGER.debug(f"Project container: id={item.project_id}, name={project_name}, using={container_name}")
+        return "project", item.project_id, container_name
+
+    if item.catalog_id:
+        catalog_name = getattr(item, 'catalog_name', None)
+        container_name = catalog_name if catalog_name else item.catalog_id
+        LOGGER.debug(f"Catalog container: id={item.catalog_id}, name={catalog_name}, using={container_name}")
+        return "catalog", item.catalog_id, container_name
+
+    return "-", "-", "-"
+
+
 def format_search_results_for_table(results: list) -> list:
     """
     Format search results for UI table display.
-    
+
     Args:
         results: List of search result objects (SearchAssetResponse or GlobalSearchAssetResponse)
-        
+
     Returns:
         List of dictionaries with formatted data for table display
     """
-    from app.shared.logging import LOGGER
-    
     formatted_data = []
     for item in results:
-        # Determine container type, ID and name
-        if item.project_id:
-            container_type = "project"
-            container_id = item.project_id
-            # Use project_name if available and not empty, otherwise fall back to project_id
-            project_name = getattr(item, 'project_name', None)
-            container_name = project_name if project_name else item.project_id
-            LOGGER.debug(f"Project container: id={container_id}, name={project_name}, using={container_name}")
-        elif item.catalog_id:
-            container_type = "catalog"
-            container_id = item.catalog_id
-            # Use catalog_name if available and not empty, otherwise fall back to catalog_id
-            catalog_name = getattr(item, 'catalog_name', None)
-            container_name = catalog_name if catalog_name else item.catalog_id
-            LOGGER.debug(f"Catalog container: id={container_id}, name={catalog_name}, using={container_name}")
-        else:
-            container_type = "-"
-            container_id = "-"
-            container_name = "-"
-        
+        container_type, container_id, container_name = _resolve_container_info(item)
         asset_type = getattr(item, 'asset_type', None)
-        
-        formatted_data.append({
+
+        row: dict = {
             "Name": ui_message_context.create_markdown_link(item.url, item.name) if item.url else item.name,
-            "Artifact Type": asset_type or "-",
             "Container Type": container_type,
             "Container Name": container_name,
             "Container ID": container_id,
-        })
-    
+            "Description": getattr(item, 'description', None) or "-",
+        }
+        if asset_type is not None:
+            row["Artifact Type"] = asset_type
+        # additional_metadata is intentionally excluded from the UI table.
+        # It is provided in the response model for LLM-only rendering on explicit user request.
+        # The agentic UI table always renders the fixed column set above.
+        formatted_data.append(row)
+
     return formatted_data

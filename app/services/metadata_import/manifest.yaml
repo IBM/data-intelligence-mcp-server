@@ -21,7 +21,7 @@ system_instructions: |
      
      This tool creates a draft metadata import in a project. Requires project name, connection name, and scope (list of schema/table paths). Optionally accepts tags, migrate_tags, reimport_options, and import_options — all default to their existing values if not provided.
   
-  3. **edit_metadata_import** - Call when:
+  3. **update_metadata_import** - Call when:
      - User wants to update an existing metadata import configuration
      - User needs to change scope, options, or other settings
      - User mentions "edit", "update", "modify", or "change" metadata import
@@ -41,7 +41,7 @@ system_instructions: |
      WARNING: This is a destructive operation. Confirm with the user before proceeding.
      If the metadata import is not found, suggest using search_metadata_import to find existing imports.
   
-  5. **execute_metadata_import** - Call ONLY when:
+  5. **run_metadata_import** - Call ONLY when:
       - User has created the metadata import (via create_metadata_import), OR
       - User explicitly mentions an existing metadata import name to execute, OR
       - User requests to run, execute, or start a metadata import

@@ -522,7 +522,7 @@ async def _create_and_attach_custom_contract(
 
 @service_registry.tool(
     name="create_attach_custom_data_product_contract",
-    description="""Use this tool when you need to creates a custom contract from scratch and attaches it to a data product draft.
+    description="""Use this tool when you need to create a custom contract from scratch and attaches it to a data product draft.
     Unlike the template-based tool, this does not use any predefined template. Instead, it allows
     users to create a completely custom contract by providing their own values.
     

@@ -49,7 +49,7 @@ async def _set_validates_data_quality_of_relation(
 
 @service_registry.tool(
     name="set_validates_data_quality_of_relation",
-    description="""Use this tool when you need to establishes a relationship between a data quality rule and a column in a data asset within a project. This relationship is used to report the data quality score for the specified column using the logic defined in the data quality rule. The tool returns details of the data quality rule, including its ID, project ID, UI URL, and name.
+    description="""Use this tool when you need to establish a relationship between a data quality rule and a column in a data asset within a project. This relationship is used to report the data quality score for the specified column using the logic defined in the data quality rule. The tool returns details of the data quality rule, including its ID, project ID, UI URL, and name.
 
 Returns: The rule ID, project ID, UI URL, and name of the data quality rule.
 

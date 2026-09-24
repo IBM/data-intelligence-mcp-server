@@ -2,15 +2,15 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-import asyncio
 from typing import Any, List, Optional, Annotated
 from pydantic import Field
 
-from aiocache import cached
-
 from app.core.registry import service_registry
-from app.services.constants import PROJECTS_BASE_ENDPOINT, CATALOGS_BASE_ENDPOINT
 from app.services.glossary.constants import ContainerType
+from app.services.search.utils.container_name_enrichment import (
+    fetch_container_names,
+    enrich_with_container_names,
+)
 from app.services.search.tools.search_asset import search_asset
 from app.services.text_to_query_search.constants import (
     MAX_SEARCH_RESULTS,
@@ -170,6 +170,7 @@ def _construct_search_asset(row: Any, source_fields: Optional[List[str]] = None)
     metadata = row.get("metadata", {})
     artifact_type = metadata.get("artifact_type", None)
     artifact_name = metadata.get("name", "")
+    description = metadata.get("description", None)
 
     catalog_id = None
     catalog_name = None
@@ -196,9 +197,15 @@ def _construct_search_asset(row: Any, source_fields: Optional[List[str]] = None)
     # Extract source data based on requested _source fields
     source_data = extract_source_data(row, source_fields) if source_fields else None
 
+    _EXCLUDED_METADATA_KEYS = {"name", "description", "artifact_type", "artifact_id"}
+    additional_metadata = {
+        k: v for k, v in metadata.items() if k not in _EXCLUDED_METADATA_KEYS and v is not None
+    } or None
+
     return GlobalSearchAssetResponse(
         id=asset_id,
         name=artifact_name,
+        description=description,
         asset_type=artifact_type,
         catalog_id=catalog_id,
         catalog_name=catalog_name,
@@ -206,6 +213,7 @@ def _construct_search_asset(row: Any, source_fields: Optional[List[str]] = None)
         project_name=project_name,
         url=url,
         source_data=source_data,
+        additional_metadata=additional_metadata,
     )
 
 async def _fallback_response(
@@ -319,150 +327,6 @@ async def _execute_search_with_query(query_data: dict, validation_response: dict
 
     return response
 
-@cached(ttl=1800)  # Cache for 30 minutes
-async def _fetch_single_container_name(
-    container_id: str,
-    container_type: str,
-    endpoint: str,
-    params: Optional[dict] = None
-) -> tuple[str, str | None]:
-    """Fetch a single container name by ID and type.
-    
-    Cached for 30 minutes to reduce API calls for frequently accessed containers.
-    
-    Args:
-        container_id: The ID of the container (project or catalog)
-        container_type: Type of container ("project" or "catalog") for logging
-        endpoint: API endpoint to use
-        params: Optional query parameters
-        
-    Returns:
-        Tuple of (container_id, name) where name may be None if fetch fails
-    """
-    try:
-        response = await tool_helper_service.execute_get_request(
-            url=f"{tool_helper_service.base_url}{endpoint}/{container_id}",
-            params=params,
-            tool_name="dynamic_query_search"
-        )
-        name = response.get("entity", {}).get("name")
-        if name:
-            LOGGER.debug("Fetched %s name: %s -> %s", container_type, container_id, name)
-        return (container_id, name)
-    except Exception as e:
-        LOGGER.warning("Failed to fetch %s name for %s: %s", container_type, container_id, str(e))
-        return (container_id, None)
-
-
-def _collect_container_ids(results: List[GlobalSearchAssetResponse]) -> tuple[set[str], set[str]]:
-    """Collect unique project and catalog IDs from results.
-    
-    Args:
-        results: List of GlobalSearchAssetResponse objects
-        
-    Returns:
-        Tuple of (project_ids, catalog_ids) sets
-    """
-    project_ids = set()
-    catalog_ids = set()
-    
-    for result in results:
-        if result.project_id:
-            project_ids.add(result.project_id)
-        if result.catalog_id:
-            catalog_ids.add(result.catalog_id)
-    
-    return project_ids, catalog_ids
-
-
-def _process_fetch_results(results_tuples: list) -> dict[str, str]:
-    """Process fetch results and build container names dictionary.
-    
-    Args:
-        results_tuples: List of results from asyncio.gather
-        
-    Returns:
-        Dictionary mapping container IDs to names
-    """
-    container_names = {}
-    for result in results_tuples:
-        if isinstance(result, Exception):
-            LOGGER.warning("Exception during container name fetch: %s", str(result))
-            continue
-        container_id, name = result
-        if name:
-            container_names[container_id] = name
-    return container_names
-
-
-async def _fetch_container_names(results: List[GlobalSearchAssetResponse]) -> dict[str, str]:
-    """
-    Fetch project and catalog names for all unique container IDs in the results.
-    
-    Args:
-        results: List of search results
-        
-    Returns:
-        Dictionary mapping container IDs to their names (e.g., {"project-123": "My Project"})
-    """
-    project_ids, catalog_ids = _collect_container_ids(results)
-    
-    if not project_ids and not catalog_ids:
-        return {}
-    
-    LOGGER.info(
-        "Fetching names for %d projects and %d catalogs",
-        len(project_ids),
-        len(catalog_ids)
-    )
-    
-    # Build tasks for parallel execution
-    tasks = []
-    tasks.extend([
-        _fetch_single_container_name(pid, "project", PROJECTS_BASE_ENDPOINT)
-        for pid in project_ids
-    ])
-    tasks.extend([
-        _fetch_single_container_name(cid, "catalog", CATALOGS_BASE_ENDPOINT)
-        for cid in catalog_ids
-    ])
-    
-    results_tuples = await asyncio.gather(*tasks, return_exceptions=True)
-    container_names = _process_fetch_results(results_tuples)
-    
-    LOGGER.info("Successfully fetched %d container names", len(container_names))
-    return container_names
-
-
-
-
-def _enrich_result_with_container_name(
-    result: GlobalSearchAssetResponse,
-    container_names: dict[str, str]
-) -> None:
-    """Enrich a single result with container names from the lookup dictionary.
-    
-    Args:
-        result: The result to enrich (modified in place)
-        container_names: Dictionary mapping container IDs to names
-    """
-    if result.project_id and result.project_id in container_names:
-        result.project_name = container_names[result.project_id]
-        LOGGER.debug(
-            "Enriched project_name for %s: %s",
-            result.project_id,
-            result.project_name
-        )
-    
-    if result.catalog_id and result.catalog_id in container_names:
-        result.catalog_name = container_names[result.catalog_id]
-        LOGGER.debug(
-            "Enriched catalog_name for %s: %s",
-            result.catalog_id,
-            result.catalog_name
-        )
-
-
 async def _process_search_results(response: dict, source_fields: Optional[List[str]] = None) -> List[GlobalSearchAssetResponse]:
     """Process search response and construct asset list.
     
@@ -492,10 +356,9 @@ async def _process_search_results(response: dict, source_fields: Optional[List[s
     # Fetch container names and enrich results
     if li:
         try:
-            container_names = await _fetch_container_names(li)
+            container_names = await fetch_container_names(li)
             if container_names:
-                for result in li:
-                    _enrich_result_with_container_name(result, container_names)
+                enrich_with_container_names(li, container_names)
         except Exception as e:
             LOGGER.warning("Failed to enrich results with container names: %s", str(e))
 
@@ -509,6 +372,7 @@ async def _process_search_results(response: dict, source_fields: Optional[List[s
         "readOnlyHint": True,
         "title": "Natural Language Asset Search with Query Generation"
     },
+    tags={"generative_ai"},
 )
 @auto_context
 async def search(

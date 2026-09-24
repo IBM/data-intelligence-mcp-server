@@ -713,7 +713,8 @@ Example use cases:
     annotations={
         "title": "Add Catalog Asset to Project",
         "destructiveHint": True
-    }
+    },
+    tags={"metadata_management_and_governance"}
 )
 @auto_context
 async def add_asset_to_project(

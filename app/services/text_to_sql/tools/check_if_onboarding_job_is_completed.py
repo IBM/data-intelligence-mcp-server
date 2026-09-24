@@ -182,7 +182,8 @@ async def _check_if_onboarding_job_is_completed(
         "readOnlyHint": True,
         "title": "Check Text-to-SQL Onboarding Job Status for a Project or Catalog"
     },
-    description="""Use this tool when you need to checks if the onboarding job (running in a project) for enabling Text to SQL is completed.
+    tags={"generative_ai"},
+    description="""Use this tool when you need to check if the onboarding job (running in a project) for enabling Text to SQL is completed.
     Returns: The Text-to-SQL onboarding job is completed or still in progress, with a status message and optional job monitoring URL.""",
 )
 @auto_context

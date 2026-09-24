@@ -182,18 +182,11 @@ async def _enable_container_for_text_to_sql(
         "title": "Enable a Project or Catalog for Text-to-SQL",
         "destructiveHint": True
     },
+    tags={"generative_ai"},
     description="""
-                Use this tool when you need to enables the specified project or catalog for Text To SQL.
-                When onboarding a non-project container (for ex: catalog), the user needs
-                to provide an additional the project_id_or_name i.e the name or UUID of '
-                the project to create the onboarding job in. This is not needed in case of
-                onboarding a project container.
-                Example: Onboard agent-test project.
-                In this case, container_id_or_name will be agent-test, container_type will be project
-                and project_id_or_name will be None.
-                Example: Onboard agent-test catalog with agent-job project.
-                In this case, container_id_or_name will be agent-test, container_type will be catalog
-                and project_id_or_name will be agent-job.
+                Use this tool when you need to enable the specified project or catalog for Text To SQL.
+                Example: Onboard agent-test project → container_id_or_name="agent-test", container_type="project".
+                Example: Onboard agent-test catalog with agent-job project → container_id_or_name="agent-test", container_type="catalog", project_id_or_name="agent-job".
                 Returns: A message with the UI link to monitor the onboarding job that enables the specified project or catalog for Text-to-SQL functionality.
                 """,
 )

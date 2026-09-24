@@ -248,6 +248,7 @@ async def _create_asset_from_sql_query(
 
 @service_registry.tool(
     name="create_asset_from_sql_query",
+    tags={"generative_ai"},
     description="""Use this tool when you need to create a new asset in the specified project and connection if provided based on the provided SQL query if creation of new asset was made explicitly.
   Query API Reference: https://cloud.ibm.com/apidocs/data-ai-common-core
   Returns: The URL of the newly created data asset in the specified catalog or project.""",

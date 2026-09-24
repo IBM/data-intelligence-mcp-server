@@ -219,6 +219,7 @@ async def _get_lineage_comparison(
         "title": "Get Compare Lineage Assets Between Two Versions"
     },
     description=TOOLS_DESCRIPTION,
+    tags={"lineage"}
 )
 @auto_context
 async def get_lineage_comparison(

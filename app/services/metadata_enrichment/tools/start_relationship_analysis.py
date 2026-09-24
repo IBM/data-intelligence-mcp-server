@@ -35,7 +35,7 @@ from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import confirm_uuid
 from app.shared.utils.tool_helper_service import tool_helper_service
 
-TOOL_NAME = "start_metadata_relationship_analysis"
+TOOL_NAME = "run_metadata_relationship_analysis"
 
 
 def _create_config(request: StartRelationshipAnalysisRequest, config_dict: dict) -> dict:
@@ -175,12 +175,13 @@ async def _start_relationship_analysis(
         )
 
 @service_registry.tool(
-    name="start_metadata_relationship_analysis",
+    name="run_metadata_relationship_analysis",
     annotations={
         "title": "Start Metadata Relationship Analysis",
         "destructiveHint": True
     },
-    description="""Use this tool when you need to starts a relationship analysis for a metadata enrichment area (MDE).
+    tags={"metadata_management_and_governance"},
+    description="""Use this tool when you need to start a relationship analysis for a metadata enrichment area (MDE).
 
     This tool initiates relationship analysis on datasets within a metadata enrichment area.
     It supports various analysis types including primary key (PK) and foreign key (FK) analysis

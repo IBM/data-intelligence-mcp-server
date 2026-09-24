@@ -62,12 +62,13 @@ async def _execute_metadata_enrichment_asset(
 
 
 @service_registry.tool(
-    name="execute_metadata_enrichment_asset",
+    name="run_metadata_enrichment_job",
     annotations={
         "title": "Execute Metadata Enrichment Asset Job within a Specified Project and specified MDE",
         "destructiveHint": True
     },
-    description="""Use this tool when you need to executes a metadata enrichment asset job within a specified project for a specified metadata enrichment asset (MDE).
+    tags={"metadata_management_and_governance"},
+    description="""Use this tool when you need to execute a metadata enrichment asset job within a specified project for a specified metadata enrichment asset (MDE).
 
     This tool initiates the execution of a pre-configured metadata enrichment asset job. It retrieves the MDE asset's details,
     confirms its existence within the project, confirm or retrives the MDE asset job ID and starts the enrichment job. The function returns a MetadataEnrichmentRun

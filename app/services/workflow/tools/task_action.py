@@ -30,7 +30,7 @@ from app.shared.utils.llm_utils import client_supports_elicitation
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.client_detection import MinimalContext
 
-from fastmcp.exceptions import ToolError
+from app.shared.exceptions.base import ServiceError, ValidationError, ExternalAPIError
 from fastmcp.server.context import Context
 
 
@@ -41,6 +41,9 @@ class ElicitationNotSupportedError(Exception):
 
 REJECTION_COMMENT_MIN_LENGTH = 4
 _PENDING_REJECTION_ACTIONS: Dict[str, str] = {}
+
+_TOOL_NAME = "perform_workflow_task_action"
+_NETWORK_REMEDIATION = "Check network connectivity and verify the workflow service is accessible. Retry the operation."
 
 def _get_task_display_name(task_data: Dict[str, Any]) -> str:
     """
@@ -83,12 +86,36 @@ async def _get_task_details(task_id: str) -> Dict[str, Any]:
     try:
         response = await tool_helper_service.execute_get_request(
             url=f"{tool_helper_service.base_url}{WORKFLOW_TASK_ENDPOINT}/{task_id}",
-            tool_name="perform_workflow_task_action"
+            tool_name=_TOOL_NAME
         )
         return response
+    except KeyError as e:
+        error_msg = f"Missing required field in task details response for task '{task_id}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool=_TOOL_NAME,
+            remediation_steps=f"Verify the workflow task API is returning complete data for task '{task_id}'. Contact support if the issue persists."
+        ) from e
+    except (ConnectionError, TimeoutError) as e:
+        error_msg = f"Network error while retrieving task details for task '{task_id}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ExternalAPIError(
+            error_msg,
+            service="workflow",
+            tool=_TOOL_NAME,
+            remediation_steps=_NETWORK_REMEDIATION
+        ) from e
     except Exception as e:
-        LOGGER.error(f"Failed to retrieve task details for task_id {task_id}: {str(e)}")
-        raise ToolError(f"Failed to retrieve task details: {str(e)}")
+        error_msg = f"Unexpected error retrieving task details for task '{task_id}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool=_TOOL_NAME,
+            remediation_steps=f"Verify that task ID '{task_id}' exists and you have permission to access it. Check the service logs for more details."
+        ) from e
 
 
 def _is_task_already_claimed(task_data: Dict[str, Any]) -> bool:
@@ -683,7 +710,7 @@ def _describe_single_property(
     if prop_id == "comment" and requires_rejection_comment_validation:
         description = (
             f"{description} Minimum length: {REJECTION_COMMENT_MIN_LENGTH} characters "
-            f"when submitting a rejection action."
+            "when submitting a rejection action."
         )
     
     choices = _format_choices(prop)
@@ -823,7 +850,7 @@ async def _call_elicit_with_error_handling(
                 LOGGER.error(f"MCP client does not support elicitation: {error_str}")
                 action_msg = f" for the '{action_context}' action" if action_context else ""
                 raise ElicitationNotSupportedError(
-                    f"The MCP client does not support elicitation, which is required"
+                    "The MCP client does not support elicitation, which is required"
                     f"{action_msg}. The task's state is unchanged. Error: {error_str}"
                 )
             else:
@@ -948,9 +975,9 @@ async def _handle_claim_preview_elicitation(
 
     message = (
         f"**{task_display_name}**\n"
-        f"Claiming this task assigns it to you. To complete it, you'll have to provide:\n"
+        "Claiming this task assigns it to you. To complete it, you'll have to provide:\n"
         f"{description}\n\n"
-        f"Do you want to claim this task now?"
+        "Do you want to claim this task now?"
     )
 
     LOGGER.info(
@@ -1056,7 +1083,7 @@ async def _perform_claim_or_complete(
         response = await tool_helper_service.execute_post_request(
             url=f"{tool_helper_service.base_url}{WORKFLOW_TASK_ENDPOINT}/{task_id}/actions",
             json=request_body,
-            tool_name="perform_workflow_task_action"
+            tool_name=_TOOL_NAME
         )
         
         # If we reach here, the request was successful (2xx status)
@@ -1069,6 +1096,24 @@ async def _perform_claim_or_complete(
         
         return 200  # Default success status code
         
+    except KeyError as e:
+        error_msg = f"Missing required field in {action} response for task '{task_id}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool=_TOOL_NAME,
+            remediation_steps=f"Verify the workflow task API is returning complete data when performing '{action}' action. Contact support if the issue persists."
+        ) from e
+    except (ConnectionError, TimeoutError) as e:
+        error_msg = f"Network error while performing '{action}' on task '{task_id}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ExternalAPIError(
+            error_msg,
+            service="workflow",
+            tool=_TOOL_NAME,
+            remediation_steps=_NETWORK_REMEDIATION
+        ) from e
     except Exception as e:
         error_msg = str(e)
         LOGGER.error(f"Failed to {action} task {task_id}: {error_msg}")
@@ -1079,8 +1124,13 @@ async def _perform_claim_or_complete(
             LOGGER.info(f"Extracted status code {status} from error")
             return status
         
-        # If we can't extract a status code, raise ToolError
-        raise ToolError(f"Failed to {action} task: {str(e)}")
+        # If we can't extract a status code, raise ServiceError
+        raise ServiceError(
+            f"Failed to {action} task '{task_id}': {error_msg}",
+            service="workflow",
+            tool=_TOOL_NAME,
+            remediation_steps=f"Verify that task ID '{task_id}' exists and you have permission to {action} it. Check if the task is in the correct state for this action."
+        ) from e
 
 
 async def _perform_unclaim(task_id: str) -> int:
@@ -1105,7 +1155,7 @@ async def _perform_unclaim(task_id: str) -> int:
         response = await tool_helper_service.execute_post_request(
             url=f"{tool_helper_service.base_url}{WORKFLOW_TASK_ENDPOINT}/unclaim",
             json=request_body,
-            tool_name="perform_workflow_task_action"
+            tool_name=_TOOL_NAME
         )
         
         # Extract status code from response if available
@@ -1118,13 +1168,37 @@ async def _perform_unclaim(task_id: str) -> int:
         LOGGER.info(f"Task {task_id} unclaimed successfully")
         return 200
         
+    except KeyError as e:
+        error_msg = f"Missing required field in unclaim response for task '{task_id}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool=_TOOL_NAME,
+            remediation_steps="Verify the workflow task API is returning complete data when unclaiming. Contact support if the issue persists."
+        ) from e
+    except (ConnectionError, TimeoutError) as e:
+        error_msg = f"Network error while unclaiming task '{task_id}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ExternalAPIError(
+            error_msg,
+            service="workflow",
+            tool=_TOOL_NAME,
+            remediation_steps=_NETWORK_REMEDIATION
+        ) from e
     except Exception as e:
-        LOGGER.error(f"Failed to unclaim task {task_id}: {str(e)}")
+        error_msg = str(e)
+        LOGGER.error(f"Failed to unclaim task {task_id}: {error_msg}")
         # Try to extract status code from error message
-        status = _extract_status_from_error(str(e))
+        status = _extract_status_from_error(error_msg)
         if status is not None:
             return status
-        raise ToolError(f"Failed to unclaim task: {str(e)}")
+        raise ServiceError(
+            f"Failed to unclaim task '{task_id}': {error_msg}",
+            service="workflow",
+            tool=_TOOL_NAME,
+            remediation_steps=f"Verify that task ID '{task_id}' exists and is currently claimed by you. Check the service logs for more details."
+        ) from e
 
 
 async def _get_authenticated_user_id() -> Optional[str]:
@@ -1140,12 +1214,23 @@ async def _get_authenticated_user_id() -> Optional[str]:
     try:
         user_id = await get_user_identifier()
         if not user_id:
-            raise ToolError("Unable to retrieve user identifier from authentication token")
+            raise ServiceError(
+                "Unable to retrieve user identifier from authentication token",
+                service="workflow",
+                tool=_TOOL_NAME,
+                remediation_steps="Verify that you are properly authenticated with a valid bearer token."
+            )
         LOGGER.info(f"Using authenticated user ID: {user_id}")
         return user_id
     except Exception as e:
-        LOGGER.error(f"Failed to get user identifier: {str(e)}")
-        raise ToolError(f"Authentication required: {str(e)}")
+        error_msg = f"Failed to get user identifier: {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            f"Authentication required: {error_msg}",
+            service="workflow",
+            tool=_TOOL_NAME,
+            remediation_steps="Verify that you are properly authenticated with a valid bearer token. Check your authentication credentials and try again."
+        ) from e
 
 
 def _extract_and_validate_form_properties(task_data: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -1252,7 +1337,7 @@ async def _handle_unclaim_action(task_id: str) -> TaskActionResponse:
             status_code=status_code,
             message=message
         )
-    except ToolError as e:
+    except ServiceError as e:
         return TaskActionResponse(
             status_code=500,
             message=str(e)
@@ -1275,11 +1360,11 @@ def _build_elicitation_unavailable_response(form_properties_raw: List[Dict[str, 
     """
     fields_description = _describe_writable_properties(form_properties_raw, action)
     detailed_message = (
-        f"The MCP client does not support elicitation, which is required "
+        "The MCP client does not support elicitation, which is required "
         f"for the '{action}' action. The task's state is unchanged.\n\n"
-        f"To complete this task, the following form fields need to be provided:\n"
+        "To complete this task, the following form fields need to be provided:\n"
         f"{fields_description}\n\n"
-        f"Please provide these values and retry the task completion using the form_values parameter."
+        "Please provide these values and retry the task completion using the form_values parameter."
     )
     return TaskActionResponse(status_code=501, message=detailed_message)
 
@@ -1408,7 +1493,7 @@ async def _handle_claim_action(
     # Get authenticated user ID
     try:
         user_id = await _get_authenticated_user_id()
-    except ToolError as e:
+    except ServiceError as e:
         return TaskActionResponse(status_code=401, message=str(e))
 
     # Extract and validate form properties
@@ -1433,7 +1518,7 @@ async def _handle_claim_action(
             status_code=status_code,
             message=_generate_action_message("claim", status_code)
         )
-    except ToolError as e:
+    except ServiceError as e:
         return TaskActionResponse(status_code=500, message=str(e))
 
 
@@ -1500,7 +1585,7 @@ async def _handle_complete_action(
     # Get authenticated user ID
     try:
         user_id = await _get_authenticated_user_id()
-    except ToolError as e:
+    except ServiceError as e:
         return TaskActionResponse(status_code=401, message=str(e))
 
     # Extract and validate form properties
@@ -1534,7 +1619,7 @@ async def _handle_complete_action(
             status_code=status_code,
             message=_generate_action_message("complete", status_code)
         )
-    except ToolError as e:
+    except ServiceError as e:
         return TaskActionResponse(status_code=500, message=str(e))
 
 
@@ -1620,8 +1705,8 @@ async def _task_action(
         "destructiveHint": True
     },
     description=task_action_description,
-    tags={"workflow", "flowable", "tasks", "governance"},
-    meta={"version": "1.0", "service": "perform_workflow_task_action"},
+    tags={"workflow", "flowable", "tasks", "governance","metadata_management_and_governance"},
+    meta={"version": "1.0", "service": _TOOL_NAME},
 )
 @auto_context
 async def perform_workflow_task_action(

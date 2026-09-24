@@ -786,7 +786,8 @@ async def search_users(account_id: str, user_search_str: str) -> List[Dict]:
     annotations={
         "title": "Add or Update Collaborators in a Project with Specified Roles",
         "destructiveHint": True
-    }
+    },
+    tags={"metadata_management_and_governance"}
 )
 @auto_context
 async def add_or_edit_collaborator(

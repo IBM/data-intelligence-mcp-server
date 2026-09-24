@@ -22,7 +22,7 @@ Use when the user mentions an asset name but doesn't specify a catalog/project c
 
 ### Entry Path B: Catalog Asset Lookup (Catalog-First)
 Use when the user references a known catalog or project asset, or provides specific container context.
-- **Tools**: `search_asset` → `convert_asset_to_lineage_id`
+- **Tools**: `search_asset` → `get_lineage_id`
 - **Best for**: "Show lineage for the ORDERS table in the sales catalog", "Trace the customer_data asset in AgentTest project"
 - **Requires**: Container context (catalog or project name)
 
@@ -79,7 +79,7 @@ Locate the starting asset(s) in the lineage graph using the appropriate entry pa
 3. Ask the user to confirm which asset they want to explore.
 </Step>
 <Step>
-4. Once confirmed, call `convert_asset_to_lineage_id` with:
+4. Once confirmed, call `get_lineage_id` with:
    - `container_id`: The catalog or project ID from the search result
    - `asset_id`: The asset ID from the search result
 </Step>
@@ -93,7 +93,7 @@ Locate the starting asset(s) in the lineage graph using the appropriate entry pa
 
 **Important Validation**:
 - Lineage IDs must be exactly 64 hexadecimal characters
-- If you receive a shorter ID or UUID, you MUST use `convert_asset_to_lineage_id` to convert it
+- If you receive a shorter ID or UUID, you MUST use `get_lineage_id` to convert it
 - Never proceed to Phase 2 without a valid 64-character lineage ID
 
 ## Phase 2: Lineage Graph Traversal
@@ -281,7 +281,7 @@ User: "Has anything changed in the pipeline for our revenue dashboard in the las
 - Before calling `get_lineage_graph`, verify each lineage_id:
   - Length is exactly 64 characters
   - Contains only hexadecimal characters (0-9, a-f)
-- If validation fails, use `convert_asset_to_lineage_id` or `search_lineage_assets` to get valid IDs
+- If validation fails, use `get_lineage_id` or `search_lineage_assets` to get valid IDs
 
 ### Hop Depth Best Practices
 - **Always inform the user** about the 3-hop default limitation before executing

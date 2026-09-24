@@ -23,7 +23,7 @@ from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.utils.helpers import append_context_to_url, is_uuid_bool
 from app.shared.utils.tool_helper_service import tool_helper_service
 
-def _extract_glossary_artifacts_from_metadata(metadata: Dict) -> List[GlossaryArtifact]:
+async def _extract_glossary_artifacts_from_metadata(metadata: Dict) -> List[GlossaryArtifact]:
     """
     Extract glossary terms and classifications from Global Search metadata.
     
@@ -40,7 +40,7 @@ def _extract_glossary_artifacts_from_metadata(metadata: Dict) -> List[GlossaryAr
     term_names = metadata.get("terms", [])
 
     for term_id, term_name in zip(term_ids, term_names):
-        version_id = _fetch_version_id(term_name)
+        version_id = await _fetch_version_id(term_name)
         url = f"{tool_helper_service.ui_base_url}/v3/glossary_terms/glossary_terms/{term_id}/versions/{version_id}"
         
         results.append(
@@ -57,7 +57,7 @@ def _extract_glossary_artifacts_from_metadata(metadata: Dict) -> List[GlossaryAr
     class_names = metadata.get("classifications", [])
 
     for class_id, class_name in zip(class_ids, class_names):
-        version_id = _fetch_version_id(class_name)
+        version_id = await _fetch_version_id(class_name)
         url = f"{tool_helper_service.ui_base_url}/v3/glossary_terms/classifications/{class_id}/versions/{version_id}"
         
         results.append(
@@ -206,7 +206,7 @@ async def _get_glossary_artifacts_for_asset(
         ))
     
     metadata = rows[0].get("metadata", {})
-    results = _extract_glossary_artifacts_from_metadata(metadata)
+    results = await _extract_glossary_artifacts_from_metadata(metadata)
 
     if not results:
         return GetGlossaryArtifactsForAssetResponse(
@@ -231,6 +231,7 @@ async def _get_glossary_artifacts_for_asset(
         "readOnlyHint": True,
         "title": "Get All Business Terms and Classifications Associated with a Specific Asset"
     },
+    tags={"metadata_management_and_governance"},
     description="""Use this tool when you need to retrieve all business terms and classifications (these are the only two supported types of glossary artifacts) associated with a specific asset.
     When a user requests "get/list glossary items" without specifying asset details, prompt them to provide the following required parameters: asset_id_or_name, container_id_or_name, and container_type.
     

@@ -102,7 +102,7 @@ async def _edit_metadata_import(
         headers=create_default_headers(content_type=JSON_CONTENT_TYPE),
         json=patch_payload,
         params={"project_id": project_id},
-        tool_name="edit_metadata_import",
+        tool_name="update_metadata_import",
     )
     
     # Parse response
@@ -132,7 +132,7 @@ async def _edit_metadata_import(
 
 
 @service_registry.tool(
-    name="edit_metadata_import",
+    name="update_metadata_import",
     description="""Edit an existing metadata import asset in a project.
 
     This tool allows you to update any combination of: description, scope, tags,
@@ -160,7 +160,7 @@ async def _edit_metadata_import(
     - If metadata import not found: Use 'search_metadata_import' to find existing imports
 
     Returns: Success message with updated asset details and UI URL.""",
-    tags={"metadata-import", "edit-metadata-import", "update-metadata-import"},
+    tags={"metadata-import", "edit-metadata-import", "update-metadata-import","metadata_management_and_governance"},
     meta={"version": "2.0", "service": "metadata-import"},
     annotations={
         "title": "Edit Metadata Import in a Project",

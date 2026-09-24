@@ -36,7 +36,7 @@ from app.services.workflow.utils.workflow_request_formatters import (
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.client_detection import supports_rich_text_format
-from fastmcp.exceptions import ToolError
+from app.shared.exceptions.base import ServiceError, ValidationError, ExternalAPIError
 from fastmcp.server.context import Context
 
 # Constants for workflow name parsing
@@ -199,6 +199,39 @@ async def _create_workflow_from_data(
     )
 
 
+async def _build_tasks_from_inline_data(workflow_data: dict) -> List[TaskDetail]:
+    """Build a list of TaskDetail objects from inline user_tasks in workflow data."""
+    task_list = workflow_data.get("entity", {}).get("user_tasks", [])
+    tasks = [await _create_task_detail(task_data) for task_data in task_list]
+    LOGGER.info(f"  Retrieved {len(tasks)} tasks")
+    return tasks
+
+
+def _build_retrieve_url_and_params(
+    max_results: Optional[int],
+    state: Optional[str],
+    include_tasks: bool,
+    workflow_id: Optional[str],
+) -> tuple[str, dict]:
+    """
+    Build the request URL and query params for _retrieve_my_workflows.
+
+    When workflow_id is provided the endpoint is narrowed to that single
+    resource and list-only filters (limit, state) are omitted.
+    """
+    base = f"{tool_helper_service.base_url}{WORKFLOW_BASE_ENDPOINT}"
+    params: dict = {'include_user_tasks': include_tasks}
+
+    if workflow_id:
+        return f"{base}/{workflow_id}", params
+
+    if max_results is not None:
+        params['limit'] = str(max_results)
+    if state is not None:
+        params['state'] = state
+    return base, params
+
+
 async def _retrieve_my_workflows(
     max_results: int,
     state: Optional[str] = None,
@@ -217,20 +250,7 @@ async def _retrieve_my_workflows(
     Returns:
         List[Workflow]: List of workflow objects
     """
-    params = {}
-    
-    url=f"{tool_helper_service.base_url}{WORKFLOW_BASE_ENDPOINT}"
-
-    params['include_user_tasks'] = include_tasks
-
-    # When workflow_id is specified, ignore other filters
-    if workflow_id:
-        url=f"{tool_helper_service.base_url}{WORKFLOW_BASE_ENDPOINT}/{workflow_id}"
-    else:
-        if max_results is not None:
-            params['limit'] = str(max_results)
-        if state is not None:
-            params['state'] = state
+    url, params = _build_retrieve_url_and_params(max_results, state, include_tasks, workflow_id)
 
     try:
         response = await tool_helper_service.execute_get_request(
@@ -238,12 +258,8 @@ async def _retrieve_my_workflows(
             params=params,
         )
 
-        workflow_list = None
-        # Parse response
-        if workflow_id:
-            workflow_list = [response]
-        else:
-            workflow_list = response.get('resources', [])
+        # Single-resource endpoint returns the object directly; list endpoint wraps in 'resources'
+        workflow_list = [response] if workflow_id else response.get('resources', [])
 
         LOGGER.info(f"Retrieved {len(workflow_list)} workflows from API")
         workflows = []
@@ -253,17 +269,7 @@ async def _retrieve_my_workflows(
             wf_id = metadata.get("workflow_id")
             LOGGER.info(f"Processing workflow {idx+1}/{len(workflow_list)}: {wf_id}")
             
-            # Get tasks if requested
-            tasks = None
-            if include_tasks:
-                task_list = workflow_data.get("entity", {}).get("user_tasks", [])
-
-                tasks = []
-                for task_data in task_list:
-                    task = await _create_task_detail(task_data)
-                    tasks.append(task)
-
-                LOGGER.info(f"  Retrieved {len(tasks)} tasks")
+            tasks = await _build_tasks_from_inline_data(workflow_data) if include_tasks else None
             
             # Create workflow object with parsed name and optional tasks
             workflow = await _create_workflow_from_data(workflow_data, tasks=tasks)
@@ -273,9 +279,36 @@ async def _retrieve_my_workflows(
         LOGGER.info(f"Returning {len(workflows)} workflow objects")
         return workflows
 
+    except KeyError as e:
+        error_msg = f"Missing required field in workflow response: {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool="get_my_workflows",
+            remediation_steps="Verify the workflow API is returning complete data. Contact support if the issue persists."
+        ) from e
+    except (ConnectionError, TimeoutError) as e:
+        wf_context = f" for workflow_id {workflow_id}" if workflow_id else ""
+        error_msg = f"Network error while retrieving workflows{wf_context}: {str(e)}"
+        LOGGER.error(error_msg)
+        raise ExternalAPIError(
+            error_msg,
+            service="workflow",
+            tool="get_my_workflows",
+            remediation_steps="Check network connectivity and verify the workflow service is accessible. Retry the operation after ensuring network stability."
+        ) from e
     except Exception as e:
-        LOGGER.error(f"Error retrieving workflows: {str(e)}")
-        return []
+        wf_context = f" for workflow_id {workflow_id}" if workflow_id else ""
+        wf_remediation = f"Check if workflow_id {workflow_id} exists and you have access to it." if workflow_id else "Check the service logs for more details."
+        error_msg = f"Unexpected error retrieving workflows{wf_context}: {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool="get_my_workflows",
+            remediation_steps=f"Verify your authentication credentials and permissions. {wf_remediation}"
+        ) from e
 
 
 def _calculate_days_in_state(created_at: datetime) -> int:
@@ -385,9 +418,33 @@ async def _get_tasks_for_workflow(workflow_id: str) -> List[TaskDetail]:
             tasks.append(task)
         return tasks
         
+    except KeyError as e:
+        error_msg = f"Missing required field in task response for workflow '{workflow_id}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool="get_my_workflows",
+            remediation_steps="Verify the workflow task API is returning complete data. Contact support if the issue persists."
+        ) from e
+    except (ConnectionError, TimeoutError) as e:
+        error_msg = f"Network error while retrieving tasks for workflow '{workflow_id}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ExternalAPIError(
+            error_msg,
+            service="workflow",
+            tool="get_my_workflows",
+            remediation_steps="Check network connectivity and verify the workflow service is accessible. Retry the operation."
+        ) from e
     except Exception as e:
-        LOGGER.error(f"Error retrieving tasks for workflow {workflow_id}: {str(e)}")
-        return []
+        error_msg = f"Unexpected error retrieving tasks for workflow '{workflow_id}': {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool="get_my_workflows",
+            remediation_steps=f"Verify that workflow ID '{workflow_id}' exists and you have permission to access its tasks. Use get_my_workflows without include_tasks first to confirm the workflow exists."
+        ) from e
 
 
 def _count_tasks_by_state(tasks: List[TaskDetail]) -> dict:
@@ -705,9 +762,33 @@ async def _retrieve_my_workflows_deep_dive(
         
         return workflows
         
+    except KeyError as e:
+        error_msg = f"Missing required field in workflow request response: {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool="get_my_workflows",
+            remediation_steps="Verify the workflow service API is returning complete data in deep dive mode. Contact support if the issue persists."
+        ) from e
+    except (ConnectionError, TimeoutError) as e:
+        error_msg = f"Network error while retrieving workflow requests in deep dive mode: {str(e)}"
+        LOGGER.error(error_msg)
+        raise ExternalAPIError(
+            error_msg,
+            service="workflow",
+            tool="get_my_workflows",
+            remediation_steps="Check network connectivity and verify the workflow service is accessible. Try using deep_dive=False for a lighter operation, or retry after ensuring network stability."
+        ) from e
     except Exception as e:
-        LOGGER.error(f"Error retrieving workflow requests: {str(e)}")
-        return []
+        error_msg = f"Unexpected error retrieving workflow requests in deep dive mode: {str(e)}"
+        LOGGER.error(error_msg)
+        raise ServiceError(
+            error_msg,
+            service="workflow",
+            tool="get_my_workflows",
+            remediation_steps="Try using deep_dive=False for basic workflow information. Verify your authentication credentials and permissions. Check the service logs for more details."
+        ) from e
 
 
 def _calculate_task_counts(tasks: List[TaskDetail]) -> tuple[int, int, int, int]:
@@ -958,17 +1039,22 @@ async def _get_my_workflows(
     elif request.format == "json":
         return _build_deep_dive_json_response(workflow_requests, stats)
     else:
-        raise ToolError("Invalid output format")
+        raise ValidationError(
+            f"Invalid output format '{request.format}'. Supported formats are 'table' or 'json'.",
+            service="workflow",
+            tool="get_my_workflows",
+            remediation_steps="Use format='table' for formatted markdown output or format='json' for raw data. Default is 'table'."
+        )
 
 
 @service_registry.tool(
-    name="get_my_workflows",
+    name="list_workflows",
     annotations={
         "readOnlyHint": True,
         "title": "Get and Monitor My Initiated Workflows with Comprehensive Analytics"
     },
     description=get_my_workflows_description,
-    tags={"workflow", "flowable", "governance", "glossary", "my_workflows"},
+    tags={"workflow", "flowable", "governance", "glossary", "my_workflows","metadata_management_and_governance"},
     meta={"version": "2.0", "service": "workflows"},
 )
 @auto_context

@@ -175,7 +175,7 @@ async def _create_data_protection_rule(request: CreateRuleRequest) -> CreateRule
 @service_registry.tool(
     name="create_data_protection_rule",
     description=RULE_CREATION_DESCRIPTION,
-    tags={"create", "data_protection_rules", "json", "llm_integration"},
+    tags={"create", "data_protection_rules", "metadata_management_and_governance", "json", "llm_integration"},
     meta={"version": "2.0", "service": "data_protection_rules"},
     annotations={
         "title": "Creates a data protection rule from a JSON string",

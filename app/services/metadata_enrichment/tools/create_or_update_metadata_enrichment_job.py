@@ -62,13 +62,13 @@ async def _create_or_metadata_enrichment_asset_jobs(
 
 @service_registry.tool(
     name=CREATE_OR_UPDATE_METADATA_ENRICHMENT_ASSET_JOBS_TOOL_NAME,
-    description="""Creates or update metadata enrichment jobs within a specified project for a specific Metadata Enrichment (MDE)
-    If the job exists by name (using exact match), the tool will update the existing job otherwise it will create a new job.
+    description="""Creates or updates metadata enrichment jobs within a specified project for a specific Metadata Enrichment (MDE)
+    If the job exists by name (using exact match), the tool updates the existing job otherwise it creates a new job.
     
     **IMPORTANT:**
     - The user must select at least one objective
     - The user must provide category_names
-    - If the categry_names are not provided use the 'list_enrichment_categories' tool to find the list of the available categories.
+    - If the categry_names are not provided use the 'list_glossary_categories' tool to find the list of the available categories.
     - Return the **FULL** list to the user and ask him to choose one or more categories to be used to create or update the MDE.
     - Do not assume or select categories, the user MUST choose.
     
@@ -79,7 +79,8 @@ async def _create_or_metadata_enrichment_asset_jobs(
     annotations={
         "title": "Create or update a MDE job",
         "destructiveHint": True
-    }
+    },
+    tags={"metadata_management_and_governance"}
 )
 @auto_context
 async def create_or_update_metadata_enrichment_asset_jobs(

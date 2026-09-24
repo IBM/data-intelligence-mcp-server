@@ -73,7 +73,7 @@ def _emit_ui_table_if_results(rows: list) -> None:
         for row in rows
     ]
     ui_message_context.add_table_ui_message(
-        tool_name="execute_gs_query",
+        tool_name="run_gs_query",
         formatted_data=table_rows,
         title=TABLE_TITLE_GS_QUERY_RESULTS,
     )
@@ -125,7 +125,7 @@ async def _execute_gs_query(
                 headers=headers,
                 params=_build_query_params(request),
                 json=_build_request_body(gs_query),
-                tool_name="execute_gs_query",
+                tool_name="run_gs_query",
             )
 
         raw_rows = response.get("rows", [])
@@ -150,7 +150,7 @@ async def _execute_gs_query(
 
 
 @service_registry.tool(
-    name="execute_gs_query",
+    name="run_gs_query",
     annotations={
         "readOnlyHint": True,
         "title": "Search the Global Search Index via ES DSL or Natural Language",
@@ -160,13 +160,21 @@ async def _execute_gs_query(
     Use this tool when you need fine-grained control over the search query, such as filtering by specific fields,
     combining boolean clauses, or running a query that has already been formulated in GS/ES DSL syntax.
 
-    IMPORTANT — always prefer gs_query over natural_language_query:
-    For ANY search request (simple keywords, phrases, or complex filters), always construct and pass gs_query
+    IMPORTANT — when using this tool, prefer gs_query over natural_language_query:
+    For simple keywords, phrases, or complex filters passed to this tool, always construct and pass gs_query
     directly using the gs_user_query form shown in the examples below.
     Only use natural_language_query as a last resort when you are completely unable to express the search
     as an Elasticsearch DSL — for example, when the user's intent involves multi-step reasoning that cannot
     be directly mapped to ES DSL fields.
     gs_query always takes precedence when both are supplied.
+
+    Asset count by type workflow (e.g. 'how many assets', 'asset count by type', 'breakdown by type'):
+    Step 1 — call find_container to resolve the catalog or project name to its ID.
+    Step 2 — call this tool with EXACTLY this gs_query structure (do not change field names):
+      IMPORTANT: always include the must_not data_asset_column exclusion —
+      For a catalog: {\"query\":{\"bool\":{\"filter\":[{\"term\":{\"entity.assets.catalog_id\":\"<id>\"}}],\"must_not\":[{\"term\":{\"metadata.artifact_type\":\"data_asset_column\"}}]}},\"size\":0,\"aggs\":{\"asset_count_by_type\":{\"terms\":{\"field\":\"metadata.artifact_type\",\"size\":50}}}}
+      For a project: {\"query\":{\"bool\":{\"filter\":[{\"term\":{\"entity.assets.project_id\":\"<id>\"}}],\"must_not\":[{\"term\":{\"metadata.artifact_type\":\"data_asset_column\"}}]}},\"size\":0,\"aggs\":{\"asset_count_by_type\":{\"terms\":{\"field\":\"metadata.artifact_type\",\"size\":50}}}}
+      Set auth_scope to \"catalog\" or \"project\" accordingly.
 
     Query forms supported:
     1. Standard ES DSL — e.g. match_all, match, bool, term, range.
@@ -199,7 +207,7 @@ async def _execute_gs_query(
     fields, custom_attributes, semantic_search_result, _score), aggregations, and
     semantic_search_expansions (non-empty only for semantic search).
     """,
-    tags={"search", "gs_query", "global_search"},
+    tags={"search", "gs_query", "global_search","metadata_management_and_governance"},
     meta={"version": "1.0", "service": "search"},
 )
 @auto_context

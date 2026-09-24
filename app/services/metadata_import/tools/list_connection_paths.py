@@ -74,7 +74,7 @@ async def _list_connection_paths(
     
     Returns: Response containing list of schema/table paths and count.
     """,
-    tags={"list_connection", "metadata-import"},
+    tags={"list_connection", "metadata-import","metadata_management_and_governance"},
     meta={"version": "1.0", "service": "metadata-import"},
 )
 @auto_context

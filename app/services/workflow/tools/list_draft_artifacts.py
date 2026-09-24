@@ -325,7 +325,7 @@ response includes all technical details (artifact IDs, version IDs, workflow IDs
         "title": "List Draft Workflow Glossary Artifacts: Business Terms and Data Classes"
     },
     description=list_draft_artifacts_description,
-    tags={"workflow", "glossary", "artifacts", "drafts", "governance"},
+    tags={"workflow", "glossary", "artifacts", "drafts", "governance","metadata_management_and_governance"},
     meta={"version": "1.0", "service": "glossary"},
 )
 @auto_context

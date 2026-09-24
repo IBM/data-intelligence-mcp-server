@@ -215,7 +215,7 @@ async def _sql_query_generation(
 
 
 @service_registry.tool(
-    name="generate_reporting_sql_query",
+    name="create_reporting_sql_query",
     description="""Use this tool when you need to generate a SQL query from a natural language input for a given project using a text-to-SQL service for reporting-related use cases. The tool verifies reporting service connectivity, resolves the project ID, and generates the SQL query based on the project context and SQL dialect.
   Query API Reference: https://api.dataplatform.cloud.ibm.com/semantic_automation/v1/swagger-ui/index.html
   Return: The generation status ("success" or "failed"), and on success: the project ID, generated SQL query, and SQL dialect used; or on failure: an error message.""",
@@ -223,6 +223,7 @@ async def _sql_query_generation(
         "readOnlyHint": True,
         "title": "Generate SQL Query from Natural Language for Reporting"
     },
+    tags={"metadata_management_and_governance"}
 )
 @auto_context
 async def sql_query_generation(

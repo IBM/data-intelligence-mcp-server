@@ -183,11 +183,12 @@ async def _sql_query_execution(
 
 
 @service_registry.tool(
-    name="execute_reporting_select_query",
+    name="run_reporting_select_query",
     annotations={
         "readOnlyHint": True,
         "title": "Execute Reporting Select Query"
     },
+    tags={"metadata_management_and_governance"},
     description="""Use this tool when you need to execute a user-provided SQL SELECT query against a tenant-specific reporting database. This tool enforces read-only access (only SELECT statements) and includes basic query validation for safety.
   Query API Reference: https://api.dataplatform.cloud.ibm.com/v3/reporting/apidoc/explorer/
   Return: The execution status ("success" or "failed"), and either the SQL result with query rows on success or an error message on failure.""",

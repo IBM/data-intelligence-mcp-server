@@ -88,10 +88,10 @@ def supports_rich_text_format(ctx: Context) -> bool:
         return True
     
     client_params = ctx.request_context.session.client_params
-    if not client_params or not client_params.clientInfo:
+    if not client_params or not client_params.client_info:
         return True
     
-    client_name = client_params.clientInfo.name
+    client_name = client_params.client_info.name
     result = "claude" not in client_name.casefold()
     
     # Log the client detection for debugging
@@ -125,12 +125,12 @@ def get_client_info(ctx: Context) -> dict[str, str | None]:
     if not client_params:
         return {"name": None, "version": None, "protocol": None}
     
-    client_info = client_params.clientInfo
+    client_info = client_params.client_info
     
     result = {
         "name": client_info.name if client_info else None,
         "version": client_info.version if client_info else None,
-        "protocol": client_params.protocolVersion
+        "protocol": client_params.protocol_version
     }
     
     LOGGER.info(f"Client info: {result}")

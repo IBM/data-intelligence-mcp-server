@@ -109,7 +109,7 @@ def format_data_protection_rule_for_table(data_protection_rules: list[dict]) -> 
     In this case, search_data_protection_rules_query is '*'.
     Return: List of data protection rules matching the search query, with detailed information about each rule including its name, description, last modification date, and a direct URL to access it and total count.
     """,
-    tags={"search", "data_protection_rules"},
+    tags={"search", "data_protection_rules", "metadata_management_and_governance"},
     meta={"version": "1.0", "service": "data_protection_rules"},
 )
 @auto_context

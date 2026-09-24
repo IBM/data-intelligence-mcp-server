@@ -174,7 +174,7 @@ async def _pause_resume_or_cancel_mdi_job_run(input: PauseResumeOrCancelMdiJobRu
     - If job is in wrong state for the action: Check current state and choose the correct action
 
     Returns: Confirmation message, job details, resulting state, and UI URL.""",
-    tags={"metadata-import", "job-control"},
+    tags={"metadata-import", "job-control","metadata_management_and_governance"},
     meta={"version": "1.0", "service": "metadata-import"},
 )
 @auto_context

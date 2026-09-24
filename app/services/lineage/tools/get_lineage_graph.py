@@ -224,7 +224,7 @@ async def _call_get_lineage_graph(
     
     Args:
         lineage_ids (Union[str, List[str]]): One or more 64-character hexadecimal lineage IDs
-            (MUST be obtained from search_lineage_assets results or convert_asset_to_lineage_id results)
+            (MUST be obtained from search_lineage_assets results or get_lineage_id results)
         hop_up (Optional[str]): Number of upstream levels to traverse ("0", "1", "3", or "50").
             Use "50" when user mentions "between", "ultimate source", or provides multiple lineage_ids. If only hop_down is specified use "0".
         hop_down (Optional[str]): Number of downstream levels to traverse ("0", "1", "3", or "50").
@@ -343,7 +343,8 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
         "readOnlyHint": True,
         "title": "Get Upstream and Downstream Lineage Graph"
     },
-    description="""Use this tool when you need to retrieves upstream and downstream lineage graph using 64-character hexadecimal lineage IDs.
+    tags={"lineage"},
+    description="""Use this tool when you need to retrieve upstream and downstream lineage graph using 64-character hexadecimal lineage IDs.
     
     This tool generates a data lineage graph showing data flow relationships both upstream
     (data sources) and downstream (data consumers) from the specified assets. The graph depth
@@ -358,13 +359,13 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
     
     **DO NOT CALL THIS TOOL IF**:
     - You have asset names (e.g., "customer_table") → Call search_lineage_assets first
-    - You have short IDs or UUIDs → Call convert_asset_to_lineage_id first
+    - You have short IDs or UUIDs → Call get_lineage_id first
     - The identifier is not exactly 64 hexadecimal characters → Call search_lineage_assets first
     
     **ONLY CALL THIS TOOL IF**:
     - You have 64-character hexadecimal strings like for example "aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeee11111111112222"
     - You obtained the lineage ID from search_lineage_assets results
-    - You obtained the loneage ID from convert_asset_to_lineage_id results
+    - You obtained the loneage ID from get_lineage_id results
     
     Validation: Before calling this tool, verify each lineage_id:
     - Length is exactly 64 characters
@@ -426,7 +427,7 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
 )
 @auto_context
 async def get_lineage_graph(
-    lineage_ids: Annotated[Union[str, List[str]], Field(description="One or more 64-character hexadecimal lineage IDs (MUST be obtained from search_lineage_assets results or convert_asset_to_lineage_id results)")],
+    lineage_ids: Annotated[Union[str, List[str]], Field(description="One or more 64-character hexadecimal lineage IDs (MUST be obtained from search_lineage_assets results or get_lineage_id results)")],
     hop_up: Annotated[str, Field(description="Number of upstream levels to traverse ('0', '1', '3', or '50'). Use '50' when user mentions 'between', 'ultimate source', or provides multiple lineage_ids. If only hop_down is specified use '0'")] = "3",
     hop_down: Annotated[str, Field(description="Number of downstream levels to traverse ('0', '1', '3', or '50'). Use '50' when user mentions 'between', 'ultimate target', or provides multiple lineage_ids. If only hop_up is specified use '0'")] = "3",
     ultimate: Annotated[Optional[str], Field(description="Specifies ultimate endpoint search mode ('source', 'target', 'both', '', or None)")] = None,

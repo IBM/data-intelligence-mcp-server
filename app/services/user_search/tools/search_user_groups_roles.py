@@ -280,7 +280,7 @@ async def _search_user_groups_roles(
         - "What roles can I assign?" → search_type="role", query=None (CP4D only)
     Returns: The search type, total and returned counts, list of matching results (users, groups, or roles with their IDs and metadata), a status message, and the original query.
     """,
-    tags={"search", "user_search", "identity", "access_management", "unified"},
+    tags={"search", "user_search", "identity", "access_management", "unified","metadata_management_and_governance"},
     meta={"version": "1.0", "service": "user_search"},
 )
 @auto_context

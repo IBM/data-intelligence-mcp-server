@@ -32,14 +32,15 @@ async def _search_metadata_import(
         "readOnlyHint": True,
         "title": "Search and List Existing Metadata Import Configurations"
     },
-    description="""Use this tool when you need to searches for the available metadata import .
+    tags={"metadata_management_and_governance"},
+    description="""Use this tool when you need to search for the available metadata import.
 
-    This function is mainly used when a user want to create or update a metadata enrichment (MDE) and does not provide an asset or want to use a metadata import (MDI).
-    This function can search for all the available metadata imports (MDI) or search a metadata imports by name
+    This tool is mainly used when a user want to create or update a metadata enrichment (MDE) and does not provide an asset or want to use a metadata import (MDI).
+    This tool can search for all the available metadata imports (MDI) or search a metadata imports by name
     - The user must provide a project name or the project ID
     - Optional: the user can provide the metadata import name to search a specific MDI
 
-    This function supports wildcard search
+    This tool supports wildcard search
 
     Return: The result in a table in MD format.
     """,

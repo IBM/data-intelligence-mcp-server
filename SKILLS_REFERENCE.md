@@ -17,6 +17,8 @@ This document provides a comprehensive list of all Model Context Protocol (MCP) 
     - [Metadata Onboarding and Enrichment Skill](#metadata-onboarding-and-enrichment-skill)
     - [Data Product Creation Skill](#data-product-creation-skill)
     - [Data Lineage Skill](#data-lineage-skill)
+    - [MDI Job Control Skill](#mdi-job-control-skill)
+    - [Data Quality Skill](#data-quality-skill)
 
 
 ## Where to Get the Skills
@@ -166,4 +168,16 @@ In order to use the Data Intelligence skills with VS Code Copilot:
 | Skill Name | Description | Sample Prompts | pypi version | CPD version |
 |-----------|-------------|---------------|-------------|-------------|
 | lineage | Guides users through exploring upstream/downstream data lineage and historical lineage changes via a 3-phase workflow: asset identification → lineage graph traversal → historical version comparison. Handles both direct lineage search and catalog-first lookup with ID conversion | "Show lineage for CUSTOMER_360" or "What feeds into the sales table?" or "Trace the customer_data asset in AgentTest project" or "What would break if we changed this table?" or "Where does this data come from originally?" or "Has anything changed in the pipeline since last month?" | >=1.1.0 | TBD |
+
+### MDI Job Control Skill
+
+| Skill Name | Description | Sample Prompts | pypi version | CPD version |
+|-----------|-------------|---------------|-------------|-------------|
+| mdi-job-control | Guides users through pausing, resuming, or cancelling an active metadata import job run via a 3-phase workflow: intent detection → project/MDI resolution → action confirmation and execution using the unified pause_resume_or_cancel_mdi_job_run tool | "Pause my metadata import job" or "Resume the import I paused earlier" or "Cancel the running MDI job in my project" or "Stop the import job for the Finance MDI" | >=1.5.0 | TBD |
+
+### Data Quality Skill
+
+| Skill Name | Description | Sample Prompts | pypi version | CPD version |
+|-----------|-------------|---------------|-------------|-------------|
+| data-quality | Guides users through the full data quality lifecycle: running DQ pipelines (via MDE jobs with objectives `analyze_quality`, `dq_gen_constraints`, `dq_sla_assessment`, and `profile`), monitoring results against SLA rules, creating new SLA rules, and visualising scores via Mermaid charts. Covers project setup, connection configuration, metadata import, and DQ enrichment execution across four phases: intent detection → project setup → metadata import (conditional) → DQ enrichment and monitoring | "Generate a DQ pipeline for my sales data" or "Run data quality checks on my Postgres tables" or "How good is my data?" or "Validate my tables and score completeness" or "Analyze data quality for the tables in my BANK database" or "Create SLA rules for my datasets" or "Monitor data quality against defined SLAs" | >=1.5.0 | TBD |
 

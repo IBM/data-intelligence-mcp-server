@@ -21,7 +21,8 @@ async def _monitor_job_status(job_id: str, project: str) -> JobRunStatus:
         "readOnlyHint": True,
         "title": "Get Metadata Enrichment Job Execution Status"
     },
-    description="""Use this tool when you need to monitors a given job's status in a given project."
+    tags={"metadata_management_and_governance"},
+    description="""Use this tool when you need to monitor a given job's status in a given project.
 
                 This tool checks the job status, it accepts:
                 - job_id: the job id of the job to check

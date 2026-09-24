@@ -2,6 +2,93 @@
 
 > All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project **adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)**.
 
+## [1.5.0] - Sept 24th, 2026
+
+### Added
+- **Agent Skills**:
+  - `data-quality` - New agent skill that guides users through the full data quality lifecycle: understanding DQ scores, creating and managing SLA rules, running assessments, and visualising results via Mermaid charts. Includes built-in guidance documents for SLA creation and Mermaid chart generation.
+  - `mdi-job-control` - New skill that guides the agent through pausing, resuming, or cancelling a running metadata import (MDI) job run. Handles intent detection (pause / resume / cancel), project and MDI resolution via `get_container` and `search_metadata_import`, mandatory confirmation before irreversible cancel actions, and result display including the new job state and a UI URL for monitoring. Provides structured error guidance for common failure cases such as no eligible job run found or a job in the wrong state.
+- **Profiling**:
+  - `create_data_profiles` - New tool to trigger data profiling for one or more datasets in a catalog. Accepts dataset, catalog names or UUIDs (names are resolved automatically), and optional flags to control profiling behaviour: `disable_profiling`, `enable_dqa`, `bivariate_statistics`, `enable_fast_classification`, and `collect_historical_data`. Returns a profile job ID, submission status, catalog ID, resolved dataset IDs, and per-asset profiling UI URLs. The returned status is `submitted` for successful job submission — the profiling job runs asynchronously and the tool does not poll for completion.
+- **Data Quality**:
+  - `get_data_quality_for_assets` - New bulk tool to retrieve data quality metrics for multiple assets in a single call. Returns overall score, dimension scores (consistency, validity, completeness, etc.), and a report URL for each asset. Assets that cannot be resolved or have no quality data are reported as missing in the response.
+- **Tool Groups**: Tools are now grouped by the IBM Data Intelligence service they belong to. Because not every user has every service installed, only the core governance tools (`metadata_management_and_governance`) are enabled by default. Users can opt in to additional groups based on the services available in their environment using the `TOOL_GROUPS` environment variable (stdio) or the `x-tool-groups` request header (http). The following groups are available:
+  - `metadata_management_and_governance` *(enabled by default)* — core governance tools: metadata import/enrichment, glossary management, data protection rules, workflow approvals, search and SQL reporting.
+  - `data_product` — tools for IBM Data Product Hub: create, publish, search, and manage data products and subscriptions. Enable when the Data Product Hub service is available.
+  - `data_quality` — tools for data quality rules, profiling, SLA management, and quality remediation. Enable when the Data Quality service is available.
+  - `lineage` — tools for tracing data lineage graphs, upstream/downstream traversal, and version comparison. Enable when the Lineage service is available.
+  - `generative_ai` — text-to-SQL, semantic model access, glossary generation from files, and AI-powered search. Enable only when Generative AI features have been activated in the IBM Data Intelligence instance.
+- **Workflow**:
+  - `list_business_terms_by_category` - New tool to retrieve all published business terms belonging to a specific category. Accepts a human-readable category name, resolves it to the correct UUID via the global search index, then fetches published terms using `POST /v3/search` filtered by `metadata.artifact_type: glossary_term` and `categories.primary_category_name` (phrase match). The global search index only surfaces published artifacts, so no additional state filtering is required. When a `description` is provided, terms are ranked by BM25 similarity and the top `top_n` (default 5) most relevant are returned. Steward IDs are resolved to human-readable names; ISO timestamps are formatted as `DD Mon YYYY`. Supports `table` and `json` output formats.
+
+### Changed
+- **Workflow**:
+  - `get_artifact_details` - Handles multiple artifacts sharing the same name: returns a disambiguation list with long descriptions so the user can identify the right one, then supports fetching details for a single artifact (`artifact_id`) or multiple in parallel (`artifact_ids`, max 10).
+- **Metadata Enrichment (MDE)**:
+  - `list_categories` → `list_glossary_categories`: Renamed to accurately reflect that the tool retrieves all business glossary categories (not just enrichment categories). Updated description to clarify it takes no inputs and returns a flat list of category names and IDs for use in governance workflows, metadata enrichment jobs, or term assignments.
+- **Text to SQL**:
+  - `get_semantic_model` - Enhanced to support filtering by schema names.
+  - `create_sql_query` - Updated tool response to include post-generation guidance that steers the LLM to offer query explanation and execution to the user rather than silently returning the SQL.
+- **Search**:
+  - `list_containers` - Added role filtering support (`role` parameter) to filter containers by user permissions (e.g., admin, editor, viewer), extracting the `sub` claim from JWT tokens.
+  - `search_asset` & `dynamic_query_search` - Enhanced search results formatting with container name enrichment, container ID, and description fields while improving asset link formatting.
+  - `search_asset` - Added support to automatically convert "list all" and broad search phrases to wildcard search queries.
+  - `run_gs_query` - Added routing/instruction updates to handle asset count and aggregate requests via Global Search queries.
+- **Data Product Hub (DPH)**:
+  - `search_data_products` - Added contract test result fields (`contract_test_status`, `contract_test_last_run_at`) to search results output.
+- **Tool Name Standardization**: Renamed tool name strings only — no function, file, or module changes.
+  - **Search**:
+    - `execute_gs_query` → `run_gs_query`
+    - `find_container` → `get_container`
+  - **Reporting**:
+    - `execute_reporting_select_query` → `run_reporting_select_query`
+    - `generate_reporting_sql_query` → `create_reporting_sql_query`
+  - **Metadata Import (MDI)**:
+    - `execute_metadata_import` → `run_metadata_import`
+    - `edit_metadata_import` → `update_metadata_import`
+  - **Text to SQL**:
+    - `generate_sql_query` → `create_sql_query`
+  - **Workflow**:
+    - `list_user_tasks_approval_data_for_artifact` → `list_user_task_approval_data`
+    - `list_data_classes_by_search_term` → `list_data_classes`
+    - `list_business_terms_by_search_term` → `list_business_terms`
+    - `get_my_workflows` → `list_workflows`
+  - **Data Quality SLA**:
+    - `retrieve_dq_slas` → `list_dq_slas`
+    - `retrieve_sla_assessments_by_assets` → `list_sla_assessments`
+  - **Data Product Hub (DPH)**:
+    - `find_data_product_delivery_methods_based_on_connection` → `list_data_product_delivery_methods`
+  - **Lineage**:
+    - `convert_asset_to_lineage_id` → `get_lineage_id`
+  - **Metadata Enrichment (MDE)**:
+    - `execute_term_generation` → `run_term_generation`
+    - `start_metadata_relationship_analysis` → `run_metadata_relationship_analysis`
+    - `execute_metadata_expansion_for_selected_assets` → `run_metadata_expansion`
+    - `execute_metadata_enrichment_asset_for_selected_assets` → `run_metadata_enrichment_asset_for_selected_assets`
+    - `execute_metadata_enrichment_asset` → `run_metadata_enrichment_job`
+    - `execute_data_quality_analysis_for_selected_assets` → `run_data_quality_analysis`
+  - **Data Quality**:
+    - `get_data_quality_for_asset` → `get_data_quality`
+    - `create_data_quality_rule_from_sql_query` → `create_data_quality_rule`
+
+### Fixed
+- **Publish Asset To Catalog**:
+  - `publish_asset_to_catalog` - Switched from `/v2/assets/{id}/publish` to `/v2/assets/bulk_copy` with `auto_copy_connections_in_remote_attachments=True`, which natively handles connection copying and removes the broken manual ATTSV3055E retry path. Inline errors from the bulk_copy response (e.g. `ASTSV3221E: Cannot publish reference connection assets to PAC`) are now surfaced clearly to the user.
+- **Search**:
+  - `search_asset` - Fixed Pydantic validation error when handling response fields. Asset ID hyperlinks now render correctly in all response surfaces; previously the link text was being emitted as raw markdown in certain tool contexts.
+- **Data Product Hub (DPH)**:
+  - `import_remote_assets_to_data_product_catalog` - Handled `ServiceError` exceptions during batch fetch operations and return structured errors gracefully.
+- **Workflow**:
+  - Enhanced error handling across workflow tools (`list_workflows`, `get_my_workflow_inbox_tasks`, `list_user_task_approval_data`, `perform_workflow_task_action`).
+- **Metadata Enrichment (MDE)**:
+  - Fixed tool utility errors causing intermittent failures in MDE tools; corrected a missing helper import in `helpers.py`.
+- **Text to SQL**:
+  - `create_sql_query` - Gracefully handles `SAL0363E` errors returned when the target asset has not been profiled, returning a user-friendly message instead of propagating a raw service exception.
+- **Dependencies & Security**:
+  - Upgraded FastMCP to 4.0.3 and resolved middleware regression issues.
+  - Upgraded `anyio` to 4.15.1 to address CVE-2026-63374 and CVE-2026-64847.
+  - Upgraded `joserfc` to 1.7.2 or later to address a security vulnerability.
+
 ## [1.4.0] - Aug 6th, 2026
 
 ### Added

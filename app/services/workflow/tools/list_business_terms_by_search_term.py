@@ -30,7 +30,6 @@ from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.client_detection import supports_rich_text_format
 from app.shared.utils.llm_utils import client_supports_elicitation
 
-from fastmcp.exceptions import ToolError
 from fastmcp.server.context import Context
 
 from mcp.server.elicitation import (
@@ -100,16 +99,16 @@ async def _handle_elicitation(
             LOGGER.info("Elicitation declined or no selection made")
             
     except Exception as elicit_e:
-        LOGGER.warning(f"Failed to call elicitation: {str(elicit_e)}")
+        LOGGER.warning(f"Elicitation failed or not supported, returning full result set: {str(elicit_e)}")
     
     return business_terms
 
 
 list_business_terms_by_search_term_description="""
 Use this tool when you need to find business terms that are part of governance workflows, especially when working with draft/unpublished business terms or when you need the artifact_id for workflow operations.
-list_business_terms_by_search_term returns a list of all business terms as objects of a data governance workflow with the artifact_id included.
+list_business_terms returns a list of all business terms as objects of a data governance workflow with the artifact_id included.
 Always define the draft parameter: if the text refers to future approvals set it true, otherwise false.
-Use list_business_terms_by_search_term ONLY for requests about unpublished, draft business terms or for workflow related requests, otherwise use search_governance_artifacts.
+Use list_business_terms ONLY for requests about unpublished, draft business terms or for workflow related requests, otherwise use search_governance_artifacts.
 If you find markdown text in the result show it to the user.
 ALWAYS use a request json object to encapsulate the parameters.
 Returns: The list of business terms matching the search criteria, total count, name-to-artifact-ID mapping, and optionally a formatted markdown table or user selection prompt.
@@ -196,13 +195,13 @@ async def _list_business_terms_by_search_term(
 
 
 @service_registry.tool(
-    name="list_business_terms_by_search_term",
+    name="list_business_terms",
     annotations={
         "readOnlyHint": True,
         "title": "Search and List Glossary Business Terms in Governance Workflows"
     },
     description=list_business_terms_by_search_term_description,
-    tags={"workflow", "glossary", "business_terms", "governance"},
+    tags={"workflow", "glossary", "business_terms", "governance","metadata_management_and_governance"},
     meta={"version": "1.0", "service": "glossary"},
 )
 @auto_context

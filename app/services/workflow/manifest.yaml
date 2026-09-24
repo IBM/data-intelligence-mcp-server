@@ -6,16 +6,18 @@
 
       CRITICAL WORKFLOW FOR TASKS PERTAINING TO WORKFLOW OBJECTS - ALWAYS FOLLOW THIS ORDER:
 
-      For glossary objects like data classes and business terms use **list_data_classes_by_search_term** and **list_business_terms_by_search_term** first to find
+      For glossary objects like data classes and business terms use **list_data_classes** and **list_business_terms** first to find
       the artifact_id for each object. NEVER use **get_asset_details** for data classes and business terms, rather call
-      **list_user_tasks_approval_data_for_artifact** to find out more.
+      **list_user_task_approval_data** to find out more.
 
       1. **get_my_workflow_inbox_tasks** → returns the current user's list of tasks from the workflow task inbox.
-      2. **list_data_classes_by_search_term** → returns a list of all data classes as objects of a data governance workflow pertaining to the search term
+      2. **list_data_classes** → returns a list of all data classes as objects of a data governance workflow pertaining to the search term
          with the artifact_id included. Use the draft parameter to retrieve data classes waiting for approval and not yet published.
-      3. **list_business_terms_by_search_term** → returns a list of all business terms as objects of a data governance workflow with the artifact_id included. Use
-         the draft parameter to retrieve data classes waiting for approval and not yet published.
-      4. **list_user_tasks_approval_data_for_artifact** -> returns user tasks in a data governance workflow for a specific artifact id along with the final state
+      3. **list_business_terms** → returns a list of all business terms as objects of a data governance workflow with the artifact_id included. Use
+        the draft parameter to retrieve data classes waiting for approval and not yet published.
+      3a. **list_business_terms_by_category** → returns all published business terms belonging to a specific category. Use when the user asks to list terms "in" or
+        "under" a category. Resolves the human-readable category name to a UUID automatically; falls back to list_glossary_categories if the name is ambiguous.
+      4. **list_user_task_approval_data** -> returns user tasks in a data governance workflow for a specific artifact id along with the final state
          of the workflow to find out approvers in user task data. Use the draft parameter to specify whether to retrieve user tasks for artifacts not published, resp.
          not yet published.
       5. **perform_workflow_task_action** → performs actions on workflow tasks. Use action="claim" to assign a task to yourself, action="complete" to finish a task, 
@@ -23,8 +25,8 @@
       6. **get_artifact_details** → Get detailed information about a specific workflow glossary artifact (business term or data class). Use when reviewing draft artifact details before approval, comparing changes between the latest and previous draft versions, or viewing relationships, stewards, and descriptions.
       7. **list_draft_artifacts** → List draft workflow glossary artifacts (business terms and/or data classes). Use when you need an overview of artifacts currently in workflow or need to find which artifacts are pending approval.
       NEVER call **get_my_workflow_inbox_tasks** for data classes and business terms.
-      ALWAYS use **list_data_classes_by_search_term** or **list_business_terms_by_search_term** before calling **list_user_tasks_approval_data_for_artifact**. 
-      NEVER use **list_user_tasks_approval_data_for_artifact** without an artifact_id or to retrieve the user's task inbox.
+      ALWAYS use **list_data_classes** or **list_business_terms** before calling **list_user_task_approval_data**.
+      NEVER use **list_user_task_approval_data** without an artifact_id or to retrieve the user's task inbox.
 
       TASK ACTION USAGE GUIDE:
       - **Action Types:**

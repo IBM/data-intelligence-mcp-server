@@ -80,14 +80,14 @@ async def _delete_metadata_import(
 
 @service_registry.tool(
     name="delete_metadata_import",
-    description="""This tool permanently deletes a metadata import asset. This action cannot be undone.
+    description="""Destructive: This tool permanently deletes a metadata import asset. This action cannot be undone.
     
     ERROR HANDLING:
     - If project not found: Use 'list_containers' to find available projects
     - If metadata import not found: Use 'search_metadata_import' to find existing imports
     
     Returns: Success message confirming the deletion.""",
-    tags={"metadata-import", "delete-metadata-import"},
+    tags={"metadata-import", "delete-metadata-import","metadata_management_and_governance"},
     meta={"version": "1.0", "service": "metadata-import"},
     annotations={
         "title": "Delete Metadata Import from a Project",

@@ -312,7 +312,8 @@ async def _explain_glossary_artifact(
         "readOnlyHint": True,
         "title": "Retrieve and Generate Detailed Explanations for Glossary Artifacts by Name"
     },
-    description="""Use this tool when you need to retrieves and explains metadata about a glossary artifact, which could be any of:
+    tags={"metadata_management_and_governance"},
+    description="""Use this tool when you need to retrieve and explain metadata about a glossary artifact, which could be any of:
     - Glossary term
     - Classification
     - Data class

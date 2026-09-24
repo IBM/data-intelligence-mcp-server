@@ -183,7 +183,7 @@ async def _bulk_publish_assets(
     - If asset not found: Verify asset names exist in the project
     
     Returns: Success message with count of published assets and all relevant IDs.""",
-    tags={"metadata-import", "bulk-publish", "publish-assets"},
+    tags={"metadata-import", "bulk-publish", "publish-assets","metadata_management_and_governance"},
     meta={"version": "1.0", "service": "metadata-import"},
     annotations={
         "title": "Bulk Publish Assets from Metadata Import",

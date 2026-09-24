@@ -132,7 +132,7 @@ async def _search_data_source_definition(
                         - Hostname + port + physical collection + name
                     - Invalid values will result in errors
                     Return: A list of objects, each containing data source definition details including ID, name, creation time, creator ID, datasource type information, and URL.""",
-    tags={"search", "data_source_definition"},
+    tags={"search", "data_source_definition","metadata_management_and_governance"},
     meta={"version": "1.0", "service": "search"}
 )
 @auto_context

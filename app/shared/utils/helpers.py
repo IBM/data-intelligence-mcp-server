@@ -66,6 +66,8 @@ def is_uuid_bool(id: str) -> bool:
 
 
 async def confirm_uuid(uuid_or_str: str, find_function: Callable) -> str:
+    if not uuid_or_str:
+        return await find_function(uuid_or_str)
     try:
         is_uuid(uuid_or_str)
         return uuid_or_str

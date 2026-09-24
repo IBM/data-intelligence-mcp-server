@@ -71,6 +71,7 @@ async def _get_lineage_versions(
         "readOnlyHint": True,
         "title": "Retrieve Available Lineage Versions Within Date Range"
     },
+    tags={"lineage"},
     description="""Use this tool when you need to fetch versions within a given date range so users can compare them.
     Data returned by this tool is used by the lineage_comparison tool and get_lineage_graph tool.
 

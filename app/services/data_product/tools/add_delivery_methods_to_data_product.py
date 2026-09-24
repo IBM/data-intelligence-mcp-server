@@ -93,8 +93,8 @@ async def _add_delivery_methods_to_data_product(
 
 @service_registry.tool(
     name="add_delivery_methods_to_data_product",
-    description="""Use this tool when you need to adds delivery methods selected by user to a data product draft. DO NOT make up delivery methods, use the corresponding ID values for the delivery methods selected by the user.
-    This is called after `find_data_product_delivery_methods_based_on_connection()` to add the delivery methods selected by the user to the data product draft.
+    description="""Use this tool when you need to add delivery methods selected by user to a data product draft. DO NOT make up delivery methods, use the corresponding ID values for the delivery methods selected by the user.
+    This is called after `list_data_product_delivery_methods()` to add the delivery methods selected by the user to the data product draft.
     Example: Adding two delivery methods to an asset in the draft.
         'Add flight and download delivery methods to customer asset in the data product draft'- This gets the data product draft ID from context, data asset name (in this case, customer), the delivery method IDs from context matching the delivery methods selected by the user from the previous tool call.
     Return: A success message indicating that the delivery methods were added to the data asset in the data product draft. If multiple assets with the same name exist, the message will indicate that delivery methods were added to all matching assets.

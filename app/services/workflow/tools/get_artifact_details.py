@@ -11,6 +11,12 @@ relationships, and data steward names.
 """
 
 from typing import Annotated, Optional, List
+import asyncio
+
+# Maximum number of artifacts that can be fetched in a single multi-fetch call.
+# Each artifact requires 3 API calls (versions, version detail, relationships).
+# Keeping this small prevents queuing hundreds of calls through the semaphore.
+MAX_MULTI_FETCH = 10
 from urllib.parse import quote
 from pydantic import Field
 
@@ -18,6 +24,7 @@ from app.core.registry import service_registry
 from app.services.text_to_query_search.constants import GOVERNANCE_GLOSSARY_PATHS
 from app.services.workflow.models.get_artifact_details import (
     ArtifactDetails,
+    ArtifactMatch,
     ArtifactType,
     GetArtifactDetailsRequest,
     GetArtifactDetailsResponse,
@@ -34,6 +41,7 @@ from app.services.workflow.tools.utils import (
     extract_relationships,
     fetch_steward_names,
     resolve_artifact_id_by_name,
+    enrich_matches_with_long_description,
 )
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import append_context_to_url
@@ -171,6 +179,64 @@ def _format_comparison_table(artifact_details: ArtifactDetails) -> str:
     return "\n".join(header + rows)
 
 
+def _build_multiple_matches_response(
+    matches: List[dict],
+    artifact_type: ArtifactType,
+) -> GetArtifactDetailsResponse:
+    """Build a structured disambiguation response when multiple artifacts share a name."""
+    artifact_matches = [
+        ArtifactMatch(
+            artifact_id=m["artifact_id"],
+            name=m["name"] or "",
+            long_description=m.get("long_description"),
+            created_at=m.get("created_at"),
+            modified_at=m.get("modified_at"),
+            workflow_state=m.get("workflow_state"),
+        )
+        for m in matches
+        if m.get("artifact_id")
+    ]
+    return GetArtifactDetailsResponse(
+        success=False,
+        error=(
+            f"Multiple {artifact_type} artifacts share this name. "
+            f"Present the {len(artifact_matches)} entries in multiple_matches to the user as a "
+            f"numbered list using their long_description as the label (fall back to workflow_state "
+            f"or modified_at if no description). "
+            f"Ask the user whether they want details for one, several, or all of them. "
+            f"Then re-call this tool with: artifact_id (single choice) or "
+            f"artifact_ids (list of IDs for multiple/all choices)."
+        ),
+        multiple_matches=artifact_matches,
+    )
+
+
+async def _fetch_single_artifact_details(
+    artifact_api_endpoint: str,
+    artifact_id: str,
+    request: "GetArtifactDetailsRequest",
+) -> ArtifactDetails:
+    """Fetch full details for one artifact by ID."""
+    draft_versions = await _fetch_draft_versions(artifact_api_endpoint, artifact_id)
+    latest_version = await _fetch_version_details(
+        artifact_api_endpoint,
+        artifact_id,
+        extract_version_id(draft_versions[0]),
+    )
+    previous_version = await _fetch_previous_version_if_available(
+        artifact_api_endpoint,
+        artifact_id,
+        draft_versions,
+    )
+    return _build_artifact_details(
+        request,
+        artifact_id,
+        latest_version,
+        previous_version,
+        draft_versions[0].get("metadata", {}),
+    )
+
+
 async def _get_artifact_details(
     request: GetArtifactDetailsRequest,
 ) -> GetArtifactDetailsResponse:
@@ -188,10 +254,60 @@ async def _get_artifact_details(
     """
     try:
         artifact_api_endpoint = get_artifact_api_endpoint(request.artifact_type)
-        artifact_id = await resolve_artifact_id_by_name(
-            artifact_name=request.artifact_name,
-            artifact_type=request.artifact_type,
-        )
+
+        # Multiple IDs supplied — fetch all in parallel (capped at MAX_MULTI_FETCH).
+        if request.artifact_ids:
+            if len(request.artifact_ids) > MAX_MULTI_FETCH:
+                raise ServiceError(
+                    f"artifact_ids exceeds the maximum of {MAX_MULTI_FETCH}. "
+                    f"Received {len(request.artifact_ids)}. "
+                    f"Ask the user to select fewer artifacts.",
+                    service="workflow",
+                    tool="get_artifact_details",
+                    remediation_steps=f"Pass at most {MAX_MULTI_FETCH} artifact IDs.",
+                )
+            results = await asyncio.gather(
+                *[
+                    _fetch_single_artifact_details(artifact_api_endpoint, aid, request)
+                    for aid in request.artifact_ids
+                ],
+                return_exceptions=True,
+            )
+            all_details = [r for r in results if isinstance(r, ArtifactDetails)]
+            errors = [str(r) for r in results if isinstance(r, Exception)]
+            if errors:
+                LOGGER.warning("Some artifact fetches failed during multi-fetch: %s", errors)
+            formatted_output = None
+            if request.format == "table":
+                formatted_output = "\n\n---\n\n".join(
+                    _format_comparison_table(d) for d in all_details
+                )
+            return GetArtifactDetailsResponse(
+                all_artifact_details=all_details,
+                formatted_output=formatted_output,
+            )
+
+        # Single artifact_id supplied directly (follow-up after disambiguation), skip resolution.
+        if request.artifact_id:
+            artifact_id = request.artifact_id
+        elif not request.artifact_name:
+            raise ServiceError(
+                "Either artifact_name or artifact_id must be provided.",
+                service="workflow",
+                tool="get_artifact_details",
+                remediation_steps="Provide the artifact name to search by, or an artifact_id from a previous multiple_matches response.",
+            )
+        else:
+            resolved_id, matches = await resolve_artifact_id_by_name(
+                artifact_name=request.artifact_name,
+                artifact_type=request.artifact_type,
+            )
+            if matches is not None:
+                matches = await enrich_matches_with_long_description(
+                    matches, artifact_api_endpoint
+                )
+                return _build_multiple_matches_response(matches, request.artifact_type)
+            artifact_id = resolved_id
 
         # Fetch and filter draft versions
         draft_versions = await _fetch_draft_versions(artifact_api_endpoint, artifact_id)
@@ -224,6 +340,8 @@ async def _get_artifact_details(
 
         return GetArtifactDetailsResponse(
             artifact_details=artifact_details,
+            all_artifact_details=None,
+            multiple_matches=None,
             formatted_output=formatted_output,
         )
     except (ServiceError, ExternalAPIError):
@@ -359,10 +477,20 @@ To get details for a draft business term named "Customer ID":
 - artifact_type: "glossary_term"
 - format: "table"
 
+**Multiple matches:**
+If two or more artifacts share the same name, the response will contain `multiple_matches`
+instead of `artifact_details`. Present the list to the user as numbered options (show
+long_description and modified_at so they can distinguish them). Ask whether they want
+details for one, several, or all of them, then re-call this tool with:
+- `artifact_id` — when the user picks a single entry
+- `artifact_ids` — when the user wants several or all entries (pass a list of IDs)
+
 **Returns:**
 A GetArtifactDetailsResponse containing:
-- artifact_details: Structured data with latest and previous version information
-- formatted_output: Markdown table comparing versions (when format="table")
+- artifact_details: Full details for a single artifact
+- all_artifact_details: Full details for multiple artifacts (when artifact_ids is supplied)
+- multiple_matches: Populated instead of artifact_details when the name is ambiguous
+- formatted_output: Markdown table comparing versions (when format="table"); multiple artifacts are separated by "---"
 
 The comparison includes short/long descriptions, relationships, data steward names,
 version IDs, states, and a formatted UI URL for both versions.
@@ -376,14 +504,16 @@ version IDs, states, and a formatted UI URL for both versions.
         "title": "Get Detailed Information About Draft Workflow Glossary Artifacts"
     },
     description=get_artifact_details_description,
-    tags={"workflow", "glossary", "artifacts", "governance"},
+    tags={"workflow", "glossary", "artifacts", "governance", "metadata_management_and_governance"},
     meta={"version": "2.0", "service": "glossary"},
 )
 @auto_context
 async def get_artifact_details(
-    artifact_name: Annotated[str, Field(description="The name of the business term or data class to retrieve details for")],
     artifact_type: Annotated[ArtifactType, Field(description="Type of artifact: 'glossary_term' for business terms or 'data_class' for data classes")],
+    artifact_name: Annotated[str, Field(description="The name of the business term or data class to retrieve details for")] = "",
     format: Annotated[str, Field(description="Output format: 'table' for markdown comparison table or 'json' for structured data only")] = "table",
+    artifact_id: Annotated[Optional[str], Field(description="Single artifact ID to fetch directly. Supply on a follow-up call when the user picks one entry from a multiple_matches list — never ask the user to type an ID.")] = None,
+    artifact_ids: Annotated[Optional[List[str]], Field(description=f"Multiple artifact IDs to fetch in parallel (max {MAX_MULTI_FETCH}). Supply on a follow-up call when the user wants details for several or all entries from a multiple_matches list — never ask the user to type IDs.")] = None,
     ctx: Context = None,
 ) -> GetArtifactDetailsResponse:
     """
@@ -393,6 +523,7 @@ async def get_artifact_details(
         artifact_name: The artifact name to retrieve details for
         artifact_type: Type of artifact ('glossary_term' or 'data_class')
         format: Output format ('table' for formatted output, 'json' for structured data)
+        artifact_id: Optional artifact ID to bypass name resolution after disambiguation
         ctx: Optional MCP Context
 
     Returns:
@@ -402,6 +533,8 @@ async def get_artifact_details(
         artifact_name=artifact_name,
         artifact_type=artifact_type,
         format=format,
+        artifact_id=artifact_id,
+        artifact_ids=artifact_ids,
     )
     return await _get_artifact_details(request)
 
