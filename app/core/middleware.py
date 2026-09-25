@@ -131,18 +131,28 @@ class SessionInitMiddleware(Middleware):
         if ctx is None:
             return
 
-        # Guard: only enable groups once per session. Subsequent requests on the
-        # same session re-use the rules already stored in session state.
-        already_initialised = await ctx.get_state("_tool_groups_initialised")
-        if already_initialised:
+        enabled_groups = self._resolve_enabled_groups()
+        if not enabled_groups:
             return
 
-        enabled_groups = self._resolve_enabled_groups()
-        LOGGER.debug(f"[http] Enabling tool groups for session (first request): {enabled_groups or 'none'}")
-        for group in enabled_groups:
-            await ctx.enable_components(tags={group})
-
-        await ctx.set_state("_tool_groups_initialised", True)
+        # Build visibility rule dicts in the same format that
+        # fastmcp.server.transforms.visibility.get_visibility_rules() returns.
+        # We append one rule per group (matching the base-class behaviour) and
+        # write them in a single set_state call — no notification sent.
+        existing: list = await ctx.get_state("_visibility_rules") or []
+        new_rules = [
+            {
+                "enabled": True,
+                "names": None,
+                "keys": None,
+                "version": None,
+                "tags": [group],
+                "components": None,
+                "match_all": False,
+            }
+            for group in enabled_groups
+        ]
+        await ctx.set_state("_visibility_rules", existing + new_rules)
 
     async def on_call_tool(
         self,
