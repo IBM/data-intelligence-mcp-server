@@ -2,6 +2,9 @@
 
 > All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project **adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)**.
 
+## [1.5.0.post1] - Sept 25th, 2026
+- Since the session state is refreshed every time, it is causing an `Exceeded concurrency limit` error when v2 MCP client is connecting to the server. As a result, the MCP server is not behaving as expected.
+
 ## [1.5.0] - Sept 24th, 2026
 
 ### Added
