@@ -70,7 +70,7 @@ async def _list_connection_paths(
     - Default is 10 if not specified
     
     After calling this tool, use the returned schema list as the 'scope' parameter
-    when calling create_metadata_import.
+    when calling create_or_update_metadata_import.
     
     Returns: Response containing list of schema/table paths and count.
     """,

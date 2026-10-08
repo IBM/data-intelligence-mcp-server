@@ -195,7 +195,7 @@ async def _execute_metadata_import(
 
     ERROR HANDLING:
     - If project not found: Use 'list_containers' to find available projects or verify the project name
-    - If metadata import asset not found: Use 'create_metadata_import' to create the asset first
+    - If metadata import asset not found: Use 'create_or_update_metadata_import' to create the asset first
     Returns: Job ID, run ID, state, and monitoring URL.""",
     tags={"run-metadata-import", "execute-metadata-import", "start-metadata-import", "metadata_management_and_governance"},
     meta={"version": "1.0", "service": "metadata-import"},

@@ -302,7 +302,7 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
 
     if isinstance(request.lineage_ids, str):
         lineage_ids = "".join(
-            char for char in request.lineage_ids if char.isalnum() or char == ","
+            char for char in request.lineage_ids if char.isalnum() or char in ",-"  # local patch: keep UUID dashes
         )
         try:
             lineage_ids = json.loads(lineage_ids)

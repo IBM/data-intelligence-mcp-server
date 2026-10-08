@@ -209,6 +209,7 @@ async def _execute_gs_query(
     """,
     tags={"search", "gs_query", "global_search","metadata_management_and_governance"},
     meta={"version": "1.0", "service": "search"},
+    enabled=False
 )
 @auto_context
 async def execute_gs_query(

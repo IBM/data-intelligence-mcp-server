@@ -50,7 +50,6 @@ async def _generate_sql_query(
         "container_id": container_id,
         "container_type": request.container_type,
         "dialect": "presto",
-        "model_id": "meta-llama/llama-3-3-70b-instruct",
     }
 
     try:

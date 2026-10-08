@@ -2,14 +2,15 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
+from typing import Optional
+
 from app.shared.logging import LOGGER
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.services.constants import PROJECTS_BASE_ENDPOINT
 from app.shared.exceptions.base import ServiceError
 from app.core.auth import get_bss_account_id
 
-
-async def get_project_storage_details(project_id: str) -> dict:
+async def get_project_storage_details(project_id: str, tool_name: Optional[str] = None) -> dict:
     """
     Fetch project details and extract storage information.
 
@@ -18,6 +19,7 @@ async def get_project_storage_details(project_id: str) -> dict:
 
     Args:
         project_id: Id of the project
+        tool_name: Optional name of the calling tool, used in error messages.
 
     Returns:
         Dictionary containing storage details including type, properties, credentials, etc.
@@ -33,7 +35,7 @@ async def get_project_storage_details(project_id: str) -> dict:
     project_response = await tool_helper_service.execute_get_request(
         url=str(tool_helper_service.base_url) + PROJECTS_BASE_ENDPOINT + "/" + project_id,
         params=query_params,
-        tool_name="create_glossary_from_files",
+        tool_name=tool_name,
     )
 
     if not project_response or project_response == {}:

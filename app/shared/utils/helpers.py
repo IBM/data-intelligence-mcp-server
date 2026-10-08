@@ -77,7 +77,7 @@ async def confirm_uuid(uuid_or_str: str, find_function: Callable) -> str:
 
 def _is_valid_lineage_id(lineage_id: str) -> bool:
     """
-    Check if a string is a valid lineage ID (64-character hexadecimal string).
+    Check if a string is a valid lineage ID (64-character hexadecimal string or UUID).
 
     Args:
         lineage_id (str): The string to validate
@@ -85,8 +85,12 @@ def _is_valid_lineage_id(lineage_id: str) -> bool:
     Returns:
         bool: True if the string is a valid lineage ID, False otherwise
     """
-    return isinstance(lineage_id, str) and bool(
-        re.match(r"^[0-9a-f]{64}$", lineage_id.lower())
+    if not isinstance(lineage_id, str):
+        return False
+    lid = lineage_id.lower()
+    return bool(
+        re.match(r"^[0-9a-f]{64}$", lid)  # 64-char hex lineage ID (CPD)
+        or re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", lid)  # UUID / UUIDv7 (SaaS)
     )
 
 
@@ -603,3 +607,23 @@ def convert_iso8601_to_human_readable(iso_timestamp: str) -> Optional[str]:
         logger = get_logger(__name__)
         logger.warning("Failed to convert timestamp '%s': %s", iso_timestamp, str(e))
         return None
+
+def construct_task_url(task_id: str) -> str:
+    """
+    Construct a URL to a task in the workflow/task UI
+    
+    Args:
+        task_id: The task Id
+        
+    Returns:
+        The constructed URL to the task
+    """
+    from app.core.settings import ENV_MODE_SAAS
+    from app.shared.utils.tool_helper_service import tool_helper_service
+    
+    base_url = str(tool_helper_service.ui_base_url)
+
+    if settings.di_env_mode.upper() != ENV_MODE_SAAS:
+        return f"{base_url}/gov/workflow/tasks?taskId={task_id}&context=df"
+    else:
+        return f"{base_url}/governance/workflow/tasks?taskId={task_id}&context=df"

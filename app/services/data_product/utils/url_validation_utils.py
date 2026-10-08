@@ -22,7 +22,7 @@ from typing import List, Dict, Any
 
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
-from app.services.data_product.utils.common_utils import get_dph_catalog_id_for_user
+from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 
 
 # Constants for search API
@@ -72,7 +72,7 @@ async def validate_url_not_in_existing_data_products(
         return []
     
     try:
-        dph_catalog_id = await get_dph_catalog_id_for_user()
+        dph_catalog_id = await get_dph_catalog_id_for_user(await get_access_token())
         search_payload = _build_search_payload(url_value, dph_catalog_id)
         
         LOGGER.info(f"Searching for data products containing URL: {url_value}")

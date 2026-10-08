@@ -42,7 +42,11 @@ async def _get_data_product_subscription_details(
     if not request.subscription_id or not request.subscription_id.strip():
         raise ServiceError(
             "Missing required subscription_id. "
-            "Please provide a valid subscription ID obtained from search_data_product_subscriptions."
+            "Please provide a valid subscription ID obtained from search_data_product_subscriptions.",
+            remediation_steps=(
+                "Invoke search_data_product_subscriptions to find available subscriptions and obtain a valid subscription ID, "
+                "then retry this tool with that ID."
+            ),
         )
     
     try:
@@ -89,7 +93,11 @@ async def _get_data_product_subscription_details(
         error_message = f"Exception when getting subscription details: {e!s}"
         LOGGER.error(error_message)
         raise ServiceError(
-            f"Failed to retrieve subscription details. {error_message}"
+            f"Failed to retrieve subscription details. {error_message}",
+            remediation_steps=(
+                "Verify the subscription_id is valid. "
+                "Invoke search_data_product_subscriptions to find active subscriptions, then retry with a correct ID."
+            ),
         )
 
 

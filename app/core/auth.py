@@ -4,9 +4,11 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-from fastmcp.server.dependencies import get_http_headers
+from fastmcp.server.dependencies import (
+    get_access_token as get_fastmcp_access_token,
+    get_http_headers,
+)
 import json
-import jwt
 import base64
 
 from app.services.constants import (
@@ -67,36 +69,64 @@ def get_cloud_iam_url_from_service_url(service_url: str) -> str:
         return "https://iam.cloud.ibm.com"
 
 
+def _ensure_bearer_prefix(token: str) -> str:
+    return token if token.lower().startswith("bearer ") else f"Bearer {token}"
+
+
+def _get_token_from_fastmcp_oauth() -> str | None:
+    """Return a Bearer token from the FastMCP OAuth context, or None."""
+    try:
+        fastmcp_token = get_fastmcp_access_token()
+        if fastmcp_token and getattr(fastmcp_token, "token", None):
+            return _ensure_bearer_prefix(fastmcp_token.token)
+    except Exception as e:
+        LOGGER.debug(f"Could not retrieve FastMCP OAuth token from context: {e}")
+    return None
+
+
+async def _get_token_from_http_headers() -> str | None:
+    """Return a Bearer token from HTTP request headers, or None.
+
+    get_http_headers() never raises — returns {} when there is no HTTP context.
+    """
+    headers = get_http_headers()
+
+    auth = headers.get("authorization", "")
+    if auth:
+        return auth
+
+    api_key = headers.get("x-api-key", "")
+    if api_key:
+        return await get_bearer_token_from_apikey(api_key, headers.get("username", ""))
+
+    return None
+
+
+async def _get_token_from_stdio_settings() -> str | None:
+    """Return a Bearer token from STDIO env settings, or None."""
+    if settings.server_transport != "stdio":
+        return None
+
+    if settings.di_auth_token:
+        return _ensure_bearer_prefix(settings.di_auth_token)
+
+    if settings.di_apikey:
+        return await get_bearer_token_from_apikey(settings.di_apikey, settings.di_username)
+
+    return None
+
+
 async def get_access_token() -> str | None:
     """
-    Resolve Authorization header from HTTP request headers or STDIO fallback.
-    Returns a full 'Bearer ...' string or None if nothing available.
-    If apikey is provided instead, calls relevant apis for SaaS or CPD
-    to get the bearer token
+    Resolve Authorization header from FastMCP OAuth context, HTTP request headers, or STDIO fallback.
+    Returns a full 'Bearer ...' string or None if nothing is available.
+    If an API key is provided instead of a token, calls the relevant IAM API to obtain a bearer token.
     """
-    # get_http_headers() never raises exceptions - returns {} if no HTTP context
-    headers = get_http_headers()
-    
-    auth = headers.get("authorization", "")
-
-    if not auth:
-        api_key_header = headers.get("x-api-key", "")
-        if api_key_header:
-            auth = await get_bearer_token_from_apikey(
-                api_key_header, headers.get("username", "")
-            )
-
-    if not auth and settings.server_transport == "stdio":
-        if settings.di_auth_token:
-            auth = settings.di_auth_token
-            if not auth.lower().startswith("bearer "):
-                auth = f"Bearer {auth}"
-        elif settings.di_apikey:
-            apikey = settings.di_apikey
-            username = settings.di_username
-            auth = await get_bearer_token_from_apikey(apikey, username)
-
-    return auth or None
+    return (
+        _get_token_from_fastmcp_oauth()
+        or await _get_token_from_http_headers()
+        or await _get_token_from_stdio_settings()
+    )
 
 
 def get_iam_url() -> str:
@@ -137,6 +167,7 @@ async def get_token() -> str:
 async def _decode_token_payload() -> dict:
     """
     Decodes the JWT token payload into a dictionary.
+    First checks if decoded claims are already available in FastMCP OAuth context.
 
     Returns:
         dict: The decoded JWT payload.
@@ -144,6 +175,13 @@ async def _decode_token_payload() -> dict:
     Raises:
         ExternalAPIError: If the token is missing or not a valid JWT structure.
     """
+    try:
+        fastmcp_token = get_fastmcp_access_token()
+        if fastmcp_token and getattr(fastmcp_token, "claims", None):
+            return fastmcp_token.claims
+    except Exception:
+        pass
+
     token = await get_token()
 
     min_jwt_parts = 3
@@ -164,19 +202,88 @@ async def _decode_token_payload() -> dict:
     return json.loads(base64.urlsafe_b64decode(payload_b64).decode("utf-8"))
 
 
+async def _fetch_account_id_by_email(email: str) -> str:
+    """
+    Fetches IBM Cloud accounts for the current user and returns the GUID of the
+    account whose primary owner email matches *email*.
+
+    If no match is found, returns the GUID of the first account in the list.
+
+    Args:
+        email: The email address extracted from the JWT token.
+
+    Returns:
+        str: The matching account GUID, the first account GUID as fallback, or empty
+            string if the list is empty or the request fails.
+    """
+    access_token = await get_access_token()
+    if not access_token:
+        LOGGER.warning("Unable to get access token for accounts lookup")
+        return ""
+
+    client = get_http_client()
+    headers = {
+        "Authorization": access_token,
+        "Content-Type": JSON_CONTENT_TYPE,
+        "accept": JSON_CONTENT_TYPE,
+    }
+
+    try:
+        response = await client.get(f"{settings.accounts_url}/v1/accounts", headers=headers)
+    except Exception as exc:
+        LOGGER.warning(f"Failed to fetch accounts list: {exc}")
+        return ""
+
+    resources = response.get("resources", [])
+    if not resources:
+        LOGGER.warning("Accounts API returned no accounts")
+        return ""
+
+    for account in resources:
+        owner_email = (
+            account.get("entity", {})
+            .get("primary_owner", {})
+            .get("ibmid", "")
+        )
+        if owner_email.lower() == email.lower():
+            guid = account.get("metadata", {}).get("guid", "")
+            LOGGER.debug(f"Matched account GUID {guid} for email {email}")
+            return guid
+
+    # No match - fall back to the first account
+    first_guid = resources[0].get("metadata", {}).get("guid", "")
+    LOGGER.warning(f"No account matched email {email}; using first account GUID {first_guid}")
+    return first_guid
+
 async def get_bss_account_id() -> str:
     """
     Retrieves the BSS Account ID from the JWT token.
 
-    This function extracts the BSS Account ID from the JWT token by decoding the payload.
-    It assumes the token is in a valid format and contains an "account.bss" key.
+    For SaaS environments, the BSS account ID is extracted directly from the
+    ``account.bss`` claim of the JWT.  When that claim is absent or empty (e.g.
+    during an OAuth flow where the token was issued without an account context),
+    the function falls back to listing all IBM Cloud accounts for the user and
+    picking the one whose primary-owner email matches the ``email`` claim in the
+    token.
 
     Returns:
-        str: The BSS Account ID extracted from the token payload.
+        str: The BSS Account ID.
     """
     if settings.di_env_mode.upper() == ENV_MODE_SAAS:
         payload = await _decode_token_payload()
-        return payload.get("account", {}).get("bss", "")
+        bss = payload.get("account", {}).get("bss", "")
+        if bss:
+            return bss
+
+        # bss is missing – fall back to accounts API lookup by email
+        email = payload.get("email", "")
+        if not email:
+            LOGGER.warning("BSS claim empty and no email in token; cannot resolve account ID")
+            return ""
+
+        LOGGER.debug(f"BSS claim empty, resolving account ID via accounts API for {email}")
+        return await _fetch_account_id_by_email(email)
+
     elif settings.di_env_mode.upper() == ENV_MODE_CPD:
         return "999"
     else:
@@ -411,7 +518,7 @@ async def _fetch_user_id_from_management_api(iam_id: str) -> str:
 
 
 @cached(ttl=3600)  # Cache for 1 hour to avoid repeated API calls
-async def get_user_email_from_iam_id(iam_id: str) -> str:
+async def get_user_email_from_iam_id(bearer_token: str, iam_id: str) -> str:
     """
     Retrieve user email address from IAM ID using User Management API.
 
@@ -454,7 +561,7 @@ async def get_user_email_from_iam_id(iam_id: str) -> str:
 
 
 @cached(ttl=3600)  # Cache for 1 hour to avoid repeated API calls
-async def get_sub_from_iam_id(iam_id: str) -> str:
+async def get_sub_from_iam_id(bearer_token: str, iam_id: str) -> str:
     """
     Retrieve the sub (login identifier) for an IAM ID.
 

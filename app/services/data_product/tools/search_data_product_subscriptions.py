@@ -64,7 +64,13 @@ def _extract_href_value(value: Any) -> Optional[str]:
 def _build_response(response_data: Dict[str, Any] | bytes) -> SearchDataProductSubscriptionsResponse:
     """Build the response object from API response data."""
     if isinstance(response_data, bytes):
-        raise ServiceError("Unexpected bytes response from API")
+        raise ServiceError(
+            "Unexpected bytes response from API",
+            remediation_steps=(
+                "Retry the operation only once. If the issue persists, check the query parameter syntax and ensure "
+                "it is a valid CEL expression."
+            ),
+        )
     
     items = response_data.get("asset_lists", [])
     total_count = response_data.get("total_count", 0)
@@ -130,7 +136,11 @@ async def _search_data_product_subscriptions(
         error_message = f"Exception when searching data product subscriptions: {e!s}"
         LOGGER.error(error_message)
         raise ServiceError(
-            f"Failed to search data product subscriptions. {error_message}"
+            f"Failed to search data product subscriptions. {error_message}",
+            remediation_steps=(
+                "Check that the query parameter is a valid CEL expression. "
+                "Retry with a simpler query (e.g., no query filter) to confirm the service is reachable."
+            ),
         )
 
 

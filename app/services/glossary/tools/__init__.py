@@ -16,10 +16,14 @@ from app.services.glossary.tools.get_glossary_csv_schema import (
 from app.services.glossary.tools.glossary_csv_import import (
     import_glossary_from_csv,
 )
+from app.services.glossary.tools.import_glossary_status import (
+    import_glossary_status,
+)
 
 __all__ = [
     "explain_glossary_artifact",
     "get_asset_glossary_artifacts",
     "import_glossary_from_csv",
     "get_glossary_csv_schema",
+    "import_glossary_status",
 ]

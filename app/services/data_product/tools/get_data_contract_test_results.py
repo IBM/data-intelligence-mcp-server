@@ -14,7 +14,8 @@ from app.shared.exceptions.base import ServiceError
 from app.shared.logging import LOGGER, auto_context
 from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.utils.utils_tools import format_dict_for_table
-from app.services.data_product.utils.common_utils import get_dph_catalog_id_for_user, extract_contract_terms_id
+from app.services.data_product.utils.common_utils import extract_contract_terms_id
+from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 
 from typing import Any, Dict, Literal, Annotated
 from pydantic import Field
@@ -82,7 +83,7 @@ async def _get_data_contract_test_results(request: GetDataContractTestResultsReq
     
     # Add catalog ID suffix if not present
     if "@" not in data_product_version_id:
-        dph_catalog_id = await get_dph_catalog_id_for_user()
+        dph_catalog_id = await get_dph_catalog_id_for_user(await get_access_token())
         data_product_version_id = f"{data_product_version_id}@{dph_catalog_id}"
     
     # Get contract test results based on state
@@ -92,13 +93,25 @@ async def _get_data_contract_test_results(request: GetDataContractTestResultsReq
         response = await _get_published_contract_test_results(data_product_version_id)
     
     if isinstance(response, bytes):
-        raise ServiceError("Expected dict response but got bytes for data contract test results.")
-    
+        raise ServiceError(
+            "Expected dict response but got bytes for data contract test results.",
+            remediation_steps=(
+                "Verify that the data_product_version_id and data_product_state are correct. "
+                "Invoke search_data_products to find the correct data product version ID, then retry."
+            ),
+        )
+
     # Extract contract_test from response
     contract_test = response.get("contract_test")
     if not contract_test:
         LOGGER.info("No contract test details found in the response.")
-        raise ServiceError("No contract test details found for this data product.")
+        raise ServiceError(
+            "No contract test details found for this data product.",
+            remediation_steps=(
+                "The data product may not have had a contract test run yet. "
+                "Ensure a contract is attached to the data product draft before running contract tests."
+            ),
+        )
     
     # Format the contract test data for display
     formatted_data = format_dict_for_table(contract_test)

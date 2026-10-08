@@ -14,7 +14,7 @@ from app.services.data_product.models.import_remote_assets_to_dph_catalog import
     ImportRemoteAssetsToDphCatalogResponse
 )
 from app.shared.exceptions.base import ServiceError
-from app.services.data_product.utils.common_utils import get_dph_catalog_id_for_user
+from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 from app.services.data_product.utils.data_product_creation_utils import (
     batch_check_for_duplicate_data_products_by_target_asset_ids,
     batch_create_part_assets_and_set_relationships,
@@ -160,7 +160,13 @@ async def batch_get_asset_details(
         else:
             error_msg += "No resources returned from the API."
         LOGGER.error(error_msg)
-        raise ServiceError(error_msg)
+        raise ServiceError(
+            error_msg,
+            remediation_steps=(
+                "Verify the asset IDs and container ID/type are correct. "
+                "Use search_asset or list_containers to confirm the assets exist in the specified container."
+            ),
+        )
     
     # Build a map of asset_id -> asset_details
     asset_details_map = {}
@@ -168,7 +174,13 @@ async def batch_get_asset_details(
         if resource.get('errors'):
             asset_id = resource.get('asset', {}).get('asset_id', 'unknown')
             LOGGER.error(f"Error fetching asset {asset_id}: {resource.get('errors')}")
-            raise ServiceError(f"Error fetching asset {asset_id}: {resource.get('errors')}")
+            raise ServiceError(
+                f"Error fetching asset {asset_id}: {resource.get('errors')}",
+                remediation_steps=(
+                    f"Verify the asset ID '{asset_id}' is correct and exists in the container. "
+                    "Use search_asset to confirm the asset exists before retrying."
+                ),
+            )
         
         asset_id = resource.get('asset_id')
         if asset_id:
@@ -234,8 +246,14 @@ async def _validate_if_datasource_type_is_supported(datasource_type: str) -> Non
     }
     if datasource_type not in supported_datasource_types:
         LOGGER.error("Data source type is not supported for the selected asset.")
-        raise ServiceError("The selected asset belongs to a data source type that is not supported currently, and hence this cannot be a data product." \
-        "Please select a different asset that has a data source supported.")
+        raise ServiceError(
+            "The selected asset belongs to a data source type that is not supported currently, and hence this cannot be a data product. "
+            "Please select a different asset that has a data source supported.",
+            remediation_steps=(
+                "Ask the user to select a different data asset whose connection uses a supported data source type. "
+                "Use search_asset to find candidate assets."
+            ),
+        )
 
 
 def _validate_if_asset_is_not_a_local_asset(asset_details: dict) -> None:
@@ -248,8 +266,14 @@ def _validate_if_asset_is_not_a_local_asset(asset_details: dict) -> None:
             if (not attachment.get("connection_id") and not attachment.get("is_remote")) or \
             ("-datacatalog-" in attachment.get("connection_path", "") and "/data_asset/" in attachment.get("connection_path", "")):
                 LOGGER.error("Asset is a local asset, so not supported.")
-                raise ServiceError("The selected asset is a local asset and is not part of a connection asset, and hence this cannot be a data product. " \
-                                            "Please select a different asset.")
+                raise ServiceError(
+                    "The selected asset is a local asset and is not part of a connection asset, and hence this cannot be a data product. "
+                    "Please select a different asset.",
+                    remediation_steps=(
+                        "Ask the user to select a connected data asset (one backed by a database connection, not a local/uploaded file). "
+                        "Use search_asset to find assets with connections."
+                    ),
+                )
 
 
 def _extract_connection_id_from_attachments(attachments: list[dict]) -> str:
@@ -376,7 +400,13 @@ def _validate_bulk_copy_response_has_no_errors(responses: list[dict], asset_ids:
         if resp.get('errors'):
             asset_id = asset_ids[idx] if idx < len(asset_ids) else "unknown"
             LOGGER.error(f"Error copying asset {asset_id}: {resp.get('errors')}")
-            raise ServiceError(f"Failed to copy asset {asset_id}: {resp.get('errors')}")
+            raise ServiceError(
+                f"Failed to copy asset {asset_id}: {resp.get('errors')}",
+                remediation_steps=(
+                    f"Verify the asset '{asset_id}' exists in the source container and you have permission to copy it. "
+                    "Use search_asset to confirm the asset is accessible, then retry."
+                ),
+            )
 
 
 def _parse_copied_asset_from_response(resp: dict, asset_ids: list[str], idx: int) -> dict:
@@ -399,13 +429,21 @@ def _parse_copied_asset_from_response(resp: dict, asset_ids: list[str], idx: int
     copied_assets_list = resp.get("copied_assets", [])
     if not copied_assets_list:
         LOGGER.error(f"No copied_assets in response for asset {asset_id}: {resp}")
-        raise ServiceError(f"Failed to copy asset {asset_id}: No copied_assets in response")
-    
+        raise ServiceError(
+            f"Failed to copy asset {asset_id}: No copied_assets in response",
+            remediation_steps=(
+                "Retry the import operation. If the issue persists, verify the asset and container are accessible."
+            ),
+        )
+
     copied_asset_info = copied_assets_list[0]
     if not copied_asset_info.get("source_asset_id") or not copied_asset_info.get("target_asset_id"):
         LOGGER.error(f"Invalid copied_asset_info for asset {asset_id}: {copied_asset_info}")
         raise ServiceError(
-            f"Failed to copy asset {asset_id}: Missing source_asset_id or target_asset_id in response"
+            f"Failed to copy asset {asset_id}: Missing source_asset_id or target_asset_id in response",
+            remediation_steps=(
+                "Retry the import operation. If the issue persists, verify the asset and container are accessible."
+            ),
         )
     
     return {
@@ -576,7 +614,10 @@ async def batch_copy_assets_with_deduplication(
             raise ServiceError(
                 f"Failed to copy or find asset {asset_id}. "
                 f"The asset was not in existing copies and was not successfully copied. "
-                f"This may indicate an issue with the bulk copy API response."
+                f"This may indicate an issue with the bulk copy API response.",
+                remediation_steps=(
+                    "Retry the import operation. If the issue persists, verify the asset IDs and container are accessible."
+                ),
             )
     
     LOGGER.info(
@@ -602,7 +643,7 @@ async def _validate_if_connection_credentials_are_available(connection_id: str |
         LOGGER.info("No connection_id provided for credential validation - asset may not have a connection")
         return
 
-    dph_catalog_id = await get_dph_catalog_id_for_user()
+    dph_catalog_id = await get_dph_catalog_id_for_user(await get_access_token())
     
     query_params = {
         "catalog_id": dph_catalog_id,
@@ -624,7 +665,13 @@ async def _validate_if_connection_credentials_are_available(connection_id: str |
         redirect_url = f"{tool_helper_service.ui_base_url}/connections/{connection_id}?{urlencode(query_params)}"
         error_message = f"Functional credentials for this connection is not found to be added on Data Product Hub. " \
                         f"Please add and verify connection by clicking this link {redirect_url} in order to add this asset from this connection to a data product."
-        raise ServiceError(error_message)
+        raise ServiceError(
+            error_message,
+            remediation_steps=(
+                "Ask user to open the connection settings page linked above and add functional credentials, "
+                "then retry the import operation."
+            ),
+        )
 
 
 async def create_asset_revision(target_asset_id: str, dph_catalog_id: str):
@@ -691,7 +738,14 @@ async def _validate_single_asset(
         # Get asset details from batch-fetched map
         source_asset_details = all_asset_details.get(asset_info.asset_id)
         if not source_asset_details:
-            raise ServiceError(f"Failed to fetch details for asset {asset_info.asset_id}")
+            raise ServiceError(
+                f"Failed to fetch details for asset {asset_info.asset_id}",
+                remediation_steps=(
+                    f"Verify the asset ID '{asset_info.asset_id}' exists in the container "
+                    f"'{asset_info.container_type}:{asset_info.container_id}'. "
+                    "Use search_asset to confirm the asset is accessible, then retry."
+                ),
+            )
         
         # Validate asset is not a local asset
         _validate_if_asset_is_not_a_local_asset(source_asset_details)
@@ -787,8 +841,10 @@ async def _validate_all_assets(
             state_changed=False
         )
         LOGGER.error(error_summary)
+        # intentionally no remediation_steps — the formatted error report is self-contained
+        # and already embeds per-asset remediation details inline
         raise ServiceError(error_summary)
-    
+
     LOGGER.info(f"All {asset_count} asset(s) passed validation")
     return assets_by_container_with_details, validation_errors, validated_assets
 
@@ -1090,7 +1146,13 @@ async def _check_source_asset_duplicates(
             "\n\n".join(duplicate_errors) +
             "\n\nTo import anyway, set force=true"
         )
-        raise ServiceError(full_error_msg)
+        raise ServiceError(
+            full_error_msg,
+            remediation_steps=(
+                "Ask the user if they want to proceed despite the duplicate. "
+                "If yes, retry this tool with force=true."
+            ),
+        )
     
     LOGGER.info("No source assets found in existing data products")
 
@@ -1124,7 +1186,13 @@ async def _check_target_asset_duplicates(
             "\n\nThis prevents creating multiple data products from the same assets.\n"
             "To import anyway, set force=true"
         )
-        raise ServiceError(full_error_msg)
+        raise ServiceError(
+            full_error_msg,
+            remediation_steps=(
+                "Ask the user if they want to proceed despite the duplicate. "
+                "If yes, retry this tool with force=true."
+            ),
+        )
     
     LOGGER.info("No target assets found in existing data products")
 
@@ -1155,7 +1223,7 @@ async def _import_remote_assets_to_dph_catalog(
     )
     
     # Step 1: Get DPH catalog ID
-    dph_catalog_id = await get_dph_catalog_id_for_user()
+    dph_catalog_id = await get_dph_catalog_id_for_user(await get_access_token())
     LOGGER.info(f"Using DPH catalog: {dph_catalog_id}")
 
     # Step 2: Group assets by container for batch processing
@@ -1192,8 +1260,10 @@ async def _import_remote_assets_to_dph_catalog(
             state_changed=False,
         )
         LOGGER.error(error_summary)
+        # intentionally no remediation_steps — the formatted error report is self-contained
+        # and already embeds per-asset remediation details inline
         raise ServiceError(error_summary)
-    
+
     # Step 4: Validate all assets - collect all validation errors
     assets_by_container_with_details, _, _ = await _validate_all_assets(
         request, all_asset_details, asset_count
@@ -1230,8 +1300,10 @@ async def _import_remote_assets_to_dph_catalog(
             state_changed=True
         )
         LOGGER.error(error_summary)
+        # intentionally no remediation_steps — the formatted error report is self-contained
+        # and already embeds per-asset remediation details inline
         raise ServiceError(error_summary)
-    
+
     end_time = time.time()
     duration = end_time - start_time
     

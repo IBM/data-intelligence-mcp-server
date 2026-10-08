@@ -2,7 +2,7 @@ from typing import Annotated
 from pydantic import Field
 
 from app.core.registry import service_registry
-from app.services.data_product.utils.common_utils import get_dph_catalog_id_for_user
+from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 from app.services.data_product.models.get_business_domains import BusinessDomain, GetBusinessDomainsRequest, GetBusinessDomainsResponse
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.logging import LOGGER, auto_context
@@ -14,7 +14,7 @@ async def _get_business_domains(
     LOGGER.info(
         f"In the list_data_product_business_domains tool, finding available business domains with keyword {request.keyword}."
     )
-    DPH_CATALOG_ID = await get_dph_catalog_id_for_user()
+    DPH_CATALOG_ID = await get_dph_catalog_id_for_user(await get_access_token())
     if not request.keyword:
         search_payload = {"query": "*:*", "sort": "asset.name"}
     else:

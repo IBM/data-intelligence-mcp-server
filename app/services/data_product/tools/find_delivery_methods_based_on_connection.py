@@ -14,7 +14,8 @@ from app.services.data_product.models.find_delivery_methods_based_on_connection 
     DeliveryMethod
 )
 from app.shared.exceptions.base import ServiceError
-from app.services.data_product.utils.common_utils import add_catalog_id_suffix, get_dph_catalog_id_for_user, validate_inputs
+from app.services.data_product.utils.common_utils import add_catalog_id_suffix, validate_inputs
+from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.logging import LOGGER, auto_context
 
@@ -26,17 +27,28 @@ async def _find_delivery_methods_based_on_connection(
         f"In the list_data_product_delivery_methods tool, finding delivery methods for data asset {request.data_asset_id} in {request.container_type} (ID: {request.container_id})."
     )
     # validate_inputs(request, "data_asset_name")
-    dph_catalog_id = await get_dph_catalog_id_for_user()
+    dph_catalog_id = await get_dph_catalog_id_for_user(await get_access_token())
 
     if not request.container_id or not request.container_type:
         error_message = "Container ID and Container Type are required."
         LOGGER.error(f"Failed to run list_data_product_delivery_methods tool. {error_message}")
-        raise ServiceError(f"Failed to run list_data_product_delivery_methods tool. {error_message}")
-    
+        raise ServiceError(
+            f"Failed to run list_data_product_delivery_methods tool. {error_message}",
+            remediation_steps=(
+                "Provide both container_id and container_type. "
+                "Invoke list_containers to find the correct container ID and type, then retry this tool."
+            ),
+        )
+
     if not request.data_asset_id:
         error_message = "Data asset ID is required. Find the data asset ID matching the data asset for which we are finding delivery methods. Data asset ID can be found in the response of `search_asset` tool."
         LOGGER.error(f"Failed to run list_data_product_delivery_methods tool. {error_message}")
-        raise ServiceError(f"Failed to run list_data_product_delivery_methods tool. {error_message}")
+        raise ServiceError(
+            f"Failed to run list_data_product_delivery_methods tool. {error_message}",
+            remediation_steps=(
+                "Invoke the search_asset tool to find the data asset and obtain its ID, then retry this tool."
+            ),
+        )
    
     # step 1: get the connection ID from the data asset details
     response = await tool_helper_service.execute_get_request(
@@ -48,7 +60,13 @@ async def _find_delivery_methods_based_on_connection(
     if not connection_id:
         error_message = "Connection detail could not be found for this data asset. Make sure the asset is a connection asset."
         LOGGER.error(f"Failed to run list_data_product_delivery_methods tool. {error_message}")
-        raise ServiceError(f"Failed to run list_data_product_delivery_methods tool. {error_message}")
+        raise ServiceError(
+            f"Failed to run list_data_product_delivery_methods tool. {error_message}",
+            remediation_steps=(
+                "Make sure the data asset is a connected asset (not a local/uploaded file). "
+                "Use the search_asset tool to find a connected data asset and provide its ID."
+            ),
+        )
 
     LOGGER.info(f"Connection ID found: {connection_id}")
 

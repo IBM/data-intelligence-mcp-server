@@ -10,7 +10,7 @@ with consistent error handling and logging across all workflow tool modules.
 """
 
 from typing import List, Optional
-from app.core.auth import get_user_email_from_iam_id
+from app.core.auth import get_user_email_from_iam_id, get_access_token
 from app.shared.logging import LOGGER
 
 
@@ -26,7 +26,7 @@ async def convert_iam_id_to_email(iam_id: str, context: str = "user") -> str:
         Email address if successful, original IAM ID if conversion fails
     """
     try:
-        return await get_user_email_from_iam_id(iam_id)
+        return await get_user_email_from_iam_id(await get_access_token(), iam_id)
     except Exception as e:
         LOGGER.debug(f"Failed to get email for {context} {iam_id}: {e}")
         return iam_id

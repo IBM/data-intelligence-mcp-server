@@ -6,21 +6,12 @@ from datetime import date, timezone, datetime
 from urllib.parse import urlencode
 from typing import Any, Dict
 
+from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 from app.shared.exceptions.base import ServiceError
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.services.constants import PROJECTS_BASE_ENDPOINT
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import append_context_to_url
-from aiocache import cached
-
-
-@cached(ttl=3300)  # 55 minutes - shorter than 1 hour token expiration
-async def get_dph_catalog_id_for_user() -> str:
-    LOGGER.info("In get_dph_catalog_id_for_user, getting DPH catalog id")
-    response = await tool_helper_service.execute_get_request(
-        url=f"{tool_helper_service.base_url}/v2/catalogs/ibm-default-hub"
-    )
-    return response.get("metadata", {}).get("guid", "")
 
 
 # This methods adds `@CATALOG_ID` at the end of the given field name in an object.
@@ -30,7 +21,7 @@ def add_catalog_id_suffix(param_name="request", field_name="data_product_draft_i
         async def wrapper(*args, **kwargs):
             import inspect
 
-            suffix = f"@{await get_dph_catalog_id_for_user()}"
+            suffix = f"@{await get_dph_catalog_id_for_user(await get_access_token())}"
 
             sig = inspect.signature(func)
             bound_args = sig.bind(*args, **kwargs)
@@ -90,7 +81,10 @@ def normalize_date_string_to_datetime_utc(date_value: str) -> str:
         return parsed_date.strftime("%Y-%m-%dT00:00:00.000Z")
     except ValueError:
         raise ServiceError(
-            f"Invalid date format: '{date_value}'. Please provide the date in 'YYYY-MM-DD' format."
+            f"Invalid date format: '{date_value}'. Please provide the date in 'YYYY-MM-DD' format.",
+            remediation_steps=(
+                f"Convert the date '{date_value}' to YYYY-MM-DD format (e.g., 2024-01-15) and retry."
+            ),
         )
     
         
@@ -109,7 +103,10 @@ def check_if_date_in_future(date_value: str):
 
     if date.date() < today:
         raise ServiceError(
-            f"Invalid date value: '{date_value}'. Please provide the date in future."
+            f"Invalid date value: '{date_value}'. Please provide the date in future.",
+            remediation_steps=(
+                f"Provide a date that is today or in the future. Today's date is {today}."
+            ),
         )
 
 
@@ -119,7 +116,10 @@ def parse_iso_date(date_str: str) -> datetime:
         return datetime.fromisoformat(date_str).replace(tzinfo=timezone.utc)
     except ValueError as e:
         raise ServiceError(
-            f"Invalid date format: '{date_str}'. Expected YYYY-MM-DD. Error: {str(e)}"
+            f"Invalid date format: '{date_str}'. Expected YYYY-MM-DD. Error: {str(e)}",
+            remediation_steps=(
+                f"Convert the date '{date_str}' to YYYY-MM-DD format (e.g., 2024-01-15) and retry."
+            ),
         )
 
 
@@ -165,7 +165,11 @@ def validate_date_range(start_date: str, end_date: str) -> tuple[str, str]:
     # Validate range
     if start_dt > end_dt:
         raise ServiceError(
-            f"Invalid date range: start date ({start_date}) is after end date ({end_date})"
+            f"Invalid date range: start date ({start_date}) is after end date ({end_date})",
+            remediation_steps=(
+                f"Ensure that created_date_after ({start_date}) is earlier than or equal to "
+                f"created_date_before ({end_date}) and retry."
+            ),
         )
     
     start_iso = convert_to_iso8601_utc(start_dt, end_of_day=False)
@@ -182,7 +186,12 @@ def validate_inputs(request, *fields_to_validate):
         if not value:
             msg = f"{field.capitalize()} is a mandatory field. Please input the value for {field.capitalize()}."
             LOGGER.error(msg)
-            raise ServiceError(msg)
+            raise ServiceError(
+                msg,
+                remediation_steps=(
+                    f"Ask the user to provide a non-empty value for '{field}' and retry."
+                ),
+            )
 
 
 def extract_contract_terms_id(response: Dict[str, Any] | bytes, context: str) -> str:
@@ -199,15 +208,32 @@ def extract_contract_terms_id(response: Dict[str, Any] | bytes, context: str) ->
         ServiceError: If no contract terms ID is found
     """
     if isinstance(response, bytes):
-        raise ServiceError(f"Expected dict response but got bytes for {context}.")
-    
+        raise ServiceError(
+            f"Expected dict response but got bytes for {context}.",
+            remediation_steps=(
+                "Verify the data product version ID is correct and retry the operation."
+            ),
+        )
+
     contract_terms = response.get("contract_terms", [])
     if not contract_terms:
         LOGGER.info(f"No contract terms found for {context}.")
-        raise ServiceError(f"No contract terms found for {context}.")
-    
+        raise ServiceError(
+            f"No contract terms found for {context}.",
+            remediation_steps=(
+                "Attach a contract to the data product draft using attach_url_contract_to_data_product "
+                "or attach_contract_template_to_data_product, then retry."
+            ),
+        )
+
     contract_terms_id = contract_terms[0].get("id")
     if not contract_terms_id:
         LOGGER.info(f"No contract terms found for {context}.")
-        raise ServiceError(f"No contract terms found for {context}.")
+        raise ServiceError(
+            f"No contract terms found for {context}.",
+            remediation_steps=(
+                "Attach a contract to the data product draft using attach_url_contract_to_data_product "
+                "or attach_contract_template_to_data_product, then retry."
+            ),
+        )
     return contract_terms_id

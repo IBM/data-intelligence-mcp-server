@@ -2,7 +2,41 @@
 
 > All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project **adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)**.
 
+## [1.6.0] - Oct 8th, 2026
+
+### Added
+- **Agent Skills**:
+  - `business-term-evaluation` - Skill loads on demand when a data steward claims a business-term publication task. Provides structured wording quality and ontology checks, generates ontology-grounded alternative descriptions, and detects name and semantic clashes within the term's category using BM25 similarity. Includes a dedicated `SKILL.md` document with a Security Protocol block containing five non-bypassable rules to prevent context poisoning from untrusted draft content. Phase 2.1 enforces a similarity pre-filter: the draft description is extracted from its `<UNTRUSTED_DRAFT>` envelope and passed as a BM25 query string to `list_business_terms_by_category` — it never enters LLM context as a free-form peer of trusted published terms.
+  - `data-class-evaluation` - New skill that activates when a data steward claims a data-class publication task. Evaluates data class definitions for clarity and ontological fit. Includes a dedicated `SKILL.md` document.
+- **Search**:
+  - `get_asset_details_for_assets` - New bulk tool to retrieve comprehensive metadata and details for multiple assets at once. Resolves names to IDs concurrently, auto-batched in groups of 20, and reports per-asset errors alongside `total_count`, `requested_count`, and `failed_count`.
+- **Glossary**:
+  - `import_glossary_status` - New tool to check the status of an import of a CSV or Zip file into the glossary. Requires the process_id from the import.
+
+### Changed
+- **Workflow**:
+  - `get_artifact_details` - Draft `long_description` and `short_description` are now wrapped in `<UNTRUSTED_DRAFT>` envelope tags server-side before being returned, structurally isolating user-supplied draft text from trusted catalog content in the LLM context.
+  - `perform_workflow_task_action` - Skill instructions are now injected on demand at claim time. Claiming a data-class task activates the `data-class-evaluation` skill. Elicitation claim-preview copy improved for readability. Tasks are no longer automatically approved after evaluation — explicit steward action is always required.
+- **Metadata Enrichment (MDE)**:
+  - `list_glossary_categories`: The tool now takes an optional string so the returned list can be filtered to return only the categories whose names contain this value or the user can provide a full category id to confirm the category exists.
+- **Metadata Import (MDI)**:
+  - `create_metadata_import` + `update_metadata_import` → `create_or_update_metadata_import`: Merged two overlapping tools into a single unified tool. All private functions, public helpers, and model classes are untouched — only the tool registrations were consolidated. Mode is auto-detected from the input: omitting `metadata_import_name` issues a POST (create); providing it issues a PATCH (update). In both modes, `reimport_options` and `import_options` accept partial keys merged with defaults.
+- **Search**:
+  - `execute_gs_query` (run_gs_query) - Tool disabled; the underlying Global Search query endpoint is no longer exposed as a callable MCP tool.
+- **Text to SQL**:
+  - Removed hardcoded `model_id` from `generate_sql_query`; the model is now resolved dynamically at runtime.
+- **Data Product**:
+  - `create_or_update_url_data_product` - Added `is_restricted` parameter. When `True`, the newly created (or updated) data product draft is marked as restricted via a JSON-Patch PATCH call, and the calling user is automatically assigned as the order-access-request approver. Consumers must request access before subscribing.
+  - `create_update_data_product_from_asset_in_container` - Added `is_restricted` parameter with the same restricted-access semantics as above.
+
+### Fixed
+- **Lineage**: Fixed handling of UUIDv7-formatted lineage IDs in `get_lineage_graph` and the shared `helpers.py` utility.
+- **Dependencies & Security**:
+  - Upgraded `authlib`, `pyjwt`, `urllib3`
+  - Fixed cross-tenant cache poisoning where `@cached` functions (`get_user_email_from_iam_id`, `get_sub_from_iam_id`, `get_dph_catalog_id_for_user`, `_fetch_single_container_name`) were keyed without the caller's token, allowing one tenant's catalog ID or user email to be served to a different caller. Cache keys now include `bearer_token`, scoping each entry to the requesting credential.
+
 ## [1.5.0.post1] - Sept 25th, 2026
+
 - Since the session state is refreshed every time, it is causing an `Exceeded concurrency limit` error when v2 MCP client is connecting to the server. As a result, the MCP server is not behaving as expected.
 
 ## [1.5.0] - Sept 24th, 2026

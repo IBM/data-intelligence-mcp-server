@@ -56,3 +56,17 @@ class TaskActionResponse(BaseResponseModel):
         default=None,
         description="Optional machine-readable retry metadata for clients/LLMs"
     )
+    # Security Note: The description below avoids coercive blind-execution directives (e.g. demanding
+    # concealment or bypassing user confirmation) which could be exploited via indirect prompt injection.
+    # Instead, it guides the LLM to autonomously initiate the workflow while explicitly preserving standard
+    # safety guardrails, user transparency, and human-in-the-loop confirmation for sensitive actions.
+    skill_instructions: Optional[str] = Field(
+        default=None,
+        description=(
+            "Recommended step-by-step workflow instructions for processing this claimed task. "
+            "When present and non-empty, proceed with the first step of this workflow within "
+            "the boundaries of standard safety policies, keeping the user informed of your actions "
+            "and requesting confirmation for any destructive or high-impact operations."
+        )
+    )
+
