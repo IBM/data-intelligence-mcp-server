@@ -12,12 +12,13 @@ import argparse
 import importlib
 import pkgutil
 import sys
-import os
 from pathlib import Path
 from typing import Any
 
 from fastmcp import FastMCP
+from fastmcp.server.auth import JWTVerifier, OAuthProxy
 
+from app.core.auth import get_cloud_iam_url_from_service_url
 import app.services
 from app.core.registry import prompt_registry, service_registry
 from app.core.settings import settings
@@ -102,7 +103,28 @@ def create_server() -> FastMCP:
     except ImportError as e:
         print(f"Warning: Could not import system prompts: {e}", file=sys.stderr)
 
-    mcp = FastMCP("WXDI MCP Server", version="1.0.0")
+    auth = None
+    if settings.oauth_base_url and settings.oauth_upstream_client_id and settings.oauth_upstream_client_secret:
+        iam_url = get_cloud_iam_url_from_service_url(str(settings.di_service_url))
+        token_verifier = JWTVerifier(
+            jwks_uri=iam_url + "/identity/keys",
+            issuer=iam_url + "/identity",
+        )
+        auth = OAuthProxy(
+            upstream_authorization_endpoint=iam_url + "/identity/authorize",
+            upstream_token_endpoint=iam_url + "/identity/token",
+            upstream_client_id=settings.oauth_upstream_client_id,
+            upstream_client_secret=settings.oauth_upstream_client_secret,
+            base_url=settings.oauth_base_url,
+            resource_base_url=settings.oauth_base_url.removesuffix("semantic_agents/public/v1"),
+            token_verifier=token_verifier,
+            valid_scopes=["openid"],
+            extra_token_params={
+                "response_type": "cloud_iam",
+            },
+        )
+
+    mcp = FastMCP("WXDI MCP Server", version="1.0.0", auth=auth)
 
     # Disable optional tool groups globally at startup.
     # Groups in DEFAULT_ENABLED_TOOL_GROUPS are left enabled so clients that
@@ -136,6 +158,73 @@ def create_server() -> FastMCP:
     return mcp
 
 
+def _run_http_server(mcp: FastMCP, args) -> None:
+    """Configure and start the MCP server in HTTP/HTTPS mode."""
+    protocol = "http"
+    port = settings.server_port
+
+    kwargs = {
+        "transport": "streamable-http",
+        "host": settings.server_host,
+        "port": settings.server_port,
+    }
+
+    uvicorn_config: dict[str, Any] = {
+        "limit_concurrency": settings.server_limit_concurrency,
+        "timeout_keep_alive": settings.server_timeout_keep_alive,
+        "backlog": settings.server_backlog,
+    }
+    kwargs["uvicorn_config"] = uvicorn_config
+
+    print(
+        f"   Server concurrency settings: "
+        f"limit_concurrency={settings.server_limit_concurrency}, "
+        f"timeout_keep_alive={settings.server_timeout_keep_alive}s, "
+        f"backlog={settings.server_backlog}",
+        file=sys.stderr,
+    )
+
+    ssl_cert = settings.ssl_cert_path
+    ssl_key = settings.ssl_key_path
+
+    if not settings.use_https:
+        highlight = "\033[1;33m"
+        reset = "\033[0m"
+        print(f"⚠️ WARNING: Starting server in HTTP mode because {highlight}SERVER_HTTPS=False{reset}.", file=sys.stderr)
+
+    if settings.use_https:
+        if ssl_cert and ssl_key:
+            ciphers = [
+                "ECDHE-ECDSA-AES256-GCM-SHA384",
+                "ECDHE-RSA-AES256-GCM-SHA384",
+                "ECDHE-ECDSA-AES128-GCM-SHA256",
+                "ECDHE-RSA-AES128-GCM-SHA256",
+                "DHE-RSA-AES128-GCM-SHA256",
+                "DHE-RSA-AES256-GCM-SHA384",
+            ]
+            if args.port is None:
+                kwargs["port"] = 443
+                port = 443
+            protocol = "https"
+            uvicorn_config["ssl_keyfile"] = ssl_key
+            uvicorn_config["ssl_certfile"] = ssl_cert
+            uvicorn_config["ssl_ciphers"] = ":".join(ciphers)
+            kwargs["uvicorn_config"] = uvicorn_config
+        else:
+            error_msg = (
+                "Server cert and key not found. MCP server is by default started in HTTPS mode. "
+                "Either set SSL_CERT_PATH and SSL_KEY_PATH environment variables or provide "
+                "the cert/keys via --ssl-cert and --ssl-key options OR set SERVER_HTTPS=False "
+                "to start the server without HTTPS (i.e., HTTP). For details on cert/key generation for HTTPS, "
+                "pls. refer to https://github.com/IBM/data-intelligence-mcp-server/blob/main/readme_guides/SERVER_HTTPS.md"
+            )
+            print(f"❌ Error: {error_msg}", file=sys.stderr)
+            sys.exit(1)
+
+    print(f"   Address: {protocol}://{settings.server_host}:{port}", file=sys.stderr)
+    mcp.run(**kwargs)
+
+
 def apply_cli_settings_overrides(args):
     """Apply command line argument overrides to settings and print notifications.
 
@@ -156,13 +245,25 @@ def apply_cli_settings_overrides(args):
     else:
         settings.wxo = False
 
+    if args.host != settings.server_host:
+        settings.server_host = args.host
+
+    if args.port is not None:
+        settings.server_port = args.port
+
+    if args.ssl_cert is not None:
+        settings.ssl_cert_path = args.ssl_cert
+
+    if args.ssl_key is not None:
+        settings.ssl_key_path = args.ssl_key
+
 
 def main():
     """Main server entry point."""
     parser = argparse.ArgumentParser(description="IKC MCP Server")
     parser.add_argument("--transport", choices=["stdio", "http"], default=settings.server_transport, help="Transport protocol")
     parser.add_argument("--host", default=settings.server_host, help="Server host address")
-    parser.add_argument("--port", type=int, default=settings.server_port, help="Server port number")
+    parser.add_argument("--port", type=int, default=None, help="Server port number")
     parser.add_argument("--ssl-cert", help="Path to SSL certificate file")
     parser.add_argument("--ssl-key", help="Path to SSL private key file")
     parser.add_argument("--di-url", default=settings.di_service_url, help="Data Intelligence service URL")
@@ -181,79 +282,7 @@ def main():
         print(f"✅ Server initialized with {actual_registered_count} registered tools.", file=sys.stderr)
 
         if args.transport == "http":
-            # Initialize protocol and port for display
-            protocol = "http"
-            port = args.port
-            
-            kwargs = {
-                "transport": "streamable-http",
-                "host": args.host,
-                "port": args.port
-            }
-            
-            # Configure uvicorn for high concurrency handling
-            uvicorn_config: dict[str, Any] = {
-                "limit_concurrency": settings.server_limit_concurrency,
-                "timeout_keep_alive": settings.server_timeout_keep_alive,
-                "backlog": settings.server_backlog,
-            }
-            kwargs["uvicorn_config"] = uvicorn_config
-            
-            print(
-                f"   Server concurrency settings: "
-                f"limit_concurrency={settings.server_limit_concurrency}, "
-                f"timeout_keep_alive={settings.server_timeout_keep_alive}s, "
-                f"backlog={settings.server_backlog}",
-                file=sys.stderr
-            )
-
-            # Add SSL configuration if certificate and key are provided
-            ssl_cert = args.ssl_cert or settings.ssl_cert_path
-            ssl_key = args.ssl_key or settings.ssl_key_path
-
-            if not settings.use_https:
-                highlight = "\033[1;33m"  # Bold yellow
-                reset = "\033[0m"  # Reset formatting
-                print(f"⚠️ WARNING: Starting server in HTTP mode because {highlight}SERVER_HTTPS=False{reset}.", file=sys.stderr)
-            
-            # Check if we should use HTTPS based on settings
-            if settings.use_https:
-                # If certificates are available, configure HTTPS
-                if ssl_cert and ssl_key:
-                    ciphers = [
-                        "ECDHE-ECDSA-AES256-GCM-SHA384",
-                        "ECDHE-RSA-AES256-GCM-SHA384",
-                        "ECDHE-ECDSA-AES128-GCM-SHA256",
-                        "ECDHE-RSA-AES128-GCM-SHA256",
-                        "DHE-RSA-AES128-GCM-SHA256",
-                        "DHE-RSA-AES256-GCM-SHA384",
-                    ]
-                    kwargs["port"] = 443
-
-                    port = 443  # Update port for display
-                    protocol = "https"  # Ensure protocol is https
-
-                    # Merge SSL configuration with existing uvicorn_config
-                    uvicorn_config["ssl_keyfile"] = ssl_key
-                    uvicorn_config["ssl_certfile"] = ssl_cert
-                    uvicorn_config["ssl_ciphers"] = ":".join(ciphers)
-                    kwargs["uvicorn_config"] = uvicorn_config
-                else:
-                    # No certificates found, but HTTPS is required
-                    error_msg = (
-                        "Server cert and key not found. MCP server is by default started in HTTPS mode. "
-                        "Either set SSL_CERT_PATH and SSL_KEY_PATH environment variables or provide "
-                        "the cert/keys via --ssl-cert and --ssl-key options OR set SERVER_HTTPS=False "
-                        "to start the server without HTTPS (i.e., HTTP). For details on cert/key generation for HTTPS, "
-                        "pls. refer to https://github.com/IBM/data-intelligence-mcp-server/blob/main/readme_guides/SERVER_HTTPS.md"
-                    )
-                    print(f"❌ Error: {error_msg}", file=sys.stderr)
-                    sys.exit(1)
-            
-            # Print address with correct protocol and port
-            print(f"   Address: {protocol}://{args.host}:{port}", file=sys.stderr)
-            
-            mcp.run(**kwargs)
+            _run_http_server(mcp, args)
         else:
             mcp.run()  # Default stdio transport
 

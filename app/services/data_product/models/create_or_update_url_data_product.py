@@ -24,6 +24,10 @@ class CreateOrUpdateUrlDataProductRequest(BaseModel):
         default=False,
         description="If True, creates a new draft even if a data product with the same URL already exists. If False (default), returns existing data products that use the specified URL."
     )
+    is_restricted: bool = Field(
+        default=False,
+        description="If True, the data product draft is marked as restricted, requiring access approval. The current user is set as the access request approver. Applies to both CREATE and UPDATE operations."
+    )
 
 
 class CreateOrUpdateUrlDataProductResponse(BaseResponseModel):

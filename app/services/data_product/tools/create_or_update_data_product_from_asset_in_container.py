@@ -13,10 +13,12 @@ from app.services.data_product.models.create_or_update_data_product_from_asset_i
     CreateOrUpdateDataProductFromAssetInContainerRequest,
     CreateOrUpdateDataProductFromAssetInContainerResponse,
 )
-from app.services.data_product.utils.common_utils import get_data_product_url, get_dph_catalog_id_for_user
+from app.services.data_product.utils.common_utils import get_data_product_url
+from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 from app.services.data_product.utils.data_product_creation_utils import (
     is_data_product_draft_create,
     validate_inputs_for_draft_create,
+    apply_restricted_patch,
 )
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
@@ -49,7 +51,7 @@ async def _create_or_update_data_product_from_asset_in_container(
         LOGGER.info(f"Operation type: UPDATE existing draft {request.existing_data_product_draft_id}")
 
     # Step 2: Get DPH catalog ID
-    dph_catalog_id = await get_dph_catalog_id_for_user()
+    dph_catalog_id = await get_dph_catalog_id_for_user(await get_access_token())
     
     # Use the provided target_asset_ids directly (they're already in DPH catalog)
     target_asset_ids = request.target_asset_ids
@@ -101,6 +103,9 @@ async def _create_or_update_data_product_from_asset_in_container(
         draft = cast(dict[str, Any], response)
 
     data_product_draft_id = request.existing_data_product_draft_id if request.existing_data_product_draft_id else draft["id"]
+
+    if request.is_restricted:
+        await apply_restricted_patch(data_product_draft_id, "create_update_data_product_from_asset_in_container")
     contract_terms_id = draft["contract_terms"][0]["id"]
 
     return CreateOrUpdateDataProductFromAssetInContainerResponse(
@@ -219,14 +224,16 @@ async def create_or_update_data_product_from_asset_in_container(
     name: Annotated[str | None, Field(description="The name of the data product. Required for CREATE operations.")] = None,
     description: Annotated[str | None, Field(description="The description of the data product. Required for CREATE operations.")] = None,
     existing_data_product_draft_id: Annotated[str | None, Field(description="The ID of the existing data product draft. Provide only for UPDATE operations.")] = None,
+    is_restricted: Annotated[bool, Field(description="If True, the data product draft is marked as restricted. Access requires approval and the current user is set as the approver. Applies to both CREATE and UPDATE operations.")] = False,
 ) -> CreateOrUpdateDataProductFromAssetInContainerResponse:
     """Create or update a data product draft using pre-imported DPH catalog assets."""
-    
+
     request = CreateOrUpdateDataProductFromAssetInContainerRequest(
         name=name,
         description=description,
         target_asset_ids=target_asset_ids,
         existing_data_product_draft_id=existing_data_product_draft_id,
+        is_restricted=is_restricted,
     )
 
     # Call the internal implementation

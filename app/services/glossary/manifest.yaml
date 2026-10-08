@@ -34,4 +34,11 @@ system_instructions: |
     - Supports both validation-only mode and full import mode
     - Returns detailed error messages with row numbers for any validation issues
     - Can import both glossary terms and categories with relationships
+
+  5. import_glossary_status: Use when:
+    - Tool for checking the status of a glossary CSV import process.
+    - User wants to check whether a glossary CSV import has completed
+    - User wants to see counts of artifacts modified or updated
+    - User wants to inspect any errors produced during an import run
+    - Status values: SUCCEEDED, FAILED, IN_PROGRESS
     

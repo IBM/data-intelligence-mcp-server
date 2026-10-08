@@ -86,12 +86,12 @@ Understand the user prompt to identify if the user wants to onboard data, catalo
 3. Ask the user to define the scope of the metadata import by specifying the schemas and tables they want to import from the list of schemas and tables displayed in the previous step.
 </Step>
 <Step>
-4. Call the `create_metadata_import` tool with `project_name` set to the project name from the first phase, `connection_name` set to the name of the connection from the second phase, and `scope` set to the list of schemas or tables specified by the user in the previous step:
+4. Call the `create_or_update_metadata_import` tool with `project_name` set to the project name from the first phase, `connection_name` set to the name of the connection from the second phase, and `scope` set to the list of schemas or tables specified by the user in the previous step. Do NOT provide `metadata_import_name` — omitting it triggers create mode:
 - Use ['/'] for scope if the user wants to import all schemas
 - Use ['schema1', 'schema2'] for scope if the user wants to import specific schemas
 - Use ["/path/table", "/path/to/table"] for scope if the user wants to import specific tables
 <Step>
-5. Display the results of the `create_metadata_import` tool call to the user to confirm if the details of the metadata import, specifically the scope, are correct
+5. Display the results of the `create_or_update_metadata_import` tool call to the user to confirm if the details of the metadata import, specifically the scope, are correct
 </Step>
 <Step>
 6. If the user says the details are incorrect, go back to the step 2 and ask the user to specify the scope again or make any other changes they want to make to the metadata import

@@ -19,6 +19,10 @@ class Workflow(BaseModel):
     created_at: datetime = Field(..., description="When the workflow was created")
     created_by: Optional[str] = Field(None, description="User who created the workflow")
     business_key: Optional[str] = Field(None, description="Business key associated with the workflow")
+    artifact_id: Optional[str] = Field(
+        None,
+        description="Artifact ID associated with this workflow. Feed into list_user_task_approval_data to get activity history."
+    )
     variables: Optional[dict] = Field(None, description="Process variables")
     tasks: Optional[List['TaskDetail']] = Field(None, description="Detailed task information (only included when include_tasks=True)")
 
@@ -73,6 +77,11 @@ class WorkflowRequest(BaseModel):
         description="List of users currently assigned to active tasks"
     )
     
+    artifact_id: Optional[str] = Field(
+        None,
+        description="Artifact ID associated with this workflow. Feed into list_user_task_approval_data to get activity history."
+    )
+
     # Completion metrics (for completed workflows)
     completed_at: Optional[datetime] = Field(None, description="When workflow was completed")
     duration_days: Optional[int] = Field(None, description="How many days workflow took to complete")

@@ -9,7 +9,8 @@ from app.services.data_product.models.add_delivery_methods_to_data_product impor
     AddDeliveryMethodsToDataProductRequest,
     AddDeliveryMethodsToDataProductResponse,
 )
-from app.services.data_product.utils.common_utils import add_catalog_id_suffix, get_dph_catalog_id_for_user, validate_inputs
+from app.services.data_product.utils.common_utils import add_catalog_id_suffix, validate_inputs
+from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 from app.shared.exceptions.base import ServiceError
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.services.constants import JSON_CONTENT_TYPE, JSON_PATCH_CONTENT_TYPE
@@ -27,7 +28,7 @@ async def _add_delivery_methods_to_data_product(
         f"In the add_delivery_methods_to_data_product tool, adding delivery methods {request.delivery_method_ids} to data product draft id: {request.data_product_draft_id}"
     )
     validate_inputs(request, "data_asset_name")
-    dph_catalog_id = await get_dph_catalog_id_for_user()
+    dph_catalog_id = await get_dph_catalog_id_for_user(await get_access_token())
 
     # step 1: get the index of parts out asset
     response = await tool_helper_service.execute_get_request(
@@ -53,7 +54,13 @@ async def _add_delivery_methods_to_data_product(
                 index_list.append(index)
     if not index_list:
         LOGGER.error(f"Asset {request.data_asset_name} is not found in data product draft.")
-        raise ServiceError(f"Asset {request.data_asset_name} is not found in data product draft.")
+        raise ServiceError(
+            f"Asset {request.data_asset_name} is not found in data product draft.",
+            remediation_steps=(
+                f"Verify that the data asset name '{request.data_asset_name}' is correct and exists in the "
+                f"data product draft with ID '{request.data_product_draft_id}'. "
+            ),
+        )
   
     # step 2: add delivery methods to the asset
     json = []

@@ -11,7 +11,7 @@ from typing import Annotated
 from pydantic import Field
 
 from app.core.registry import service_registry
-from app.core.auth import get_bss_account_id, get_sub_from_iam_id, get_user_identifier
+from app.core.auth import get_bss_account_id, get_sub_from_iam_id, get_user_identifier, get_access_token
 from app.services.constants import (
     PROJECTS_BASE_ENDPOINT,
     CATALOGS_BASE_ENDPOINT,
@@ -88,7 +88,7 @@ async def _list_single_container_type(container_type: str, roles: List[str] | No
 
         if roles:
             iam_id = await get_user_identifier()
-            member = await get_sub_from_iam_id(iam_id)
+            member = await get_sub_from_iam_id(await get_access_token(), iam_id)
             params["member"] = member
             params["roles"] = ",".join(roles)
 

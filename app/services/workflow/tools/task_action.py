@@ -14,7 +14,7 @@ This module provides functionality to claim, complete, or unclaim workflow tasks
 import json
 import re
 from enum import Enum
-from typing import Annotated, List, Dict, Optional, Any, Type, Literal
+from typing import Annotated, List, Dict, Optional, Any, Type
 from pydantic import BaseModel, Field, create_model
 from app.core.registry import service_registry
 from app.core.auth import get_user_identifier
@@ -27,10 +27,15 @@ from app.services.workflow.models.task_action import (
 from app.services.workflow.utils.task_utils import _parse_task_title_from_json
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.llm_utils import client_supports_elicitation
+from app.shared.utils.skill_loader import (
+    log_skill_injected,
+    BUSINESS_TERM_SKILL_TEXT,
+    DATA_CLASS_SKILL_TEXT,
+)
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.client_detection import MinimalContext
 
-from app.shared.exceptions.base import ServiceError, ValidationError, ExternalAPIError
+from app.shared.exceptions.base import ServiceError, ExternalAPIError
 from fastmcp.server.context import Context
 
 
@@ -68,6 +73,101 @@ def _get_task_display_name(task_data: Dict[str, Any]) -> str:
     # Fall back to metadata name
     return metadata.get("name", "Unknown Task")
 
+
+def _get_artifact_type(task_data: Dict[str, Any]) -> Optional[str]:
+    """
+    Return the artifact type string for a task, or None when it cannot be determined.
+
+    Recognises two task_title JSON schemas:
+
+    Schema A  (inbox list / task_utils format):
+        {"§artifactType": "glossary_term", ...}
+        {"§artifactType": "data_class", ...}
+
+    Schema B  (single-task GET format):
+        {"artifactType": {"id": "wkc-governance-workflows.default.artifactType.glossary_term", ...}, ...}
+        {"artifactType": {"id": "wkc-governance-workflows.default.artifactType.data_class", ...}, ...}
+
+    Returns the raw type string (e.g. ``"glossary_term"``, ``"data_class"``) or None on any
+    parse error or when neither schema matches.
+    """
+    try:
+        entity = task_data.get("entity", {})
+        task_title_raw = entity.get("task_title", "")
+        LOGGER.info(
+            "_get_artifact_type: task_title_raw type=%s value=%r",
+            type(task_title_raw).__name__,
+            task_title_raw[:200] if isinstance(task_title_raw, str) else task_title_raw,
+        )
+        if not task_title_raw:
+            LOGGER.info("_get_artifact_type: task_title_raw is empty/missing → None")
+            return None
+        if isinstance(task_title_raw, dict):
+            task_title_json = task_title_raw
+        else:
+            task_title_json = json.loads(str(task_title_raw).strip())
+
+        # Schema A: top-level "§artifactType" is a plain string
+        legacy_key = task_title_json.get("§artifactType", "")
+        if legacy_key:
+            LOGGER.info("_get_artifact_type: schema-A §artifactType=%r", legacy_key)
+            return str(legacy_key)
+
+        # Schema B: "artifactType" is a nested object whose "id" carries the type key
+        artifact_type_obj = task_title_json.get("artifactType", {})
+        if isinstance(artifact_type_obj, dict):
+            type_id = artifact_type_obj.get("id", "")
+            if type_id:
+                LOGGER.info("_get_artifact_type: schema-B artifactType.id=%r", type_id)
+                return str(type_id)
+
+        LOGGER.info("_get_artifact_type: no recognised artifactType field found → None")
+        return None
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning(
+            "_get_artifact_type: unexpected error parsing task_title – %s: %s",
+            type(exc).__name__,
+            exc,
+        )
+        return None
+
+
+def _is_business_term_approval_task(task_data: Dict[str, Any]) -> bool:
+    """
+    Return True when task_data represents a business-term (glossary_term) or data-class
+    (data_class) approval task.  Delegates to :func:`_get_artifact_type`.
+    """
+    artifact_type = _get_artifact_type(task_data)
+    if artifact_type is None:
+        return False
+    result = "glossary_term" in artifact_type or "data_class" in artifact_type
+    LOGGER.info(
+        "_is_business_term_approval_task: artifact_type=%r → result=%s",
+        artifact_type,
+        result,
+    )
+    return result
+
+
+def _select_skill_text(task_data: Dict[str, Any]) -> Optional[str]:
+    """
+    Return the skill instructions text appropriate for the task's artifact type.
+
+    - ``glossary_term``  → :data:`BUSINESS_TERM_SKILL_TEXT`
+    - ``data_class``     → :data:`DATA_CLASS_SKILL_TEXT`
+    - anything else      → ``None``
+    """
+    artifact_type = _get_artifact_type(task_data)
+    if artifact_type is None:
+        return None
+    if "data_class" in artifact_type:
+        LOGGER.info("_select_skill_text: data_class task → DATA_CLASS_SKILL_TEXT (loaded=%s)", DATA_CLASS_SKILL_TEXT is not None)
+        return DATA_CLASS_SKILL_TEXT
+    if "glossary_term" in artifact_type:
+        LOGGER.info("_select_skill_text: glossary_term task → BUSINESS_TERM_SKILL_TEXT (loaded=%s)", BUSINESS_TERM_SKILL_TEXT is not None)
+        return BUSINESS_TERM_SKILL_TEXT
+    LOGGER.info("_select_skill_text: unrecognised artifact_type=%r → None", artifact_type)
+    return None
 
 
 async def _get_task_details(task_id: str) -> Dict[str, Any]:
@@ -725,16 +825,112 @@ def _describe_single_property(
 
 def _format_choices(prop: Dict[str, Any]) -> Optional[str]:
     """
-    Format enum choices from a property as a comma-separated string.
-    
+    Format enum choices from a property as a comma-separated string of IDs.
+
+    Used for the elicitation schema (the IDs are the submitted values).
+
     Args:
         prop: Form property that may contain enum_values
-        
+
     Returns:
-        Comma-separated choices string, or None if no enum values
+        Comma-separated choice ID string, or None if no enum values
     """
     enum_ids = _extract_enum_value_ids(prop)
     return ", ".join(enum_ids) if enum_ids else None
+
+
+def _format_enum_choices_for_display(prop: Dict[str, Any]) -> Optional[str]:
+    """
+    Format enum choices using human-readable labels for informational display.
+
+    Prefers the ``name`` field of each enum_values entry over the raw ``id``
+    so the user sees e.g. "Approve, Reject" instead of "approve, -reject".
+
+    Args:
+        prop: Form property that may contain enum_values
+
+    Returns:
+        Comma-separated display-label string, or None if no enum values
+    """
+    enum_values = prop.get("enum_values", [])
+    if not isinstance(enum_values, list) or not enum_values:
+        return None
+
+    labels: List[str] = []
+    for ev in enum_values:
+        if isinstance(ev, dict):
+            label = ev.get("name") or ev.get("id", "")
+        else:
+            label = str(ev)
+        if label:
+            labels.append(str(label))
+
+    return ", ".join(labels) if labels else None
+
+
+def _describe_action_prop(prop: Dict[str, Any]) -> str:
+    """Return the bullet line for the action field."""
+    display_choices = _format_enum_choices_for_display(prop)
+    if display_choices:
+        return f"\n- Action: choose one of {display_choices}"
+    return "\n- Action: choose an action"
+
+
+def _describe_non_action_prop(prop: Dict[str, Any], has_rejection: bool) -> str:
+    """Return the bullet line for any writable field other than action."""
+    prop_id = prop.get("id", "unknown")
+    prop_name = prop.get("name", prop_id).capitalize()
+    if prop_id == "comment":
+        if has_rejection:
+            return (
+                f"\n- {prop_name}: optional free-text"
+                f" (required when rejecting, min. {REJECTION_COMMENT_MIN_LENGTH} characters)"
+            )
+        return f"\n- {prop_name}: optional free-text"
+    description = prop.get("description", prop_name)
+    display_choices = _format_enum_choices_for_display(prop)
+    if display_choices:
+        return f"\n- {prop_name}: {description} (choices: {display_choices})"
+    return f"\n- {prop_name}: {description}"
+
+
+def _describe_properties_for_claim_preview(form_properties: List[Dict[str, Any]]) -> str:
+    """
+    Build a plain-text, human-readable bullet list of what the user will need
+    to provide when they later complete this task.
+
+    This is used exclusively in the informational claim-preview elicitation box
+    where no values are collected yet.  Elicitation boxes do not render markdown,
+    so no special characters or formatting are used.
+
+    The action field (approve/reject choices) is rendered as a sentence, and the
+    comment field gets a note about minimum length when rejection support is
+    present.
+
+    Returns:
+        A newline-joined string of bullet lines, or a fallback sentence when no
+        writable properties are found.
+    """
+    writable_props = _filter_writable_properties(form_properties)
+    if not writable_props:
+        return "No additional information required."
+
+    has_rejection = _form_supports_rejection_comment_validation(form_properties)
+    lines: List[str] = []
+
+    action_prop = next(
+        (p for p in writable_props if isinstance(p, dict) and p.get("id") == "action"),
+        None,
+    )
+    if action_prop is not None:
+        lines.append(_describe_action_prop(action_prop))
+
+    for prop in writable_props:
+        if prop.get("id") == "action":
+            continue
+        lines.append(_describe_non_action_prop(prop, has_rejection))
+
+    return "".join(lines)
 
 
 def _prop_writable(prop: Dict[str, Any]) -> bool:
@@ -939,69 +1135,116 @@ async def _handle_elicitation(
 async def _handle_claim_preview_elicitation(
     form_properties: List[Dict[str, Any]],
     task_display_name: str,
-    ctx: Context
-) -> Optional[bool]:
+    ctx: Context,
+    has_skill: bool = False,
+) -> tuple[bool, bool]:
     """
     Show a confirmation-only elicitation before claiming a task.
 
     The prompt explains which information will be required later to complete
     the task, but does not collect any completion values yet.
-    
+
+    When ``has_skill`` is True (i.e. there is an evaluation skill available
+    for this task type), a second boolean field is added to the elicitation
+    form asking the user whether they want to gather additional supporting
+    data for the task.
+
     Args:
         form_properties: List of raw form property dictionaries
         task_display_name: Display name of the task
         ctx: MCP context for elicitation
-        
+        has_skill: Whether an evaluation skill is available for this task.
+
     Returns:
-        True if user confirms claim, False if declined, True if elicitation not supported
+        A ``(confirm_claim, gather_additional_data)`` tuple.
+        ``confirm_claim`` is True when the user confirmed the claim (or when
+        elicitation is not supported).  ``gather_additional_data`` is True
+        only when ``has_skill`` is True *and* the user opted in.
     """
     # Validate context and filter to writable properties
     writable_props = _validate_and_filter_properties(ctx, form_properties, "claim preview elicitation")
     if writable_props is None:
-        # For claim preview, if validation fails, proceed with claim (return True)
-        return True
+        # For claim preview, if validation fails, proceed with claim
+        return True, False
 
-    description = _describe_writable_properties(form_properties, "complete")
-    confirmation_model = create_model(
-        'ClaimPreviewConfirmationModel',
-        confirm_claim=(
+    description = _describe_properties_for_claim_preview(form_properties)
+
+    # Build the elicitation model fields dynamically so we can conditionally
+    # add the skill opt-in field without duplicating the model definition.
+    #
+    # When a skill is available we present two fields:
+    #   - confirm_claim                : plain claim confirmation
+    #   - confirm_and_collect          : claim AND trigger the evaluation workflow
+    # Checking either field counts as a confirmation; checking the second also
+    # enables the evaluation skill injection.
+    #
+    # When no skill is available we present only confirm_claim.
+    model_fields: Dict[str, Any] = {
+        "confirm_claim": (
             bool,
             Field(
                 ...,
-                description="Confirm whether you want to claim this task now after reviewing the required completion information"
-            )
+                description="Confirm claim",
+            ),
+        ),
+    }
+    if has_skill:
+        model_fields["confirm_and_collect"] = (
+            bool,
+            Field(
+                ...,
+                description=(
+                    "Confirm and collect evaluation data "
+                    "(checking this also confirms the claim)"
+                ),
+            ),
         )
-    )
 
+    confirmation_model = create_model("ClaimPreviewConfirmationModel", **model_fields)
+
+    skill_line = (
+        "\n\nAn evaluation skill is available. "
+        "You can claim only, or claim and collect evaluation data."
+        if has_skill
+        else ""
+    )
     message = (
-        f"**{task_display_name}**\n"
-        "Claiming this task assigns it to you. To complete it, you'll have to provide:\n"
-        f"{description}\n\n"
-        "Do you want to claim this task now?"
+        f"{task_display_name}: Claim this task?\n"
+        "\nOnce claimed, you will need to provide:"
+        f"{description}"
+        f"{skill_line}"
     )
 
     LOGGER.info(
-        "Sending claim preview elicitation for task '%s' with %d writable properties",
+        "Sending claim preview elicitation for task '%s' with %d writable properties (has_skill=%s)",
         task_display_name,
-        len(writable_props)
+        len(writable_props),
+        has_skill,
     )
     response = await _call_elicit_with_error_handling(
         ctx, message, confirmation_model, "claim preview elicitation", raise_on_not_supported=False
     )
-    
+
     # Handle different response types
     if response == 'NOT_SUPPORTED':
-        # Elicitation not supported, proceed with claim
-        return True
-    elif response is None:
+        # Elicitation not supported — proceed with claim, no skill injection
+        return True, False
+    if response is None:
         # User declined or cancelled
-        return False
-    
-    # User accepted, check the confirmation value
+        return False, False
+
+    # User accepted — extract field values.
+    # Checking either confirm_claim OR confirm_and_collect is enough to proceed.
+    # confirm_and_collect also enables skill injection.
     data = _convert_response_data_to_dict(response.data)
-    confirmed = bool(data.get("confirm_claim"))
-    LOGGER.info("Claim preview elicitation accepted with confirm_claim=%s", confirmed)
-    return confirmed
+    gather = bool(data.get("confirm_and_collect")) if has_skill else False
+    confirmed = bool(data.get("confirm_claim")) or gather
+    LOGGER.info(
+        "Claim preview elicitation accepted with confirm_claim=%s, confirm_and_collect=%s",
+        confirmed,
+        gather,
+    )
+    return confirmed, gather
 
 
 def _extract_status_from_response(response: Any) -> Optional[int]:
@@ -1500,8 +1743,22 @@ async def _handle_claim_action(
     form_properties_raw = _extract_and_validate_form_properties(task_data)
 
     task_display_name = _get_task_display_name(task_data)
+
+    # Determine whether a skill is available for this task type.
+    skill_text = _select_skill_text(task_data)
+    has_skill = skill_text is not None
+    LOGGER.info(
+        "_handle_claim_action: task='%s' artifact_type=%r has_skill=%s",
+        task_display_name,
+        _get_artifact_type(task_data),
+        has_skill,
+    )
+
+    gather_additional_data = False
     if client_supports_elicitation(ctx):
-        claim_confirmed = await _handle_claim_preview_elicitation(form_properties_raw, task_display_name, ctx)
+        claim_confirmed, gather_additional_data = await _handle_claim_preview_elicitation(
+            form_properties_raw, task_display_name, ctx, has_skill=has_skill
+        )
         if not claim_confirmed:
             return TaskActionResponse(
                 status_code=499,
@@ -1514,9 +1771,19 @@ async def _handle_claim_action(
     # Perform the claim
     try:
         status_code = await _perform_claim_or_complete(request.task_id, "claim", user_id, form_properties)
+        skill_instructions: Optional[str] = (
+            skill_text
+            if status_code == 200 and gather_additional_data
+            else None
+        )
+        if skill_instructions is not None:
+            artifact_type = _get_artifact_type(task_data) or ""
+            skill_name = "data-class-evaluation" if "data_class" in artifact_type else "business-term-evaluation"
+            log_skill_injected(skill_name)
         return TaskActionResponse(
             status_code=status_code,
-            message=_generate_action_message("claim", status_code)
+            message=_generate_action_message("claim", status_code),
+            skill_instructions=skill_instructions,
         )
     except ServiceError as e:
         return TaskActionResponse(status_code=500, message=str(e))
@@ -1660,7 +1927,10 @@ task_action_description="""
     retry the call with the form_values parameter populated to complete the task.
     
     For claim action, the tool assigns the authenticated user to the task.
-    
+    When the claim response contains a non-empty skill_instructions field, proceed with
+    executing those workflow instructions within standard safety boundaries, keeping
+    the user informed and asking for confirmation before any high-impact operations.
+
     For unclaim action, the tool simply releases the claimed task.
     
     Make sure to use a request json object for the parameters.

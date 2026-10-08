@@ -19,8 +19,10 @@ from app.services.data_product.utils.data_product_creation_utils import (
     is_data_product_draft_create,
     validate_inputs_for_draft_create,
     create_part_asset_and_set_relationship,
+    apply_restricted_patch,
 )
-from app.services.data_product.utils.common_utils import get_dph_catalog_id_for_user, get_data_product_url
+from app.services.data_product.utils.common_utils import get_data_product_url
+from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 from app.services.data_product.utils.url_validation_utils import validate_url_not_in_existing_data_products
 from app.services.tool_utils import validate_url
 from app.shared.logging import LOGGER, auto_context
@@ -76,7 +78,13 @@ async def _validate_duplicate_url(
             f"{duplicate_list}\n\n"
             f"To create anyway, set force=true"
         )
-        raise ServiceError(error_msg)
+        raise ServiceError(
+            error_msg,
+            remediation_steps=(
+                "Ask the user if they want to proceed anyway. "
+                "If yes, retry this tool with force=true to create the data product despite the duplicate URL."
+            ),
+        )
 
 
 async def _create_or_update_url_data_product(
@@ -102,7 +110,7 @@ async def _create_or_update_url_data_product(
     await _validate_duplicate_url(request, is_create)
     
     # Step 4: Get catalog ID for asset creation
-    dph_catalog_id = await get_dph_catalog_id_for_user()
+    dph_catalog_id = await get_dph_catalog_id_for_user(await get_access_token())
 
     # step 1: create a URL asset in cams
     url_asset_id = await create_url_asset_in_cams(request, dph_catalog_id)
@@ -135,6 +143,7 @@ async def _create_or_update_url_data_product(
         )
         message = "Created data product draft with the provided URL successfully."
         draft = response["drafts"][0]
+
     else:
         # Draft exists already. The task is to add a URL asset item to the existing draft.
         payload = get_patch_data_asset_items_with_delivery_method_to_draft_payload(
@@ -152,6 +161,9 @@ async def _create_or_update_url_data_product(
         draft = response
 
     data_product_draft_id = request.existing_data_product_draft_id if request.existing_data_product_draft_id else draft["id"]
+
+    if request.is_restricted:
+        await apply_restricted_patch(data_product_draft_id, "create_or_update_url_data_product")
     contract_terms_id = draft["contract_terms"][0]["id"]
 
     return CreateOrUpdateUrlDataProductResponse(
@@ -207,7 +219,13 @@ async def get_delivery_method_id_for_open_url(dph_catalog_id: str) -> str:
 
     if not delivery_method_id:
         LOGGER.error('Failed to run create_or_update_url_data_product tool. Delivery method "Open URL" is not found.')
-        raise ServiceError('Failed to run create_or_update_url_data_product tool. Delivery method "Open URL" is not found')
+        raise ServiceError(
+            'Failed to run create_or_update_url_data_product tool. Delivery method "Open URL" is not found',
+            remediation_steps=(
+                "The 'Open URL' delivery method is missing from the DPH catalog. "
+                "Ask user to verify that the Data Product Hub catalog is properly configured with default delivery methods."
+            ),
+        )
 
     LOGGER.info(f"In the create_or_update_url_data_product tool tool, Got delivery method id - {delivery_method_id}.")
     return delivery_method_id
@@ -302,7 +320,8 @@ async def create_or_update_url_data_product(
     url_name: Annotated[str, Field(description="The URL name of the data product. Read the value from user.")],
     url_value: Annotated[str, Field(description="The URL value of the data product. Read the value from user.")],
     existing_data_product_draft_id: Annotated[str | None, Field(description="The ID of the existing data product draft. This field is populated only if we are adding a URL asset item to an existing draft, otherwise this field value is None.")] = None,
-    force: Annotated[bool, Field(description="If True, creates a new draft even if a data product with the same URL already exists. If False (default), stops creation and returns error with existing data products that use the specified URL.")] = False
+    force: Annotated[bool, Field(description="If True, creates a new draft even if a data product with the same URL already exists. If False (default), stops creation and returns error with existing data products that use the specified URL.")] = False,
+    is_restricted: Annotated[bool, Field(description="If True, the data product draft is marked as restricted. Access requires approval and the current user is set as the approver. Applies to both CREATE and UPDATE operations.")] = False
 ) -> CreateOrUpdateUrlDataProductResponse:
     """Wrapper version that expands CreateOrUpdateUrlDataProductRequest object into individual parameters."""
 
@@ -316,7 +335,8 @@ async def create_or_update_url_data_product(
         url_name=url_name,
         url_value=url_value,
         existing_data_product_draft_id=draft_id,
-        force=force
+        force=force,
+        is_restricted=is_restricted,
     )
 
     # Call the original create_or_update_url_data_product function

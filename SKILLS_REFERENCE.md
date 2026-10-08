@@ -19,6 +19,7 @@ This document provides a comprehensive list of all Model Context Protocol (MCP) 
     - [Data Lineage Skill](#data-lineage-skill)
     - [MDI Job Control Skill](#mdi-job-control-skill)
     - [Data Quality Skill](#data-quality-skill)
+    - [Workflow Skills](#workflow-skills)
 
 
 ## Where to Get the Skills
@@ -180,4 +181,13 @@ In order to use the Data Intelligence skills with VS Code Copilot:
 | Skill Name | Description | Sample Prompts | pypi version | CPD version |
 |-----------|-------------|---------------|-------------|-------------|
 | data-quality | Guides users through the full data quality lifecycle: running DQ pipelines (via MDE jobs with objectives `analyze_quality`, `dq_gen_constraints`, `dq_sla_assessment`, and `profile`), monitoring results against SLA rules, creating new SLA rules, and visualising scores via Mermaid charts. Covers project setup, connection configuration, metadata import, and DQ enrichment execution across four phases: intent detection → project setup → metadata import (conditional) → DQ enrichment and monitoring | "Generate a DQ pipeline for my sales data" or "Run data quality checks on my Postgres tables" or "How good is my data?" or "Validate my tables and score completeness" or "Analyze data quality for the tables in my BANK database" or "Create SLA rules for my datasets" or "Monitor data quality against defined SLAs" | >=1.5.0 | TBD |
+
+### Workflow Skills
+
+Skills that activate automatically during data governance workflow tasks. They assist data stewards in evaluating and approving glossary artifacts such as business terms and data classes.
+
+| Skill Name | Description | Sample Prompts | pypi version | CPD version |
+|-----------|-------------|---------------|-------------|-------------|
+| business-term-evaluation | Loads on demand when a data steward claims a business-term publication task. Evaluates wording quality (clarity, jargon, accessibility) and ontological fit (category alignment, clash detection against existing terms using BM25 similarity). Includes a Security Protocol block to prevent context poisoning from untrusted draft content. | "Should I approve this term?" or "Evaluate this business term" or "Review this term for approval" or "Check if this term is good" or "Is this term ready?" or "What do I need to know before approving?" | >=1.6.0 | TBD |
+| data-class-evaluation | Activates when a data steward claims a data-class publication task. Evaluates column-oriented data classes for global name uniqueness, description clarity, column-scope fingerprint quality, data-quality violation readiness, and sensitivity or likely PII exposure. Java and JavaScript classifier rules are out of scope for this first stage. | "Evaluate this data class" or "Review this data class for approval" or "Check the Global Location Number data class" or "Assess this data class" or "Is this data class ready to approve?" | >=1.6.0 | TBD |
 

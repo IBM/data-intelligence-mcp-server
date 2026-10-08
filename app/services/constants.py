@@ -40,13 +40,11 @@ DATA_PROFILES_BASE_ENDPOINT = "/v2/data_profiles"
 
 METADATA_ENRICHMENT_BASE_ENDPOINT = "/metadata_enrichment/v3"
 WORKFLOW_BASE_ENDPOINT = "/v3/workflows"
+WORKFLOW_TASK_ENDPOINT = "/v3/workflow_user_tasks"
 
 DPR_RULES = "/v3/enforcement/rules"
 DPS_POLICY_METRICS_ENDPOINT = "/v3/enforcement/policy_metrics"
 DP_TRANSFORM = "/v4/enforcement-transform/utility"
-
-WORKFLOW_BASE_ENDPOINT = "/v3/workflows"
-WORKFLOW_TASK_ENDPOINT = "/v3/workflow_user_tasks"
 
 GLOSSARY_DATA_CLASS_ENDPOINT = "/v3/data_classes"
 GLOSSARY_BUSINESS_TERMS_ENDPOINT = "/v3/glossary_terms"
@@ -55,7 +53,6 @@ GLOSSARY_DATA_CLASS = "data_class"
 GLOSSARY_BUSINESS_TERM = "glossary_term"
 
 CLOUD_IAM_ENDPOINT = "/identity/token"
-AWS_IAM_ENDPOINT = "/api/2.0/apikeys/token"
 CPD_IAM_ENDPOINT = "/icp4d-api/v1/authorize"
 AWS_IAM_URL = "https://account-iam.platform.saas.ibm.com"
 AWS_IAM_TEST_URL = "https://account-iam.platform.test.saas.ibm.com"

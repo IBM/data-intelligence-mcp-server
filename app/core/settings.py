@@ -4,8 +4,7 @@
 
 # This file has been modified with the assistance of IBM Bob AI Tool
 
-import os
-from pydantic import AnyHttpUrl, field_validator
+from pydantic import AnyHttpUrl, field_validator, AliasChoices, Field, SecretStr
 from pydantic_settings import (
     BaseSettings,
     SettingsConfigDict,
@@ -17,6 +16,8 @@ from app.shared.models.ssl_config import SSLConfig, CertificateMode
 ENV_MODE_SAAS = "SAAS"
 ENV_MODE_CPD = "CPD"
 
+DEV_CLOUD_DOMAIN = "dev.cloud.ibm.com"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -25,6 +26,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",  # Ignore extra fields like old TOKEN setting
+        validate_by_name=True,
     )
 
     @field_validator("di_service_url", mode="before")
@@ -91,7 +93,7 @@ class Settings(BaseSettings):
         if not self.di_service_url:
             return "https://resource-controller.cloud.ibm.com"
         
-        if "dev.cloud.ibm.com" in self.di_service_url:
+        if DEV_CLOUD_DOMAIN in self.di_service_url:
             return "https://resource-controller.test.cloud.ibm.com"
         else:
             return "https://resource-controller.cloud.ibm.com"
@@ -101,43 +103,54 @@ class Settings(BaseSettings):
         if not self.di_service_url:
             return "https://user-management.cloud.ibm.com"
                 
-        if "dev.cloud.ibm.com" in self.di_service_url:
+        if DEV_CLOUD_DOMAIN in self.di_service_url:
             return "https://user-management.test.cloud.ibm.com"
         else:
             return "https://user-management.cloud.ibm.com"
-        
-    
+
+    @property
+    def accounts_url(self) -> str:
+        if self.di_service_url and DEV_CLOUD_DOMAIN in str(self.di_service_url):
+            return "https://accounts.test.cloud.ibm.com"
+        return "https://accounts.cloud.ibm.com"
+
     # Saas IAM url
     cloud_iam_url: AnyHttpUrl | str | None = None
 
     # SSL Configuration (enhanced certificate support)
     ssl_config: SSLConfig = SSLConfig()
 
+    # Flat env-var fields for ssl_config construction (read by pydantic-settings from both
+    # os.environ and .env — used in model_post_init instead of os.environ.get())
+    ssl_config_mode: str = ""
+    ssl_config_ca_bundle_path: str | None = None
+    ssl_config_client_cert_path: str | None = None
+    ssl_config_client_key_path: str | None = None
+    ssl_config_client_key_password: SecretStr | None = None
+    ssl_config_check_hostname: bool = True
+
     def model_post_init(self, __context) -> None:
-        """Post-initialization to handle environment variable overrides."""
-        # Check for SSL_CONFIG_MODE environment variable override
-        ssl_mode = os.environ.get("SSL_CONFIG_MODE", "").lower()
+        """Post-initialization to handle SSL configuration from pydantic-loaded fields."""
+        ssl_mode = self.ssl_config_mode.lower()
         if ssl_mode == "disabled":
             self.ssl_config = SSLConfig(mode=CertificateMode.DISABLED)
         elif ssl_mode == "custom_ca_bundle":
-            ca_bundle_path = os.environ.get("SSL_CONFIG_CA_BUNDLE_PATH")
             self.ssl_config = SSLConfig(
                 mode=CertificateMode.CUSTOM_CA_BUNDLE,
-                ca_bundle_path=ca_bundle_path
+                ca_bundle_path=self.ssl_config_ca_bundle_path,
             )
         elif ssl_mode == "client_cert":
             self.ssl_config = SSLConfig(
                 mode=CertificateMode.CLIENT_CERT,
-                client_cert_path=os.environ.get("SSL_CONFIG_CLIENT_CERT_PATH"),
-                client_key_path=os.environ.get("SSL_CONFIG_CLIENT_KEY_PATH"),
-                client_key_password=os.environ.get("SSL_CONFIG_CLIENT_KEY_PASSWORD"),
-                check_hostname=os.environ.get("SSL_CONFIG_CHECK_HOSTNAME", "true").lower() == "true",
+                client_cert_path=self.ssl_config_client_cert_path,
+                client_key_path=self.ssl_config_client_key_path,
+                client_key_password=(
+                    self.ssl_config_client_key_password.get_secret_value()
+                    if self.ssl_config_client_key_password is not None
+                    else None
+                ),
+                check_hostname=self.ssl_config_check_hostname,
             )
-
-        # Check for SERVER_HTTPS environment variable override
-        server_https = os.environ.get("SERVER_HTTPS", "True").lower()
-        if server_https in ["false", "0", "no", "n", "off"]:
-            self.use_https = False
 
     # Backwards compatibility - deprecated, use ssl_config instead
     ssl_verify: bool = True  # Set to False for self-signed certificates
@@ -146,9 +159,30 @@ class Settings(BaseSettings):
     server_host: str = "0.0.0.0"
     server_port: int = 3000
     server_transport: str = "http"  # "http" or "stdio"
-    ssl_cert_path: str | None = os.environ.get("SSL_CERT_PATH")  # Path to SSL certificate file
-    ssl_key_path: str | None = os.environ.get("SSL_KEY_PATH")    # Path to SSL private key file
-    use_https: bool = True  # Default to HTTPS mode, can be disabled with SERVER_HTTPS=False
+    ssl_cert_path: str | None = None  # Path to SSL certificate file (mapped from SSL_CERT_PATH)
+    ssl_key_path: str | None = None   # Path to SSL private key file (mapped from SSL_KEY_PATH)
+    use_https: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("SERVER_HTTPS", "USE_HTTPS"),
+    )
+
+    @field_validator("use_https", mode="before")
+    @classmethod
+    def coerce_legacy_bool(cls, v: object) -> object:
+        """Accept legacy falsy strings used before pydantic-settings migration.
+
+        The old os.environ.get() code accepted "n", "no", "off" as False.
+        Pydantic v2's bool coercion does not recognise those values, so we
+        normalise them here to preserve backward compatibility.
+        """
+        if isinstance(v, str) and v.lower() in {"n", "no", "off"}:
+            return False
+        return v
+
+    # OAuth proxy settings
+    oauth_upstream_client_id: str = ""
+    oauth_upstream_client_secret: str = ""
+    oauth_base_url: str = ""
 
     # Auth token for stdio mode (optional)
     di_auth_token: str | None = None

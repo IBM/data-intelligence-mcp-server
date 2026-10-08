@@ -372,7 +372,7 @@ async def _process_search_results(response: dict, source_fields: Optional[List[s
         "readOnlyHint": True,
         "title": "Natural Language Asset Search with Query Generation"
     },
-    tags={"generative_ai"},
+    tags={"metadata_management_and_governance"},
 )
 @auto_context
 async def search(

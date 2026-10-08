@@ -20,6 +20,11 @@ from app.services.glossary.models.csv_import import (
     CSVSchemaInfo,
 )
 
+from app.services.glossary.models.import_status import (
+    ImportStatusApiResponse,
+    ImportGlossaryStatusResult,
+)
+
 __all__ = [
     # Glossary artifact models
     "GlossaryArtifact",
@@ -33,4 +38,6 @@ __all__ = [
     "CSVImportRequest",
     "CSVImportResult",
     "CSVSchemaInfo",
+    "ImportStatusApiResponse", 
+    "ImportGlossaryStatusResult"
 ]

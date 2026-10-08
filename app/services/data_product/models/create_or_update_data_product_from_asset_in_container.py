@@ -31,6 +31,10 @@ class CreateOrUpdateDataProductFromAssetInContainerRequest(BaseModel):
             "Leave as None for CREATE operations."
         )
     )
+    is_restricted: bool = Field(
+        default=False,
+        description="If True, the data product draft is marked as restricted, requiring access approval. The current user is set as the access request approver. Applies to both CREATE and UPDATE operations."
+    )
 
     @field_validator('target_asset_ids')
     @classmethod

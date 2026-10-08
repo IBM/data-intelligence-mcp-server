@@ -12,7 +12,8 @@ from app.services.data_product.models.publish_data_product import (
     PublishDataProductRequest,
     PublishDataProductResponse,
 )
-from app.services.data_product.utils.common_utils import add_catalog_id_suffix, get_dph_catalog_id_for_user, get_data_product_url
+from app.services.data_product.utils.common_utils import add_catalog_id_suffix, get_data_product_url
+from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 from app.shared.exceptions.base import ServiceError
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.logging import LOGGER, auto_context
@@ -53,8 +54,15 @@ def _validate_if_draft_has_a_business_domain(response: dict) -> None:
     """
     if not response.get("domain"):
         LOGGER.error("The draft has no business domain attached.")
-        raise ServiceError("The draft appears to have no business domain attached. " \
-                                     "Please attach a business domain before publishing the draft.")
+        raise ServiceError(
+            "The draft appears to have no business domain attached. "
+            "Please attach a business domain before publishing the draft.",
+            remediation_steps=(
+                "Ask user to choose a domain for the data product draft. "
+                "Then invoke attach_business_domain_to_data_product with the draft ID to attach a business domain, "
+                "then retry publish_data_product."
+            ),
+        )
 
 
 async def _validate_if_draft_has_a_contract(response: dict) -> None:
@@ -73,8 +81,15 @@ async def _validate_if_draft_has_a_contract(response: dict) -> None:
             )
         if not response.get("overview", {}).get("name"):
             LOGGER.error("The draft has no contract attached.")
-            raise ServiceError("The draft appears to have no contract attached. " \
-                                        "Please attach a contract before publishing the draft.")
+            raise ServiceError(
+                "The draft appears to have no contract attached. "
+                "Please attach a contract before publishing the draft.",
+                remediation_steps=(
+                    "Ask user to attach a contract to the data product draft. "
+                    "Invoke attach_url_contract_to_data_product or attach_contract_template_to_data_product based on the type of contract to be attached "
+                    "with the draft ID to attach a contract, then retry publish_data_product."
+                ),
+            )
 
 
 async def _validate_if_draft_has_delivery_method_added_to_each_data_asset(response: dict) -> None:
@@ -83,7 +98,7 @@ async def _validate_if_draft_has_delivery_method_added_to_each_data_asset(respon
     """
     for part_out in response.get("parts_out", []):
         if part_out.get("delivery_methods", []) == []:
-            dph_catalog_id = await get_dph_catalog_id_for_user()
+            dph_catalog_id = await get_dph_catalog_id_for_user(await get_access_token())
             
             query_params = {
                 "catalog_id": dph_catalog_id,
@@ -100,7 +115,12 @@ async def _validate_if_draft_has_delivery_method_added_to_each_data_asset(respon
             raise ServiceError(
                 f"The data asset '{data_asset_name}' has no delivery methods added to it. "
                 "All data assets added to the draft should have at least one delivery method added. "
-                f"Please add delivery methods to the data asset before publishing the draft."
+                "Please add delivery methods to the data asset before publishing the draft.",
+                remediation_steps=(
+                    f"Invoke list_data_product_delivery_methods to find available delivery methods for '{data_asset_name}', "
+                    "let the user pick the delivery method(s) for the data asset and "
+                    "then invoke add_delivery_methods_to_data_product to add them, and retry publish_data_product."
+                ),
             )
 
 

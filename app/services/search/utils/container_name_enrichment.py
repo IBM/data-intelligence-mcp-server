@@ -7,6 +7,7 @@ from typing import Any, List
 
 from aiocache import cached
 
+from app.core.auth import get_access_token
 from app.services.constants import CATALOGS_BASE_ENDPOINT, PROJECTS_BASE_ENDPOINT
 from app.shared.logging import LOGGER
 from app.shared.utils.tool_helper_service import tool_helper_service
@@ -14,6 +15,7 @@ from app.shared.utils.tool_helper_service import tool_helper_service
 
 @cached(ttl=1800)
 async def _fetch_single_container_name(
+    bearer_token: str,
     container_id: str,
     container_type: str,
     endpoint: str,
@@ -50,9 +52,10 @@ async def fetch_container_names(results: List[Any]) -> dict[str, str]:
 
     LOGGER.info("Fetching names for %d projects and %d catalogs", len(project_ids), len(catalog_ids))
 
+    bearer_token = await get_access_token()
     tasks = []
-    tasks.extend([_fetch_single_container_name(pid, "project", PROJECTS_BASE_ENDPOINT) for pid in project_ids])
-    tasks.extend([_fetch_single_container_name(cid, "catalog", CATALOGS_BASE_ENDPOINT) for cid in catalog_ids])
+    tasks.extend([_fetch_single_container_name(bearer_token, pid, "project", PROJECTS_BASE_ENDPOINT) for pid in project_ids])
+    tasks.extend([_fetch_single_container_name(bearer_token, cid, "catalog", CATALOGS_BASE_ENDPOINT) for cid in catalog_ids])
 
     container_names: dict[str, str] = {}
     for result in await asyncio.gather(*tasks, return_exceptions=True):

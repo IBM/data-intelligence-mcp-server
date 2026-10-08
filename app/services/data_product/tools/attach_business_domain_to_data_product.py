@@ -10,7 +10,8 @@ from app.services.data_product.models.attach_business_domain_to_data_product imp
     AttachBusinessDomainToDataProductRequest,
     AttachBusinessDomainToDataProductResponse,
 )
-from app.services.data_product.utils.common_utils import add_catalog_id_suffix, get_dph_catalog_id_for_user
+from app.services.data_product.utils.common_utils import add_catalog_id_suffix
+from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 from app.shared.exceptions.base import ServiceError
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.services.constants import JSON_CONTENT_TYPE, JSON_PATCH_CONTENT_TYPE
@@ -24,7 +25,7 @@ async def _attach_business_domain_to_data_product(
     LOGGER.info(
         f"In the attach_business_domain_to_data_product tool, attaching business domain {request.domain} to the data product draft {request.data_product_draft_id}."
     )
-    DPH_CATALOG_ID = await get_dph_catalog_id_for_user()
+    DPH_CATALOG_ID = await get_dph_catalog_id_for_user(await get_access_token())
 
     # step 1: get the business domain id from cams
     search_payload = {"query": "*:*", "sort": "asset.name"}
@@ -46,7 +47,13 @@ async def _attach_business_domain_to_data_product(
     if not domain_id:
         error_message = f'Domain name "{request.domain}" is not found, so it is not attached to {request.data_product_draft_id}. Here are the available domains: {available_domains}'
         LOGGER.error(f"Failed to run attach_business_domain_to_data_product tool. {error_message}")
-        raise ServiceError(f"Failed to run attach_business_domain_to_data_product tool. {error_message}")
+        raise ServiceError(
+            f"Failed to run attach_business_domain_to_data_product tool. {error_message}",
+            remediation_steps=(
+                f"Ask user to choose a valid domain from the available list: {available_domains}. "
+                "Then retry this tool with a valid domain name."
+            ),
+        )
 
     # step 2: attach the business domain to data product draft
     headers = {

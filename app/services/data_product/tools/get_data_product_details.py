@@ -24,7 +24,8 @@ from app.services.data_product.models.get_data_product_details import (
     ColumnInfo,
     SubscribedAsset,
 )
-from app.services.data_product.utils.common_utils import get_data_product_url, get_dph_catalog_id_for_user
+from app.services.data_product.utils.common_utils import get_data_product_url
+from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 from app.services.data_product.constants import (
     ASSET_TYPE_IBM_URL_DEFINITION,
     FIELD_ASSET,
@@ -543,26 +544,38 @@ async def _search_data_product_by_name(data_product_name: str, catalog_id: str) 
         raise ServiceError(
             f"Data product '{data_product_name}' could not be found. "
             f"Please try again with a different name. "
-            f"If necessary, use the MCP tool search_data_products to perform a search with a query."
+            f"If necessary, use the MCP tool search_data_products to perform a search with a query.",
+            remediation_steps=(
+                f"Invoke search_data_products with product_search_query='{data_product_name}' to find "
+                "data products with a similar name, then retry this tool with the exact matching name."
+            ),
         )
-    
+
     # Extract the data product ID from the first result
     first_result = results[0]
     metadata = first_result.get(FIELD_METADATA)
-    
+
     # Validate that metadata exists in the response
     if not metadata:
         raise ServiceError(
             f"Invalid API response for data product '{data_product_name}': missing metadata. "
-            f"The search returned results but the response structure is unexpected."
+            f"The search returned results but the response structure is unexpected.",
+            remediation_steps=(
+                "Retry the operation. If the issue persists, call search_data_products and pass "
+                "the returned data_product_version_id to data_product_version_id parameter instead."
+            ),
         )
-    
+
     # Extract and validate the asset_id
     data_product_version_id = metadata.get(FIELD_ASSET_ID)
     if not data_product_version_id:
         raise ServiceError(
             f"Invalid API response for data product '{data_product_name}': missing asset_id in metadata. "
-            f"The search returned results but the asset_id could not be extracted."
+            f"The search returned results but the asset_id could not be extracted.",
+            remediation_steps=(
+                "Retry the operation. If the issue persists, call search_data_products and pass "
+                "the returned data_product_version_id to data_product_version_id parameter instead."
+            ),
         )
     
     LOGGER.info(f"Got product version id: {data_product_version_id}")
@@ -646,10 +659,14 @@ async def _get_data_product_details(
     if not request.data_product_version_id and not request.data_product_name:
         raise ServiceError(
             "Missing required data product version id or data product name. "
-            "Please supply either the version id or name of a data product for which to get details."
+            "Please supply either the version id or name of a data product for which to get details.",
+            remediation_steps=(
+                "Ask the user for the data product name or version ID. "
+                "Alternatively, invoke search_data_products to list available data products and let the user choose one."
+            ),
         )
     
-    catalog_id = await get_dph_catalog_id_for_user()
+    catalog_id = await get_dph_catalog_id_for_user(await get_access_token())
     
     try:
         # Prepare query parameters
@@ -722,7 +739,11 @@ async def _get_data_product_details(
         error_message = f"Exception when getting data product details: {e!s}"
         LOGGER.error(error_message)
         raise ServiceError(
-            f"Failed to retrieve data product details. {error_message}"
+            f"Failed to retrieve data product details. {error_message}",
+            remediation_steps=(
+                "Verify the data product version ID or name is correct. "
+                "Invoke search_data_products to confirm the data product exists and obtain the correct identifier."
+            ),
         )
 
 

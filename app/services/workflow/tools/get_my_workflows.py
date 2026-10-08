@@ -185,6 +185,10 @@ async def _create_workflow_from_data(
     # metadata.state contains engine states like "running", "completed", etc.
     workflow_state = entity.get("workflow_state", metadata.get("state", "unknown"))
     
+    # Extract artifact_id from entity.artifacts list (first entry if present)
+    artifacts = entity.get("artifacts", [])
+    artifact_id = artifacts[0].get("metadata", {}).get("artifact_id") if artifacts else None
+
     return Workflow(
         workflow_id=workflow_id,
         name=workflow_name,
@@ -194,6 +198,7 @@ async def _create_workflow_from_data(
         created_at=datetime.fromisoformat(metadata.get("created_at").replace("Z", ZERO_MINUTES)),
         created_by=created_by,
         business_key=entity.get("business_key"),
+        artifact_id=artifact_id,
         variables=variables_dict,
         tasks=tasks
     )
@@ -702,6 +707,10 @@ async def _create_workflow_request(
     # Use workflow_state from entity (business state) instead of metadata.state (engine state)
     workflow_state = entity.get("workflow_state", metadata.get("state", "unknown"))
     
+    # Extract artifact_id from entity.artifacts list (first entry if present)
+    artifacts = entity.get("artifacts", [])
+    artifact_id = artifacts[0].get("metadata", {}).get("artifact_id") if artifacts else None
+
     return WorkflowRequest(
         workflow_id=wf_id,
         name=workflow_name,
@@ -710,6 +719,7 @@ async def _create_workflow_request(
         state=workflow_state,
         created_at=datetime.fromisoformat(metadata.get("created_at").replace("Z", ZERO_MINUTES)),
         created_by=created_by,
+        artifact_id=artifact_id,
         last_activity_at=metrics["last_activity_at"],
         days_since_activity=metrics["days_since_activity"],
         is_stalled=metrics["is_stalled"],

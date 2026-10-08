@@ -14,7 +14,8 @@ from app.services.data_product.models.search_data_products import (
     SearchDataProductsResponse,
     DataProduct,
 )
-from app.services.data_product.utils.common_utils import get_dph_catalog_id_for_user, get_data_product_url, calculate_date_one_year_before, validate_date_range
+from app.services.data_product.utils.common_utils import get_data_product_url, calculate_date_one_year_before, validate_date_range
+from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.logging import LOGGER, auto_context
 from app.shared.ui_message.ui_message_context import ui_message_context
@@ -49,7 +50,7 @@ async def _search_data_products(
         f"In the search_data_products tool, Searching data products with query '{request.product_search_query}', domain='{request.domain}', "
         f"state_filter='{request.state_filter}', created_date_after='{request.created_date_after}', created_date_before='{request.created_date_before}'"
     )
-    DPH_CATALOG_ID = await get_dph_catalog_id_for_user()
+    DPH_CATALOG_ID = await get_dph_catalog_id_for_user(await get_access_token())
 
     payload = get_dph_search_payload(
         product_search_query=request.product_search_query,

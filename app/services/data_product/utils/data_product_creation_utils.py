@@ -6,7 +6,8 @@ import asyncio
 from typing import Any
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
-from app.services.data_product.utils.common_utils import get_dph_catalog_id_for_user
+from app.core.auth import get_dph_catalog_id_for_user, get_access_token, get_user_identifier
+from app.services.constants import JSON_CONTENT_TYPE, JSON_PATCH_CONTENT_TYPE
 from app.shared.exceptions.base import ServiceError
 
 def is_data_product_draft_create(request) -> bool:
@@ -22,7 +23,12 @@ async def validate_inputs_for_draft_create(request, *additional_fields_to_valida
         if not value:
             msg = f"{field.capitalize()} of the data product is mandatory to create a data product draft."
             LOGGER.error(msg)
-            raise ServiceError(msg)
+            raise ServiceError(
+                msg,
+                remediation_steps=(
+                    f"Ask the user to provide a non-empty value for '{field}' and retry."
+                ),
+            )
 
 
 @auto_context
@@ -37,7 +43,7 @@ async def create_part_asset_and_set_relationship(
     which is significantly faster.
     """
     LOGGER.info("Creating ibm_data_product_part asset and setting relationship.")
-    dph_catalog_id = await get_dph_catalog_id_for_user()
+    dph_catalog_id = await get_dph_catalog_id_for_user(await get_access_token())
     payload = {
         "metadata": {
             "name": asset_name,
@@ -769,3 +775,61 @@ async def check_for_duplicate_data_product_by_source_asset_id(
         f"not found in any data products"
     )
     return None
+
+
+async def apply_restricted_patch(draft_id: str, tool_name: str) -> None:
+    """
+    Mark a newly-created data product draft as restricted and assign the
+    current user as the order-access-request approver.
+
+    Calls PATCH /data_product_exchange/v1/data_products/-/drafts/{draft_id}
+    with two JSON-Patch operations:
+        1. replace /is_restricted → true
+        2. replace /workflows → order_access_request with the calling user as assignee
+
+    Note: ``"op": "replace"`` is used for ``/workflows`` (not ``"add"``) to avoid
+    silently overwriting unrelated workflow keys that may already exist on the draft
+    per RFC 6902 semantics. The DPH API treats this as setting the full workflows object.
+
+    Note: ``get_user_identifier()`` resolves the caller's identity from the current
+    JWT token internally — it handles both SaaS (``iam_id``) and CPD (``uid``) modes
+    without requiring an explicit token argument.
+
+    Args:
+        draft_id: The data product draft ID (may include @catalog_id suffix).
+        tool_name: Caller tool name for logging/error context.
+    """
+    ibm_id = await get_user_identifier()
+    if not ibm_id:
+        raise ServiceError(
+            "Unable to retrieve the current user's IBM ID to set as access-request approver."
+        )
+
+    patch_payload = [
+        {"op": "replace", "path": "/is_restricted", "value": True},
+        {
+            "op": "replace",
+            "path": "/workflows",
+            "value": {
+                "order_access_request": {
+                    "task_assignee_users": [ibm_id]
+                }
+            },
+        },
+    ]
+
+    headers = {
+        "Accept": JSON_CONTENT_TYPE,
+        "Content-Type": JSON_PATCH_CONTENT_TYPE,
+    }
+
+    LOGGER.info(
+        f"Applying restricted patch to draft {draft_id} with approver {ibm_id} (tool: {tool_name})"
+    )
+    await tool_helper_service.execute_patch_request(
+        url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/drafts/{draft_id}",
+        headers=headers,
+        json=patch_payload,
+        tool_name=tool_name,
+    )
+    LOGGER.info(f"Draft {draft_id} marked as restricted with approver {ibm_id}")
