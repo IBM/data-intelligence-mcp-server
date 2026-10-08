@@ -36,7 +36,6 @@
   - Fixed cross-tenant cache poisoning where `@cached` functions (`get_user_email_from_iam_id`, `get_sub_from_iam_id`, `get_dph_catalog_id_for_user`, `_fetch_single_container_name`) were keyed without the caller's token, allowing one tenant's catalog ID or user email to be served to a different caller. Cache keys now include `bearer_token`, scoping each entry to the requesting credential.
 
 ## [1.5.0.post1] - Sept 25th, 2026
-
 - Since the session state is refreshed every time, it is causing an `Exceeded concurrency limit` error when v2 MCP client is connecting to the server. As a result, the MCP server is not behaving as expected.
 
 ## [1.5.0] - Sept 24th, 2026
