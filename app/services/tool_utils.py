@@ -114,19 +114,36 @@ async def find_connection_id(connection_name: str, container_id: str, container_
         uuid.UUID: Unique identifier of the project.
     """
 
-    params = {f"{container_type}_id": container_id}
+    # Use global search so that personal_credentials connections are visible
+    params = {
+        "auth_scope": "all",
+        "auth_cache": True,
+        "tenant_scope": True,
+    }
+    payload = {
+        "query": {
+            "bool": {
+                "must": [
+                    {"term": {"metadata.artifact_type": "connection"}},
+                    {"term": {f"entity.assets.{container_type}_id": container_id}},
+                    {"gs_user_query": {"search_string": connection_name}},
+                ]
+            }
+        }
+    }
 
-    response = await tool_helper_service.execute_get_request(
-        url=str(tool_helper_service.base_url) + CONNECTIONS_BASE_ENDPOINT,
+    response = await tool_helper_service.execute_post_request(
+        url=str(tool_helper_service.base_url) + GS_BASE_ENDPOINT,
         params=params,
+        json=payload,
     )
 
     connections = [
         {
-            "name": connection["entity"]["name"],
-            "id": connection["metadata"]["asset_id"],
+            "name": row["metadata"]["name"],
+            "id": row["artifact_id"],
         }
-        for connection in response.get("resources", {})
+        for row in response.get("rows", [])
     ]
     result_id = get_closest_match(connections, connection_name)
     if result_id:
