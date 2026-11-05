@@ -52,7 +52,7 @@
 - **Reporting**:
   - Improved error handling in SQL query execution tool; runtime errors are now surfaced with actionable messages instead of generic exceptions.
 - **Dependencies & Security**:
-  - Upgraded `authlib`, `joserfc`, `fastmcp`, `	dnspython` and `opentelemetry-api` for security fixes.
+  - Upgraded `authlib`, `joserfc`, `fastmcp`, `dnspython` and `opentelemetry-api` for security fixes.
   
 ## [1.6.0] - Oct 8th, 2026
 
