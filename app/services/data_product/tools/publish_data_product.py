@@ -4,7 +4,7 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-from typing import Annotated
+from typing import Annotated  # noqa: I001 # Baseline
 from pydantic import Field
 
 from app.core.registry import service_registry
@@ -12,7 +12,10 @@ from app.services.data_product.models.publish_data_product import (
     PublishDataProductRequest,
     PublishDataProductResponse,
 )
-from app.services.data_product.utils.common_utils import add_catalog_id_suffix, get_data_product_url
+from app.services.data_product.utils.common_utils import (
+    add_catalog_id_suffix,
+    get_data_product_url,
+)
 from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 from app.shared.exceptions.base import ServiceError
 from app.shared.utils.tool_helper_service import tool_helper_service
@@ -45,8 +48,9 @@ async def _publish_data_product(
     )
     return PublishDataProductResponse(
         message=f"Data product draft {request.data_product_draft_id} published successfully.",
-        url=get_data_product_url(request.data_product_draft_id, "available")
+        url=get_data_product_url(request.data_product_draft_id, "available"),
     )
+
 
 def _validate_if_draft_has_a_business_domain(response: dict) -> None:
     """
@@ -73,12 +77,12 @@ async def _validate_if_draft_has_a_contract(response: dict) -> None:
     if not contract_documents or len(contract_documents) == 0:
         query_params = {
             "include_contract_documents": True,
-            "autopopulate_server_information": False
+            "autopopulate_server_information": False,
         }
         response = await tool_helper_service.execute_get_request(
-                url=f'{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/drafts/{response.get("id")}/contract_terms/{response.get("contract_terms", [{}])[0].get("id")}',
-                params=query_params
-            )
+            url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/drafts/{response.get('id')}/contract_terms/{response.get('contract_terms', [{}])[0].get('id')}",
+            params=query_params,
+        )
         if not response.get("overview", {}).get("name"):
             LOGGER.error("The draft has no contract attached.")
             raise ServiceError(
@@ -92,21 +96,20 @@ async def _validate_if_draft_has_a_contract(response: dict) -> None:
             )
 
 
-async def _validate_if_draft_has_delivery_method_added_to_each_data_asset(response: dict) -> None:
+async def _validate_if_draft_has_delivery_method_added_to_each_data_asset(
+    response: dict,
+) -> None:
     """
     This function validates if each data asset of the draft has at least one delivery method added.
     """
     for part_out in response.get("parts_out", []):
         if part_out.get("delivery_methods", []) == []:
             dph_catalog_id = await get_dph_catalog_id_for_user(await get_access_token())
-            
-            query_params = {
-                "catalog_id": dph_catalog_id,
-                "exclude": "columns"
-            }
+
+            query_params = {"catalog_id": dph_catalog_id, "exclude": "columns"}
             response = await tool_helper_service.execute_get_request(
-                url=f'{tool_helper_service.base_url}/v2/assets/{part_out.get("asset", {}).get("id")}',
-                params=query_params
+                url=f"{tool_helper_service.base_url}/v2/assets/{part_out.get('asset', {}).get('id')}",
+                params=query_params,
             )
             data_asset_name = response.get("metadata", {}).get("name", "")
             LOGGER.error(
@@ -136,18 +139,18 @@ async def _validate_if_draft_has_delivery_method_added_to_each_data_asset(respon
     meta={"version": "1.0", "service": "data_product"},
     annotations={
         "title": "Data Product Draft Publication and Validation",
-        "destructiveHint": True
-    }
+        "destructiveHint": True,
+    },
 )
 @auto_context
 async def publish_data_product(
-    data_product_draft_id: Annotated[str, Field(description="The ID of the data product draft to publish.")],
+    data_product_draft_id: Annotated[
+        str, Field(description="The ID of the data product draft to publish.")
+    ],
 ) -> PublishDataProductResponse:
     """Wrapper version that expands PublishDataProductRequest object into individual parameters."""
 
-    request = PublishDataProductRequest(
-        data_product_draft_id=data_product_draft_id
-    )
+    request = PublishDataProductRequest(data_product_draft_id=data_product_draft_id)
 
     # Call the original publish_data_product function
     return await _publish_data_product(request)

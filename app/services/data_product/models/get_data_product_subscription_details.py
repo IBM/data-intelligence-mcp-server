@@ -11,14 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, List, Any, Dict
+from typing import Optional, List, Any, Dict  # noqa: I001, UP035 # Baseline
 from pydantic import BaseModel, Field
 from app.shared.models import BaseResponseModel
 
 
 class GetDataProductSubscriptionDetailsRequest(BaseModel):
     """Request model for getting data product subscription details."""
-    
+
     subscription_id: str = Field(
         description=(
             "The ID of the subscription (asset list) to retrieve items from. "
@@ -29,28 +29,35 @@ class GetDataProductSubscriptionDetailsRequest(BaseModel):
 
 class SubscriptionItem(BaseModel):
     """Model representing a single item in a subscription."""
-    
-    id: Optional[str] = Field(default=None, description="Item ID")
-    asset: Optional[Dict[str, Any]] = Field(default=None, description="Asset information including ID and type")
-    properties: Optional[Dict[str, Any]] = Field(default=None, description="Item properties including delivery details")
-    state: Optional[str] = Field(default=None, description="Item delivery state (e.g., succeeded, failed, in_progress)")
-    created_at: Optional[str] = Field(default=None, description="Creation timestamp")
-    last_updated_at: Optional[str] = Field(default=None, description="Last update timestamp")
+
+    id: Optional[str] = Field(default=None, description="Item ID")  # noqa: UP045 # Baseline
+    asset: Optional[Dict[str, Any]] = Field(  # noqa: UP006, UP045 # Baseline
+        default=None, description="Asset information including ID and type"
+    )
+    properties: Optional[Dict[str, Any]] = Field(  # noqa: UP006, UP045 # Baseline
+        default=None, description="Item properties including delivery details"
+    )
+    state: Optional[str] = Field(  # noqa: UP045 # Baseline
+        default=None,
+        description="Item delivery state (e.g., succeeded, failed, in_progress)",
+    )
+    created_at: Optional[str] = Field(default=None, description="Creation timestamp")  # noqa: UP045 # Baseline
+    last_updated_at: Optional[str] = Field(  # noqa: UP045 # Baseline
+        default=None, description="Last update timestamp"
+    )
 
 
 class GetDataProductSubscriptionDetailsResponse(BaseResponseModel):
     """Response model for getting data product subscription details."""
-    
-    items: List[SubscriptionItem] = Field(
+
+    items: List[SubscriptionItem] = Field(  # noqa: UP006 # Baseline
         default_factory=list,
-        description="List of items in the subscription with delivery details"
+        description="List of items in the subscription with delivery details",
     )
     total_count: int = Field(
-        default=0,
-        description="Total number of items in the subscription"
+        default=0, description="Total number of items in the subscription"
     )
-    subscription_id: str = Field(
-        description="The subscription ID that was queried"
-    )
+    subscription_id: str = Field(description="The subscription ID that was queried")
+
 
 # Made with Bob

@@ -3,7 +3,7 @@
 # See the LICENSE file in the project root for license information.
 
 import json as _json
-from typing import Annotated, Any, Dict, Optional
+from typing import Annotated, Any, Dict, Optional  # noqa: UP035 # Baseline
 
 from pydantic import Field
 
@@ -19,15 +19,22 @@ from app.services.text_to_query_search.utils.query_generator import generate_gs_
 from app.shared.exceptions.base import ExternalAPIError, ServiceError
 from app.shared.logging import LOGGER, auto_context
 from app.shared.ui_message.ui_message_context import ui_message_context
-from app.shared.utils.tool_helper_service import create_default_headers, tool_helper_service
+from app.shared.utils.tool_helper_service import (
+    create_default_headers,
+    tool_helper_service,
+)
 
 TABLE_TITLE_GS_QUERY_RESULTS = "Global Search Query Results"
 
 
-def _build_query_params(request: ExecuteGSQueryRequest) -> Dict[str, Any]:
+def _build_query_params(request: ExecuteGSQueryRequest) -> Dict[str, Any]:  # noqa: UP006 # Baseline
     """Return only the optional query-string parameters that were explicitly set."""
     optional_fields = ("role", "auth_cache", "auth_scope", "type")
-    return {field: getattr(request, field) for field in optional_fields if getattr(request, field) is not None}
+    return {
+        field: getattr(request, field)
+        for field in optional_fields
+        if getattr(request, field) is not None
+    }
 
 
 def _build_request_body(gs_query: str | dict) -> Any:
@@ -45,11 +52,12 @@ def _build_request_body(gs_query: str | dict) -> Any:
         return {"query": {"query_string": {"query": gs_query}}}
 
 
-def _parse_semantic_expansions(response: Dict[str, Any]):
+def _parse_semantic_expansions(response: Dict[str, Any]):  # noqa: ANN202, UP006 # Baseline
     """Convert the raw ``semantic_search_expansions`` list to typed objects, or ``None``."""
     raw = response.get("semantic_search_expansions") or []
     parsed = [
-        SemanticSearchExpansion.model_validate(entry) if isinstance(entry, dict)
+        SemanticSearchExpansion.model_validate(entry)
+        if isinstance(entry, dict)
         else SemanticSearchExpansion(search_string=str(entry))
         for entry in raw
     ]
@@ -66,9 +74,13 @@ def _emit_ui_table_if_results(rows: list) -> None:
             "Artifact ID": row.artifact_id or "",
             "Artifact Type": (row.metadata.artifact_type or "") if row.metadata else "",
             "Provider Type": row.provider_type_id or "",
-            "Catalog ID": (row.entity.assets.catalog_id or "") if (row.entity and row.entity.assets) else "",
+            "Catalog ID": (row.entity.assets.catalog_id or "")
+            if (row.entity and row.entity.assets)
+            else "",
             "Score": row.score if row.score is not None else "",
-            "Semantic": row.semantic_search_result if row.semantic_search_result is not None else "",
+            "Semantic": row.semantic_search_result
+            if row.semantic_search_result is not None
+            else "",
         }
         for row in rows
     ]
@@ -79,7 +91,9 @@ def _emit_ui_table_if_results(rows: list) -> None:
     )
 
 
-async def _resolve_gs_query(request: ExecuteGSQueryRequest) -> tuple[str | dict, dict | None]:
+async def _resolve_gs_query(
+    request: ExecuteGSQueryRequest,
+) -> tuple[str | dict, dict | None]:
     """Return the final ES DSL query and an optional pre-fetched validation response.
 
     Returns a ``str`` when the caller supplied ``gs_query`` directly, or a ``dict``
@@ -93,7 +107,9 @@ async def _resolve_gs_query(request: ExecuteGSQueryRequest) -> tuple[str | dict,
         "Generating ES DSL query from natural language: '%s'",
         request.natural_language_query,
     )
-    query_data, validation_response = await generate_gs_query(search_prompt=request.natural_language_query)
+    query_data, validation_response = await generate_gs_query(
+        search_prompt=request.natural_language_query
+    )
     LOGGER.info("Generated ES DSL query: '%s'", query_data)
     return query_data, validation_response
 
@@ -117,7 +133,9 @@ async def _execute_gs_query(
 
     try:
         if validation_response is not None:
-            LOGGER.info("Reusing validation response from query generation, skipping GS POST.")
+            LOGGER.info(
+                "Reusing validation response from query generation, skipping GS POST."
+            )
             response = validation_response
         else:
             response = await tool_helper_service.execute_post_request(
@@ -142,11 +160,13 @@ async def _execute_gs_query(
         )
 
     except ExternalAPIError as e:
-        LOGGER.error(f"Failed to run execute_gs_query tool. External API error: {str(e)}")
-        raise ExternalAPIError(f"Failed to execute GS query. External API error: {str(e)}")
+        LOGGER.error(f"Failed to run execute_gs_query tool. External API error: {e!s}")
+        raise ExternalAPIError(  # noqa: B904 # Baseline
+            f"Failed to execute GS query. External API error: {e!s}"
+        )
     except Exception as e:
-        LOGGER.error(f"Failed to run execute_gs_query tool. Unexpected error: {str(e)}")
-        raise ServiceError(f"Failed to execute GS query. Unexpected error: {str(e)}")
+        LOGGER.error(f"Failed to run execute_gs_query tool. Unexpected error: {e!s}")
+        raise ServiceError(f"Failed to execute GS query. Unexpected error: {e!s}")  # noqa: B904 # Baseline
 
 
 @service_registry.tool(
@@ -207,40 +227,40 @@ async def _execute_gs_query(
     fields, custom_attributes, semantic_search_result, _score), aggregations, and
     semantic_search_expansions (non-empty only for semantic search).
     """,
-    tags={"search", "gs_query", "global_search","metadata_management_and_governance"},
+    tags={"search", "gs_query", "global_search", "metadata_management_and_governance"},
     meta={"version": "1.0", "service": "search"},
-    enabled=False
+    enabled=False,
 )
 @auto_context
-async def execute_gs_query(
+async def execute_gs_query(  # noqa: PLR0913 # Baseline
     gs_query: Annotated[
-        Optional[str],
+        Optional[str],  # noqa: UP045 # Baseline
         Field(
             default=None,
             description=(
                 "The Elasticsearch DSL query body as a JSON string, sent as the request body "
-            "to the global search index. "
-            "Supports standard ES DSL (e.g. match_all, match, bool) as well as the GS-specific "
-            "'gs_user_query' function for full-text and semantic (AI) search. "
-            "In gs_user_query: 'search_fields' restricts search to named fields; "
-            "'nlq_analyzer_enabled' ignores irrelevant words and prioritises common phrases; "
-            "'semantic_search_enabled' (default false) enables LLM-based semantic search — "
-            "when true, 'semantic_search_options' may be provided to fine-tune behaviour, "
-            "including 'semantic_search_expansion_exclusions' to suppress unwanted semantic expansions "
-            "returned in a previous response via 'semantic_search_expansions'. "
-            "'semantic_search_expansions' in the response is always empty for lexical (non-semantic) search. "
-            "Example (match-all): '{\"query\":{\"match_all\":{}}}' "
-            "Example (lexical GS search): '{\"query\":{\"gs_user_query\":{\"search_string\":\"revenue\","
-            "\"search_fields\":[\"metadata.name\",\"metadata.description\"],"
-            "\"nlq_analyzer_enabled\":true,\"nested\":false}}}' "
-            "Example (semantic/AI search): '{\"query\":{\"gs_user_query\":{\"search_string\":\"bank\","
-            "\"semantic_search_enabled\":true,\"semantic_search_options\":"
-            "{\"semantic_search_expansion_exclusions\":{\"bank\":[\"repository\"]}}}}}'"
-            )
+                "to the global search index. "
+                "Supports standard ES DSL (e.g. match_all, match, bool) as well as the GS-specific "
+                "'gs_user_query' function for full-text and semantic (AI) search. "
+                "In gs_user_query: 'search_fields' restricts search to named fields; "
+                "'nlq_analyzer_enabled' ignores irrelevant words and prioritises common phrases; "
+                "'semantic_search_enabled' (default false) enables LLM-based semantic search — "
+                "when true, 'semantic_search_options' may be provided to fine-tune behaviour, "
+                "including 'semantic_search_expansion_exclusions' to suppress unwanted semantic expansions "
+                "returned in a previous response via 'semantic_search_expansions'. "
+                "'semantic_search_expansions' in the response is always empty for lexical (non-semantic) search. "
+                'Example (match-all): \'{"query":{"match_all":{}}}\' '
+                'Example (lexical GS search): \'{"query":{"gs_user_query":{"search_string":"revenue",'
+                '"search_fields":["metadata.name","metadata.description"],'
+                '"nlq_analyzer_enabled":true,"nested":false}}}\' '
+                'Example (semantic/AI search): \'{"query":{"gs_user_query":{"search_string":"bank",'
+                '"semantic_search_enabled":true,"semantic_search_options":'
+                '{"semantic_search_expansion_exclusions":{"bank":["repository"]}}}}}\''
+            ),
         ),
     ] = None,
     natural_language_query: Annotated[
-        Optional[str],
+        Optional[str],  # noqa: UP045 # Baseline
         Field(
             default=None,
             description=(
@@ -255,7 +275,7 @@ async def execute_gs_query(
         ),
     ] = None,
     role: Annotated[
-        Optional[str],
+        Optional[str],  # noqa: UP045 # Baseline
         Field(
             default="viewer",
             description=(
@@ -265,14 +285,14 @@ async def execute_gs_query(
         ),
     ] = None,
     auth_cache: Annotated[
-        Optional[bool],
+        Optional[bool],  # noqa: UP045 # Baseline
         Field(
             default=False,
             description="Use cached authorization info for building ACL filters.",
         ),
     ] = None,
     auth_scope: Annotated[
-        Optional[str],
+        Optional[str],  # noqa: UP045 # Baseline
         Field(
             default="all",
             description=(
@@ -282,8 +302,8 @@ async def execute_gs_query(
             ),
         ),
     ] = None,
-    type: Annotated[
-        Optional[str],
+    type: Annotated[  # noqa: A002 # Baseline
+        Optional[str],  # noqa: UP045 # Baseline
         Field(
             default="metadata",
             description=(
@@ -294,12 +314,10 @@ async def execute_gs_query(
         ),
     ] = None,
     run_as_tenant: Annotated[
-        Optional[str],
+        Optional[str],  # noqa: UP045 # Baseline
         Field(
             default=None,
-            description=(
-                "Tenant ID (BSS Account ID) to run the query as. "
-            ),
+            description=("Tenant ID (BSS Account ID) to run the query as. "),
         ),
     ] = None,
 ) -> ExecuteGSQueryResponse:

@@ -12,7 +12,7 @@ Skill Loading:
     - DATA_CLASS_SKILL_TEXT: Cached text for the data-class-evaluation skill
 """
 
-from app.shared.utils.llm_utils import (
+from app.shared.utils.llm_utils import (  # noqa: I001 # Baseline
     LLMResponse,
     client_supports_elicitation,
 )
@@ -23,7 +23,7 @@ from app.shared.utils.skill_loader import (
     DATA_CLASS_SKILL_TEXT,
 )
 
-__all__ = [
+__all__ = [  # noqa: RUF022 # Baseline
     "LLMResponse",
     "client_supports_elicitation",
     "load_skill_text",

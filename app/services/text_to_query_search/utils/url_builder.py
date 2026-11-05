@@ -9,7 +9,7 @@ from app.shared.utils.tool_helper_service import tool_helper_service
 def transform_glossary_term_id(asset_id: str) -> str:
     """Transform glossary term ID from format: prefix_part1_part2 to part1/part2"""
     id_parts = asset_id.split("_")
-    if len(id_parts) < 3:
+    if len(id_parts) < 3:  # noqa: PLR2004 # Baseline
         raise ValueError(f"Unexpected glossary term ID format: {asset_id}")
     return f"{id_parts[1]}/{id_parts[2]}"
 
@@ -17,7 +17,7 @@ def transform_glossary_term_id(asset_id: str) -> str:
 def transform_category_id(asset_id: str) -> str:
     """Transform category ID from format: prefix_category_id to category_id"""
     id_parts = asset_id.split("_", 1)
-    if len(id_parts) < 2:
+    if len(id_parts) < 2:  # noqa: PLR2004 # Baseline
         raise ValueError(f"Unexpected category ID format: {asset_id}")
     return id_parts[1]
 
@@ -32,12 +32,18 @@ def get_container_param(project_id: str | None, catalog_id: str | None) -> str:
 
 
 def _build_data_asset_column_url(
-    base: str, asset_id: str, project_id: str | None, catalog_id: str | None, artifact_name: str | None
+    base: str,
+    asset_id: str,
+    project_id: str | None,
+    catalog_id: str | None,
+    artifact_name: str | None,
 ) -> str:
     """Build URL for data_asset_column artifacts."""
     if not catalog_id and not project_id:
         return ""
-    column_asset_id = asset_id.replace(":" + artifact_name, "") if artifact_name else asset_id
+    column_asset_id = (
+        asset_id.replace(":" + artifact_name, "") if artifact_name else asset_id
+    )
     return (
         f"{base}/data/catalogs/{catalog_id}/data-assets/{column_asset_id}"
         if catalog_id
@@ -45,7 +51,9 @@ def _build_data_asset_column_url(
     )
 
 
-def _build_data_asset_url(base: str, asset_id: str, project_id: str | None, catalog_id: str | None) -> str:
+def _build_data_asset_url(
+    base: str, asset_id: str, project_id: str | None, catalog_id: str | None
+) -> str:
     """Build URL for data_asset artifacts."""
     if not catalog_id and not project_id:
         return ""
@@ -56,7 +64,7 @@ def _build_data_asset_url(base: str, asset_id: str, project_id: str | None, cata
     )
 
 
-def build_artifact_url(
+def build_artifact_url(  # noqa: PLR0911, PLR0912 # Baseline
     artifact_type: str,
     asset_id: str,
     project_id: str | None,
@@ -65,14 +73,14 @@ def build_artifact_url(
 ) -> str:
     """
     Build the UI URL for a given artifact based on its type and container.
-    
+
     Args:
         artifact_type: Type of the artifact
         asset_id: ID of the artifact
         project_id: Project ID if artifact is in a project
         catalog_id: Catalog ID if artifact is in a catalog
         artifact_name: Name of the artifact (used for data_asset_column)
-        
+
     Returns:
         The complete UI URL for the artifact, or empty string if URL cannot be built
     """
@@ -91,7 +99,9 @@ def build_artifact_url(
         case "data_rule":
             return f"{base}/data-quality/data-quality-rule/display/{asset_id}?{get_container_param(project_id, catalog_id)}"
         case "job":
-            return f"{base}/jobs/{asset_id}?{get_container_param(project_id, catalog_id)}"
+            return (
+                f"{base}/jobs/{asset_id}?{get_container_param(project_id, catalog_id)}"
+            )
         case "metadata_enrichment_area":
             return f"{base}/gov/metadata-enrichments/display/{asset_id}?{get_container_param(project_id, catalog_id)}"
         case "metadata_import":
@@ -103,11 +113,14 @@ def build_artifact_url(
                 return f"{base}/data/catalogs/{catalog_id}/asset/{asset_id}"
             return ""
         case "data_asset_column":
-            return _build_data_asset_column_url(base, asset_id, project_id, catalog_id, artifact_name)
+            return _build_data_asset_column_url(
+                base, asset_id, project_id, catalog_id, artifact_name
+            )
         case "data_asset":
             return _build_data_asset_url(base, asset_id, project_id, catalog_id)
         case _:
             # Unknown artifact type
             return ""
+
 
 # Made with Bob

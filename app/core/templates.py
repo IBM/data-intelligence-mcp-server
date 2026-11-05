@@ -24,7 +24,7 @@ def _env(base_dir_key: str) -> Environment:
     )
 
 
-def render_template(base_dir: str, rel_path: str, **vars) -> str:
+def render_template(base_dir: str, rel_path: str, **vars) -> str:  # noqa: A002, ANN003 # Baseline
     base = _key(base_dir)
     env = _env(base)
     return env.get_template(rel_path).render(**vars)

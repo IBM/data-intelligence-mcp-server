@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field  # noqa: I001 # Baseline
 from app.shared.models import BaseResponseModel
 
 
@@ -11,6 +11,9 @@ class PublishDataProductRequest(BaseModel):
         ..., description="The ID of the data product draft."
     )
 
+
 class PublishDataProductResponse(BaseResponseModel):
-    message: str = Field(..., description="The message indicating the success publish operation.")
+    message: str = Field(
+        ..., description="The message indicating the success publish operation."
+    )
     url: str = Field(..., description="The URL of the published data product.")

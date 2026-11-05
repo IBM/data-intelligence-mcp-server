@@ -4,14 +4,15 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-from enum import StrEnum
+from enum import StrEnum  # noqa: I001 # Baseline
 from pydantic import BaseModel, Field
 from app.shared.models import BaseResponseModel
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal  # noqa: UP035 # Baseline
 
 
 class ContainerType(StrEnum):
     """Enum for container types"""
+
     CATALOG = "catalog"
     PROJECT = "project"
     SPACE = "space"
@@ -22,44 +23,58 @@ class ContainerType(StrEnum):
 
 class Container(BaseModel):
     """Container model representing a catalog, project, or space"""
+
     id: str = Field(..., description="Unique identifier of the container")
     name: str = Field(..., description="Name of the container")
-    type: ContainerType = Field(..., description="Type of the container (catalog, project, or space)")
-    url: Optional[str] = Field(None, description="URL to access the container in the UI")
+    type: ContainerType = Field(
+        ..., description="Type of the container (catalog, project, or space)"
+    )
+    url: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None, description="URL to access the container in the UI"
+    )
 
 
 class ListContainersRequest(BaseModel):
     """Request model for listing containers"""
+
     container_type: ContainerType = Field(
         default=ContainerType.ALL,
-        description="Type of container to list - 'project', 'catalog', 'space', or 'all'. Defaults to 'all'."
+        description="Type of container to list - 'project', 'catalog', 'space', or 'all'. Defaults to 'all'.",
     )
-    roles: Optional[List[Literal["admin", "editor", "viewer"]]] = Field(
+    roles: Optional[List[Literal["admin", "editor", "viewer"]]] = Field(  # noqa: UP006, UP045 # Baseline
         default=None,
         description="Filter projects by the current user's role(s). Only applicable for project container type. "
-                    "Valid values: 'admin', 'editor', 'viewer'."
+        "Valid values: 'admin', 'editor', 'viewer'.",
     )
 
 
 class ListContainersResponse(BaseResponseModel):
     """Response model for listing containers"""
-    containers: List[Container] = Field(default=[], description="List of containers")
-    total_count: int = Field(default=0, description="Total number of containers returned")
-    container_type: ContainerType = Field(default=ContainerType.ALL, description="Type of containers listed")
+
+    containers: List[Container] = Field(default=[], description="List of containers")  # noqa: UP006 # Baseline
+    total_count: int = Field(
+        default=0, description="Total number of containers returned"
+    )
+    container_type: ContainerType = Field(
+        default=ContainerType.ALL, description="Type of containers listed"
+    )
 
 
 class FindContainerRequest(BaseModel):
     """Request model for finding a container"""
+
     container_id_or_name: str = Field(
-        ..., 
-        description="The ID or name of the container to find"
+        ..., description="The ID or name of the container to find"
     )
     container_type: ContainerType = Field(
         default=ContainerType.CATALOG,
-        description="The type of the container - 'project', 'catalog', or 'space'. Defaults to 'catalog'"
+        description="The type of the container - 'project', 'catalog', or 'space'. Defaults to 'catalog'",
     )
 
 
 class FindContainerResponse(BaseResponseModel):
     """Response model for finding a container"""
-    container: Container | None = Field(None, description="The found container, or None if not found")
+
+    container: Container | None = Field(
+        None, description="The found container, or None if not found"
+    )

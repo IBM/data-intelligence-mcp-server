@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from pydantic import BaseModel
+from pydantic import BaseModel  # noqa: I001 # Baseline
 from pydantic import Field
 from app.shared.models import BaseResponseModel
 
@@ -15,7 +15,7 @@ class GenerateSqlQueryRequest(BaseModel):
     )
     container_type: str = Field(
         ...,
-        description="Type of the container, either \"catalog\" or \"project\".",
+        description='Type of the container, either "catalog" or "project".',
     )
     request: str = Field(..., description="The question the user raised.")
 
@@ -27,5 +27,5 @@ class GenerateSqlQueryResponse(BaseResponseModel):
             "SQL query generated successfully. "
             "Return the SQL to the user and let them know they can save it as a data asset using the create_asset_from_sql_query tool if they wish. "
         ),
-        description="Status message with guidance on what to do after receiving the generated SQL query."
+        description="Status message with guidance on what to do after receiving the generated SQL query.",
     )

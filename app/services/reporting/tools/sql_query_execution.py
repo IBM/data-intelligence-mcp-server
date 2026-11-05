@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-import sqlglot
+import sqlglot  # noqa: I001 # Baseline
 from sqlglot import errors
 from sqlglot.expressions import Delete, Insert, Select, Update, With
 from typing import Annotated
@@ -16,7 +16,7 @@ from app.services.reporting.models.sql_query_execution import (
     SqlQueryExecutionResponse,
     SqlResult,
 )
-from app.shared.exceptions.base import ServiceError
+from app.shared.exceptions.base import ServiceError, ValidationError
 from app.shared.logging.generate_context import auto_context
 from app.shared.logging.utils import LOGGER
 from app.shared.utils.tool_helper_service import tool_helper_service
@@ -41,37 +41,56 @@ def _validate_sql_query(sql_query: str) -> str:
         str: The trimmed SQL query if valid.
 
     Raises:
-        ServiceError: If the query is invalid.
+        ValidationError: If the query is invalid.
     """
     if not sql_query:
-        raise ServiceError("INVALID_QUERY: Query cannot be empty")
+        raise ValidationError(
+            "INVALID_QUERY: Query cannot be empty",
+            remediation_steps="Provide a non-empty SQL SELECT query to execute.",
+        )
 
     trimmed = sql_query.strip()
 
     # Length safeguard
-    if len(trimmed) > 100_000:
+    if len(trimmed) > 100_000:  # noqa: PLR2004 # Baseline
         LOGGER.info("INVALID_QUERY: SQL too long")
-        raise ServiceError("INVALID_QUERY: SQL too long")
+        raise ValidationError(
+            "INVALID_QUERY: SQL too long",
+            remediation_steps="Reduce the SQL query to under 100,000 characters.",
+        )
 
     try:
         # Parse the query using SQLGlot
         parsed = sqlglot.parse(trimmed)
     except errors.ParseError as e:
         LOGGER.info(f"INVALID_QUERY: Failed to parse SQL: {e}")
-        raise ServiceError("INVALID_QUERY: SQL syntax error")
+        raise ValidationError(
+            "INVALID_QUERY: SQL syntax error",
+            remediation_steps=(
+                "Check the SQL syntax and ensure it is a valid SELECT statement. "
+                "Use generate_reporting_sql_query to generate a correctly formatted query."
+            ),
+        )
 
     # Check for multiple statements
     if len(parsed) != 1:
         LOGGER.info("INVALID_QUERY: Multiple SQL statements not allowed.")
-        raise ServiceError("INVALID_QUERY: Multiple SQL statements not allowed.")
+        raise ValidationError(
+            "INVALID_QUERY: Multiple SQL statements not allowed.",
+            remediation_steps="Submit only a single SQL SELECT statement. Remove any semicolons separating multiple statements.",
+        )
 
     # Check the type of the statement
     root_expr = parsed[0]
 
     if not isinstance(root_expr, (Select, With)):
         LOGGER.info("INVALID_QUERY: Only SELECT or WITH queries are supported.")
-        raise ServiceError(
-            "INVALID_QUERY: Only SELECT or WITH queries are supported."
+        raise ValidationError(
+            "INVALID_QUERY: Only SELECT or WITH queries are supported.",
+            remediation_steps=(
+                "Use generate_reporting_sql_query to generate a valid SELECT query, "
+                "then pass the result to this tool."
+            ),
         )
 
     # Recursively inspect the full AST to block data-modifying CTEs.
@@ -82,9 +101,14 @@ def _validate_sql_query(sql_query: str) -> str:
         LOGGER.info(
             f"INVALID_QUERY: Data-modifying operation detected inside query: {type(dml_node).__name__}"
         )
-        raise ServiceError(
+        raise ValidationError(
             "INVALID_QUERY: Data-modifying operations (INSERT, UPDATE, DELETE) are not allowed, "
-            "including inside CTE definitions."
+            "including inside CTE definitions.",
+            remediation_steps=(
+                "Remove all INSERT, UPDATE, and DELETE operations from the query, "
+                "including those inside CTE (WITH ... AS (...)) definitions. "
+                "Only read-only SELECT statements are permitted."
+            ),
         )
 
     return trimmed
@@ -125,11 +149,11 @@ async def _sql_query_execution(
 
     Returns:
         SqlQueryExecutionResponse: The result of the SQL execution, containing either:
-            - On success: status="success", sql_result with rows and executed query
-            - On failure: status="failed", message with error details
+            - On success: success=True, sql_result with rows and executed query
+            - On failure: success=False, error with error details
 
     Raises:
-        ServiceError: If the SQL query validation fails.
+        ValidationError: If the SQL query validation fails.
         ExternalAPIError: If the API call to execute the query fails.
     """
     # Unescape quotes in the SQL query
@@ -147,9 +171,7 @@ async def _sql_query_execution(
 
     # Get tenant ID
     tenant_id = await get_bss_account_id()
-    execute_sql_url = (
-        f"{tool_helper_service.base_url}{REPORTING_BASE_ENDPOINT}/{tenant_id}/ikcquery/executesql"
-    )
+    execute_sql_url = f"{tool_helper_service.base_url}{REPORTING_BASE_ENDPOINT}/{tenant_id}/ikcquery/executesql"
 
     # Execute the SQL query — let auth/API errors propagate as-is (same as all other tools)
     response = await tool_helper_service.execute_post_request(
@@ -165,16 +187,21 @@ async def _sql_query_execution(
         LOGGER.error(
             f"Invalid response format: missing 'sql_result' or 'rows'. Response: {response}"
         )
-        return SqlQueryExecutionResponse(
-            status="failed",
-            message=f"Invalid response format. Please verify the SQL query and data source: {response}",
+        raise ServiceError(
+            "Invalid response format from reporting API: missing 'sql_result' or 'rows'.",
+            service="reporting",
+            tool="sql_query_execution",
+            remediation_steps=(
+                "Verify the SQL query is correct and the reporting service is available. "
+                "Check that the tenant reporting database is active using the handshake endpoint."
+            ),
         )
 
     LOGGER.info("Successfully executed SQL query")
 
     # Return successful response
     return SqlQueryExecutionResponse(
-        status="success",
+        success=True,
         sql_result=SqlResult(
             rows=response.get("sql_result", {}).get("rows", []),
             sql_query=request.sql_query,
@@ -184,18 +211,20 @@ async def _sql_query_execution(
 
 @service_registry.tool(
     name="run_reporting_select_query",
-    annotations={
-        "readOnlyHint": True,
-        "title": "Execute Reporting Select Query"
-    },
+    annotations={"readOnlyHint": True, "title": "Execute Reporting Select Query"},
     tags={"metadata_management_and_governance"},
     description="""Use this tool when you need to execute a user-provided SQL SELECT query against a tenant-specific reporting database. This tool enforces read-only access (only SELECT statements) and includes basic query validation for safety.
   Query API Reference: https://api.dataplatform.cloud.ibm.com/v3/reporting/apidoc/explorer/
-  Return: The execution status ("success" or "failed"), and either the SQL result with query rows on success or an error message on failure.""",
+  Return: The execution result with query rows on success, or an error message with remediation steps on failure.""",
 )
 @auto_context
 async def sql_query_execution(
-    sql_query: Annotated[str, Field(description="The SQL SELECT query to execute. Must be a syntactically valid and read-only query.")]
+    sql_query: Annotated[
+        str,
+        Field(
+            description="The SQL SELECT query to execute. Must be a syntactically valid and read-only query."
+        ),
+    ],
 ) -> SqlQueryExecutionResponse:
     """
     Wrapper that expands SqlQueryExecutionRequest object into individual parameters.

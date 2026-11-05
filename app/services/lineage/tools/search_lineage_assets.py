@@ -2,10 +2,10 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-import re
+import re  # noqa: I001 # Baseline
 
 from difflib import get_close_matches
-from typing import Any, Dict, List, Optional, Annotated
+from typing import Any, Dict, List, Optional, Annotated  # noqa: UP035 # Baseline
 from pydantic import Field
 
 from app.services.lineage.models.lineage_asset import LineageAsset, QualityScore
@@ -30,31 +30,31 @@ from app.shared.utils.helpers import verify_dates
 from app.shared.ui_message.ui_message_context import ui_message_context
 
 
-def _has_quality_value(value: Optional[float]) -> bool:
+def _has_quality_value(value: Optional[float]) -> bool:  # noqa: UP045 # Baseline
     """
     Check if a data quality value was explicitly provided by the user.
-    
+
     Args:
         value: The data quality value to check
-        
+
     Returns:
         bool: True if a valid quality value was provided, False if it's the sentinel value
     """
     return value is not None and value != SENTINEL_NO_QUALITY_VALUE
 
 
-def _check_input_parameters(
-    name_query,
-    is_operational,
-    tag,
-    data_quality_operator,
-    data_quality_value,
-    business_term,
-    business_classification,
-    technology_name,
-    asset_type,
-    dsd_id,
-    dsd_name,
+def _check_input_parameters(  # noqa: PLR0913 # Baseline
+    name_query,  # noqa: ANN001 # Baseline
+    is_operational,  # noqa: ANN001 # Baseline
+    tag,  # noqa: ANN001 # Baseline
+    data_quality_operator,  # noqa: ANN001 # Baseline
+    data_quality_value,  # noqa: ANN001 # Baseline
+    business_term,  # noqa: ANN001 # Baseline
+    business_classification,  # noqa: ANN001 # Baseline
+    technology_name,  # noqa: ANN001 # Baseline
+    asset_type,  # noqa: ANN001 # Baseline
+    dsd_id,  # noqa: ANN001 # Baseline
+    dsd_name,  # noqa: ANN001 # Baseline
 ) -> bool:
     """
     Checks if at least one parameter is added and does an interrupt.
@@ -91,7 +91,6 @@ def _check_input_parameters(
         dsd_id,
         dsd_name,
     ):
-
         name_query = None
         name_query = trigger_interrupt_with_ui(
             "search_lineage_assets",
@@ -103,14 +102,14 @@ def _check_input_parameters(
     return False
 
 
-def _has_search_criteria(
+def _has_search_criteria(  # noqa: PLR0913 # Baseline
     name_query: str = "*",
-    is_operational: Optional[bool] = None,
-    tag: Optional[str] = None,
-    data_quality_operator: Optional[str] = None,
-    data_quality_value: Optional[float] = None,
-    business_term: Optional[str] = None,
-    business_classification: Optional[str] = None,
+    is_operational: Optional[bool] = None,  # noqa: UP045 # Baseline
+    tag: Optional[str] = None,  # noqa: UP045 # Baseline
+    data_quality_operator: Optional[str] = None,  # noqa: UP045 # Baseline
+    data_quality_value: Optional[float] = None,  # noqa: UP045 # Baseline
+    business_term: Optional[str] = None,  # noqa: UP045 # Baseline
+    business_classification: Optional[str] = None,  # noqa: UP045 # Baseline
     technology_name: str = "",
     asset_type: str = "",
     dsd_id: str = "",
@@ -118,7 +117,7 @@ def _has_search_criteria(
 ) -> bool:
     """
     Check if at least one search criterion was provided by the user.
-    
+
     This function determines whether the user has provided any meaningful search criteria
     beyond the defaults. It's used to prompt the user if they haven't specified what to search for.
 
@@ -159,14 +158,14 @@ def _has_search_criteria(
         return True
 
     # Check if any of the string parameters are not empty
-    if any([technology_name != "", asset_type != "", dsd_id != "", dsd_name != ""]):
+    if any([technology_name != "", asset_type != "", dsd_id != "", dsd_name != ""]):  # noqa: SIM103 # Baseline
         return True
 
     # If we get here, all parameters are at their default values
     return False
 
 
-def _create_asset_filter(name: str, values: list[str]):
+def _create_asset_filter(name: str, values: list[str]):  # noqa: ANN202 # Baseline
     """
     Creates asset filter entry.
 
@@ -180,7 +179,7 @@ def _create_asset_filter(name: str, values: list[str]):
     return {"type": name, "values": values}
 
 
-def _create_asset_filter_with_operator(name: str, values: list[str], operator: str):
+def _create_asset_filter_with_operator(name: str, values: list[str], operator: str):  # noqa: ANN202 # Baseline
     """
     Creates asset filter entry with operator.
 
@@ -195,7 +194,7 @@ def _create_asset_filter_with_operator(name: str, values: list[str], operator: s
     return {"type": name, "operator": operator, "values": values}
 
 
-async def _call_search_lineage_assets(
+async def _call_search_lineage_assets(  # noqa: PLR0913 # Baseline
     name_query: str,
     technology_names: list[str] | None,
     asset_types: list[str] | None,
@@ -206,8 +205,8 @@ async def _call_search_lineage_assets(
     business_classifications: list[str] | None,
     dsd_ids: list[str] | None,
     dsd_names: list[str] | None,
-    dates: list[str] | None
-) -> Dict[str, Any]:
+    dates: list[str] | None,
+) -> Dict[str, Any]:  # noqa: UP006 # Baseline
     """
     This function returns search lineage assets response.
 
@@ -253,8 +252,10 @@ async def _call_search_lineage_assets(
     if dsd_ids:
         filters.append(_create_asset_filter("data_source_definition_asset_id", dsd_ids))
     if dsd_names:
-        filters.append(_create_asset_filter("data_source_definition_asset_name", dsd_names))
-    
+        filters.append(
+            _create_asset_filter("data_source_definition_asset_name", dsd_names)
+        )
+
     payload = {
         "query": name_query,
         "filters": filters,
@@ -276,12 +277,15 @@ async def _call_search_lineage_assets(
             lambda: {
                 "lineage_assets": [],
                 "total_count": 0,
-                SERVICE_UNAVAILABLE_FLAG: True
-            }
+                SERVICE_UNAVAILABLE_FLAG: True,
+            },
         )
 
 
-async def _get_lineage_technology_type(technology_type: str, filters_not_found: Optional[List[str]]) -> str:
+async def _get_lineage_technology_type(
+    technology_type: str,
+    filters_not_found: Optional[List[str]],  # noqa: UP006, UP045 # Baseline
+) -> str:
     """
     Find technology type for filtering search_lineage_asset.
 
@@ -312,7 +316,7 @@ async def _get_lineage_technology_type(technology_type: str, filters_not_found: 
     if len(technology_types) == 0:
         raise ServiceError(
             f"Couldn't find any technology types with the name '{technology_type}'. No technology types available.",
-            remediation_steps="Verify if technology name does not contain typos or do not pass technology type"
+            remediation_steps="Verify if technology name does not contain typos or do not pass technology type",
         )
     """
     closest_technology = chat_llm_request(
@@ -339,7 +343,10 @@ async def _get_lineage_technology_type(technology_type: str, filters_not_found: 
     return ""
 
 
-async def _get_lineage_asset_type(asset_type: str, filters_not_found: Optional[List[str]]) -> str:
+async def _get_lineage_asset_type(
+    asset_type: str,
+    filters_not_found: Optional[List[str]],  # noqa: UP006, UP045 # Baseline
+) -> str:
     """
     Find asset type for filtering search_lineage_asset.
 
@@ -367,8 +374,10 @@ async def _get_lineage_asset_type(asset_type: str, filters_not_found: Optional[L
     asset_types = asset_types_list.get("lineage_asset_types", [])
 
     if len(asset_types) == 0:
-        raise ServiceError("Couldn't find any asset types to filter by",
-        remediation_steps="Pick another asset type or do not pass this value")
+        raise ServiceError(
+            "Couldn't find any asset types to filter by",
+            remediation_steps="Pick another asset type or do not pass this value",
+        )
 
     closest_name = get_close_matches(
         word=asset_type.lower(),
@@ -383,16 +392,16 @@ async def _get_lineage_asset_type(asset_type: str, filters_not_found: Optional[L
         # If we found a close match but couldn't find it in asset_types (shouldn't happen, but just in case)
         raise ServiceError(
             f"Found a close match for '{asset_type}' but couldn't retrieve the asset type details",
-            remediation_steps="Try to call this tool again"
+            remediation_steps="Try to call this tool again",
         )
-    else:
-        if filters_not_found is not None:
-            filters_not_found.append("asset_type")
-        return ""
+    if filters_not_found is not None:
+        filters_not_found.append("asset_type")
+    return ""
 
 
 def _get_business_terms_or_classifications_payload(
-    business: str, type: str
+    business: str,
+    type: str,  # noqa: A002 # Baseline
 ) -> dict[str, Any]:
     """
     Creates a payload for searching business terms or classifications.
@@ -419,7 +428,7 @@ def _get_business_terms_or_classifications_payload(
     return payload
 
 
-async def _get_business_terms_or_classifications(business: str, type: str) -> list[str]:
+async def _get_business_terms_or_classifications(business: str, type: str) -> list[str]:  # noqa: A002 # Baseline
     """
     Creates a list of business terms or classifications for a given business and type.
 
@@ -474,14 +483,18 @@ async def _get_business_terms_or_classifications(business: str, type: str) -> li
     return []
 
 
-def _check_quality_filter(data_quality_operator, data_quality_value, filter_not_found_list):
+def _check_quality_filter(  # noqa: ANN202 # Baseline
+    data_quality_operator,  # noqa: ANN001 # Baseline
+    data_quality_value,  # noqa: ANN001 # Baseline
+    filter_not_found_list,  # noqa: ANN001 # Baseline
+):
     """
     Validate that data quality filter parameters are consistent.
-    
+
     Both operator and value must be provided together, or neither should be provided.
     This is set by the model validator (search_lineage_assets.py) to work around
     MCP framework serialization of optional parameters.
-    
+
     Args:
         data_quality_operator: Comparison operator for quality score
         data_quality_value: Numerical value for quality score
@@ -490,13 +503,14 @@ def _check_quality_filter(data_quality_operator, data_quality_value, filter_not_
     if bool(data_quality_operator) ^ _has_quality_value(data_quality_value):
         filter_not_found_list.append("data_quality")
 
-def clean_str(val: Optional[str], default: str = "") -> str:
-        """Converts None or 'null' (case-insensitive) to a safe string."""
-        if val is None:
-            return default
-        if isinstance(val, str) and val.strip().lower() == "null":
-            return default
-        return val.strip()
+
+def clean_str(val: Optional[str], default: str = "") -> str:  # noqa: UP045 # Baseline
+    """Converts None or 'null' (case-insensitive) to a safe string."""
+    if val is None:
+        return default
+    if isinstance(val, str) and val.strip().lower() == "null":
+        return default
+    return val.strip()
 
 
 def _transform_lineage_assets(
@@ -517,8 +531,11 @@ def _transform_lineage_assets(
         parent_name = None
         parent_type = None
         path = None
-        if "hierarchical_path" in asset and asset["hierarchical_path"]:
-            path = "/".join(item.get("name", "") for item in reversed(asset["hierarchical_path"][1:]))    
+        if asset.get("hierarchical_path"):
+            path = "/".join(
+                item.get("name", "")
+                for item in reversed(asset["hierarchical_path"][1:])
+            )
             path = path.replace("|", "/")
             parent_data = asset["hierarchical_path"][-1]
             parent_name = parent_data.get("name")
@@ -556,44 +573,44 @@ def _handle_asset_selection_and_filters(
 ) -> list:
     """
     Handles UI table selector for asset selection and displays filter warnings.
-    
+
     Args:
         response_count: Total count of assets found
         lineage_assets_model: List of LineageAsset objects
         filter_not_found_list: List of filters that could not be applied
-    
+
     Returns:
         list: Selected assets if user made a selection, otherwise original list
     """
     end_lineage_list = lineage_assets_model
-    
+
     if response_count > 0:
         selected_assets = ui_message_context.send_table_selector_msg(
             tool_name="search_lineage_assets",
             data=lineage_assets_model,
             formatted_data=_format_lineage_assets_for_table(lineage_assets_model),
             title="Assets",
-            unique_keys=["Name", "Path"]
+            unique_keys=["Name", "Path"],
         )
         if selected_assets is not None:
             end_lineage_list = selected_assets
-    
+
     if filter_not_found_list:
         ui_message_context.add_text_ui_message(
             tool_name="search_lineage_assets",
-            text=f"We could not use filter(s): {', '.join(filter_not_found_list)}"
+            text=f"We could not use filter(s): {', '.join(filter_not_found_list)}",
         )
-    
+
     return end_lineage_list
 
 
 def _prepare_cleaned_parameters(request: SearchLineageAssetsRequest) -> dict:
     """
     Extract and clean all string parameters from the request.
-    
+
     Args:
         request: The search request containing parameters to clean
-        
+
     Returns:
         dict: Dictionary containing cleaned parameter values
     """
@@ -609,92 +626,100 @@ def _prepare_cleaned_parameters(request: SearchLineageAssetsRequest) -> dict:
     }
 
 
-def _validate_dates(dates: Optional[str]) -> Optional[list]:
+def _validate_dates(dates: Optional[str]) -> Optional[list]:  # noqa: UP045 # Baseline
     """
     Validate and verify the dates parameter.
-    
+
     Args:
         dates: Optional ISO 8601 dates string
-        
+
     Returns:
         Optional[list]: Verified dates list or None
-        
+
     Raises:
         ServiceError: If dates parameter doesn't contain exactly 2 dates
     """
     if not dates:
         return None
-    
+
     verified_dates = verify_dates(dates=dates)
-    if verified_dates and len(verified_dates) != 2:
+    if verified_dates and len(verified_dates) != 2:  # noqa: PLR2004 # Baseline
         raise ValidationError(
             f"dates parameter must contain exactly 2 ISO 8601 dates, got {len(verified_dates)} dates",
-            remediation_steps="Pass two dates with ISO-8601 format"
+            remediation_steps="Pass two dates with ISO-8601 format",
         )
     return verified_dates
 
 
 async def _prepare_search_filters(
-    request: SearchLineageAssetsRequest,
-    params: dict,
-    filter_not_found_list: list
+    request: SearchLineageAssetsRequest, params: dict, filter_not_found_list: list
 ) -> dict:
     """
     Prepare all search filters for the lineage assets search.
-    
+
     Args:
         request: The search request
         params: Cleaned parameters dictionary
         filter_not_found_list: List to collect filters that were not found
-        
+
     Returns:
         dict: Dictionary containing all prepared filters
     """
-    _check_quality_filter(params["data_quality_operator"], request.data_quality_value, filter_not_found_list)
+    _check_quality_filter(
+        params["data_quality_operator"],
+        request.data_quality_value,
+        filter_not_found_list,
+    )
 
     # Prepare data quality filter
     data_quality = None
-    if params["data_quality_operator"] and _has_quality_value(request.data_quality_value):
+    if params["data_quality_operator"] and _has_quality_value(
+        request.data_quality_value
+    ):
         data_quality = QualityScore(
             operator=params["data_quality_operator"],
             value=str(request.data_quality_value),
         )
-    
+
     # Prepare technology filter
     technology_filter = None
     if params["technology_name"]:
-        technology_filter = await _get_lineage_technology_type(params["technology_name"], filter_not_found_list)
-    
+        technology_filter = await _get_lineage_technology_type(
+            params["technology_name"], filter_not_found_list
+        )
+
     technology_names = [technology_filter] if technology_filter else None
-    
+
     # Prepare asset types filter
     asset_types = None
     if request.asset_type:
-        asset_type = await _get_lineage_asset_type(params["asset_type"], filter_not_found_list)
+        asset_type = await _get_lineage_asset_type(
+            params["asset_type"], filter_not_found_list
+        )
         asset_types = [asset_type]
-    
+
     # Prepare simple filters
     is_operational_list = [request.is_operational] if request.is_operational else None
     tag_list = [params["tag"]] if params["tag"] else None
-    
+
     # Prepare business terms filter
     business_terms = None
     if params["business_term"]:
         business_terms = await _get_business_terms_or_classifications(
             params["business_term"], "glossary_term"
         )
-    
+
     # Prepare business classifications filter
     business_classifications = None
     if params["business_classification"]:
         business_classifications = await _get_business_terms_or_classifications(
             params["business_classification"], "classification"
         )
-    
+
     # Prepare DSD filters
     dsd_ids = [params["dsd_id"]] if params["dsd_id"] else None
     dsd_names = [params["dsd_name"]] if params["dsd_name"] else None
-    
+
     return {
         "data_quality": data_quality,
         "technology_names": technology_names,
@@ -718,7 +743,7 @@ async def _search_lineage_assets(
 
     # Clean all string parameters
     params = _prepare_cleaned_parameters(request)
-    
+
     # Validate dates parameter
     verified_dates = _validate_dates(request.dates)
 
@@ -737,11 +762,11 @@ async def _search_lineage_assets(
         params["dsd_name"],
     ):
         return SearchLineageAssetsResponse(lineage_assets=[], response_is_complete=True)
-    
+
     # Prepare filters
     filter_not_found_list = []
     filters = await _prepare_search_filters(request, params, filter_not_found_list)
-    
+
     # Execute search
     response = await _call_search_lineage_assets(
         request.name_query,
@@ -754,28 +779,28 @@ async def _search_lineage_assets(
         filters["business_classifications"],
         filters["dsd_ids"],
         filters["dsd_names"],
-        verified_dates
+        verified_dates,
     )
-    
+
     # Check if service is unavailable (500 error)
     if response.get(SERVICE_UNAVAILABLE_FLAG):
         return SearchLineageAssetsResponse(
             lineage_assets=[],
             response_is_complete=True,
             success=False,
-            error=SERVICE_UNAVAILABLE_MESSAGE
+            error=SERVICE_UNAVAILABLE_MESSAGE,
         )
-    
+
     # Process results
     lineage_assets = response.get("lineage_assets", [])
     response_count = response.get("total_count", "")
     lineage_assets_model = _transform_lineage_assets(lineage_assets=lineage_assets)
-    response_is_complete = response_count <= 10
-    
+    response_is_complete = response_count <= 10  # noqa: PLR2004 # Baseline
+
     end_lineage_list = _handle_asset_selection_and_filters(
         response_count, lineage_assets_model, filter_not_found_list
     )
-    
+
     return SearchLineageAssetsResponse(
         lineage_assets=end_lineage_list, response_is_complete=response_is_complete
     )
@@ -785,7 +810,7 @@ async def _search_lineage_assets(
     name="search_lineage_assets",
     annotations={
         "readOnlyHint": True,
-        "title": "Search and Filter Lineage Assets by Multiple Criteria"
+        "title": "Search and Filter Lineage Assets by Multiple Criteria",
     },
     tags={"lineage"},
     description="""Use this tool when you need to search for assets in the Lineage system based on name and optional filters.
@@ -804,9 +829,11 @@ async def _search_lineage_assets(
     - Partial asset names or search patterns
     - Any non-hexadecimal identifier
     
-    This tool converts human-readable asset names into the 64-character hexadecimal
-    lineage IDs required by get_lineage_graph. Results include the lineage ID in the
-    'id' field of each asset.
+    This tool converts human-readable asset names into lineage IDs required by get_lineage_graph.
+    Two ID formats may be returned depending on the deployment:
+    - 64-character hexadecimal string (legacy CPD format)
+    - UUID format (SaaS format), e.g. "ffffffff-bbbb-dddd-cccc-aaaaaaaaaaaa"
+    Results include the lineage ID in the 'id' field of each asset.
     User can ask to compare the state of the asset between two versions returned by list_lineage_versions - use
     the dates fields then. Otherwise the dates field should be none.
     
@@ -816,7 +843,7 @@ async def _search_lineage_assets(
     
     Returns: Search results containing:
             - lineage_assets: List of matching assets with properties:
-                * id: **64-character hexadecimal lineage ID** (use this for get_lineage_graph)
+                * id: **lineage ID** (use this for get_lineage_graph — either 64-char hex or UUID format)
                 * name: Display name of the asset
                 * type: Asset type classification
                 * tags: Associated tags
@@ -836,22 +863,71 @@ async def _search_lineage_assets(
         - Apply filters only when explicitly mentioned by the user
         - **Extract the 'id' field from results to use with get_lineage_graph**
         - If user wants related assets call get_lineage_graph after this tool
-    """,
+    """,  # noqa: W293 # Baseline
 )
 @auto_context
-async def search_lineage_assets(
-    name_query: Annotated[str, Field(description="Search pattern for asset names. Use '*' to match all assets. Exact matches are prioritized over partial matches")],
-    is_operational: Annotated[Optional[bool], Field(description="Filter for operational asset types only. Default: False")] = None,
-    tag: Annotated[Optional[str], Field(description="Filter assets by specific tag")] = None,
-    data_quality_operator: Annotated[Optional[str], Field(description="Comparison operator for data quality score ('equals', 'greater_than', 'greater_than_or_equal', 'less_than', 'less_than_or_equal')")] = None,
-    data_quality_value: Annotated[Optional[float], Field(description="Numerical threshold for data quality filtering (valid range: 0.0-100.0). Used with data_quality_operator. Note: The internal sentinel value -0.01 is reserved and automatically set when no value is provided")] = None,
-    business_term: Annotated[Optional[str], Field(description="Filter by business glossary term")] = None,
-    business_classification: Annotated[Optional[str], Field(description="Filter by business classification")] = None,
-    technology_name: Annotated[Optional[str], Field(description="Filter by technology name (e.g., 'PostgreSQL'). Only use when explicitly specified by user")] = None,
-    asset_type: Annotated[Optional[str], Field(description="Filter by asset type (e.g., 'Table', 'Column'). Only use when explicitly specified by user")] = None,
-    dsd_id: Annotated[Optional[str], Field(description="Filter by Data Source Definition ID. Only use when explicitly specified by user")] = None,
-    dsd_name: Annotated[Optional[str], Field(description="Filter by Data Source Definition name. Only use when explicitly specified by user")] = None,
-    dates: Annotated[Optional[str], Field(description="ISO 8601 dates to validate if assets were available in that version. Used when comparing versions")] = None,
+async def search_lineage_assets(  # noqa: PLR0913 # Baseline
+    name_query: Annotated[
+        str,
+        Field(
+            description="Search pattern for asset names. Use '*' to match all assets. Exact matches are prioritized over partial matches"
+        ),
+    ],
+    is_operational: Annotated[
+        Optional[bool],  # noqa: UP045 # Baseline
+        Field(description="Filter for operational asset types only. Default: False"),
+    ] = None,
+    tag: Annotated[
+        Optional[str], Field(description="Filter assets by specific tag")  # noqa: UP045 # Baseline
+    ] = None,
+    data_quality_operator: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Comparison operator for data quality score ('equals', 'greater_than', 'greater_than_or_equal', 'less_than', 'less_than_or_equal')"
+        ),
+    ] = None,
+    data_quality_value: Annotated[
+        Optional[float],  # noqa: UP045 # Baseline
+        Field(
+            description="Numerical threshold for data quality filtering (valid range: 0.0-100.0). Used with data_quality_operator. Note: The internal sentinel value -0.01 is reserved and automatically set when no value is provided"
+        ),
+    ] = None,
+    business_term: Annotated[
+        Optional[str], Field(description="Filter by business glossary term")  # noqa: UP045 # Baseline
+    ] = None,
+    business_classification: Annotated[
+        Optional[str], Field(description="Filter by business classification")  # noqa: UP045 # Baseline
+    ] = None,
+    technology_name: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Filter by technology name (e.g., 'PostgreSQL'). Only use when explicitly specified by user"
+        ),
+    ] = None,
+    asset_type: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Filter by asset type (e.g., 'Table', 'Column'). Only use when explicitly specified by user"
+        ),
+    ] = None,
+    dsd_id: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Filter by Data Source Definition ID. Only use when explicitly specified by user"
+        ),
+    ] = None,
+    dsd_name: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Filter by Data Source Definition name. Only use when explicitly specified by user"
+        ),
+    ] = None,
+    dates: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="ISO 8601 dates to validate if assets were available in that version. Used when comparing versions"
+        ),
+    ] = None,
 ) -> SearchLineageAssetsResponse:
     """Wrapper for search_lineage_assets."""
 
@@ -867,7 +943,7 @@ async def search_lineage_assets(
         asset_type=asset_type,
         dsd_id=dsd_id,
         dsd_name=dsd_name,
-        dates=dates
+        dates=dates,
     )
 
     # Call the original search_lineage_assets function

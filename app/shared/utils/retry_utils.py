@@ -2,24 +2,25 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-import asyncio
+import asyncio  # noqa: I001 # Baseline
 from functools import wraps
-from typing import Optional, Tuple, Type, Callable
+from typing import Optional, Tuple, Type, Callable  # noqa: UP035 # Baseline
 
 from app.shared.logging import LOGGER
 from botocore.exceptions import ClientError
 
+
 def _should_retry_exception(
     exception: Exception,
-    retry_condition: Optional[Callable[[Exception], bool]]
+    retry_condition: Optional[Callable[[Exception], bool]],  # noqa: UP045 # Baseline
 ) -> bool:
     """
     Determine if an exception should trigger a retry.
-    
+
     Args:
         exception: The exception that was raised
         retry_condition: Optional callable to check if retry should occur
-        
+
     Returns:
         True if the exception should be retried, False otherwise
     """
@@ -31,11 +32,11 @@ async def _handle_retry_attempt(
     attempt: int,
     total_attempts: int,
     exception: Exception,
-    backoff_factor: float
+    backoff_factor: float,
 ) -> None:
     """
     Handle logging and delay for a retry attempt.
-    
+
     Args:
         label: Context label for logging
         attempt: Current attempt number (0-indexed)
@@ -44,24 +45,22 @@ async def _handle_retry_attempt(
         backoff_factor: Base for exponential backoff calculation
     """
     if attempt < total_attempts - 1:
-        delay = backoff_factor ** attempt
+        delay = backoff_factor**attempt
         LOGGER.warning(
             f"[{label}] Attempt {attempt + 1}/{total_attempts} failed: {exception}. "
             f"Retrying in {delay}s..."
         )
         await asyncio.sleep(delay)
     else:
-        LOGGER.error(
-            f"[{label}] All {total_attempts} attempts failed: {exception}"
-        )
+        LOGGER.error(f"[{label}] All {total_attempts} attempts failed: {exception}")
 
 
-def retry_on_failure(
+def retry_on_failure(  # noqa: ANN201 # Baseline
     max_retries: int,
     backoff_factor: float,
-    exceptions: Tuple[Type[Exception], ...] = (Exception,),
-    context_label: Optional[str] = None,
-    retry_condition: Optional[Callable[[Exception], bool]] = None,
+    exceptions: Tuple[Type[Exception], ...] = (Exception,),  # noqa: UP006 # Baseline
+    context_label: Optional[str] = None,  # noqa: UP045 # Baseline
+    retry_condition: Optional[Callable[[Exception], bool]] = None,  # noqa: UP045 # Baseline
 ):
     """
     Async decorator to retry a coroutine on failure with exponential backoff.
@@ -77,30 +76,36 @@ def retry_on_failure(
                         If None, all exceptions in the exceptions tuple will be retried.
                         Example: lambda e: hasattr(e, 'response') and e.response.status_code == 429
     """
-    def decorator(func):
+
+    def decorator(func):  # noqa: ANN001, ANN202 # Baseline
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202 # Baseline
             label = context_label if context_label is not None else func.__name__
-            last_exception: Optional[Exception] = None
+            last_exception: Optional[Exception] = None  # noqa: UP045 # Baseline
             total_attempts = max_retries + 1
-            
+
             for attempt in range(total_attempts):
                 try:
                     return await func(*args, **kwargs)
                 except exceptions as e:
                     if not _should_retry_exception(e, retry_condition):
                         raise
-                    
+
                     last_exception = e
-                    await _handle_retry_attempt(label, attempt, total_attempts, e, backoff_factor)
-            
+                    await _handle_retry_attempt(
+                        label, attempt, total_attempts, e, backoff_factor
+                    )
+
             if last_exception is not None:
                 raise last_exception
             raise RuntimeError(f"[{label}] retry_on_failure called with max_retries=0")
+
         return wrapper
+
     return decorator
 
-def retry_on_expired_aws_token(func):
+
+def retry_on_expired_aws_token(func):  # noqa: ANN001, ANN201 # Baseline
     """
     Async decorator to retry a coroutine on expiry of AWS Token.
 
@@ -109,17 +114,20 @@ def retry_on_expired_aws_token(func):
 
     Args:
     """
+
     @wraps(func)
-    async def wrapper(self, *args, **kwargs):
-                   
+    async def wrapper(self, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003, ANN202 # Baseline
+
         try:
             return await func(self, *args, **kwargs)
 
         except ClientError as e:
-            error_code = e.response.get('Error', {}).get('Code', '')
+            error_code = e.response.get("Error", {}).get("Code", "")
 
-            if error_code == 'ExpiredToken':
-                LOGGER.warning(f"{func.__name__} failed with ExpiredToken, refreshing token...")
+            if error_code == "ExpiredToken":
+                LOGGER.warning(
+                    f"{func.__name__} failed with ExpiredToken, refreshing token..."
+                )
 
                 if await self.refresh_credentials():
                     return await func(self, *args, **kwargs)

@@ -2,10 +2,10 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-import json
+import json  # noqa: I001 # Baseline
 import asyncio
 import ipaddress
-from typing import Literal, Optional, List, Any
+from typing import Literal, Optional, List, Any  # noqa: UP035 # Baseline
 from urllib.parse import urlparse
 from app.services.constants import (
     CONNECTIONS_BASE_ENDPOINT,
@@ -21,11 +21,18 @@ from app.services.constants import (
     USER_PROFILES_BASE_ENDPOINT,
     FIELD_PREFERENCES,
 )
-from app.services.metadata_enrichment.models.metadata_enrichment import MetadataImportResponse
-from app.services.search.models import container
+from app.services.metadata_enrichment.models.metadata_enrichment import (
+    MetadataImportResponse,
+)
+from app.services.search.models import container  # noqa: F401 # Baseline
 from app.shared.exceptions.base import ServiceError
 from app.shared.logging import LOGGER
-from app.shared.utils.helpers import get_closest_match, get_project_or_space_type_based_on_context, append_context_to_url, is_uuid
+from app.shared.utils.helpers import (
+    get_closest_match,
+    get_project_or_space_type_based_on_context,
+    append_context_to_url,
+    is_uuid,
+)
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.core.auth import get_bss_account_id, get_user_identifier
 from app.core.settings import settings, ENV_MODE_CPD
@@ -43,6 +50,7 @@ RESPONSE_TYPE_DF = "df"
 RESPONSE_TYPE_CPDAAS = "cpdaas"
 RESPONSE_CONTEXT_ICP4DATA = "icp4data"
 
+
 async def find_project_id(project_name: str) -> str:
     """
     Find id of project based on project name.
@@ -54,10 +62,7 @@ async def find_project_id(project_name: str) -> str:
         uuid.UUID: Unique identifier of the project.
     """
 
-    params = {
-        "limit": 100,
-        "bss_account_id": await get_bss_account_id()
-    }
+    params = {"limit": 100, "bss_account_id": await get_bss_account_id()}
 
     response = await tool_helper_service.execute_get_request(
         url=str(tool_helper_service.base_url) + PROJECTS_BASE_ENDPOINT,
@@ -71,37 +76,59 @@ async def find_project_id(project_name: str) -> str:
     result_id = get_closest_match(projects, project_name)
     if result_id:
         return result_id
-    else:
-        raise ServiceError(
-            f"find_project_id failed to find any projects with the name '{project_name}'"
-        )
+    raise ServiceError(
+        f"find_project_id failed to find any projects with the name '{project_name}'"
+    )
+
+
+async def find_project_name(project_id: str) -> str:
+    """
+    Find the name of a project based on its ID.
+
+    Args:
+        project_id (str): The UUID of the project.
+
+    Returns:
+        str: The name of the project, or the original project_id if not found.
+    """
+    response = await tool_helper_service.execute_get_request(
+        url=str(tool_helper_service.base_url)
+        + PROJECTS_BASE_ENDPOINT
+        + "/"
+        + project_id,
+    )
+
+    return response.get("entity", {}).get("name", project_id)
+
 
 async def find_project_or_catalog_id(container_name: str) -> str:
     """Find container id by searching projects first, then catalogs.
-    
+
     Args:
         container_name: Name of the container to find.
-        
+
     Returns:
         The container id (either project or catalog).
-        
+
     Raises:
         ServiceError: If container is not found in projects or catalogs.
     """
     try:
         return await find_project_id(project_name=container_name)
-         
+
     except Exception:
         try:
             container_id = await find_catalog_id(catalog_name=container_name)
             return container_id
         except Exception:
-            raise ServiceError(
-            f"_find_project_or_catalog_id failed to find neither project nor catalog with the name '{container_name}'"
-        )
+            raise ServiceError(  # noqa: B904 # Baseline
+                f"_find_project_or_catalog_id failed to find neither project nor catalog with the name '{container_name}'"
+            )
 
 
-async def find_connection_id(connection_name: str, container_id: str, container_type: str) -> str:
+async def find_connection_id(
+    connection_name: str, container_id: str, container_type: str
+) -> str:
     """
     Find id of connection based on connection name.
 
@@ -131,15 +158,15 @@ async def find_connection_id(connection_name: str, container_id: str, container_
     result_id = get_closest_match(connections, connection_name)
     if result_id:
         return result_id
-    else:
-        raise ServiceError(
-            f"find_connection_id failed to find any connections with the name '{connection_name}'"
-        )
+    raise ServiceError(
+        f"find_connection_id failed to find any connections with the name '{connection_name}'"
+    )
 
-async def is_project_exist(project_identifier: str):
+
+async def is_project_exist(project_identifier: str):  # noqa: ANN201 # Baseline
     """
     Check if a project exists by ID or name.
-    
+
     This unified function handles both project ID and name lookups efficiently
     by fetching the project list once and checking both criteria.
 
@@ -151,33 +178,29 @@ async def is_project_exist(project_identifier: str):
             - bool: True if project exists, False otherwise
             - str: Project type (e.g., 'df', 'cpdaas', 'wx') if found, empty string otherwise
             - str: Project ID if found, empty string otherwise
-    
+
     Examples:
         >>> await is_project_exist("my-project-name")
         (True, "df", "abc-123-def-456")
-        
+
         >>> await is_project_exist("abc-123-def-456")
         (True, "df", "abc-123-def-456")
-        
+
         >>> await is_project_exist("non-existent")
         (False, "", "")
     """
 
-    params = {
-        "limit": 100,
-        "auth_cache": True
-    }
+    params = {"limit": 100, "auth_cache": True}
 
     response = await tool_helper_service.execute_get_request(
-        url=str(tool_helper_service.base_url) + PROJECTS_BASE_ENDPOINT,
-        params=params
+        url=str(tool_helper_service.base_url) + PROJECTS_BASE_ENDPOINT, params=params
     )
 
     projects = [
         {
             "name": project["entity"]["name"],
             "type": project["entity"]["type"],
-            "id": project["metadata"]["guid"]
+            "id": project["metadata"]["guid"],
         }
         for project in response.get("resources", [])
     ]
@@ -186,15 +209,15 @@ async def is_project_exist(project_identifier: str):
     for project in projects:
         if project["id"] == project_identifier or project["name"] == project_identifier:
             return True, project["type"], project["id"]
-        
+
     return False, "", ""
 
 
 # Backward compatibility wrappers
-async def is_project_exist_by_name(project_name: str):
+async def is_project_exist_by_name(project_name: str):  # noqa: ANN201 # Baseline
     """
     Check if a project exists by name (backward compatibility wrapper).
-    
+
     This function maintains backward compatibility with existing code while
     delegating to the unified is_project_exist function.
 
@@ -207,10 +230,10 @@ async def is_project_exist_by_name(project_name: str):
     return await is_project_exist(project_name)
 
 
-async def is_project_exist_by_id(project_id: str):
+async def is_project_exist_by_id(project_id: str):  # noqa: ANN201 # Baseline
     """
     Check if a project exists by ID (backward compatibility wrapper).
-    
+
     This function maintains backward compatibility with existing code while
     delegating to the unified is_project_exist function.
 
@@ -222,6 +245,7 @@ async def is_project_exist_by_id(project_id: str):
     """
     exists, _, _ = await is_project_exist(project_id)
     return exists
+
 
 async def find_catalog_id(catalog_name: str) -> str:
     """
@@ -237,8 +261,7 @@ async def find_catalog_id(catalog_name: str) -> str:
     params = {"limit": 1, "name": catalog_name}
 
     response = await tool_helper_service.execute_get_request(
-        url=str(tool_helper_service.base_url) + CATALOGS_BASE_ENDPOINT,
-        params=params
+        url=str(tool_helper_service.base_url) + CATALOGS_BASE_ENDPOINT, params=params
     )
 
     result_id = None
@@ -247,37 +270,37 @@ async def find_catalog_id(catalog_name: str) -> str:
 
     if result_id:
         return result_id
-    else:
-        raise ServiceError(
-            f"find_catalog_id failed to find any catalog with the name '{catalog_name}'"
-        )
+    raise ServiceError(
+        f"find_catalog_id failed to find any catalog with the name '{catalog_name}'"
+    )
+
 
 def build_container_members_url(
     container_id: str,
     container_type: Literal["project", "catalog"],
-    member_id: Optional[str] = None
+    member_id: Optional[str] = None,  # noqa: UP045 # Baseline
 ) -> str:
     """
     Build URL for container members endpoints (projects or catalogs).
-    
+
     Constructs URLs for accessing or modifying members in projects or catalogs.
     Supports both base members endpoint and member-specific operations.
-    
+
     Args:
         container_id: The UUID of the container (project or catalog)
         container_type: Type of container ('project' or 'catalog')
         member_id: Optional member ID for member-specific operations
-        
+
     Returns:
         str: Complete URL for the members endpoint
-        
+
     Examples:
         >>> build_container_members_url("abc-123", "project")
         "https://api.example.com/v2/projects/abc-123/members"
-        
+
         >>> build_container_members_url("xyz-789", "catalog", "user-456")
         "https://api.example.com/v2/catalogs/xyz-789/members/user-456"
-        
+
     Raises:
         ValueError: If container_type is not 'project' or 'catalog'
     """
@@ -286,24 +309,29 @@ def build_container_members_url(
             f"Invalid container_type '{container_type}'. "
             f"Must be either 'project' or 'catalog'."
         )
-    
+
     # Select appropriate base endpoint
-    base_endpoint = PROJECTS_BASE_ENDPOINT if container_type == "project" else CATALOGS_BASE_ENDPOINT
-    
+    base_endpoint = (
+        PROJECTS_BASE_ENDPOINT
+        if container_type == "project"
+        else CATALOGS_BASE_ENDPOINT
+    )
+
     # Build URL with optional member_id
     url = f"{tool_helper_service.base_url}{base_endpoint}/{container_id}/members"
     if member_id:
         url = f"{url}/{member_id}"
-    
+
     return url
+
 
 async def is_catalog_exist_by_id(catalog_id: str) -> bool:
     """
     Check if a catalog exists by its ID.
-    
+
     Args:
         catalog_id (str): The UUID of the catalog to check.
-        
+
     Returns:
         bool: True if the catalog exists, False otherwise.
     """
@@ -318,10 +346,10 @@ async def is_catalog_exist_by_id(catalog_id: str) -> bool:
 async def is_catalog_exist_by_name(catalog_name: str) -> tuple[bool, str, str]:
     """
     Check if a catalog exists by its name.
-    
+
     Args:
         catalog_name (str): The name of the catalog to check.
-        
+
     Returns:
         tuple[bool, str, str]: A tuple containing:
             - bool: True if the catalog exists, False otherwise
@@ -345,44 +373,44 @@ async def get_platform_assets_catalog_id() -> str:
     """
 
     response = await tool_helper_service.execute_get_request(
-        url=str(tool_helper_service.base_url) + CATALOGS_BASE_ENDPOINT + "/ibm-global-catalog"
+        url=str(tool_helper_service.base_url)
+        + CATALOGS_BASE_ENDPOINT
+        + "/ibm-global-catalog"
     )
 
     result_id = response.get("metadata", {}).get("guid", None)
 
     if result_id:
         return result_id
-    else:
-        raise ServiceError(
-            "get_platform_assets_catalog_id failed to find the platform assets catalog"
-        )
+    raise ServiceError(
+        "get_platform_assets_catalog_id failed to find the platform assets catalog"
+    )
+
 
 def get_response_context(project_type: str) -> str:
     if settings.di_env_mode.upper() == ENV_MODE_CPD:
         return RESPONSE_CONTEXT_ICP4DATA
-    else:
-        return (
-            RESPONSE_TYPE_CPDAAS
-            if project_type == PROJECT_TYPE_CPD
-            else RESPONSE_TYPE_DF
-        )
+    return (
+        RESPONSE_TYPE_CPDAAS if project_type == PROJECT_TYPE_CPD else RESPONSE_TYPE_DF
+    )
 
-def _build_container_from_response(
+
+def _build_container_from_response(  # noqa: ANN202 # Baseline
     response: dict, container_type: str, id_field: str = "guid"
 ):
     """
     Build a Container object from API response.
-    
+
     Args:
         response: API response dictionary
         container_type: Type of container ("project", "catalog", "space")
         id_field: Field name for ID in metadata ("guid" or "id")
-        
+
     Returns:
         Container object
     """
     from app.services.search.models.container import Container, ContainerType
-    
+
     container_id = response.get("metadata", {}).get(id_field, "")
     name = response.get("entity", {}).get("name", "")
     project_type = response.get("entity", {}).get("type", "")
@@ -391,131 +419,110 @@ def _build_container_from_response(
         context = get_response_context(project_type)
         url = append_context_to_url(
             f"{tool_helper_service.ui_base_url}/projects/{container_id}/overview",
-            context
+            context,
         )
         return Container(
-            id=container_id,
-            name=name,
-            type=ContainerType.PROJECT,
-            url=url
+            id=container_id, name=name, type=ContainerType.PROJECT, url=url
         )
-    elif container_type == "space":
+    if container_type == "space":
         url = append_context_to_url(
             f"{tool_helper_service.ui_base_url}/ml-runtime/spaces/{container_id}",
-            settings.di_context
+            settings.di_context,
         )
-        return Container(
-            id=container_id,
-            name=name,
-            type=ContainerType.SPACE,
-            url=url
-        )
-    else:  # catalog
-        url = append_context_to_url(
-            f"{tool_helper_service.ui_base_url}/data/catalogs/{container_id}",
-            settings.di_context
-        )
-        return Container(
-            id=container_id,
-            name=name,
-            type=ContainerType.CATALOG,
-            url=url
-        )
+        return Container(id=container_id, name=name, type=ContainerType.SPACE, url=url)
+    # catalog
+    url = append_context_to_url(
+        f"{tool_helper_service.ui_base_url}/data/catalogs/{container_id}",
+        settings.di_context,
+    )
+    return Container(id=container_id, name=name, type=ContainerType.CATALOG, url=url)
 
 
-async def find_asset_container_by_id(
-    container_id: str, container_type: str
-):
+async def find_asset_container_by_id(container_id: str, container_type: str):  # noqa: ANN201 # Baseline
     """
     Find container based on its id.
-    
+
     Args:
         container_id: The ID of the container
         container_type: The type of the container - "project", "catalog", or "space"
-        
+
     Returns:
         Container object with the given id
-        
+
     Raises:
         ServiceError: If the container is not found
     """
     if container_type == "project":
-        params = {
-            "bss_account_id": await get_bss_account_id(),
-            "auth_cache": True
-        }
+        params = {"bss_account_id": await get_bss_account_id(), "auth_cache": True}
         project_type = get_project_or_space_type_based_on_context()
         if project_type:
             params["type"] = project_type
-            
+
         response = await tool_helper_service.execute_get_request(
             url=f"{tool_helper_service.base_url}{PROJECTS_BASE_ENDPOINT}/{container_id}",
             params=params,
         )
         return _build_container_from_response(response, container_type, "guid")
-        
-    elif container_type == "space":
+
+    if container_type == "space":
         response = await tool_helper_service.execute_get_request(
             url=f"{tool_helper_service.base_url}{SPACES_BASE_ENDPOINT}/{container_id}",
         )
         return _build_container_from_response(response, container_type, "id")
-        
-    else:  # catalog or default
-        response = await tool_helper_service.execute_get_request(
-            url=f"{tool_helper_service.base_url}{CATALOGS_BASE_ENDPOINT}/{container_id}",
-        )
-        return _build_container_from_response(response, container_type, "guid")
+
+    # catalog or default
+    response = await tool_helper_service.execute_get_request(
+        url=f"{tool_helper_service.base_url}{CATALOGS_BASE_ENDPOINT}/{container_id}",
+    )
+    return _build_container_from_response(response, container_type, "guid")
 
 
-async def find_asset_container_by_name(
-    container_name: str, container_type: str
-):
+async def find_asset_container_by_name(container_name: str, container_type: str):  # noqa: ANN201 # Baseline
     """
     Find container based on its name using fuzzy matching.
-    
+
     Args:
         container_name: The name of the container
         container_type: The type of the container - "project", "catalog", or "space"
-        
+
     Returns:
         Container object with the given name
-        
+
     Raises:
         ServiceError: If the container is not found
     """
     # Import here to avoid circular dependency
-    from app.services.search.tools.list_containers import _list_asset_containers
+    from app.services.search.tools.list_containers import _list_asset_containers  # noqa: I001 # Baseline
     from app.services.search.models.container import ContainerType
-    
+
     # Convert string to ContainerType enum
     container_type_enum = ContainerType(container_type)
     containers = await _list_asset_containers(container_type_enum)
-    
+
     if not containers:
         raise ServiceError(f"No {container_type}s found")
-    
+
     # Create list of name-id pairs for fuzzy matching
     containers_names_ids = [
-        {"name": container.name, "id": container.id} for container in containers
+        {"name": container.name, "id": container.id}
+        for container in containers  # noqa: F811 # Baseline
     ]
-    
+
     # Find closest match
     result_id = get_closest_match(containers_names_ids, container_name)
-    
+
     if result_id:
         # Return the matching container
         for container in containers:
             if container.id == result_id:
                 return container
-    
+
     raise ServiceError(
         f"Couldn't find any {container_type} with the name '{container_name}'"
     )
 
 
-async def find_asset_id(
-    asset_name: str, container_id: str, container_type: str
-) -> str:
+async def find_asset_id(asset_name: str, container_id: str, container_type: str) -> str:
     """
     Find id of asset based on asset name.
 
@@ -534,7 +541,9 @@ async def find_asset_id(
     payload = {"query": "*:*"}
 
     response = await tool_helper_service.execute_post_request(
-        url=str(tool_helper_service.base_url) + ASSET_TYPE_BASE_ENDPOINT + "/asset/search",
+        url=str(tool_helper_service.base_url)
+        + ASSET_TYPE_BASE_ENDPOINT
+        + "/asset/search",
         params=params,
         json=payload,
     )
@@ -549,10 +558,10 @@ async def find_asset_id(
 
     if result_id:
         return result_id
-    else:
-        raise ServiceError(
-            f"find_asset_id failed to find any asset with the name '{asset_name}'"
-        )
+    raise ServiceError(
+        f"find_asset_id failed to find any asset with the name '{asset_name}'"
+    )
+
 
 async def find_datasource_type_asset_id(datasource_type: str) -> str:
     """
@@ -582,13 +591,13 @@ async def find_datasource_type_asset_id(datasource_type: str) -> str:
         "actions": False,
         "generate_transitive_conditions": False,
         "show_data_source_definitions_only": False,
-        "show_data_source_definition_section": False
+        "show_data_source_definition_section": False,
     }
 
     response = await tool_helper_service.execute_get_request(
         url=str(tool_helper_service.base_url) + DATASOURCE_TYPES_BASE_ENDPOINT,
         headers=headers,
-        params=params
+        params=params,
     )
 
     total_types = response.get("total_count") or 0
@@ -596,24 +605,30 @@ async def find_datasource_type_asset_id(datasource_type: str) -> str:
     datasource_type = datasource_type.lower()
 
     while True:
-        for resource in response.get('resources', []):
-            datasource_type_name = resource['entity']['name'].lower()
-            datasource_type_label = resource['entity']['label'].lower()
-            if datasource_type == datasource_type_name or datasource_type == datasource_type_label:
-                return resource['metadata']['asset_id']
+        for resource in response.get("resources", []):
+            datasource_type_name = resource["entity"]["name"].lower()
+            datasource_type_label = resource["entity"]["label"].lower()
+            if (
+                datasource_type == datasource_type_name  # noqa: PLR1714, SIM109 # Baseline
+                or datasource_type == datasource_type_label
+            ):
+                return resource["metadata"]["asset_id"]
         offset += 100
-        if offset >= total_types:   # no more pages, stop before making an invalid request
+        if (
+            offset >= total_types
+        ):  # no more pages, stop before making an invalid request
             break
         params["offset"] = offset
         response = await tool_helper_service.execute_get_request(
-            url=str(tool_helper_service.base_url) + DATASOURCE_TYPES_BASE_ENDPOINT, 
+            url=str(tool_helper_service.base_url) + DATASOURCE_TYPES_BASE_ENDPOINT,
             headers=headers,
-            params=params
+            params=params,
         )
 
     raise ServiceError(
         f"find_datasource_type_asset_id failed to find any datasource type with the name '{datasource_type}'"
     )
+
 
 async def get_datasource_type_name(datasource_type_id: str) -> str:
     """
@@ -634,10 +649,10 @@ async def get_datasource_type_name(datasource_type_id: str) -> str:
     }
     params = {
         "generate_transitive_conditions": False,
-        "show_data_source_definition_section": False
+        "show_data_source_definition_section": False,
     }
     response = await tool_helper_service.execute_get_request(
-        url=f'{str(tool_helper_service.base_url)}{DATASOURCE_TYPES_BASE_ENDPOINT}/{datasource_type_id}',
+        url=f"{tool_helper_service.base_url!s}{DATASOURCE_TYPES_BASE_ENDPOINT}/{datasource_type_id}",
         headers=headers,
         params=params,
     )
@@ -646,10 +661,9 @@ async def get_datasource_type_name(datasource_type_id: str) -> str:
 
     if result:
         return result
-    else:
-        raise ServiceError(
-            f"get_datasource_type_name failed to find any datasource type with id '{datasource_type_id}'"
-        )
+    raise ServiceError(
+        f"get_datasource_type_name failed to find any datasource type with id '{datasource_type_id}'"
+    )
 
 
 async def find_metadata_enrichment_id(
@@ -689,15 +703,12 @@ async def find_metadata_enrichment_id(
 
     if result_id:
         return result_id
-    else:
-        raise ServiceError(
-            f"The metadata enrichment asset was not found with the name:'{metadata_enrichment_name}'"
-        )
+    raise ServiceError(
+        f"The metadata enrichment asset was not found with the name:'{metadata_enrichment_name}'"
+    )
 
 
-async def find_metadata_import_id(
-    metadata_import_name: str, project_id: str
-) -> str:
+async def find_metadata_import_id(metadata_import_name: str, project_id: str) -> str:
     """
     Find ID of metadata import based on metadata import name.
 
@@ -713,15 +724,12 @@ async def find_metadata_import_id(
     """
 
     post_url = (
-        str(tool_helper_service.base_url) + ASSET_TYPE_BASE_ENDPOINT + "/metadata_import/search"
+        str(tool_helper_service.base_url)
+        + ASSET_TYPE_BASE_ENDPOINT
+        + "/metadata_import/search"
     )
-    query_params = {
-        "project_id": project_id
-    }
-    payload = {
-        "query": f"asset.name:{metadata_import_name}",
-        "limit": 10
-    }
+    query_params = {"project_id": project_id}
+    payload = {"query": f"asset.name:{metadata_import_name}", "limit": 10}
     response = await tool_helper_service.execute_post_request(
         url=post_url,
         params=query_params,
@@ -737,15 +745,15 @@ async def find_metadata_import_id(
 
     if result_id:
         return result_id
-    else:
-        raise ServiceError(
-            f"The metadata import asset was not found with the name: '{metadata_import_name}'"
-        )
+    raise ServiceError(
+        f"The metadata import asset was not found with the name: '{metadata_import_name}'"
+    )
+
 
 async def find_all_available_metadata_import(
     project_id: str,
-    metadata_import_name: Optional[str] = None
-) -> List[MetadataImportResponse]:
+    metadata_import_name: Optional[str] = None,  # noqa: UP045 # Baseline
+) -> List[MetadataImportResponse]:  # noqa: UP006 # Baseline
     """
     Find metadata import based on metadata import name, if not provided, return all available metadata.
 
@@ -758,21 +766,16 @@ async def find_all_available_metadata_import(
     """
 
     post_url = (
-        str(tool_helper_service.base_url) + ASSET_TYPE_BASE_ENDPOINT + "/metadata_import/search"
+        str(tool_helper_service.base_url)
+        + ASSET_TYPE_BASE_ENDPOINT
+        + "/metadata_import/search"
     )
-    query_params = {
-        "project_id": project_id
-    }
+    query_params = {"project_id": project_id}
     payload_query = "*:*"
     if metadata_import_name:
         payload_query = f"asset.name:/.*{metadata_import_name}.*/"
-    payload = {
-        "query": payload_query,
-        "limit": 10
-    }
-    LOGGER.info(
-        f"search query payload: {payload}"
-    )
+    payload = {"query": payload_query, "limit": 10}
+    LOGGER.info(f"search query payload: {payload}")
     response = await tool_helper_service.execute_post_request(
         url=post_url,
         params=query_params,
@@ -784,7 +787,7 @@ async def find_all_available_metadata_import(
     return list(map(_map_metadata_import, available_mdi)) if available_mdi else []
 
 
-async def find_asset_id_exact_match(
+async def find_asset_id_exact_match(  # noqa: PLR0913 # Baseline
     asset_name: str,
     container_id: str,
     container_type: Literal["catalog", "project"] = "project",
@@ -813,12 +816,12 @@ async def find_asset_id_exact_match(
         query_container = ENTITY_ASSETS_CATALOG_ID
     else:
         query_container = ENTITY_ASSETS_PROJECT_ID
-    
+
     query_params = {
         "query": f"metadata.name:{asset_name} AND {query_container}:{container_id} AND {METADATA_ARTIFACT_TYPE}:{artifact_type}",
         "tenant_scope": True,
     }
-    
+
     # Retry logic to handle indexing delays
     for attempt in range(max_retries + 1):
         response = await tool_helper_service.execute_get_request(
@@ -835,13 +838,14 @@ async def find_asset_id_exact_match(
             ):
                 asset_id = row["artifact_id"]
                 break
-        
+
         if asset_id:
             return asset_id
-        
+
         # If not found and retries remaining, wait and try again
         if attempt < max_retries:
             from app.shared.logging.utils import LOGGER
+
             LOGGER.warning(
                 f"Asset '{asset_name}' not found in {container_type} '{container_id}'. "
                 f"Retrying in {retry_delay}s (attempt {attempt + 1}/{max_retries})"
@@ -897,7 +901,7 @@ def confirm_list_str(list_or_str: list[str] | str) -> list[str]:
     if isinstance(list_or_str, str):
         try:
             parsed = json.loads(list_or_str.replace("'", '"'))
-            if isinstance(parsed, list):
+            if isinstance(parsed, list):  # noqa: SIM108 # Baseline
                 list_or_str = parsed
             else:
                 list_or_str = [parsed]
@@ -911,71 +915,77 @@ def validate_url(url: str) -> str:
     """
     Validates a URL to ensure it uses HTTPS protocol and has proper format.
     Only HTTPS URLs are allowed. URLs must include the https:// scheme.
-    
+
     Args:
         url (str): The URL string to validate (must start with https://).
-    
+
     Returns:
         str: The validated URL
-    
+
     Raises:
         ServiceError: If the URL format is invalid, missing scheme, or not HTTPS.
     """
     validated_url = url.strip() if url else ""
-    
+
     if not validated_url:
         raise ServiceError("URL cannot be empty.")
-    
+
     try:
         # Parse URL
         parsed_url = urlparse(validated_url)
-        
+
         # Require scheme to be present
         if not parsed_url.scheme:
-            raise ServiceError("Invalid URL format: URL must include a scheme (e.g., https://)")
-        
+            raise ServiceError(
+                "Invalid URL format: URL must include a scheme (e.g., https://)"
+            )
+
         # Enforce HTTPS only
-        if parsed_url.scheme.lower() != 'https':
-            raise ServiceError(f"Invalid URL scheme: Only https scheme is supported, got: {parsed_url.scheme}")
-        
+        if parsed_url.scheme.lower() != "https":
+            raise ServiceError(
+                f"Invalid URL scheme: Only https scheme is supported, got: {parsed_url.scheme}"
+            )
+
         # Require netloc (hostname)
         if not parsed_url.netloc:
-            raise ServiceError("Invalid URL format: URL must include a scheme and hostname/domain")
-        
+            raise ServiceError(
+                "Invalid URL format: URL must include a scheme and hostname/domain"
+            )
+
         # Validate hostname/IP address
         host = parsed_url.hostname
         if not host:
             raise ServiceError("Invalid URL format: URL is missing hostname/domain")
-        
+
         try:
             ipaddress.ip_address(host)
         except ValueError:
             # Not an IP address, validate as hostname
             # Hostname validation according to RFC 1123
             _validate_host_name(host, url)
-        
+
         # Return the validated URL as-is
         return validated_url
-                           
+
     except ServiceError:
         # Re-raise ServiceError as-is
         raise
     except Exception as e:
-        raise ServiceError(
-            f"Invalid URL format: '{url}'. Please provide a valid URL. Error: {str(e)}"
+        raise ServiceError(  # noqa: B904 # Baseline
+            f"Invalid URL format: '{url}'. Please provide a valid URL. Error: {e!s}"
         )
 
 
 def _validate_host_name(host: str, url: str) -> None:
     """Validate hostname according to RFC 1123."""
-    if len(host) > 253:
+    if len(host) > 253:  # noqa: PLR2004 # Baseline
         raise ServiceError(
             f"Invalid URL format: '{url}'. Hostname exceeds maximum length of 253 characters."
         )
-    
+
     labels = host.split(".")
     for label in labels:
-        if not label or len(label) > 63:
+        if not label or len(label) > 63:  # noqa: PLR2004 # Baseline
             raise ServiceError(
                 f"Invalid URL format: '{url}'. Hostname label '{label}' is invalid (empty or exceeds 63 characters)."
             )
@@ -984,7 +994,7 @@ def _validate_host_name(host: str, url: str) -> None:
                 f"Invalid URL format: '{url}'. Hostname label '{label}' cannot start or end with a hyphen."
             )
         # Validate label contains only alphanumeric and hyphens
-        if not all(c.isalnum() or c == '-' for c in label):
+        if not all(c.isalnum() or c == "-" for c in label):
             raise ServiceError(
                 f"Invalid URL format: '{url}'. Hostname label '{label}' contains invalid characters."
             )
@@ -1026,11 +1036,11 @@ async def find_category_id(category_name: str) -> str:
             break
     if result_id:
         return result_id
-    else:
-        raise ServiceError(
-            f"Couldn't find any categories with the name '{category_name}'",
-            remediation_steps="Call the list_glossary_categories tool to retrieve the available category names.",
-        )
+    raise ServiceError(
+        f"Couldn't find any categories with the name '{category_name}'",
+        remediation_steps="Call the list_glossary_categories tool to retrieve the available category names.",
+    )
+
 
 async def retrieve_container_id(container_id: str, container_type: str) -> str:
     """
@@ -1061,6 +1071,7 @@ async def retrieve_container_id(container_id: str, container_type: str) -> str:
 
     return container_id
 
+
 async def check_and_convert_creator_id(creator_id: str) -> str:
     """
     Validate or convert a creator identifier to a proper IAM ID.
@@ -1078,40 +1089,43 @@ async def check_and_convert_creator_id(creator_id: str) -> str:
 
     # Check if the passed creator id is valid
     params = {
-        "q":f'iam_id:{creator_id}',
-        "limit":10,
-        "skip":0,
-        "include":FIELD_PREFERENCES
+        "q": f"iam_id:{creator_id}",
+        "limit": 10,
+        "skip": 0,
+        "include": FIELD_PREFERENCES,
     }
 
     response = await tool_helper_service.execute_get_request(
         url=str(tool_helper_service.base_url) + USER_PROFILES_BASE_ENDPOINT,
-        params=params
+        params=params,
     )
 
-    if response.get('total_results', []) > 0:
+    if response.get("total_results", []) > 0:
         return creator_id
 
     # Find closest user according to the user search
     params = {
-        "q":f'user_name:{creator_id}*|email:{creator_id}*|name:{creator_id}*|display_name:{creator_id}*',
-        "limit":10,
-        "skip":0,
-        "include":FIELD_PREFERENCES
+        "q": f"user_name:{creator_id}*|email:{creator_id}*|name:{creator_id}*|display_name:{creator_id}*",
+        "limit": 10,
+        "skip": 0,
+        "include": FIELD_PREFERENCES,
     }
 
     response = await tool_helper_service.execute_get_request(
         url=str(tool_helper_service.base_url) + USER_PROFILES_BASE_ENDPOINT,
-        params=params
+        params=params,
     )
 
-    if response.get('total_results', []) > 0:
-        return response['resources'][0]['entity']['iam_id']
+    if response.get("total_results", []) > 0:
+        return response["resources"][0]["entity"]["iam_id"]
 
     # Assume the user wants to see use their identifier(uid, iam_id) and could have supplied natural language such as: me, mine
     return await get_user_identifier()
 
-async def get_user_info_from_iam_id(iam_id: str, info_type: Literal["name", "email"]) -> str:
+
+async def get_user_info_from_iam_id(
+    iam_id: str, info_type: Literal["name", "email"]
+) -> str:
     """
     Retrieves information about user using their IAM ID.
 
@@ -1126,34 +1140,28 @@ async def get_user_info_from_iam_id(iam_id: str, info_type: Literal["name", "ema
     """
     if iam_id:
         params = {
-            "q":f'iam_id:{iam_id}',
-            "limit":1,
-            "skip":0,
-            "include":FIELD_PREFERENCES
+            "q": f"iam_id:{iam_id}",
+            "limit": 1,
+            "skip": 0,
+            "include": FIELD_PREFERENCES,
         }
 
         response = await tool_helper_service.execute_get_request(
             url=str(tool_helper_service.base_url) + USER_PROFILES_BASE_ENDPOINT,
-            params=params
+            params=params,
         )
 
-        if response.get('total_results', []) > 0:
+        if response.get("total_results", []) > 0:
             if info_type == "name":
-                return response['resources'][0]['entity']['display_name']
-            else:
-                return response['resources'][0]['entity']['email']
-        else:
-            raise ServiceError(
-                f"Couldn't find any user with IAM ID '{iam_id}'"
-            )
-    else:
-        raise ServiceError(
-            "Empty IAM ID supplied to retrieve user information"
-        )
+                return response["resources"][0]["entity"]["display_name"]
+            return response["resources"][0]["entity"]["email"]
+        raise ServiceError(f"Couldn't find any user with IAM ID '{iam_id}'")
+    raise ServiceError("Empty IAM ID supplied to retrieve user information")
 
 
 async def check_if_container_is_enabled_for_text_to_sql(
-    container_id, container_type
+    container_id,  # noqa: ANN001 # Baseline
+    container_type,  # noqa: ANN001 # Baseline
 ) -> bool:
     """
     Check if the container is enabled for text to sql.
@@ -1171,47 +1179,48 @@ async def check_if_container_is_enabled_for_text_to_sql(
     url = str(tool_helper_service.base_url) + GEN_AI_SETTINGS_BASE_ENDPOINT
     LOGGER.debug(
         "Checking if container is enabled for text-to-sql: URL=%s, params=%s",
-        url, params
+        url,
+        params,
     )
-    
+
     try:
         response = await tool_helper_service.execute_get_request(
             url=url,
             params=params,
         )
-        
-        LOGGER.debug(
-            "Gen AI settings response: %s", response
-        )
-        
+
+        LOGGER.debug("Gen AI settings response: %s", response)
+
         enable_gen_ai = response.get("enable_gen_ai", False)
         onboard_metadata = response.get("onboard_metadata_for_gen_ai", False)
-        
+
         LOGGER.debug(
             "enable_gen_ai=%s, onboard_metadata_for_gen_ai=%s",
-            enable_gen_ai, onboard_metadata
+            enable_gen_ai,
+            onboard_metadata,
         )
-        
+
         return enable_gen_ai and onboard_metadata
     except Exception as e:
         LOGGER.error(
             "Error checking if container is enabled for text-to-sql: %s",
-            str(e), exc_info=True
+            str(e),
+            exc_info=True,
         )
         raise
 
 
-def get_onboarding_job_run_url(container_id, container_type, job_id, run_id):
+def get_onboarding_job_run_url(container_id, container_type, job_id, run_id):  # noqa: ANN001, ANN201 # Baseline
     if container_type == "project":
         return append_context_to_url(
             f"{tool_helper_service.ui_base_url}/jobs/{job_id}/runs/{run_id}?project_id={container_id}"
         )
-    elif container_type == "catalog":
+    if container_type == "catalog":
         return append_context_to_url(
             f"{tool_helper_service.ui_base_url}/data/catalogs/{container_id}/asset/{job_id}"
         )
-    else:
-        raise ValueError(f"Invalid container type: {container_type}")
+    raise ValueError(f"Invalid container type: {container_type}")
+
 
 async def find_data_source_definition_asset_id(
     data_source_definition_name: str,
@@ -1226,14 +1235,16 @@ async def find_data_source_definition_asset_id(
     """
     params = {
         "catalog_id": await get_platform_assets_catalog_id(),
-        "hide_deprecated_response_fields": False
+        "hide_deprecated_response_fields": False,
     }
-    payload = {"limit": 100, "sort": "asset.name<string>", "query" : "*:*"}
+    payload = {"limit": 100, "sort": "asset.name<string>", "query": "*:*"}
 
     response = await tool_helper_service.execute_post_request(
-        url=str(tool_helper_service.base_url) + ASSET_TYPE_BASE_ENDPOINT + "/ibm_data_source/search",
+        url=str(tool_helper_service.base_url)
+        + ASSET_TYPE_BASE_ENDPOINT
+        + "/ibm_data_source/search",
         params=params,
-        json=payload
+        json=payload,
     )
 
     result_id = None
@@ -1246,10 +1257,9 @@ async def find_data_source_definition_asset_id(
 
     if result_id:
         return result_id
-    else:
-        raise ServiceError(
-            f"find_data_source_definition_asset_id failed to find any DSD with the name '{data_source_definition_name}'"
-        )
+    raise ServiceError(
+        f"find_data_source_definition_asset_id failed to find any DSD with the name '{data_source_definition_name}'"
+    )
 
 
 def _map_metadata_import(row: Any) -> MetadataImportResponse:
@@ -1264,61 +1274,63 @@ def _map_metadata_import(row: Any) -> MetadataImportResponse:
     )
 
 
-async def check_catalog_access(catalog_id: str, required_roles: list[str] | None = None) -> bool:
+async def check_catalog_access(
+    catalog_id: str, required_roles: list[str] | None = None
+) -> bool:
     """
     Check if the current user has the required access level to a catalog.
-    
+
     Args:
         catalog_id: The UUID of the catalog to check access for
-        required_roles: List of required roles (e.g., ["admin", "editor"]). 
+        required_roles: List of required roles (e.g., ["admin", "editor"]).
                        Defaults to ["admin", "editor"] if not provided.
-    
+
     Returns:
         bool: True if user has one of the required roles, False otherwise
-    
+
     Raises:
         ServiceError: If unable to retrieve catalog members or user information
     """
-    
+
     if required_roles is None:
         required_roles = ["admin", "editor"]
-    
+
     try:
         # Get current user's identifier
         current_user_id = await get_user_identifier()
         if not current_user_id:
             LOGGER.error("Unable to retrieve current user identifier")
             raise ServiceError("Unable to retrieve current user information")
-        
+
         # Build URL to get catalog members
         url = build_container_members_url(catalog_id, "catalog")
-        
+
         # Get catalog members
         response = await tool_helper_service.execute_get_request(
             url=url, tool_name="check_catalog_access"
         )
         members = response.get("members", [])
-        
+
         # Check if current user is in the members list with required role
         for member in members:
             member_id = member.get("user_iam_id") or member.get("access_group_id")
             member_role = member.get("role", "").lower()
-            
+
             if member_id == current_user_id and member_role in required_roles:
                 LOGGER.info(
                     f"User {current_user_id} has {member_role} access to catalog {catalog_id}"
                 )
                 return True
-        
+
         LOGGER.warning(
             f"User {current_user_id} does not have required access ({', '.join(required_roles)}) "
             f"to catalog {catalog_id}"
         )
         return False
-        
+
     except Exception as e:
-        LOGGER.error(f"Error checking catalog access: {str(e)}")
-        raise ServiceError(
+        LOGGER.error(f"Error checking catalog access: {e!s}")
+        raise ServiceError(  # noqa: B904 # Baseline
             f"Unable to verify access permissions for catalog '{catalog_id}'. "
-            f"Error: {str(e)}"
+            f"Error: {e!s}"
         )

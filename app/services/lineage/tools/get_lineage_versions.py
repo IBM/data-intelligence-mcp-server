@@ -2,14 +2,17 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Annotated
+from typing import Annotated  # noqa: I001 # Baseline
 from pydantic import Field
 
 from app.core.registry import service_registry
 from app.services.constants import LINEAGE_BASE_ENDPOINT
 from app.services.lineage.constants import SERVICE_UNAVAILABLE_MESSAGE
 from app.services.lineage.utils import handle_500_error
-from app.services.lineage.models.get_lineage_versions import GetLineageVersionsRequest, GetLineageVersionsResponse
+from app.services.lineage.models.get_lineage_versions import (
+    GetLineageVersionsRequest,
+    GetLineageVersionsResponse,
+)
 from app.shared.exceptions.base import ExternalAPIError, ValidationError
 from app.shared.logging.generate_context import auto_context
 from app.shared.logging.utils import LOGGER
@@ -18,15 +21,19 @@ from app.shared.utils.tool_helper_service import tool_helper_service
 
 
 async def _get_lineage_versions(
-    input: GetLineageVersionsRequest,
+    input: GetLineageVersionsRequest,  # noqa: A002 # Baseline
 ) -> GetLineageVersionsResponse:
     # Validate input dates
     if not is_valid_iso_date(input.since):
-        raise ValidationError(f"Invalid ISO-8601 date format for 'since': {input.since}", 
-        remediation_steps="Pass date in ISO-8601 format")
+        raise ValidationError(
+            f"Invalid ISO-8601 date format for 'since': {input.since}",
+            remediation_steps="Pass date in ISO-8601 format",
+        )
     if not is_valid_iso_date(input.until):
-        raise ValidationError(f"Invalid ISO-8601 date format for 'until': {input.until}",
-        remediation_steps="Pass date in ISO-8601 format")
+        raise ValidationError(
+            f"Invalid ISO-8601 date format for 'until': {input.until}",
+            remediation_steps="Pass date in ISO-8601 format",
+        )
 
     LOGGER.info(
         "list_lineage_versions called with dates since: %s until: %s",
@@ -44,32 +51,37 @@ async def _get_lineage_versions(
 
     try:
         response = await tool_helper_service.execute_get_request(
-            url=str(tool_helper_service.base_url) + LINEAGE_BASE_ENDPOINT + "/lineage_versions",
+            url=str(tool_helper_service.base_url)
+            + LINEAGE_BASE_ENDPOINT
+            + "/lineage_versions",
             params=params,
         )
     except ExternalAPIError as e:
         return handle_500_error(
             e,
             lambda: GetLineageVersionsResponse(
-                dates=[],
-                success=False,
-                error=SERVICE_UNAVAILABLE_MESSAGE
-            )
+                dates=[], success=False, error=SERVICE_UNAVAILABLE_MESSAGE
+            ),
         )
 
     lineage_versions = response.get("lineage_versions", [])
     if not lineage_versions:
         return GetLineageVersionsResponse(dates=[])
 
-    dates = [version.get("datetime") for version in lineage_versions if version.get("datetime")]
+    dates = [
+        version.get("datetime")
+        for version in lineage_versions
+        if version.get("datetime")
+    ]
 
     return GetLineageVersionsResponse(dates=dates)
+
 
 @service_registry.tool(
     name="list_lineage_versions",
     annotations={
         "readOnlyHint": True,
-        "title": "Retrieve Available Lineage Versions Within Date Range"
+        "title": "Retrieve Available Lineage Versions Within Date Range",
     },
     tags={"lineage"},
     description="""Use this tool when you need to fetch versions within a given date range so users can compare them.
@@ -84,8 +96,18 @@ async def _get_lineage_versions(
 )
 @auto_context
 async def list_lineage_versions(
-    since: Annotated[str, Field(description="Starting date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ). Other ISO-8601 formats are also supported, notably: single year ('2025Z'), month ('2025-03Z'), week date format ('2025-W13Z', a week starts with Monday and ends with Sunday)")],
-    until: Annotated[str, Field(description="Ending date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ). Other ISO-8601 formats are also supported, notably: single year ('2025Z'), month ('2025-03Z'), week date format ('2025-W13Z', a week starts with Monday and ends with Sunday)")]
+    since: Annotated[
+        str,
+        Field(
+            description="Starting date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ). Other ISO-8601 formats are also supported, notably: single year ('2025Z'), month ('2025-03Z'), week date format ('2025-W13Z', a week starts with Monday and ends with Sunday)"
+        ),
+    ],
+    until: Annotated[
+        str,
+        Field(
+            description="Ending date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ). Other ISO-8601 formats are also supported, notably: single year ('2025Z'), month ('2025-03Z'), week date format ('2025-W13Z', a week starts with Monday and ends with Sunday)"
+        ),
+    ],
 ) -> GetLineageVersionsResponse:
     """Wrapper that expands GetLineageVersionsRequest object into individual parameters."""
 

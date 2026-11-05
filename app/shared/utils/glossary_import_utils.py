@@ -10,7 +10,7 @@ import_glossary_status service to inspect and report on the outcome of a glossar
 CSV import operation.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List  # noqa: UP035 # Baseline
 
 from app.core.settings import settings
 from app.shared.exceptions.base import ServiceError
@@ -18,7 +18,7 @@ from app.shared.logging import LOGGER
 from app.shared.utils.tool_helper_service import tool_helper_service
 
 
-def check_import_timeout(
+def check_import_timeout(  # noqa: PLR0913 # Baseline
     elapsed_time: float,
     timeout_seconds: float,
     artifact_type: str,
@@ -37,7 +37,7 @@ def check_import_timeout(
         )
 
 
-def log_children_statuses(children_statuses: List[Dict[str, Any]]) -> None:
+def log_children_statuses(children_statuses: List[Dict[str, Any]]) -> None:  # noqa: UP006 # Baseline
     """Log details of child process statuses."""
     for child_status in children_statuses:
         child_type = child_status.get("type", "Unknown")
@@ -50,7 +50,9 @@ def log_children_statuses(children_statuses: List[Dict[str, Any]]) -> None:
         )
 
 
-def count_operations(operations_count: dict[str, Any], artifact_type: str) -> dict[str, dict[str, int]]:
+def count_operations(
+    operations_count: dict[str, Any], artifact_type: str
+) -> dict[str, dict[str, int]]:
     """Log operations count details and return per-type breakdown.
 
     Returns:
@@ -67,7 +69,7 @@ def count_operations(operations_count: dict[str, Any], artifact_type: str) -> di
     return result
 
 
-def check_operations_empty(operations_count: Dict[str, Any]) -> bool:
+def check_operations_empty(operations_count: Dict[str, Any]) -> bool:  # noqa: UP006 # Baseline
     """Check if operations_count indicates no items were imported."""
     if not operations_count:
         return True
@@ -98,8 +100,7 @@ def construct_import_status_url(process_id: str) -> str:
 
     if env_mode == "CPD":
         return f"{ui_base_url}/gov/knowledge-accelerators?processid={process_id}"
-    else:
-        return f"{ui_base_url}/governance/knowledge-accelerators?processid={process_id}"
+    return f"{ui_base_url}/governance/knowledge-accelerators?processid={process_id}"
 
 
 def build_import_warning_message(
@@ -107,8 +108,8 @@ def build_import_warning_message(
     process_id: str,
     is_operations_empty: bool,
     has_errors: bool,
-    message_resources: List[Dict[str, Any]],
-) -> List[str]:
+    message_resources: List[Dict[str, Any]],  # noqa: UP006 # Baseline
+) -> List[str]:  # noqa: UP006 # Baseline
     """Build warning message for import issues."""
     import_status_url = construct_import_status_url(process_id)
 
@@ -117,35 +118,43 @@ def build_import_warning_message(
     ]
 
     if is_operations_empty:
-        warning_msg.append(f"  - No {artifact_type}s were actually imported (operations_count is empty)")
+        warning_msg.append(
+            f"  - No {artifact_type}s were actually imported (operations_count is empty)"
+        )
 
     if has_errors and message_resources:
-        warning_msg.append(f"  - Found {len(message_resources)} error/warning messages in import log")
+        warning_msg.append(
+            f"  - Found {len(message_resources)} error/warning messages in import log"
+        )
         for i, msg in enumerate(message_resources[:5]):
             code = msg.get("code", "Unknown")
             message = msg.get("message", "No message")
-            warning_msg.append(f"    {i+1}. [{code}] {message}")
-        if len(message_resources) > 5:
-            warning_msg.append(f"    ... and {len(message_resources) - 5} more messages")
+            warning_msg.append(f"    {i + 1}. [{code}] {message}")
+        if len(message_resources) > 5:  # noqa: PLR2004 # Baseline
+            warning_msg.append(
+                f"    ... and {len(message_resources) - 5} more messages"
+            )
 
-    warning_msg.extend([
-        "",
-        "Import Details:",
-        f"  - Process ID: {process_id}",
-        f"  - Import Status URL: {import_status_url}",
-        "  - Note: You may need appropriate permissions to access the import status logs",
-        "",
-        "This may indicate:",
-        "  - CSV file is corrupted or has invalid data",
-        "  - Category IDs in the CSV don't exist in the glossary",
-        "  - CSV format issues (invalid headers, missing required fields)",
-        "",
-        "Recommended actions:",
-        "  1. Check the import status logs using the URL above for detailed error messages",
-        "  2. If CSV is corrupted, delete the CSV files and re-run review mode",
-        "  3. If category IDs are invalid, ensure categories were created in review mode first",
-        "  4. Verify CSV file format matches the expected schema",
-    ])
+    warning_msg.extend(
+        [
+            "",
+            "Import Details:",
+            f"  - Process ID: {process_id}",
+            f"  - Import Status URL: {import_status_url}",
+            "  - Note: You may need appropriate permissions to access the import status logs",
+            "",
+            "This may indicate:",
+            "  - CSV file is corrupted or has invalid data",
+            "  - Category IDs in the CSV don't exist in the glossary",
+            "  - CSV format issues (invalid headers, missing required fields)",
+            "",
+            "Recommended actions:",
+            "  1. Check the import status logs using the URL above for detailed error messages",
+            "  2. If CSV is corrupted, delete the CSV files and re-run review mode",
+            "  3. If category IDs are invalid, ensure categories were created in review mode first",
+            "  4. Verify CSV file format matches the expected schema",
+        ]
+    )
 
     LOGGER.warning("\n".join(warning_msg))
     return warning_msg
@@ -154,9 +163,9 @@ def build_import_warning_message(
 def build_warning_messages(
     artifact_type: str,
     process_id: str,
-    operations_count: Dict[str, Any],
-    messages: Dict[str, Any],
-) -> List[str]:
+    operations_count: Dict[str, Any],  # noqa: UP006 # Baseline
+    messages: Dict[str, Any],  # noqa: UP006 # Baseline
+) -> List[str]:  # noqa: UP006 # Baseline
     """Build warning messages for a successful import with issues."""
     message_resources = messages.get("resources", [])
     has_errors = any(
@@ -167,7 +176,11 @@ def build_warning_messages(
 
     if has_errors or is_operations_empty:
         return build_import_warning_message(
-            artifact_type, process_id, is_operations_empty, has_errors, message_resources
+            artifact_type,
+            process_id,
+            is_operations_empty,
+            has_errors,
+            message_resources,
         )
 
     return []
@@ -176,9 +189,9 @@ def build_warning_messages(
 def handle_succeeded_status(
     artifact_type: str,
     process_id: str,
-    operations_count: Dict[str, Any],
-    messages: Dict[str, Any],
-) -> List[str]:
+    operations_count: Dict[str, Any],  # noqa: UP006 # Baseline
+    messages: Dict[str, Any],  # noqa: UP006 # Baseline
+) -> List[str]:  # noqa: UP006 # Baseline
     """Handle SUCCEEDED status with validation."""
     warning_msg = build_warning_messages(
         artifact_type, process_id, operations_count, messages
@@ -201,8 +214,8 @@ def build_failed_error_message(
     artifact_type: str,
     step_number: int,
     step_message: str,
-    children_statuses: List[Dict[str, Any]],
-    operations_count: Dict[str, Any],
+    children_statuses: List[Dict[str, Any]],  # noqa: UP006 # Baseline
+    operations_count: Dict[str, Any],  # noqa: UP006 # Baseline
 ) -> str:
     """Build an error message for a failed import."""
     error_details = [
@@ -224,7 +237,9 @@ def build_failed_error_message(
             if isinstance(op_counts, dict):
                 created = op_counts.get("IMPORT_CREATE", 0)
                 modified = op_counts.get("IMPORT_MODIFY", 0)
-                error_details.append(f"{op_type}: {created} created, {modified} modified")
+                error_details.append(
+                    f"{op_type}: {created} created, {modified} modified"
+                )
 
     return "\n".join(error_details)
 
@@ -233,8 +248,8 @@ def handle_failed_status(
     artifact_type: str,
     step_number: int,
     step_message: str,
-    children_statuses: List[Dict[str, Any]],
-    operations_count: Dict[str, Any],
+    children_statuses: List[Dict[str, Any]],  # noqa: UP006 # Baseline
+    operations_count: Dict[str, Any],  # noqa: UP006 # Baseline
 ) -> None:
     """Handle FAILED status."""
     raise ServiceError(

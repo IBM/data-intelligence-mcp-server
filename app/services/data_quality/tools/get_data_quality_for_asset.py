@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Literal, Optional  # noqa: F401, I001 # Baseline
 from datetime import datetime
 
 from pydantic import Field
@@ -24,58 +24,73 @@ def _format_data_quality_for_table(response: GetDataQualityForAssetResponse) -> 
     """
     Format data quality response into a table.
     Dynamically includes all dimension scores from the scores_by_dimension dictionary.
-    
+
     Args:
         response: GetDataQualityForAssetResponse model containing data quality metrics
-        
+
     Returns:
         List containing a single formatted dictionary for table display
     """
     formatted_row = {
-        "Report URL": ui_message_context.create_markdown_link(response.report_url, "Link"),
+        "Report URL": ui_message_context.create_markdown_link(
+            response.report_url, "Link"
+        ),
         "Overall": response.overall,
     }
-    
+
     # Add all dimensions dynamically, capitalizing dimension names for display
     for dimension_name, score in response.scores_by_dimension.items():
         formatted_row[dimension_name.capitalize()] = score
-    
+
     # Add SLA assessment summary if available
     if response.sla_assessment_summary:
         summary = response.sla_assessment_summary
-        formatted_row["Matching Data Quality SLAs"] = f"{summary.matching_data_quality_slas} SLA(s)"
-        
+        formatted_row["Matching Data Quality SLAs"] = (
+            f"{summary.matching_data_quality_slas} SLA(s)"
+        )
+
         # Format violations count
         violations_count = summary.total_data_quality_sla_violations
         if violations_count > 0:
-            formatted_row["Total Data Quality SLA Violations"] = f"{violations_count} violation(s)"
+            formatted_row["Total Data Quality SLA Violations"] = (
+                f"{violations_count} violation(s)"
+            )
         else:
             formatted_row["Total Data Quality SLA Violations"] = "None"
-        
+
         if summary.last_assessment_time:
             # Format ISO 8601 timestamp to human-readable format
             try:
-                dt = datetime.fromisoformat(summary.last_assessment_time.replace('Z', '+00:00'))
-                formatted_row["Last Assessment"] = dt.strftime("%B %d, %Y at %-I:%M %p %Z").replace("  ", " ")
+                dt = datetime.fromisoformat(
+                    summary.last_assessment_time.replace("Z", "+00:00")
+                )
+                formatted_row["Last Assessment"] = dt.strftime(
+                    "%B %d, %Y at %-I:%M %p %Z"
+                ).replace("  ", " ")
             except (ValueError, AttributeError) as e:
-                LOGGER.warning("Failed to parse timestamp %s: %s", summary.last_assessment_time, str(e))
+                LOGGER.warning(
+                    "Failed to parse timestamp %s: %s",
+                    summary.last_assessment_time,
+                    str(e),
+                )
                 formatted_row["Last Assessment"] = summary.last_assessment_time
-    
+
     return [formatted_row]
 
-    
-async def _get_data_quality_for_asset(request: GetDataQualityForAssetRequest) -> GetDataQualityForAssetResponse:
+
+async def _get_data_quality_for_asset(
+    request: GetDataQualityForAssetRequest,
+) -> GetDataQualityForAssetResponse:
     """
     Retrieve data quality metrics and information for a specific asset.
     """
-    
 
     data_quality = await get_data_quality_for_asset_util(
         asset_id_or_name=request.asset_id_or_name,
         container_id_or_name=request.container_id_or_name,
         container_type=request.container_type,
     )
-    
+
     report_url = ui_message_context.extend_url_with_context(data_quality.report_url)
 
     response = GetDataQualityForAssetResponse(
@@ -92,13 +107,13 @@ async def _get_data_quality_for_asset(request: GetDataQualityForAssetRequest) ->
     )
 
     return response
-    
+
 
 @service_registry.tool(
     name="get_data_quality",
     annotations={
         "readOnlyHint": True,
-        "title": "Get Data Quality Metrics and Assessment Scores for Specific Asset"
+        "title": "Get Data Quality Metrics and Assessment Scores for Specific Asset",
     },
     description="""Use this tool when you need to retrieve data quality metrics and information for a specific asset. This tool fetches quality metrics for a data asset, including overall quality score and specific dimensions like consistency, validity, and completeness. This information helps assess the reliability and usability of the data.
 
@@ -124,9 +139,24 @@ Raises:
 )
 @auto_context
 async def get_data_quality_for_asset(
-    asset_id_or_name: Annotated[str, Field(description="Asset UUID or name. Examples: 'customer_data_2023', 'sales_records_q2', 'inventory_management'")],
-    container_id_or_name: Annotated[str, Field(description="Project or catalog UUID or name. Examples: 'marketing_analytics', 'financial_reports', 'supply_chain'")],
-    container_type: Annotated[Literal["catalog", "project"], Field(description="Type of container. Must be either 'catalog' or 'project'. Enum: ['project', 'catalog']")],
+    asset_id_or_name: Annotated[
+        str,
+        Field(
+            description="Asset UUID or name. Examples: 'customer_data_2023', 'sales_records_q2', 'inventory_management'"
+        ),
+    ],
+    container_id_or_name: Annotated[
+        str,
+        Field(
+            description="Project or catalog UUID or name. Examples: 'marketing_analytics', 'financial_reports', 'supply_chain'"
+        ),
+    ],
+    container_type: Annotated[
+        Literal["catalog", "project"],
+        Field(
+            description="Type of container. Must be either 'catalog' or 'project'. Enum: ['project', 'catalog']"
+        ),
+    ],
 ) -> GetDataQualityForAssetResponse:
     """
     Wrapper that builds request model and delegates to main tool.
@@ -137,5 +167,3 @@ async def get_data_quality_for_asset(
         container_type=container_type,
     )
     return await _get_data_quality_for_asset(request)
-
-

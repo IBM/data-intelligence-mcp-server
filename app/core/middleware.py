@@ -6,7 +6,7 @@
 
 # Enhanced validation error handling middleware with meaningful error messages.
 
-import json
+import json  # noqa: I001 # Baseline
 import logging
 from typing import Any, NoReturn
 
@@ -17,7 +17,7 @@ from pydantic import ValidationError as PydanticValidationError
 from fastmcp.exceptions import ValidationError as FastMCPValidationError
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 
-import mcp.types as mcpType
+import mcp.types as mcpType  # noqa: N812 # Baseline
 from fastmcp.server.dependencies import get_http_headers
 from app.shared.logging.utils import LOGGER
 from app.core.settings import settings
@@ -65,7 +65,11 @@ class SessionInitMiddleware(Middleware):
             try:
                 items = json.loads(stripped)
                 if isinstance(items, list):
-                    return {str(group).strip().lower() for group in items if str(group).strip()}
+                    return {
+                        str(group).strip().lower()
+                        for group in items
+                        if str(group).strip()
+                    }
             except json.JSONDecodeError:
                 pass  # fall through to comma-split below
         return {group.strip().lower() for group in stripped.split(",") if group.strip()}
@@ -170,8 +174,8 @@ class SessionInitMiddleware(Middleware):
         await self._enable_groups_for_http_request(context)
         LOGGER.debug("Enabling tool groups for session during listing the tools")
         return await call_next(context)
-        
-    
+
+
 class ValidationErrorHandlingMiddleware(Middleware):
     """Middleware that provides meaningful error messages for parameter validation errors.
 
@@ -197,7 +201,7 @@ class ValidationErrorHandlingMiddleware(Middleware):
     - Malformed parameter structures
     """
 
-    def __init__(
+    def __init__(  # noqa: ANN204 # Baseline
         self,
         logger: logging.Logger | None = None,
     ):
@@ -209,9 +213,7 @@ class ValidationErrorHandlingMiddleware(Middleware):
         """
         self.logger = logger or logging.getLogger("fastmcp.validation_errors")
 
-    async def on_message(
-        self, context: MiddlewareContext, call_next: CallNext
-    ) -> Any:
+    async def on_message(self, context: MiddlewareContext, call_next: CallNext) -> Any:
         """Handle validation errors for all messages."""
         try:
             return await call_next(context)
@@ -243,27 +245,40 @@ class ValidationErrorHandlingMiddleware(Middleware):
         for error_detail in error_details:
             loc = error_detail.get("loc", [])
             error_type = error_detail.get("type", "")
-            
+
             # Handle missing request argument
-            if error_type == 'missing_argument' and loc and loc[0] == 'request':
+            if error_type == "missing_argument" and loc and loc[0] == "request":
                 suggestions.append("Wrap tool call arguments in a request object")
-            
+
             # Handle type errors
-            elif error_type in ['int_parsing', 'float_parsing', 'bool_parsing', 
-                                'string_too_short', 'string_too_long']:
-                suggestions.append(f"Check the type of parameter '{' -> '.join(str(elem) for elem in loc)}'")
-            
+            elif error_type in [
+                "int_parsing",
+                "float_parsing",
+                "bool_parsing",
+                "string_too_short",
+                "string_too_long",
+            ]:
+                suggestions.append(
+                    f"Check the type of parameter '{' -> '.join(str(elem) for elem in loc)}'"
+                )
+
             # Handle format errors
-            elif error_type in ['email', 'url', 'json']:
-                suggestions.append(f"Ensure parameter '{' -> '.join(str(elem) for elem in loc)}' has correct format")
-            
+            elif error_type in ["email", "url", "json"]:
+                suggestions.append(
+                    f"Ensure parameter '{' -> '.join(str(elem) for elem in loc)}' has correct format"
+                )
+
             # Handle value range errors
-            elif error_type in ['greater_than', 'less_than', 'multiple_of']:
-                suggestions.append(f"Ensure parameter '{' -> '.join(str(elem) for elem in loc)}' is within valid range")
-            
+            elif error_type in ["greater_than", "less_than", "multiple_of"]:
+                suggestions.append(
+                    f"Ensure parameter '{' -> '.join(str(elem) for elem in loc)}' is within valid range"
+                )
+
             # Handle enum errors
-            elif error_type == 'literal_error':
-                suggestions.append(f"Parameter '{' -> '.join(str(elem) for elem in loc)}' must be one of the allowed values")
+            elif error_type == "literal_error":
+                suggestions.append(
+                    f"Parameter '{' -> '.join(str(elem) for elem in loc)}' must be one of the allowed values"
+                )
 
         # Add suggestions if available
         if suggestions:
@@ -286,7 +301,6 @@ class ValidationErrorHandlingMiddleware(Middleware):
         """Handle FastMCP validation errors that have no structured Pydantic details."""
         message = str(error) or "Parameter validation failed"
         self.logger.warning(
-            f"Parameter validation error in {context.method or 'unknown'}: "
-            f"{message}"
+            f"Parameter validation error in {context.method or 'unknown'}: {message}"
         )
         raise MCPError(INVALID_PARAMS, message) from error

@@ -2,6 +2,58 @@
 
 > All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project **adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)**.
 
+## [1.7.0] - Nov 5th, 2026
+
+### Added
+- **Agent Skills**:
+  - `curate-glossary` - New skill that guides users through an interactive step-by-step workflow for curating glossary terms. Supports three curation modes: Definitions, PI/SPI Classification, and Translations. Orchestrates the full pipeline via `glossary_curator`.
+  - `data-quality-remediation` - New skill that automatically remediates data quality and contract violations by fetching a GitHub issue and applying the appropriate fix path for each violation. Supports schema drift (dropped column), remediation plan, and general DQ/contract violation paths.
+- **Data Product**:
+  - `create_data_product_subscription` - New tool to subscribe to a published data product, either in one call (`state='submitted'`) or as a draft (`state='draft'`) for data products whose parts use different delivery methods. Supports the `Use Flight service`, `Open URL`, `Download`, `Download Data Extract` and `Watsonx.data-ingest` delivery methods. Delivery methods that require raw credentials are not supported and must be subscribed to through the Data Product Hub UI.
+  - `add_items_to_data_product_subscription` - New tool to add typed items to a draft subscription.
+  - `submit_data_product_subscription` - New tool to finalize a draft subscription.
+  - `remove_item_from_data_product_subscription` - New tool to remove a data product part from a draft subscription.
+- **Glossary Curation**:
+  - `glossary_curator` - New tool for curating draft glossary terms in IBM Knowledge Catalog via parallel sub-agents. An orchestrator agent spawns these sub-agents to apply the requested mode. The tool supports definition generation, classifications, and translation across large term sets as mode types. It accepts mode type and UUIDs for a project and category (names are resolved automatically). The tool creates draft terms in the glossary category with its link back to the original published term for review.
+- **Metadata Import (MDI)**:
+    - `create_or_update_metadata_import` - Added support for Unified Lineage Discovery (ULD) technologies, Data Source Definition (DSD) resolution, lineage scope with include/exclude lists, OpenLineage imports (`is_openlineage=True`).
+    - `get_connection_technology_details` - New tool to inspect a connection and determine its technology details for metadata import setup. Returns supported lineage scan phases, importable asset types, whether Unified Lineage Discovery is used, and whether the technology relies only on manual lineage inputs.
+- **Connections**:
+  - `create_data_source_definition` - New tool to create a data source definition (DSD) in the platform assets catalog. Requires `name`, `datasource_type` (type name such as `postgresql` or its UUID; names are resolved automatically), `hostname`, and `port`. Optionally accepts `physical_collection` (database/instance/bucket name, required for some datasource types), `description`, and `tags`. Validates that the name contains only letters, numbers, underscore, dash, space, and period. Returns the new DSD ID, name, datasource type name, endpoint details, and a UI URL to the created DSD.
+- **Lineage**:
+  - `get_lineage_source_code` - New tool to retrieve the SQL/transformation logic of a lineage asset. Reads the asset from `/gov_lineage/v2/lineage_assets/{id}` and returns all its attributes (including `TRANSFORMATION_DESC`, also returned as `transformation_desc`, which column flows carry). For every source code snippet attached to the asset it reads `/gov_lineage/v2/source_code_snippets/{id}` first and falls back to the full source from `/gov_lineage/v2/source_codes/{id}` (marked `is_full_source`). Snippets keep their start/end position. A snippet that cannot be read is listed in `failed_snippet_ids` without discarding the others. Procedures, functions and the `_BODY` assets of views carry the code, so a View asset itself can return no snippets; the code is returned whole, not narrowed to one column. Enables agents to answer "what does this procedure do?" and "how is this column derived?" directly from lineage metadata.
+
+### Changed
+- **Data Product**:
+  - `get_data_product_details` - Each part now includes `delivery_methods` (id and name), the delivery methods enabled by the publisher. Use these when subscribing.
+  - `list_data_product_delivery_methods` - URL assets (`ibm_url_definition`) now resolve directly to the `Open URL` delivery method instead of failing on a missing connection.
+  - `search_data_product_subscriptions` - Scoped to the default DPH catalog to avoid returning subscriptions from unrelated catalogs.
+- **Metadata Import (MDI)**:
+    - `create_or_update_metadata_import` - Redesigned request model (`CreateMetadataImportRequest`) to unify all import types into a single tool call. Scope parameters are now split into `scope` (discovery) and `scope_lineage_include_list` / `scope_lineage_exclude_list` (lineage).
+- **Metadata Enrichment (MDE)**:
+  - `create_or_update_metadata_enrichment_asset` - Tool response now includes a direct UI URL to the created or updated MDE asset.
+- **Search**:
+    - `search_connection` - Extended to return additional connection fields needed for technology resolution.
+- **Workflow**:
+  - `get_artifact_details` - Tool description updated to be draft-only with explicit `When NOT to use` guidance redirecting published/general lookups to `explain_glossary_artifact`. Returns a structured user-facing message instead of raising a hard error when the requested artifact has no draft versions. Cognitive complexity reduced by extracting `_resolve_artifact_id`, `_fetch_single_draft_response`, and `_handle_multi_fetch` helpers from `_get_artifact_details`.
+- **Glossary**:
+  - `explain_glossary_artifact` - Tool description updated to declare itself as the default tool for all glossary lookups, deferring to `get_artifact_details` only when the user explicitly asks about a draft artifact.
+
+### Fixed
+- **Workflow**:
+  - `get_workflow_tasks_from_my_inbox.py` - Added pagination and filtering for to support task inboxes with more than 100 tasks.
+- **Search**:
+  - `get_asset_details` - Fixed a `resource key` error that surfaced when assets had no associated resource key metadata.
+  - `list_containers` - Fixed an issue where the tool returned no containers under certain tenant configurations.
+- **Glossary**:
+  - Fixed mis-parsing of business term descriptions containing commas, which caused incorrect CSV roundtrip behavior in the glossary import flow.
+- **Data Quality**:
+  - `get_data_quality_for_assets` - Fixed `ExternalAPIError` propagation in bulk DQ asset search so individual asset failures are reported cleanly rather than aborting the entire batch.
+- **Reporting**:
+  - Improved error handling in SQL query execution tool; runtime errors are now surfaced with actionable messages instead of generic exceptions.
+- **Dependencies & Security**:
+  - Upgraded `authlib`, `joserfc`, `fastmcp`, `	dnspython` and `opentelemetry-api` for security fixes.
+  
 ## [1.6.0] - Oct 8th, 2026
 
 ### Added

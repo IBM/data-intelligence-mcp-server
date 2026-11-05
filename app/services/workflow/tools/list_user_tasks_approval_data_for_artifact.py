@@ -10,7 +10,7 @@ Tool for listing user tasks based on artifact id as object of a task.
 This module provides functionality to query workflow API for user tasks.
 """
 
-from typing import Annotated, Any, Dict, List, Optional, cast
+from typing import Annotated, Any, Dict, List, Optional, cast  # noqa: I001, UP035 # Baseline
 from pydantic import Field
 from app.core.registry import service_registry
 from app.services.constants import WORKFLOW_BASE_ENDPOINT, WORKFLOW_TASK_ENDPOINT
@@ -18,14 +18,17 @@ from app.services.workflow.utils.task_utils import _parse_task_title_from_json
 from app.services.workflow.models.list_user_tasks_approval_data_for_artifact import (
     ListUserTasksRequest,
     ListUserTasksResponse,
-    UserTask
+    UserTask,
 )
 from app.services.workflow.utils.user_task_formatters import (
     format_user_tasks_as_table,
-    format_user_tasks_as_list
+    format_user_tasks_as_list,
 )
-from app.services.workflow.tools.utils import ZERO_MINUTES
-from app.services.workflow.utils.user_mappers import convert_iam_id_to_email, process_candidate_users
+from app.services.workflow.tools.utils import ZERO_MINUTES  # noqa: F401 # Baseline
+from app.services.workflow.utils.user_mappers import (
+    convert_iam_id_to_email,
+    process_candidate_users,
+)
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.exceptions.base import ServiceError, ExternalAPIError
@@ -35,7 +38,7 @@ from app.shared.utils.client_detection import supports_rich_text_format
 
 async def _retrieve_my_tasklist_from_workflow_inbox(
     max_results: int,
-) -> List[UserTask]:
+) -> List[UserTask]:  # noqa: UP006 # Baseline
     """
     Retrieve list of tasks from workflow task inbox for a user.
 
@@ -48,9 +51,9 @@ async def _retrieve_my_tasklist_from_workflow_inbox(
 
     params = {}
     if max_results is not None:
-        params['limit'] = max_results
+        params["limit"] = max_results
 
-    usertasks: List[UserTask] = []
+    usertasks: List[UserTask] = []  # noqa: UP006 # Baseline
 
     try:
         response = await tool_helper_service.execute_get_request(
@@ -59,21 +62,32 @@ async def _retrieve_my_tasklist_from_workflow_inbox(
         )
 
         # Schema: data->resources[]->Items->(metadata, entity)
-        response_data = cast(Dict[str, Any], response)
-        item_list = cast(List[Dict[str, Any]], response_data.get("data", {}).get("resources", []))
+        response_data = cast(Dict[str, Any], response)  # noqa: UP006 # Baseline
+        item_list = cast(
+            List[Dict[str, Any]],  # noqa: UP006 # Baseline
+            response_data.get("data", {}).get("resources", []),  # noqa: UP006 # Baseline
+        )
         for user_task in item_list:
             usertask_metadata = user_task.get("metadata", {})
             usertask_entity = user_task.get("entity", {})
-            
+
             # Process IAM ID to email conversions
             assignee_iam_id = usertask_entity.get("assignee")
-            assignee = await convert_iam_id_to_email(assignee_iam_id, "assignee") if assignee_iam_id else None
-            candidate_users = await process_candidate_users(usertask_entity.get("candidate_users"))
-            
-            task_title_raw = usertask_entity.get("task_title", "")
-            task_title = _parse_task_title_from_json(task_title_raw) if task_title_raw else None
+            assignee = (
+                await convert_iam_id_to_email(assignee_iam_id, "assignee")
+                if assignee_iam_id
+                else None
+            )
+            candidate_users = await process_candidate_users(
+                usertask_entity.get("candidate_users")
+            )
 
-            user_task = UserTask(
+            task_title_raw = usertask_entity.get("task_title", "")
+            task_title = (
+                _parse_task_title_from_json(task_title_raw) if task_title_raw else None
+            )
+
+            user_task = UserTask(  # noqa: PLW2901 # Baseline
                 task_id=usertask_metadata.get("task_id"),
                 name=usertask_metadata.get("name"),
                 task_title=task_title or usertask_metadata.get("name"),
@@ -82,42 +96,46 @@ async def _retrieve_my_tasklist_from_workflow_inbox(
                 assignee=assignee,
                 claimed_at=usertask_entity.get("claimed_at"),
                 completed_at=usertask_entity.get("completed"),
-                candidate_users=candidate_users
+                candidate_users=candidate_users,
             )
             usertasks.append(user_task)
 
         return usertasks
 
     except KeyError as e:
-        error_msg = f"Missing required field in task response from workflow inbox: {str(e)}"
+        error_msg = (
+            f"Missing required field in task response from workflow inbox: {e!s}"
+        )
         LOGGER.error(error_msg)
         raise ServiceError(
             error_msg,
             service="workflow",
             tool="list_user_tasks_approval_data_for_artifact",
-            remediation_steps="Verify the workflow task API is returning complete data. Contact support if the issue persists."
+            remediation_steps="Verify the workflow task API is returning complete data. Contact support if the issue persists.",
         ) from e
     except (ConnectionError, TimeoutError) as e:
-        error_msg = f"Network error while retrieving tasks from workflow inbox: {str(e)}"
+        error_msg = f"Network error while retrieving tasks from workflow inbox: {e!s}"
         LOGGER.error(error_msg)
         raise ExternalAPIError(
             error_msg,
             service="workflow",
             tool="list_user_tasks_approval_data_for_artifact",
-            remediation_steps="Check network connectivity and verify the workflow service is accessible. Retry the operation."
+            remediation_steps="Check network connectivity and verify the workflow service is accessible. Retry the operation.",
         ) from e
     except Exception as e:
-        error_msg = f"Unexpected error retrieving tasks from workflow inbox: {str(e)}"
+        error_msg = f"Unexpected error retrieving tasks from workflow inbox: {e!s}"
         LOGGER.error(error_msg)
         raise ServiceError(
             error_msg,
             service="workflow",
             tool="list_user_tasks_approval_data_for_artifact",
-            remediation_steps="Verify your authentication credentials and permissions. Check the service logs for more details."
+            remediation_steps="Verify your authentication credentials and permissions. Check the service logs for more details.",
         ) from e
 
 
-async def _query_user_tasks_by_artifact(artifact_id: str, draft: bool, max_results: int) -> List[UserTask]:
+async def _query_user_tasks_by_artifact(
+    artifact_id: str, draft: bool, max_results: int
+) -> List[UserTask]:  # noqa: UP006 # Baseline
     """
     Query workflow API for user tasks.
 
@@ -131,45 +149,54 @@ async def _query_user_tasks_by_artifact(artifact_id: str, draft: bool, max_resul
     """
 
     params = {
-       "artifact_id": artifact_id,
-       "limit": max_results,
-       "include_user_tasks": True,
+        "artifact_id": artifact_id,
+        "limit": max_results,
+        "include_user_tasks": True,
     }
     if draft:
-        params['return_active_workflows'] = True
-        params['return_completed_workflows'] = False
+        params["return_active_workflows"] = True
+        params["return_completed_workflows"] = False
     else:
-        params['return_active_workflows'] = False
-        params['return_completed_workflows'] = True
+        params["return_active_workflows"] = False
+        params["return_completed_workflows"] = True
 
     try:
         response = await tool_helper_service.execute_get_request(
-            url=f"{tool_helper_service.base_url}{WORKFLOW_BASE_ENDPOINT}",
-            params=params
+            url=f"{tool_helper_service.base_url}{WORKFLOW_BASE_ENDPOINT}", params=params
         )
 
         # Schema: { "offset": 3, "resources": [ { "metadata": { "name": "...", ...
-        response_data = cast(Dict[str, Any], response)
-        user_tasks: List[UserTask] = []
-        workflows = cast(List[Dict[str, Any]], response_data.get("resources", []))
+        response_data = cast(Dict[str, Any], response)  # noqa: UP006 # Baseline
+        user_tasks: List[UserTask] = []  # noqa: UP006 # Baseline
+        workflows = cast(List[Dict[str, Any]], response_data.get("resources", []))  # noqa: UP006 # Baseline
 
         for workflow in workflows:
             # ignore workflows whose last_action is not "update" (2) or "publish" (3)
-            last_action = workflow.get("last_action")
+            last_action = workflow.get("last_action")  # noqa: F841 # Baseline # NOSONAR
 
             entity = workflow.get("entity", {})
             user_tasks_in = entity.get("user_tasks", [])
             for user_task_in in user_tasks_in:
                 usertask_metadata = user_task_in.get("metadata", {})
                 usertask_entity = user_task_in.get("entity", {})
-                
+
                 # Process IAM ID to email conversions
                 assignee_iam_id = usertask_entity.get("assignee")
-                assignee = await convert_iam_id_to_email(assignee_iam_id, "assignee") if assignee_iam_id else None
-                candidate_users = await process_candidate_users(usertask_entity.get("candidate_users"))
-                
+                assignee = (
+                    await convert_iam_id_to_email(assignee_iam_id, "assignee")
+                    if assignee_iam_id
+                    else None
+                )
+                candidate_users = await process_candidate_users(
+                    usertask_entity.get("candidate_users")
+                )
+
                 task_title_raw = usertask_entity.get("task_title", "")
-                task_title = _parse_task_title_from_json(task_title_raw) if task_title_raw else None
+                task_title = (
+                    _parse_task_title_from_json(task_title_raw)
+                    if task_title_raw
+                    else None
+                )
 
                 user_task = UserTask(
                     task_id=usertask_metadata.get("task_id"),
@@ -180,41 +207,42 @@ async def _query_user_tasks_by_artifact(artifact_id: str, draft: bool, max_resul
                     assignee=assignee,
                     claimed_at=usertask_entity.get("claimed_at"),
                     completed_at=usertask_entity.get("completed"),
-                    candidate_users=candidate_users
+                    candidate_users=candidate_users,
                 )
                 user_tasks.append(user_task)
 
-        return user_tasks 
+        return user_tasks
 
     except KeyError as e:
-        error_msg = f"Missing required field in workflow user tasks response for artifact '{artifact_id}': {str(e)}"
+        error_msg = f"Missing required field in workflow user tasks response for artifact '{artifact_id}': {e!s}"
         LOGGER.error(error_msg)
         raise ServiceError(
             error_msg,
             service="workflow",
             tool="list_user_tasks_approval_data_for_artifact",
-            remediation_steps="Verify the workflow API is returning complete data. Contact support if the issue persists."
+            remediation_steps="Verify the workflow API is returning complete data. Contact support if the issue persists.",
         ) from e
     except (ConnectionError, TimeoutError) as e:
-        error_msg = f"Network error while querying workflow user tasks for artifact '{artifact_id}': {str(e)}"
+        error_msg = f"Network error while querying workflow user tasks for artifact '{artifact_id}': {e!s}"
         LOGGER.error(error_msg)
         raise ExternalAPIError(
             error_msg,
             service="workflow",
             tool="list_user_tasks_approval_data_for_artifact",
-            remediation_steps="Check network connectivity and verify the workflow service is accessible. Retry the operation."
+            remediation_steps="Check network connectivity and verify the workflow service is accessible. Retry the operation.",
         ) from e
     except Exception as e:
-        error_msg = f"Unexpected error querying workflow user tasks for artifact '{artifact_id}': {str(e)}"
+        error_msg = f"Unexpected error querying workflow user tasks for artifact '{artifact_id}': {e!s}"
         LOGGER.error(error_msg)
         raise ServiceError(
             error_msg,
             service="workflow",
             tool="list_user_tasks_approval_data_for_artifact",
-            remediation_steps=f"Verify that artifact ID '{artifact_id}' exists and you have permission to access its workflow tasks. Check if the artifact is part of an active workflow."
+            remediation_steps=f"Verify that artifact ID '{artifact_id}' exists and you have permission to access its workflow tasks. Check if the artifact is part of an active workflow.",
         ) from e
 
-list_user_tasks_approval_data_for_artifact_description="""
+
+list_user_tasks_approval_data_for_artifact_description = """
 Use this tool when you need to see the approval history, approvers, and workflow status for a specific artifact identified by artifact_id.
 list_user_task_approval_data returns a list user tasks in a data governance workflow for a specific artifact id along with
 final state of the workflow to find out approvers in user task data.
@@ -229,7 +257,7 @@ Returns: The list of user tasks associated with the specified artifact, total co
 
 async def _list_user_tasks_approval_data_for_artifact(
     request: ListUserTasksRequest,
-    ctx: Optional[Context]
+    ctx: Optional[Context],  # noqa: UP045 # Baseline
 ) -> ListUserTasksResponse:
     """
     List workflow user tasks.
@@ -244,97 +272,108 @@ async def _list_user_tasks_approval_data_for_artifact(
         f"Listing user tasks with max_results: {request.max_results}, "
         f"format: {request.format}"
     )
-    
+
     # Auto-detect Claude Code and switch to JSON format if needed
     # Some clients don't handle markdown tables well, so we default to JSON
-    if ctx is not None and not supports_rich_text_format(ctx) and request.format == "table":
-        LOGGER.info("Client without rich text support detected: switching format from 'table' to 'json'")
+    if (
+        ctx is not None
+        and not supports_rich_text_format(ctx)
+        and request.format == "table"
+    ):
+        LOGGER.info(
+            "Client without rich text support detected: switching format from 'table' to 'json'"
+        )
         request.format = "json"
-    
+
     # Handle global artifact IDs (format: global_uuid_artifact_id)
     artifact_id = request.artifact_id
-    if '_' in artifact_id:
+    if "_" in artifact_id:
         LOGGER.info(f"Global artifact ID detected: {artifact_id}")
-        parts = artifact_id.split('_', 1)
-        if len(parts) == 2:
+        parts = artifact_id.split("_", 1)
+        if len(parts) == 2:  # noqa: PLR2004 # Baseline
             artifact_id = parts[1]
             LOGGER.info(f"Extracted artifact ID from global ID: {artifact_id}")
         else:
             LOGGER.warning(f"Unexpected global ID format: {artifact_id}")
-    
+
     # Validate artifact_id length (should be 35 characters)
-    if len(artifact_id) != 35:
+    if len(artifact_id) != 35:  # noqa: PLR2004 # Baseline
         LOGGER.warning(
             f"Artifact ID length is {len(artifact_id)} characters, expected 35. "
             f"Proceeding with artifact_id: {artifact_id}"
         )
-    
+
     # Query user tasks by artifact_id (now required parameter)
     user_tasks = await _query_user_tasks_by_artifact(
-        artifact_id=artifact_id,
-        draft=request.draft,
-        max_results=request.max_results
+        artifact_id=artifact_id, draft=request.draft, max_results=request.max_results
     )
 
     # Generate output based on format
     if request.format == "table":
         formatted_output = format_user_tasks_as_table(
-            user_tasks=user_tasks,
-            base_url=str(tool_helper_service.base_url)
+            user_tasks=user_tasks, base_url=str(tool_helper_service.base_url)
         )
         LOGGER.info(f"Generated formatted table for {len(user_tasks)} user tasks")
         # Always include both raw data and formatted output
         return ListUserTasksResponse(
             user_tasks=user_tasks,
             total_count=len(user_tasks),
-            formatted_output=formatted_output
+            formatted_output=formatted_output,
         )
-    elif request.format == "list":
+    if request.format == "list":
         formatted_output = format_user_tasks_as_list(
-            user_tasks=user_tasks,
-            base_url=str(tool_helper_service.base_url)
+            user_tasks=user_tasks, base_url=str(tool_helper_service.base_url)
         )
         LOGGER.info(f"Generated formatted list for {len(user_tasks)} user tasks")
         # Always include both raw data and formatted output
         return ListUserTasksResponse(
             user_tasks=user_tasks,
             total_count=len(user_tasks),
-            formatted_output=formatted_output
+            formatted_output=formatted_output,
         )
-    else:
-        # format='json' - return raw data only (already includes user_tasks)
-        return ListUserTasksResponse(
-            user_tasks=user_tasks,
-            total_count=len(user_tasks),
-            formatted_output=None
-        )
+    # format='json' - return raw data only (already includes user_tasks)
+    return ListUserTasksResponse(
+        user_tasks=user_tasks, total_count=len(user_tasks), formatted_output=None
+    )
 
 
 @service_registry.tool(
     name="list_user_task_approval_data",
     annotations={
         "readOnlyHint": True,
-        "title": "List User Task Approval History and Data for Specific Artifacts"
+        "title": "List User Task Approval History and Data for Specific Artifacts",
     },
     description=list_user_tasks_approval_data_for_artifact_description,
-    tags={"workflow", "glossary", "user_tasks", "governance","metadata_management_and_governance"},
+    tags={
+        "workflow",
+        "glossary",
+        "user_tasks",
+        "governance",
+        "metadata_management_and_governance",
+    },
     meta={"version": "1.0", "service": "workflow"},
 )
 @auto_context
 async def list_user_tasks_approval_data_for_artifact(
-    artifact_id: Annotated[str, Field(description="Artifact ID as object of a workflow")],
-    max_results: Annotated[int, Field(description="Maximum number of user tasks to return")] = 50,
+    artifact_id: Annotated[
+        str, Field(description="Artifact ID as object of a workflow")
+    ],
+    max_results: Annotated[
+        int, Field(description="Maximum number of user tasks to return")
+    ] = 50,
     draft: Annotated[bool, Field(description="Artifact in draft or published")] = False,
-    format: Annotated[str, Field(description="Output format: 'table' for formatted markdown table, 'json' for raw data")] = "table",
-    ctx: Optional[Context] = None,
+    format: Annotated[  # noqa: A002 # Baseline
+        str,
+        Field(
+            description="Output format: 'table' for formatted markdown table, 'json' for raw data"
+        ),
+    ] = "table",
+    ctx: Optional[Context] = None,  # noqa: UP045 # Baseline
 ) -> ListUserTasksResponse:
     """Wrapper version of list_user_tasks_approval_data_for_artifact."""
-    
+
     request = ListUserTasksRequest(
-        artifact_id=artifact_id,
-        max_results=max_results,
-        draft=draft,
-        format=format
+        artifact_id=artifact_id, max_results=max_results, draft=draft, format=format
     )
-    
+
     return await _list_user_tasks_approval_data_for_artifact(request, ctx)

@@ -3,8 +3,8 @@
 # See the LICENSE file in the project root for license information.
 
 # This file has been modified with the assistance of IBM Bob AI tool
-import re
-from typing import Tuple, Optional, Dict, Any
+import re  # noqa: I001 # Baseline
+from typing import Tuple, Optional, Dict, Any  # noqa: UP035 # Baseline
 
 
 class CRNValidator:
@@ -17,7 +17,7 @@ class CRNValidator:
     - crn:v1:staging:public:cloud-object-storage:global:a/17d6dd3e6388457eab4535166f2dd38b:f741473f-1c81-4949-8ede-6239e10f4ebf::
     """
 
-    def __init__(self):
+    def __init__(self):  # noqa: ANN204 # Baseline
         # UUID pattern (with or without hyphens)
         self.uuid_pattern = r"^[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}$"
 
@@ -51,7 +51,7 @@ class CRNValidator:
 
     def validate_crn(
         self, crn: str
-    ) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
+    ) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:  # noqa: UP006, UP045 # Baseline
         """
         Validate a CRN string and return validation result with details.
 
@@ -72,7 +72,7 @@ class CRNValidator:
 
         # Check basic structure (must have exactly 9 colons for 10 segments)
         segments = crn.split(":")
-        if len(segments) != 10:
+        if len(segments) != 10:  # noqa: PLR2004 # Baseline
             return (
                 False,
                 f"CRN must have exactly 10 segments separated by colons, found {len(segments)}",
@@ -101,75 +101,75 @@ class CRNValidator:
 
         return True, None, components
 
-    def check_service_name(self, segments: list) -> Optional[str]:
+    def check_service_name(self, segments: list) -> Optional[str]:  # noqa: UP045 # Baseline
         """
         Validate the service name segment of a CRN.
-        
+
         Args:
             segments (list): List of CRN segments split by ':'
-            
+
         Returns:
             Optional[str]: Error message if invalid, None if valid
         """
-        if len(segments) > 4:
+        if len(segments) > 4:  # noqa: PLR2004 # Baseline
             if not segments[4]:
                 return "Service name cannot be empty"
             if not re.match(self.service_pattern, segments[4]):
                 return f"Invalid service name format: '{segments[4]}'"
         return None
-    
-    def check_region(self, segments: list) -> Optional[str]:
+
+    def check_region(self, segments: list) -> Optional[str]:  # noqa: UP045 # Baseline
         """
         Validate the region segment of a CRN.
-        
+
         Args:
             segments (list): List of CRN segments split by ':'
-            
+
         Returns:
             Optional[str]: Error message if invalid, None if valid
         """
-        if len(segments) > 5:
+        if len(segments) > 5:  # noqa: PLR2004 # Baseline
             if not segments[5]:
                 return "Region cannot be empty"
             if not re.match(self.region_pattern, segments[5]):
                 return f"Invalid region format: '{segments[5]}'"
         return None
-    
-    def check_account_id(self, segments: list) -> Optional[str]:
+
+    def check_account_id(self, segments: list) -> Optional[str]:  # noqa: UP045 # Baseline
         """
         Validate the account ID segment of a CRN.
-        
+
         Args:
             segments (list): List of CRN segments split by ':'
-            
+
         Returns:
             Optional[str]: Error message if invalid, None if valid
         """
-        if len(segments) > 6:
+        if len(segments) > 6:  # noqa: PLR2004 # Baseline
             if not segments[6]:
                 return "Account ID cannot be empty"
             if not re.match(self.account_pattern, segments[6]):
                 return f"Account ID must be in format 'a/<32-char-hex>', found '{segments[6]}'"
         return None
-            
-    def check_resource_id(self, segments: list) -> Optional[str]:
+
+    def check_resource_id(self, segments: list) -> Optional[str]:  # noqa: UP045 # Baseline
         """
         Validate the resource ID segment of a CRN.
-        
+
         Args:
             segments (list): List of CRN segments split by ':'
-            
+
         Returns:
             Optional[str]: Error message if invalid, None if valid
         """
-        if len(segments) > 7:
+        if len(segments) > 7:  # noqa: PLR2004 # Baseline
             if not segments[7]:
                 return "Resource ID cannot be empty"
             if not re.match(self.uuid_pattern, segments[7]):
                 return f"Resource ID must be a valid UUID, found '{segments[7]}'"
         return None
 
-    def _detailed_validation(self, crn: str) -> Tuple[str, None]:
+    def _detailed_validation(self, crn: str) -> Tuple[str, None]:  # noqa: UP006 # Baseline
         """
         Provide detailed validation error messages for invalid CRNs.
 
@@ -187,14 +187,17 @@ class CRNValidator:
 
         # Check version
         if len(segments) > 1 and not re.match(self.version_pattern, segments[1]):
-            return f"Version must follow 'v<number>' format, found '{segments[1]}'", None
+            return (
+                f"Version must follow 'v<number>' format, found '{segments[1]}'",
+                None,
+            )
 
         # Check cname (cloud environment)
-        if len(segments) > 2 and not segments[2]:
+        if len(segments) > 2 and not segments[2]:  # noqa: PLR2004 # Baseline
             return "Cname (cloud environment) cannot be empty", None
 
         # Check ctype (cloud type)
-        if len(segments) > 3 and not segments[3]:
+        if len(segments) > 3 and not segments[3]:  # noqa: PLR2004 # Baseline
             return "Ctype (cloud type) cannot be empty", None
 
         # Validate each segment using helper methods
@@ -202,9 +205,9 @@ class CRNValidator:
             self.check_service_name,
             self.check_region,
             self.check_account_id,
-            self.check_resource_id
+            self.check_resource_id,
         ]
-        
+
         for check in validation_checks:
             error_msg = check(segments)
             if error_msg is not None:
@@ -225,7 +228,7 @@ class CRNValidator:
         is_valid, _, _ = self.validate_crn(crn)
         return is_valid
 
-    def parse_crn(self, crn: str) -> Optional[Dict[str, Any]]:
+    def parse_crn(self, crn: str) -> Optional[Dict[str, Any]]:  # noqa: UP006, UP045 # Baseline
         """
         Parse a valid CRN and return its components.
 

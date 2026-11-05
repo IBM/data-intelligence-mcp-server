@@ -2,8 +2,8 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-import re
-from datetime import datetime, timezone
+import re  # noqa: I001 # Baseline
+from datetime import datetime, timezone, UTC  # noqa: F401 # Baseline
 from typing import Annotated, Optional
 from pydantic import Field
 from app.core.registry import service_registry
@@ -66,11 +66,11 @@ def normalize_dps_timestamp(value: str, end_of_period: bool = False) -> str:
     # ISO with millis and offset: 2026-01-01T00:00:00.000+00:00
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+[+-]\d{2}:?\d{2}", value):
         dt = datetime.fromisoformat(value)
-        return _to_dps_format(dt.astimezone(timezone.utc))
+        return _to_dps_format(dt.astimezone(UTC))
 
     # Date only: 2026-01-01
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
-        dt = datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
+        dt = datetime.fromisoformat(value).replace(tzinfo=UTC)
         return _to_dps_format(_apply_end_of_period_date(dt, end_of_period))
 
     # Year-month only: 2026-06
@@ -98,23 +98,24 @@ def _apply_end_of_period_date(dt: datetime, end_of_period: bool) -> datetime:
 def _build_year_month_dt(value: str, end_of_period: bool) -> datetime:
     """Build a UTC datetime for a year-month string (e.g. '2026-06')."""
     import calendar
+
     year, month = int(value[:4]), int(value[5:7])
     if end_of_period:
         last_day = calendar.monthrange(year, month)[1]
-        return datetime(year, month, last_day, 23, 59, 59, 999000, tzinfo=timezone.utc)
-    return datetime(year, month, 1, 0, 0, 0, 0, tzinfo=timezone.utc)
+        return datetime(year, month, last_day, 23, 59, 59, 999000, tzinfo=UTC)
+    return datetime(year, month, 1, 0, 0, 0, 0, tzinfo=UTC)
 
 
 def _build_year_dt(year: int, end_of_period: bool) -> datetime:
     """Build a UTC datetime for a year integer."""
     if end_of_period:
-        return datetime(year, 12, 31, 23, 59, 59, 999000, tzinfo=timezone.utc)
-    return datetime(year, 1, 1, 0, 0, 0, 0, tzinfo=timezone.utc)
+        return datetime(year, 12, 31, 23, 59, 59, 999000, tzinfo=UTC)
+    return datetime(year, 1, 1, 0, 0, 0, 0, tzinfo=UTC)
 
 
 def _to_dps_format(dt: datetime) -> str:
     """Format a datetime as ``yyyy-MM-ddTHH:mm:ss.mmmZ`` (always UTC, 3-digit millis)."""
-    utc_dt = dt.astimezone(timezone.utc)
+    utc_dt = dt.astimezone(UTC)
     millis = utc_dt.microsecond // 1000
     return utc_dt.strftime(f"%Y-%m-%dT%H:%M:%S.{millis:03d}Z")
 
@@ -140,7 +141,6 @@ def _add_optional_params(params: dict, request: GetPolicyMetricsRequest) -> None
         params["is_pep_cache"] = str(request.is_pep_cache).lower()
     if request.sort is not None:
         params["sort"] = request.sort.value
-
 
 
 async def _get_policy_metrics(
@@ -179,7 +179,7 @@ async def _get_policy_metrics(
         raise
     except Exception as e:
         raise ServiceError(
-            f"Failed to retrieve policy metrics: {str(e)}",
+            f"Failed to retrieve policy metrics: {e!s}",
             service="data_protection_rules",
             tool="get_policy_metrics",
         ) from e
@@ -221,11 +221,11 @@ async def _get_policy_metrics(
     Returns: A list of metric records, each containing an aggregate dimension value and
     its corresponding enforcement count, plus the total number of records returned.
     """,
-    tags={"data_protection_rules", "metrics","metadata_management_and_governance"},
+    tags={"data_protection_rules", "metrics", "metadata_management_and_governance"},
     meta={"version": "1.0", "service": "data_protection_rules"},
 )
 @auto_context
-async def get_policy_metrics(
+async def get_policy_metrics(  # noqa: PLR0913 # Baseline
     metrics_type: Annotated[
         PolicyMetricsType,
         Field(
@@ -263,48 +263,58 @@ async def get_policy_metrics(
         ),
     ],
     policy_id: Annotated[
-        Optional[str],
-        Field(default=None, description="Filter to a specific policy ID, or omit for all."),
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            default=None, description="Filter to a specific policy ID, or omit for all."
+        ),
     ] = None,
     rule_id: Annotated[
-        Optional[str],
-        Field(default=None, description="Filter to a specific rule ID, or omit for all."),
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            default=None, description="Filter to a specific rule ID, or omit for all."
+        ),
     ] = None,
     user: Annotated[
-        Optional[str],
+        Optional[str],  # noqa: UP045 # Baseline
         Field(default=None, description="Filter to a specific user, or omit for all."),
     ] = None,
     governance_type: Annotated[
-        Optional[str],
+        Optional[str],  # noqa: UP045 # Baseline
         Field(
             default=None,
             description="Filter to a specific governance type (e.g. 'Access'), or omit for all.",
         ),
     ] = None,
     outcome: Annotated[
-        Optional[str],
+        Optional[str],  # noqa: UP045 # Baseline
         Field(
             default=None,
             description="Filter to a specific outcome (e.g. 'Allow', 'Deny'), or omit for all.",
         ),
     ] = None,
     pep_host_type: Annotated[
-        Optional[str],
-        Field(default=None, description="Filter to a specific PEP host type, or omit for all."),
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            default=None,
+            description="Filter to a specific PEP host type, or omit for all.",
+        ),
     ] = None,
     is_pep_cache: Annotated[
-        Optional[bool],
+        Optional[bool],  # noqa: UP045 # Baseline
         Field(
             default=None,
             description="Filter to cache decisions (True) or server decisions (False), or omit for both.",
         ),
     ] = None,
     context_operation: Annotated[
-        Optional[str],
-        Field(default=None, description="Filter to a specific context operation, or omit for all."),
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            default=None,
+            description="Filter to a specific context operation, or omit for all.",
+        ),
     ] = None,
     sort: Annotated[
-        Optional[PolicyMetricsSortOrder],
+        Optional[PolicyMetricsSortOrder],  # noqa: UP045 # Baseline
         Field(
             default=None,
             description=(

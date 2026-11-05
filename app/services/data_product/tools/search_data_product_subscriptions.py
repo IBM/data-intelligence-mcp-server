@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Dict, Any, Annotated
+from typing import Optional, Dict, Any, Annotated  # noqa: I001, UP035 # Baseline
 from pydantic import Field
 
 from app.core.registry import service_registry
@@ -20,48 +20,51 @@ from app.services.data_product.models.search_data_product_subscriptions import (
     SearchDataProductSubscriptionsResponse,
     Subscription,
 )
+from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.logging import LOGGER, auto_context
 from app.shared.exceptions.base import ServiceError
 
 
-def _build_query_params(request: SearchDataProductSubscriptionsRequest) -> Dict[str, Any]:
+def _build_query_params(request: SearchDataProductSubscriptionsRequest, dph_catalog_id: str) -> Dict[str, Any]:
     """Build query parameters for the asset lists API request."""
-    params: Dict[str, Any] = {}
-    base_filter = 'type=="order"'
+    params: Dict[str, Any] = {}  # noqa: UP006 # Baseline
+    base_filter = f'type=="order"&&asset.container.id=="{dph_catalog_id}"'
     
     # Handle query parameter
     if request.query and request.query.strip():
-        params["query"] = f'{base_filter}&&({request.query})'
+        params["query"] = f"{base_filter}&&({request.query})"
     else:
         params["query"] = base_filter
-    
+
     # Handle limit parameter
     if request.limit is not None:
         if request.limit == 0:
             params["limit"] = 0
         elif request.limit > 0:
             params["limit"] = min(max(1, request.limit), 200)
-    
+
     # Handle start parameter for pagination
     if request.start and request.start.strip():
         params["start"] = request.start
-    
+
     # Handle sort parameter
     if request.sort and request.sort.strip():
         params["sort"] = request.sort
-    
+
     return params
 
 
-def _extract_href_value(value: Any) -> Optional[str]:
+def _extract_href_value(value: Any) -> Optional[str]:  # noqa: UP045 # Baseline
     """Extract href from a value that might be a dict or string."""
     if isinstance(value, dict):
         return value.get("href")
     return value
 
 
-def _build_response(response_data: Dict[str, Any] | bytes) -> SearchDataProductSubscriptionsResponse:
+def _build_response(
+    response_data: Dict[str, Any] | bytes,  # noqa: UP006 # Baseline
+) -> SearchDataProductSubscriptionsResponse:
     """Build the response object from API response data."""
     if isinstance(response_data, bytes):
         raise ServiceError(
@@ -71,12 +74,12 @@ def _build_response(response_data: Dict[str, Any] | bytes) -> SearchDataProductS
                 "it is a valid CEL expression."
             ),
         )
-    
+
     items = response_data.get("asset_lists", [])
     total_count = response_data.get("total_count", 0)
-    
+
     LOGGER.info(f"Retrieved {len(items)} subscriptions (total: {total_count})")
-    
+
     # Convert items to Subscription objects
     subscriptions = [
         Subscription(
@@ -87,17 +90,17 @@ def _build_response(response_data: Dict[str, Any] | bytes) -> SearchDataProductS
             created_at=item.get("created_at"),
             last_updated_at=item.get("last_updated_at"),
             asset=item.get("asset"),
-            access_control=item.get("access_control")
+            access_control=item.get("access_control"),
         )
         for item in items
     ]
-    
+
     return SearchDataProductSubscriptionsResponse(
         subscriptions=subscriptions,
         total_count=total_count,
         limit=response_data.get("limit"),
         next=_extract_href_value(response_data.get("next")),
-        first=_extract_href_value(response_data.get("first"))
+        first=_extract_href_value(response_data.get("first")),
     )
 
 
@@ -106,7 +109,7 @@ async def _search_data_product_subscriptions(
 ) -> SearchDataProductSubscriptionsResponse:
     """
     Search and filter data product subscriptions (asset lists).
-    
+
     Fetches asset lists of type "order" which represent data product subscriptions,
     with optional filtering, sorting, and pagination.
     """
@@ -114,28 +117,30 @@ async def _search_data_product_subscriptions(
         f"In search_data_product_subscriptions tool, "
         f"query={request.query}, limit={request.limit}, start={request.start}, sort={request.sort}"
     )
+
+    dph_catalog_id = await get_dph_catalog_id_for_user(await get_access_token())
     
     try:
         asset_lists_url = f"{tool_helper_service.base_url}/v2/asset_lists"
-        params = _build_query_params(request)
+        params = _build_query_params(request, dph_catalog_id)
         
         LOGGER.info(f"Fetching asset lists from: {asset_lists_url}")
         LOGGER.debug(f"Query parameters: {params}")
-        
+
         response_data = await tool_helper_service.execute_get_request(
             url=asset_lists_url,
             params=params,
-            tool_name="search_data_product_subscriptions"
+            tool_name="search_data_product_subscriptions",
         )
-        
+
         return _build_response(response_data)
-        
+
     except ServiceError:
         raise
     except Exception as e:
         error_message = f"Exception when searching data product subscriptions: {e!s}"
         LOGGER.error(error_message)
-        raise ServiceError(
+        raise ServiceError(  # noqa: B904 # Baseline
             f"Failed to search data product subscriptions. {error_message}",
             remediation_steps=(
                 "Check that the query parameter is a valid CEL expression. "
@@ -160,8 +165,9 @@ async def _search_data_product_subscriptions(
     - Name and description
     - Access control information
     
-    The filter type=="order" is automatically appended to all queries to ensure only
-    data product subscriptions are returned (not other asset list types).
+    The filters type=="order" and asset.container.id=="<your-default-catalog>" are automatically
+    appended to all queries. Results are always scoped to your default DPH catalog — cross-catalog
+    queries are not supported by this tool.
     
     **CRITICAL: Finding Subscriptions for a Specific Data Product**
     
@@ -171,8 +177,6 @@ async def _search_data_product_subscriptions(
       The part BEFORE the @ symbol is the asset ID: "6d80d7d4-ca55-4fb0-8b70-bb799a2881dd"
     - `asset.id`: The asset ID (same as the part before @ in the top-level id)
       Example: "6d80d7d4-ca55-4fb0-8b70-bb799a2881dd"
-    - `asset.container.id`: The CATALOG ID - DO NOT USE THIS for subscriptions!
-      Example: "b34d014d-82d1-4374-9de2-4478e350a5f6"
     
     To find subscriptions for a data product:
     1. Extract the asset ID from get_data_product_details response:
@@ -205,30 +209,46 @@ async def _search_data_product_subscriptions(
     - List of subscriptions with metadata (ID, state, name, owner)
     - Pagination information (next, first links)
     - Total count of results
-    """,
+    """,  # noqa: W293 # Baseline
     tags={"read", "data_product", "subscriptions"},
     meta={"version": "1.0", "service": "data_product"},
     annotations={
         "title": "Search Data Product Subscription and Filter with CEL Query Support",
-        "readOnlyHint": True
-    }
+        "readOnlyHint": True,
+    },
 )
 @auto_context
 async def search_data_product_subscriptions(
-    query: Annotated[Optional[str], Field(description="Optional CEL query to filter subscriptions. Examples: asset.id==\"6d80d7d4-ca55-4fb0-8b70-bb799a2881dd\" (find subscriptions for a data product), name==\"My data product\" (find by name), state==\"succeeded\" (find successful subscriptions)")] = None,
-    limit: Annotated[Optional[int], Field(description="Maximum number of results to return (1-200). Use None for no limit, 0 for count only.")] = None,
-    start: Annotated[Optional[str], Field(description="Pagination start token from previous response.")] = None,
-    sort: Annotated[Optional[str], Field(description="Comma-separated sort fields (e.g., 'created_at,-last_updated_at'). Prefix with '-' for descending.")] = None
+    query: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description='Optional CEL query to filter subscriptions. Examples: asset.id=="6d80d7d4-ca55-4fb0-8b70-bb799a2881dd" (find subscriptions for a data product), name=="My data product" (find by name), state=="succeeded" (find successful subscriptions)'
+        ),
+    ] = None,
+    limit: Annotated[
+        Optional[int],  # noqa: UP045 # Baseline
+        Field(
+            description="Maximum number of results to return (1-200). Use None for no limit, 0 for count only."
+        ),
+    ] = None,
+    start: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(description="Pagination start token from previous response."),
+    ] = None,
+    sort: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Comma-separated sort fields (e.g., 'created_at,-last_updated_at'). Prefix with '-' for descending."
+        ),
+    ] = None,
 ) -> SearchDataProductSubscriptionsResponse:
     """Wrapper version that expands SearchDataProductSubscriptionsRequest object into individual parameters."""
-    
+
     request = SearchDataProductSubscriptionsRequest(
-        query=query,
-        limit=limit,
-        start=start,
-        sort=sort
+        query=query, limit=limit, start=start, sort=sort
     )
-    
+
     return await _search_data_product_subscriptions(request)
+
 
 # Made with Bob

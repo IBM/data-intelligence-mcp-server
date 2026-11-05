@@ -9,23 +9,29 @@ This module contains request and response models for querying the workflow API
 to retrieve workflows pertaining to a specific artifact_id of a glossary object and retrieve all their user tasks.
 """
 
-from pydantic import BaseModel, Field, field_validator
-from typing import List, Dict, Optional
+from pydantic import BaseModel, Field, field_validator  # noqa: I001 # Baseline
+from typing import List, Dict, Optional  # noqa: F401, UP035 # Baseline
 from app.shared.models import BaseResponseModel
 
 
 class UserTask(BaseModel):
     """Model representing a glossary data class."""
 
-    task_id: Optional[str] = Field(None, description="Unique task identifier")
-    name: str = Field(..., description="User task name")  # I hope to guess approval tasks from their name, title and instruction
-    task_title : Optional[str] = Field(None, description="Task title")
-    task_instruction : Optional[str] = Field(None, description="Task instruction")
-    state: Optional[str] = Field(None, description="User task state")   # 0 - created, 1 - assigned, 2 - completed
-    assignee: Optional[str] = Field(None, description="User task assignee")
-    claimed_at: Optional[str] = Field(None, description="When user task was claimed")
-    completed_at: Optional[str] = Field(None, description="When user task has been completed")
-    candidate_users: Optional[List[str]] = Field(
+    task_id: Optional[str] = Field(None, description="Unique task identifier")  # noqa: UP045 # Baseline
+    name: str = Field(
+        ..., description="User task name"
+    )  # I hope to guess approval tasks from their name, title and instruction
+    task_title: Optional[str] = Field(None, description="Task title")  # noqa: UP045 # Baseline
+    task_instruction: Optional[str] = Field(None, description="Task instruction")  # noqa: UP045 # Baseline
+    state: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None, description="User task state"
+    )  # 0 - created, 1 - assigned, 2 - completed
+    assignee: Optional[str] = Field(None, description="User task assignee")  # noqa: UP045 # Baseline
+    claimed_at: Optional[str] = Field(None, description="When user task was claimed")  # noqa: UP045 # Baseline
+    completed_at: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None, description="When user task has been completed"
+    )
+    candidate_users: Optional[List[str]] = Field(  # noqa: UP006, UP045 # Baseline
         None, description="List of potential assignee names for this task"
     )
 
@@ -36,35 +42,29 @@ class ListUserTasksRequest(BaseModel):
     artifact_id: str = Field(..., description="Artifact ID as object of a workflow")
     draft: bool = Field(..., description="Artifact in draft or published")
     max_results: int = Field(
-        50,
-        description="Maximum number of user tasks to return",
-        ge=1,
-        le=100
+        50, description="Maximum number of user tasks to return", ge=1, le=100
     )
     format: str = Field(
         "table",
-        description="Output format: 'table' for formatted markdown table, 'json' for raw data"
+        description="Output format: 'table' for formatted markdown table, 'json' for raw data",
     )
 
-    @field_validator('artifact_id')
+    @field_validator("artifact_id")
     @classmethod
     def validate_artifact_id(cls, v: str) -> str:
         """Validate that artifact_id is not empty or whitespace only."""
         if not v or not v.strip():
-            raise ValueError('artifact_id cannot be empty or whitespace only')
+            raise ValueError("artifact_id cannot be empty or whitespace only")
         return v.strip()
 
 
 class ListUserTasksResponse(BaseResponseModel):
     """Response model for listing user tasks."""
 
-    user_tasks: Optional[List[UserTask]] = Field(
-        None,
-        description="List of user tasks for the artifact"
+    user_tasks: Optional[List[UserTask]] = Field(  # noqa: UP006, UP045 # Baseline
+        None, description="List of user tasks for the artifact"
     )
     total_count: int = Field(..., description="Total number of user tasks available")
-    formatted_output: Optional[str] = Field(
-        None,
-        description="Formatted markdown table output when format='table'"
+    formatted_output: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None, description="Formatted markdown table output when format='table'"
     )
-

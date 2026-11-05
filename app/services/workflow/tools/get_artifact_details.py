@@ -10,19 +10,19 @@ and previous draft versions, and returns comparison details including descriptio
 relationships, and data steward names.
 """
 
-from typing import Annotated, Optional, List
+from typing import Annotated, Optional, List  # noqa: I001, UP035 # Baseline
 import asyncio
 
 # Maximum number of artifacts that can be fetched in a single multi-fetch call.
 # Each artifact requires 3 API calls (versions, version detail, relationships).
 # Keeping this small prevents queuing hundreds of calls through the semaphore.
 MAX_MULTI_FETCH = 10
-from urllib.parse import quote
-from pydantic import Field
+from urllib.parse import quote  # noqa: E402, I001 # Baseline
+from pydantic import Field  # noqa: E402 # Baseline
 
-from app.core.registry import service_registry
-from app.services.text_to_query_search.constants import GOVERNANCE_GLOSSARY_PATHS
-from app.services.workflow.models.get_artifact_details import (
+from app.core.registry import service_registry  # noqa: E402 # Baseline
+from app.services.text_to_query_search.constants import GOVERNANCE_GLOSSARY_PATHS  # noqa: E402 # Baseline
+from app.services.workflow.models.get_artifact_details import (  # noqa: E402 # Baseline
     ArtifactDetails,
     ArtifactMatch,
     ArtifactType,
@@ -31,26 +31,26 @@ from app.services.workflow.models.get_artifact_details import (
     RelationshipSummary,
     VersionDetails,
 )
-from app.services.workflow.tools.utils import (
+from app.services.workflow.tools.utils import (  # noqa: E402 # Baseline
     get_artifact_api_endpoint,
-    get_artifact_search_endpoint,
+    get_artifact_search_endpoint,  # noqa: F401 # Baseline
     is_draft_metadata,
-    extract_artifact_id,
-    extract_artifact_name,
+    extract_artifact_id,  # noqa: F401 # Baseline
+    extract_artifact_name,  # noqa: F401 # Baseline
     extract_version_id,
     extract_relationships,
     fetch_steward_names,
     resolve_artifact_id_by_name,
     enrich_matches_with_long_description,
 )
-from app.shared.logging import LOGGER, auto_context
-from app.shared.utils.helpers import append_context_to_url
-from app.shared.utils.tool_helper_service import tool_helper_service
-from app.shared.exceptions.base import ExternalAPIError, ServiceError
-from fastmcp.server.context import Context
+from app.shared.logging import LOGGER, auto_context  # noqa: E402 # Baseline
+from app.shared.utils.helpers import append_context_to_url  # noqa: E402 # Baseline
+from app.shared.utils.tool_helper_service import tool_helper_service  # noqa: E402 # Baseline
+from app.shared.exceptions.base import ExternalAPIError, ServiceError  # noqa: E402 # Baseline
+from fastmcp.server.context import Context  # noqa: E402 # Baseline
 
 
-def _wrap_untrusted(text: Optional[str]) -> Optional[str]:
+def _wrap_untrusted(text: Optional[str]) -> Optional[str]:  # noqa: UP045 # Baseline
     """Wrap user-supplied draft text in an UNTRUSTED_DRAFT envelope.
 
     The envelope signals to the LLM that the enclosed content is an unreviewed,
@@ -68,21 +68,25 @@ async def _fetch_version_details(
     version_id: str,
 ) -> VersionDetails:
     """Fetch detailed information for a specific version."""
-    version_detail_endpoint = f"{artifact_api_endpoint}/{artifact_id}/versions/{version_id}"
+    version_detail_endpoint = (
+        f"{artifact_api_endpoint}/{artifact_id}/versions/{version_id}"
+    )
     LOGGER.info(f"Fetching version details from: {version_detail_endpoint}")
-    
+
     response = await tool_helper_service.execute_get_request(
         url=f"{tool_helper_service.base_url}{version_detail_endpoint}"
     )
-    
+
     metadata = response.get("metadata", {})
     entity = response.get("entity", {})
-    
+
     # Fetch relationships using the dedicated relationships endpoint
     # e.g., /v3/glossary_terms/{artifact_id}/versions/{version_id}/relationships
-    relationships_endpoint = f"{artifact_api_endpoint}/{artifact_id}/versions/{version_id}/relationships"
+    relationships_endpoint = (
+        f"{artifact_api_endpoint}/{artifact_id}/versions/{version_id}/relationships"
+    )
     LOGGER.info(f"Fetching relationships from: {relationships_endpoint}")
-    
+
     try:
         relationships_response = await tool_helper_service.execute_get_request(
             url=f"{tool_helper_service.base_url}{relationships_endpoint}",
@@ -92,10 +96,12 @@ async def _fetch_version_details(
             },
         )
     except Exception as e:
-        LOGGER.error("Could not fetch relationships for version %s: %s", version_id, str(e))
+        LOGGER.error(
+            "Could not fetch relationships for version %s: %s", version_id, str(e)
+        )
         LOGGER.error("Relationships endpoint was: %s", relationships_endpoint)
         relationships_response = {"resources": []}
-    
+
     # Extract steward IDs and fetch names
     steward_ids = metadata.get("steward_ids") or []
     steward_names = await fetch_steward_names(steward_ids)
@@ -104,19 +110,24 @@ async def _fetch_version_details(
     raw_short = metadata.get("short_description") or response.get("short_description")
 
     return VersionDetails(
-        version_id=metadata.get("version_id") or response.get("version_id") or version_id,
+        version_id=metadata.get("version_id")
+        or response.get("version_id")
+        or version_id,
         state=metadata.get("state") or response.get("state"),
         long_description=_wrap_untrusted(raw_long),
         short_description=_wrap_untrusted(raw_short),
         steward_names=steward_names,
-        relationships=[RelationshipSummary(**r) for r in extract_relationships(relationships_response)],
+        relationships=[
+            RelationshipSummary(**r)
+            for r in extract_relationships(relationships_response)
+        ],
     )
 
 
 def _format_artifact_url(
     artifact_id: str,
     artifact_type: ArtifactType,
-    version_id: Optional[str] = None,
+    version_id: Optional[str] = None,  # noqa: UP045 # Baseline
 ) -> str:
     """Build the governance UI URL for glossary artifacts."""
     artifact_path = GOVERNANCE_GLOSSARY_PATHS[artifact_type]
@@ -133,8 +144,7 @@ def _format_artifact_url(
     return append_context_to_url("/".join(path_segments))
 
 
-
-def _build_comparison_header(artifact_details: ArtifactDetails) -> List[str]:
+def _build_comparison_header(artifact_details: ArtifactDetails) -> List[str]:  # noqa: UP006 # Baseline
     """Build header section for comparison table."""
     header = [
         f"# {artifact_details.name}",
@@ -142,50 +152,73 @@ def _build_comparison_header(artifact_details: ArtifactDetails) -> List[str]:
         f"**Type:** {artifact_details.artifact_type}",
         f"**Artifact ID:** {artifact_details.artifact_id}",
     ]
-    
+
     if artifact_details.url:
         header.append(f"**Link:** [View]({artifact_details.url})")
     if artifact_details.workflow_id:
         header.append(f"**Workflow ID:** {artifact_details.workflow_id}")
-    
+
     header.append("")
     return header
 
 
-def _build_comparison_rows(artifact_details: ArtifactDetails) -> List[str]:
+def _build_comparison_rows(artifact_details: ArtifactDetails) -> List[str]:  # noqa: UP006 # Baseline
     """Build table rows for version comparison."""
     latest = artifact_details.latest_version
     previous = artifact_details.previous_version
-    
+
     return [
         "| Field | Latest Version | Previous Version |",
         "| --- | --- | --- |",
-        _format_table_row("Version ID", latest.version_id, previous.version_id if previous else None),
+        _format_table_row(
+            "Version ID", latest.version_id, previous.version_id if previous else None
+        ),
         _format_table_row("State", latest.state, previous.state if previous else None),
-        _format_table_row("Short Description", latest.short_description, previous.short_description if previous else None),
-        _format_table_row("Long Description", latest.long_description, previous.long_description if previous else None),
-        _format_table_row("Data Stewards", _format_list(latest.steward_names), _format_list(previous.steward_names) if previous else ""),
-        _format_table_row("Relationships", _format_relationships(latest.relationships), _format_relationships(previous.relationships) if previous else ""),
+        _format_table_row(
+            "Short Description",
+            latest.short_description,
+            previous.short_description if previous else None,
+        ),
+        _format_table_row(
+            "Long Description",
+            latest.long_description,
+            previous.long_description if previous else None,
+        ),
+        _format_table_row(
+            "Data Stewards",
+            _format_list(latest.steward_names),
+            _format_list(previous.steward_names) if previous else "",
+        ),
+        _format_table_row(
+            "Relationships",
+            _format_relationships(latest.relationships),
+            _format_relationships(previous.relationships) if previous else "",
+        ),
     ]
 
 
-def _format_table_row(field: str, latest_value: Optional[str], previous_value: Optional[str]) -> str:
+def _format_table_row(
+    field: str,
+    latest_value: Optional[str],  # noqa: UP045 # Baseline
+    previous_value: Optional[str],  # noqa: UP045 # Baseline
+) -> str:
     """Format a single table row."""
     return f"| {field} | {latest_value or ''} | {previous_value or ''} |"
 
 
-def _format_list(items: Optional[List]) -> str:
+def _format_list(items: Optional[List]) -> str:  # noqa: UP006, UP045 # Baseline
     """Format a list of items as comma-separated string."""
     if not items:
         return ""
     return ", ".join(str(item) for item in items)
 
 
-def _format_relationships(rels: List[RelationshipSummary]) -> str:
+def _format_relationships(rels: List[RelationshipSummary]) -> str:  # noqa: UP006 # Baseline
     """Format relationships as comma-separated string."""
     if not rels:
         return ""
     return ", ".join(f"{r.name} ({r.type})" for r in rels)
+
 
 def _format_comparison_table(artifact_details: ArtifactDetails) -> str:
     """Format artifact details as a comparison table."""
@@ -195,7 +228,7 @@ def _format_comparison_table(artifact_details: ArtifactDetails) -> str:
 
 
 def _build_multiple_matches_response(
-    matches: List[dict],
+    matches: List[dict],  # noqa: UP006 # Baseline
     artifact_type: ArtifactType,
 ) -> GetArtifactDetailsResponse:
     """Build a structured disambiguation response when multiple artifacts share a name."""
@@ -233,6 +266,16 @@ async def _fetch_single_artifact_details(
 ) -> ArtifactDetails:
     """Fetch full details for one artifact by ID."""
     draft_versions = await _fetch_draft_versions(artifact_api_endpoint, artifact_id)
+    if not draft_versions:
+        raise ServiceError(
+            f"Artifact {artifact_id} is not in draft state. "
+            "This tool only retrieves details for draft artifacts.",
+            service="workflow",
+            tool="get_artifact_details",
+            remediation_steps=(
+                "Use list_draft_artifacts to find artifacts currently in draft state."
+            ),
+        )
     latest_version = await _fetch_version_details(
         artifact_api_endpoint,
         artifact_id,
@@ -252,122 +295,157 @@ async def _fetch_single_artifact_details(
     )
 
 
+async def _resolve_artifact_id(
+    request: GetArtifactDetailsRequest,
+    artifact_api_endpoint: str,
+) -> tuple[Optional[str], Optional[GetArtifactDetailsResponse]]:  # noqa: UP045 # Baseline
+    """Resolve a single artifact ID from the request, or return an early response.
+
+    Returns (artifact_id, None) when resolution succeeds, or (None, response) when
+    the caller should return the response immediately (multiple matches found).
+    """
+    if request.artifact_id:
+        return request.artifact_id, None
+
+    if not request.artifact_name:
+        raise ServiceError(
+            "Either artifact_name or artifact_id must be provided.",
+            service="workflow",
+            tool="get_artifact_details",
+            remediation_steps="Provide the artifact name to search by, or an artifact_id from a previous multiple_matches response.",
+        )
+
+    resolved_id, matches = await resolve_artifact_id_by_name(
+        artifact_name=request.artifact_name,
+        artifact_type=request.artifact_type,
+    )
+    if matches is not None:
+        matches = await enrich_matches_with_long_description(
+            matches, artifact_api_endpoint
+        )
+        return None, _build_multiple_matches_response(matches, request.artifact_type)
+
+    return resolved_id, None
+
+
+async def _fetch_single_draft_response(
+    request: GetArtifactDetailsRequest,
+    artifact_api_endpoint: str,
+    artifact_id: Optional[str],  # noqa: UP045 # Baseline
+) -> GetArtifactDetailsResponse:
+    """Fetch draft versions and build a single-artifact response."""
+    draft_versions = await _fetch_draft_versions(artifact_api_endpoint, artifact_id)
+
+    if not draft_versions:
+        artifact_label = request.artifact_name or request.artifact_id or artifact_id
+        return GetArtifactDetailsResponse(
+            success=False,
+            artifact_details=None,
+            all_artifact_details=None,
+            multiple_matches=None,
+            formatted_output=(
+                f'⚠️ **"{artifact_label}"** is not a draft artifact — it has no versions in DRAFT state.\n\n'
+                "This tool only retrieves details for draft artifacts. "
+                "If you want to see its published details, use the appropriate tool for published artifacts. "
+                "To see which artifacts are currently in draft, use **list_draft_artifacts**."
+            ),
+        )
+
+    latest_version = await _fetch_version_details(
+        artifact_api_endpoint,
+        artifact_id,
+        extract_version_id(draft_versions[0]),
+    )
+    previous_version = await _fetch_previous_version_if_available(
+        artifact_api_endpoint,
+        artifact_id,
+        draft_versions,
+    )
+    artifact_details = _build_artifact_details(
+        request,
+        artifact_id,
+        latest_version,
+        previous_version,
+        draft_versions[0].get("metadata", {}),
+    )
+    formatted_output = (
+        _format_comparison_table(artifact_details)
+        if request.format == "table"
+        else None
+    )
+    return GetArtifactDetailsResponse(
+        artifact_details=artifact_details,
+        all_artifact_details=None,
+        multiple_matches=None,
+        formatted_output=formatted_output,
+    )
+
+
 async def _get_artifact_details(
     request: GetArtifactDetailsRequest,
 ) -> GetArtifactDetailsResponse:
-    """
-    Get detailed information about a glossary artifact with version comparison.
-
-    Args:
-        request: GetArtifactDetailsRequest containing artifact_name and artifact_type
-
-    Returns:
-        GetArtifactDetailsResponse with latest and previous version details
-
-    Raises:
-        ToolError: If the artifact cannot be found or the API call fails
-    """
+    """Dispatch to multi-fetch or single-artifact path and handle top-level errors."""
     try:
         artifact_api_endpoint = get_artifact_api_endpoint(request.artifact_type)
 
-        # Multiple IDs supplied — fetch all in parallel (capped at MAX_MULTI_FETCH).
         if request.artifact_ids:
-            if len(request.artifact_ids) > MAX_MULTI_FETCH:
-                raise ServiceError(
-                    f"artifact_ids exceeds the maximum of {MAX_MULTI_FETCH}. "
-                    f"Received {len(request.artifact_ids)}. "
-                    f"Ask the user to select fewer artifacts.",
-                    service="workflow",
-                    tool="get_artifact_details",
-                    remediation_steps=f"Pass at most {MAX_MULTI_FETCH} artifact IDs.",
-                )
-            results = await asyncio.gather(
-                *[
-                    _fetch_single_artifact_details(artifact_api_endpoint, aid, request)
-                    for aid in request.artifact_ids
-                ],
-                return_exceptions=True,
-            )
-            all_details = [r for r in results if isinstance(r, ArtifactDetails)]
-            errors = [str(r) for r in results if isinstance(r, Exception)]
-            if errors:
-                LOGGER.warning("Some artifact fetches failed during multi-fetch: %s", errors)
-            formatted_output = None
-            if request.format == "table":
-                formatted_output = "\n\n---\n\n".join(
-                    _format_comparison_table(d) for d in all_details
-                )
-            return GetArtifactDetailsResponse(
-                all_artifact_details=all_details,
-                formatted_output=formatted_output,
-            )
+            return await _handle_multi_fetch(request, artifact_api_endpoint)
 
-        # Single artifact_id supplied directly (follow-up after disambiguation), skip resolution.
-        if request.artifact_id:
-            artifact_id = request.artifact_id
-        elif not request.artifact_name:
-            raise ServiceError(
-                "Either artifact_name or artifact_id must be provided.",
-                service="workflow",
-                tool="get_artifact_details",
-                remediation_steps="Provide the artifact name to search by, or an artifact_id from a previous multiple_matches response.",
-            )
-        else:
-            resolved_id, matches = await resolve_artifact_id_by_name(
-                artifact_name=request.artifact_name,
-                artifact_type=request.artifact_type,
-            )
-            if matches is not None:
-                matches = await enrich_matches_with_long_description(
-                    matches, artifact_api_endpoint
-                )
-                return _build_multiple_matches_response(matches, request.artifact_type)
-            artifact_id = resolved_id
-
-        # Fetch and filter draft versions
-        draft_versions = await _fetch_draft_versions(artifact_api_endpoint, artifact_id)
-        
-        # Fetch version details
-        latest_version = await _fetch_version_details(
-            artifact_api_endpoint,
-            artifact_id,
-            extract_version_id(draft_versions[0]),
+        artifact_id, early_response = await _resolve_artifact_id(
+            request, artifact_api_endpoint
         )
-        
-        previous_version = await _fetch_previous_version_if_available(
-            artifact_api_endpoint,
-            artifact_id,
-            draft_versions,
+        if early_response is not None:
+            return early_response
+
+        return await _fetch_single_draft_response(
+            request, artifact_api_endpoint, artifact_id
         )
 
-        # Build artifact details
-        artifact_details = _build_artifact_details(
-            request,
-            artifact_id,
-            latest_version,
-            previous_version,
-            draft_versions[0].get("metadata", {}),
-        )
-
-        formatted_output = None
-        if request.format == "table":
-            formatted_output = _format_comparison_table(artifact_details)
-
-        return GetArtifactDetailsResponse(
-            artifact_details=artifact_details,
-            all_artifact_details=None,
-            multiple_matches=None,
-            formatted_output=formatted_output,
-        )
     except (ServiceError, ExternalAPIError):
         raise
     except Exception as e:
         LOGGER.error("Error fetching artifact details: %s", str(e))
-        raise ServiceError(
-            f"Failed to fetch artifact details: {str(e)}",
+        raise ServiceError(  # noqa: B904 # Baseline
+            f"Failed to fetch artifact details: {e!s}",
             service="workflow",
             tool="get_artifact_details",
         )
+
+
+async def _handle_multi_fetch(
+    request: GetArtifactDetailsRequest,
+    artifact_api_endpoint: str,
+) -> GetArtifactDetailsResponse:
+    """Validate and execute a parallel multi-artifact fetch."""
+    if len(request.artifact_ids) > MAX_MULTI_FETCH:
+        raise ServiceError(
+            f"artifact_ids exceeds the maximum of {MAX_MULTI_FETCH}. "
+            f"Received {len(request.artifact_ids)}. "
+            f"Ask the user to select fewer artifacts.",
+            service="workflow",
+            tool="get_artifact_details",
+            remediation_steps=f"Pass at most {MAX_MULTI_FETCH} artifact IDs.",
+        )
+    results = await asyncio.gather(
+        *[
+            _fetch_single_artifact_details(artifact_api_endpoint, aid, request)
+            for aid in request.artifact_ids
+        ],
+        return_exceptions=True,
+    )
+    all_details = [r for r in results if isinstance(r, ArtifactDetails)]
+    errors = [str(r) for r in results if isinstance(r, Exception)]
+    if errors:
+        LOGGER.warning("Some artifact fetches failed during multi-fetch: %s", errors)
+    formatted_output = None
+    if request.format == "table":
+        formatted_output = "\n\n---\n\n".join(
+            _format_comparison_table(d) for d in all_details
+        )
+    return GetArtifactDetailsResponse(
+        all_artifact_details=all_details,
+        formatted_output=formatted_output,
+    )
 
 
 async def _fetch_draft_versions(artifact_api_endpoint: str, artifact_id: str) -> list:
@@ -381,9 +459,8 @@ async def _fetch_draft_versions(artifact_api_endpoint: str, artifact_id: str) ->
         },
     )
 
-    versions = (
-        versions_response.get("resources", [])
-        or versions_response.get("versions", [])
+    versions = versions_response.get("resources", []) or versions_response.get(
+        "versions", []
     )
     if not versions:
         raise ServiceError(
@@ -398,21 +475,13 @@ async def _fetch_draft_versions(artifact_api_endpoint: str, artifact_id: str) ->
 
     # Find draft versions
     draft_versions = [
-        version for version in versions
+        version
+        for version in versions
         if is_draft_metadata(version.get("metadata", {}), version)
     ]
 
     if not draft_versions:
-        raise ServiceError(
-            f"No draft versions found for artifact {artifact_id}. "
-            "This tool only retrieves details for draft artifacts.",
-            service="workflow",
-            tool="get_artifact_details",
-            remediation_steps=(
-                "Confirm the artifact has a DRAFT state. "
-                "Use list_draft_artifacts to find artifacts currently in draft."
-            ),
-        )
+        return []
 
     # Validate latest version ID
     latest_version_id = extract_version_id(draft_versions[0])
@@ -422,7 +491,7 @@ async def _fetch_draft_versions(artifact_api_endpoint: str, artifact_id: str) ->
             service="workflow",
             tool="get_artifact_details",
         )
-    
+
     return draft_versions
 
 
@@ -430,15 +499,15 @@ async def _fetch_previous_version_if_available(
     artifact_api_endpoint: str,
     artifact_id: str,
     draft_versions: list,
-) -> Optional[VersionDetails]:
+) -> Optional[VersionDetails]:  # noqa: UP045 # Baseline
     """Fetch previous version details if available."""
     if len(draft_versions) <= 1:
         return None
-    
+
     previous_version_id = extract_version_id(draft_versions[1])
     if not previous_version_id:
         return None
-    
+
     try:
         return await _fetch_version_details(
             artifact_api_endpoint,
@@ -449,7 +518,7 @@ async def _fetch_previous_version_if_available(
         LOGGER.warning(
             "Could not fetch previous version details for artifact_id=%s: %s",
             artifact_id,
-            str(e)
+            str(e),
         )
         return None
 
@@ -458,7 +527,7 @@ def _build_artifact_details(
     request: GetArtifactDetailsRequest,
     artifact_id: str,
     latest_version: VersionDetails,
-    previous_version: Optional[VersionDetails],
+    previous_version: Optional[VersionDetails],  # noqa: UP045 # Baseline
     latest_metadata: dict,
 ) -> ArtifactDetails:
     """Build ArtifactDetails object from components."""
@@ -479,12 +548,18 @@ def _build_artifact_details(
 
 
 get_artifact_details_description = """
-Get detailed information about a specific workflow glossary artifact (business term or data class).
+Get detailed information about a **draft** workflow glossary artifact (business term or data class).
+
+ONLY call this tool when the user explicitly asks about an artifact that is in DRAFT state — i.e. pending approval, under review, or awaiting publication. Do NOT call this tool for published artifacts or general glossary lookups; use `explain_glossary_artifact` for those.
 
 **When to use this tool:**
-- When you need to review draft artifact details before approval
-- When comparing changes between the latest and previous draft versions
-- When you need to see relationships, stewards, and descriptions for a draft artifact
+- The user explicitly asks about a draft artifact, a pending term, or a term awaiting approval
+- You need to compare changes between the latest and a previous draft version
+- You need relationships, stewards, or descriptions for a draft artifact
+
+**When NOT to use this tool:**
+- The artifact is published, or the user has not indicated it is in draft → call `explain_glossary_artifact` instead
+- The user asks to "look up", "explain", or "find" a term without mentioning draft → call `explain_glossary_artifact` instead
 
 **Example:**
 To get details for a draft business term named "Customer ID":
@@ -516,33 +591,54 @@ version IDs, states, and a formatted UI URL for both versions.
     name="get_artifact_details",
     annotations={
         "readOnlyHint": True,
-        "title": "Get Detailed Information About Draft Workflow Glossary Artifacts"
+        "title": "Get Detailed Information About Draft Workflow Glossary Artifacts",
     },
     description=get_artifact_details_description,
-    tags={"workflow", "glossary", "artifacts", "governance", "metadata_management_and_governance"},
+    tags={
+        "workflow",
+        "glossary",
+        "artifacts",
+        "governance",
+        "metadata_management_and_governance",
+    },
     meta={"version": "2.0", "service": "glossary"},
 )
 @auto_context
-async def get_artifact_details(
-    artifact_type: Annotated[ArtifactType, Field(description="Type of artifact: 'glossary_term' for business terms or 'data_class' for data classes")],
-    artifact_name: Annotated[str, Field(description="The name of the business term or data class to retrieve details for")] = "",
-    format: Annotated[str, Field(description="Output format: 'table' for markdown comparison table or 'json' for structured data only")] = "table",
-    artifact_id: Annotated[Optional[str], Field(description="Single artifact ID to fetch directly. Supply on a follow-up call when the user picks one entry from a multiple_matches list — never ask the user to type an ID.")] = None,
-    artifact_ids: Annotated[Optional[List[str]], Field(description=f"Multiple artifact IDs to fetch in parallel (max {MAX_MULTI_FETCH}). Supply on a follow-up call when the user wants details for several or all entries from a multiple_matches list — never ask the user to type IDs.")] = None,
+async def get_artifact_details(  # noqa: PLR0913 # Baseline
+    artifact_type: Annotated[
+        ArtifactType,
+        Field(
+            description="Type of artifact: 'glossary_term' for business terms or 'data_class' for data classes"
+        ),
+    ],
+    artifact_name: Annotated[
+        str,
+        Field(
+            description="The name of the business term or data class to retrieve details for"
+        ),
+    ] = "",
+    format: Annotated[  # noqa: A002 # Baseline
+        str,
+        Field(
+            description="Output format: 'table' for markdown comparison table or 'json' for structured data only"
+        ),
+    ] = "table",
+    artifact_id: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Single artifact ID to fetch directly. Supply on a follow-up call when the user picks one entry from a multiple_matches list — never ask the user to type an ID."
+        ),
+    ] = None,
+    artifact_ids: Annotated[
+        Optional[List[str]],  # noqa: UP006, UP045 # Baseline
+        Field(
+            description=f"Multiple artifact IDs to fetch in parallel (max {MAX_MULTI_FETCH}). Supply on a follow-up call when the user wants details for several or all entries from a multiple_matches list — never ask the user to type IDs."
+        ),
+    ] = None,
     ctx: Context = None,
 ) -> GetArtifactDetailsResponse:
     """
-    Get detailed information about a glossary artifact with version comparison.
-
-    Args:
-        artifact_name: The artifact name to retrieve details for
-        artifact_type: Type of artifact ('glossary_term' or 'data_class')
-        format: Output format ('table' for formatted output, 'json' for structured data)
-        artifact_id: Optional artifact ID to bypass name resolution after disambiguation
-        ctx: Optional MCP Context
-
-    Returns:
-        GetArtifactDetailsResponse with latest and previous version details
+    Get detailed information about a draft glossary artifact with version comparison.
     """
     request = GetArtifactDetailsRequest(
         artifact_name=artifact_name,
@@ -552,5 +648,6 @@ async def get_artifact_details(
         artifact_ids=artifact_ids,
     )
     return await _get_artifact_details(request)
+
 
 # Made with Bob

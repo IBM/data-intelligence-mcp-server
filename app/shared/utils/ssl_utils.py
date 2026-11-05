@@ -4,11 +4,13 @@
 
 """SSL utility functions for HTTP client configuration."""
 
-import ssl
+import ssl  # noqa: I001 # Baseline
 from app.shared.models.ssl_config import SSLConfig, CertificateMode
 
 
-def get_ssl_verify_setting(ssl_config: SSLConfig, ssl_verify: bool = True) -> bool | str | ssl.SSLContext:
+def get_ssl_verify_setting(
+    ssl_config: SSLConfig, ssl_verify: bool = True
+) -> bool | str | ssl.SSLContext:
     """
     Get the SSL verification setting for HTTP clients.
 

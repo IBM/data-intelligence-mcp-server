@@ -5,7 +5,7 @@
 
 """Models for listing draft workflow glossary artifacts."""
 
-from typing import Literal, Optional
+from typing import Literal, Optional  # noqa: I001 # Baseline
 
 from pydantic import BaseModel, Field
 
@@ -21,14 +21,16 @@ class DraftArtifactOverview(BaseModel):
     name: str = Field(..., description="Artifact name")
     artifact_type: ArtifactType = Field(..., description="Artifact type")
     artifact_id: str = Field(..., description="Artifact ID")
-    version_id: Optional[str] = Field(None, description="Draft version ID")
-    state: Optional[str] = Field(None, description="Artifact state")
-    workflow_id: Optional[str] = Field(None, description="Workflow ID")
-    workflow_state: Optional[str] = Field(None, description="Workflow state")
-    created_at: Optional[str] = Field(None, description="Creation timestamp")
-    modified_at: Optional[str] = Field(None, description="Last modification timestamp")
-    modified_by: Optional[str] = Field(None, description="Last modifier")
-    url: Optional[str] = Field(None, description="Formatted URL to view artifact in the UI")
+    version_id: Optional[str] = Field(None, description="Draft version ID")  # noqa: UP045 # Baseline
+    state: Optional[str] = Field(None, description="Artifact state")  # noqa: UP045 # Baseline
+    workflow_id: Optional[str] = Field(None, description="Workflow ID")  # noqa: UP045 # Baseline
+    workflow_state: Optional[str] = Field(None, description="Workflow state")  # noqa: UP045 # Baseline
+    created_at: Optional[str] = Field(None, description="Creation timestamp")  # noqa: UP045 # Baseline
+    modified_at: Optional[str] = Field(None, description="Last modification timestamp")  # noqa: UP045 # Baseline
+    modified_by: Optional[str] = Field(None, description="Last modifier")  # noqa: UP045 # Baseline
+    url: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None, description="Formatted URL to view artifact in the UI"
+    )
 
 
 class ListDraftArtifactsRequest(BaseModel):
@@ -36,30 +38,26 @@ class ListDraftArtifactsRequest(BaseModel):
 
     artifact_type: DraftArtifactType = Field(
         "all",
-        description="Artifact type to list: 'glossary_term', 'data_class', or 'all'"
+        description="Artifact type to list: 'glossary_term', 'data_class', or 'all'",
     )
     max_results: int = Field(
-        50,
-        description="Maximum number of draft artifacts to return",
-        ge=1,
-        le=200
+        50, description="Maximum number of draft artifacts to return", ge=1, le=200
     )
     format: str = Field(
         "table",
-        description="Output format: 'table' for formatted output, 'json' for structured data"
+        description="Output format: 'table' for formatted output, 'json' for structured data",
     )
 
 
 class ListDraftArtifactsResponse(BaseResponseModel):
     """Response model for listing draft glossary artifacts."""
 
-    artifacts: Optional[list[DraftArtifactOverview]] = Field(
-        None,
-        description="Draft artifact overviews"
+    artifacts: Optional[list[DraftArtifactOverview]] = Field(  # noqa: UP045 # Baseline
+        None, description="Draft artifact overviews"
     )
-    total_count: int = Field(..., description="Total number of draft artifacts returned")
-    formatted_output: Optional[str] = Field(
-        None,
-        description="Formatted table output when format='table'"
+    total_count: int = Field(
+        ..., description="Total number of draft artifacts returned"
     )
-
+    formatted_output: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None, description="Formatted table output when format='table'"
+    )

@@ -4,24 +4,28 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-from typing import Annotated
+from typing import Annotated  # noqa: I001 # Baseline
 from pydantic import Field
 
 from app.core.registry import service_registry
 from app.services.data_product.models.find_delivery_methods_based_on_connection import (
     FindDeliveryMethodsBasedOnConnectionRequest,
     FindDeliveryMethodsBasedOnConnectionResponse,
-    DeliveryMethod
+    DeliveryMethod,
 )
+from app.services.data_product.constants import ASSET_TYPE_IBM_URL_DEFINITION, FIELD_OPEN_URL
 from app.shared.exceptions.base import ServiceError
-from app.services.data_product.utils.common_utils import add_catalog_id_suffix, validate_inputs
+from app.services.data_product.utils.common_utils import (
+    add_catalog_id_suffix,  # noqa: F401 # Baseline
+    validate_inputs,  # noqa: F401 # Baseline
+)
 from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.logging import LOGGER, auto_context
 
 
 async def _find_delivery_methods_based_on_connection(
-    request: FindDeliveryMethodsBasedOnConnectionRequest, 
+    request: FindDeliveryMethodsBasedOnConnectionRequest,
 ) -> FindDeliveryMethodsBasedOnConnectionResponse:
     LOGGER.info(
         f"In the list_data_product_delivery_methods tool, finding delivery methods for data asset {request.data_asset_id} in {request.container_type} (ID: {request.container_id})."
@@ -31,7 +35,9 @@ async def _find_delivery_methods_based_on_connection(
 
     if not request.container_id or not request.container_type:
         error_message = "Container ID and Container Type are required."
-        LOGGER.error(f"Failed to run list_data_product_delivery_methods tool. {error_message}")
+        LOGGER.error(
+            f"Failed to run list_data_product_delivery_methods tool. {error_message}"
+        )
         raise ServiceError(
             f"Failed to run list_data_product_delivery_methods tool. {error_message}",
             remediation_steps=(
@@ -42,24 +48,42 @@ async def _find_delivery_methods_based_on_connection(
 
     if not request.data_asset_id:
         error_message = "Data asset ID is required. Find the data asset ID matching the data asset for which we are finding delivery methods. Data asset ID can be found in the response of `search_asset` tool."
-        LOGGER.error(f"Failed to run list_data_product_delivery_methods tool. {error_message}")
+        LOGGER.error(
+            f"Failed to run list_data_product_delivery_methods tool. {error_message}"
+        )
         raise ServiceError(
             f"Failed to run list_data_product_delivery_methods tool. {error_message}",
             remediation_steps=(
                 "Invoke the search_asset tool to find the data asset and obtain its ID, then retry this tool."
             ),
         )
-   
-    # step 1: get the connection ID from the data asset details
+
+    # step 1: get the asset details to determine its type
     response = await tool_helper_service.execute_get_request(
         url=f"{tool_helper_service.base_url}/v2/assets/{request.data_asset_id}?{request.container_type}_id={request.container_id}",
         tool_name="find_data_product_delivery_methods_based_on_connection",
     )
 
+    # step 1a: URL assets (ibm_url_definition) have no underlying connection.
+    # The only valid delivery method for them is "Open URL", which we resolve
+    # by name from the catalog rather than by datasource_type matching.
+    asset_type = response.get("metadata", {}).get("asset_type", "")
+    if asset_type == ASSET_TYPE_IBM_URL_DEFINITION:
+        LOGGER.info(
+            f"Asset {request.data_asset_id} is ibm_url_definition — "
+            "resolving 'Open URL' delivery method directly."
+        )
+        open_url_method = await _get_open_url_delivery_method(dph_catalog_id)
+        return FindDeliveryMethodsBasedOnConnectionResponse(
+            delivery_methods=[open_url_method] if open_url_method else []
+        )
+
     connection_id = response.get("attachments", [{}])[0].get("connection_id")
     if not connection_id:
         error_message = "Connection detail could not be found for this data asset. Make sure the asset is a connection asset."
-        LOGGER.error(f"Failed to run list_data_product_delivery_methods tool. {error_message}")
+        LOGGER.error(
+            f"Failed to run list_data_product_delivery_methods tool. {error_message}"
+        )
         raise ServiceError(
             f"Failed to run list_data_product_delivery_methods tool. {error_message}",
             remediation_steps=(
@@ -76,7 +100,7 @@ async def _find_delivery_methods_based_on_connection(
         tool_name="find_data_product_delivery_methods_based_on_connection",
     )
     datasource_type = response["entity"]["datasource_type"]
-    
+
     LOGGER.info(f"Datasource type found: {datasource_type}")
 
     # step 3: find delivery methods based on the datasource type
@@ -87,15 +111,40 @@ async def _find_delivery_methods_based_on_connection(
         json=search_payload,
         tool_name="find_data_product_delivery_methods_based_on_connection",
     )
-    available_delivery_methods = get_available_delivery_methods(response, datasource_type)
-    
+
+    available_delivery_methods = get_available_delivery_methods(
+        response, datasource_type
+    )
+
     LOGGER.info(f"Available delivery methods: {available_delivery_methods}")
     return FindDeliveryMethodsBasedOnConnectionResponse(
         delivery_methods=available_delivery_methods
     )
-    
 
-def get_available_delivery_methods(response, datasource_type):
+
+async def _get_open_url_delivery_method(dph_catalog_id: str) -> DeliveryMethod | None:
+    """
+    Search the DPH catalog for the 'Open URL' delivery method asset and return it.
+    Used for ibm_url_definition parts which have no connection to match against.
+    """
+    search_payload = {"query": "*:*", "sort": "asset.name", "include": "entity"}
+    response = await tool_helper_service.execute_post_request(
+        url=f"{tool_helper_service.base_url}/v2/asset_types/ibm_data_product_delivery_method/search?catalog_id={dph_catalog_id}&hide_deprecated_response_fields=false",
+        json=search_payload,
+        tool_name="find_data_product_delivery_methods_based_on_connection",
+    )
+    for result in response.get("results", []):
+        if result.get("metadata", {}).get("name") == FIELD_OPEN_URL:
+            return DeliveryMethod(
+                delivery_method_id=result["metadata"]["asset_id"],
+                delivery_method_name=result["metadata"]["name"],
+                delivery_method_description=result["metadata"].get("description", ""),
+            )
+    LOGGER.warning("'Open URL' delivery method not found in catalog.")
+    return None
+
+
+def get_available_delivery_methods(response, datasource_type):  # noqa: ANN001, ANN201 # Baseline
     # this function iterates and finds all available delivery methods for this connection.
     available_delivery_methods = []
     for result in response["results"]:
@@ -109,7 +158,9 @@ def get_available_delivery_methods(response, datasource_type):
                 DeliveryMethod(
                     delivery_method_id=result["metadata"]["asset_id"],
                     delivery_method_name=result["metadata"]["name"],
-                    delivery_method_description=result["metadata"].get("description", "")
+                    delivery_method_description=result["metadata"].get(
+                        "description", ""
+                    ),
                 )
             )
     return available_delivery_methods
@@ -117,36 +168,56 @@ def get_available_delivery_methods(response, datasource_type):
 
 @service_registry.tool(
     name="list_data_product_delivery_methods",
-    description="""Use this tool when you need to find delivery methods available for the connection type of the data asset.
+    description="""Use this tool when you need to find delivery methods available for a data asset.
     Finds delivery methods for data asset (data_asset_id) in container_type (ID: container_id).
     This is called before `add_delivery_methods_to_data_product()` to find the delivery methods available for the given data asset.
     Example: 'Find delivery methods for customer asset in the data product draft' - This gets the container type ('catalog' or 'project') where this asset is in, the ID of the container, and the data asset ID.
     If you are not sure about the container ID, use the `list_containers` tool to find it out.
     If you are not sure about the data asset ID of the requested data asset, use the `search_asset` tool to find it out.
     Prompt user to choose delivery methods from the list of available delivery methods.
+
+    **Not for subscriptions:** this lists every delivery method compatible with the asset's connection, which is
+    what a publisher chooses from when authoring a draft. To subscribe to a published data product, use the
+    delivery methods enabled for each part, returned by `get_data_product_details` (parts_out[].delivery_methods).
+
+    **URL assets (ibm_url_definition):** These have no underlying connection. This tool automatically
+    detects them and returns the 'Open URL' delivery method directly — no connection lookup is needed.
+
     Return: A list of available delivery methods for the data asset, including their IDs, names, and descriptions.
     """,
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
     annotations={
         "title": "Find Delivery Methods Based on Connection Type",
-        "readOnlyHint": True
-    }
+        "readOnlyHint": True,
+    },
 )
 @auto_context
 async def find_data_product_delivery_methods_based_on_connection(
-    container_id: Annotated[str, Field(description="The ID of the container (catalog or project) where the data asset is located.")],
-    container_type: Annotated[str, Field(description="The type of the container (either 'catalog' or 'project').")],
-    data_asset_id: Annotated[str, Field(description="The ID of the data asset for which delivery methods are being requested.")]
+    container_id: Annotated[
+        str,
+        Field(
+            description="The ID of the container (catalog or project) where the data asset is located."
+        ),
+    ],
+    container_type: Annotated[
+        str,
+        Field(description="The type of the container (either 'catalog' or 'project')."),
+    ],
+    data_asset_id: Annotated[
+        str,
+        Field(
+            description="The ID of the data asset for which delivery methods are being requested."
+        ),
+    ],
 ) -> FindDeliveryMethodsBasedOnConnectionResponse:
     """Wrapper version that expands FindDeliveryMethodsBasedOnConnectionRequest object into individual parameters."""
 
     request = FindDeliveryMethodsBasedOnConnectionRequest(
         container_id=container_id,
         container_type=container_type,
-        data_asset_id=data_asset_id
+        data_asset_id=data_asset_id,
     )
 
     # Call the original find_delivery_methods_based_on_connection function
     return await _find_delivery_methods_based_on_connection(request)
-    

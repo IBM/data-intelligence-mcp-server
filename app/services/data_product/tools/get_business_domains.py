@@ -1,25 +1,29 @@
-from typing import Annotated
+from typing import Annotated  # noqa: I001 # Baseline
 from pydantic import Field
 
 from app.core.registry import service_registry
 from app.core.auth import get_dph_catalog_id_for_user, get_access_token
-from app.services.data_product.models.get_business_domains import BusinessDomain, GetBusinessDomainsRequest, GetBusinessDomainsResponse
+from app.services.data_product.models.get_business_domains import (
+    BusinessDomain,
+    GetBusinessDomainsRequest,
+    GetBusinessDomainsResponse,
+)
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.logging import LOGGER, auto_context
 
 
 async def _get_business_domains(
-    request: GetBusinessDomainsRequest
+    request: GetBusinessDomainsRequest,
 ) -> GetBusinessDomainsResponse:
     LOGGER.info(
         f"In the list_data_product_business_domains tool, finding available business domains with keyword {request.keyword}."
     )
-    DPH_CATALOG_ID = await get_dph_catalog_id_for_user(await get_access_token())
+    DPH_CATALOG_ID = await get_dph_catalog_id_for_user(await get_access_token())  # noqa: N806 # Baseline
     if not request.keyword:
         search_payload = {"query": "*:*", "sort": "asset.name"}
     else:
-        search_payload = {"query": f"asset.name LIKE \"{request.keyword}\""}
-    
+        search_payload = {"query": f'asset.name LIKE "{request.keyword}"'}
+
     response = await tool_helper_service.execute_post_request(
         url=f"{tool_helper_service.base_url}/v2/asset_types/ibm_data_product_domain/search?catalog_id={DPH_CATALOG_ID}&hide_deprecated_response_fields=false",
         json=search_payload,
@@ -29,12 +33,12 @@ async def _get_business_domains(
     tool_response_list = []
     for domain in response["results"]:
         metadata = domain.get("metadata", {})
-        
+
         tool_response_list.append(
             BusinessDomain(
                 id=metadata.get("asset_id", ""),
                 name=metadata.get("name", ""),
-                description=metadata.get("description", "")
+                description=metadata.get("description", ""),
             )
         )
 
@@ -59,17 +63,19 @@ async def _get_business_domains(
     meta={"version": "1.0", "service": "data_product"},
     annotations={
         "title": "List all Business Domains for Data Product",
-        "readOnlyHint": True
-    }
+        "readOnlyHint": True,
+    },
 )
 @auto_context
 async def get_business_domains(
-    keyword: Annotated[str | None, Field(description="A keyword to search for business domains. This is an optional field.")] = None
+    keyword: Annotated[
+        str | None,
+        Field(
+            description="A keyword to search for business domains. This is an optional field."
+        ),
+    ] = None,
 ) -> GetBusinessDomainsResponse:
 
-    request = GetBusinessDomainsRequest(
-        keyword=keyword
-    )
+    request = GetBusinessDomainsRequest(keyword=keyword)
 
     return await _get_business_domains(request)
-

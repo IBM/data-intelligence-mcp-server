@@ -10,13 +10,13 @@ from enum import Enum
 from pydantic import BaseModel
 
 
-class CertificateMode(str, Enum):
+class CertificateMode(str, Enum):  # noqa: UP042 # Baseline
     """Certificate verification modes for SSL/TLS connections."""
 
-    SYSTEM_DEFAULT = "system_default"      # Use system CA store (default)
+    SYSTEM_DEFAULT = "system_default"  # Use system CA store (default)
     CUSTOM_CA_BUNDLE = "custom_ca_bundle"  # Custom CA certificate bundle file
-    CLIENT_CERT = "client_cert"            # Client certificate authentication (mTLS)
-    DISABLED = "disabled"                  # Disable SSL verification
+    CLIENT_CERT = "client_cert"  # Client certificate authentication (mTLS)
+    DISABLED = "disabled"  # Disable SSL verification
 
 
 class SSLConfig(BaseModel):
@@ -40,12 +40,12 @@ class SSLConfig(BaseModel):
         """Get the appropriate verify setting for httpx client."""
         if self.mode == CertificateMode.DISABLED:
             return False
-        elif self.mode == CertificateMode.SYSTEM_DEFAULT:
+        if self.mode == CertificateMode.SYSTEM_DEFAULT:
             return True
-        elif self.mode == CertificateMode.CUSTOM_CA_BUNDLE:
+        if self.mode == CertificateMode.CUSTOM_CA_BUNDLE:
             return self._create_ca_bundle_ssl_context()
-        else:  # CLIENT_CERT
-            return self._create_custom_ssl_context()
+        # CLIENT_CERT
+        return self._create_custom_ssl_context()
 
     def get_httpx_cert_setting(self) -> None:
         """
@@ -54,7 +54,7 @@ class SSLConfig(BaseModel):
         Note: This always returns None as we now load certificates
         directly into the SSL context (httpx deprecated cert parameter).
         """
-        return None
+        return  # NOSONAR
 
     def _create_custom_ssl_context(self) -> ssl.SSLContext:
         """Create custom SSL context with certificate validation."""
@@ -64,22 +64,22 @@ class SSLConfig(BaseModel):
 
         # Load custom CA bundle if provided
         if self.ca_bundle_path:
-            try:
+            try:  # noqa: SIM105 # Baseline
                 context.load_verify_locations(self.ca_bundle_path)
-            except Exception:
+            except Exception:  # noqa: S110 # Baseline
                 # In production, certificate loading errors should be handled
                 # Here we just continue without the custom CA for testing
                 pass
 
         # Load client certificate for mutual TLS
         if self.client_cert_path and self.client_key_path:
-            try:
+            try:  # noqa: SIM105 # Baseline
                 context.load_cert_chain(
                     self.client_cert_path,
                     self.client_key_path,
-                    self.client_key_password
+                    self.client_key_password,
                 )
-            except Exception:
+            except Exception:  # noqa: S110 # Baseline
                 # In production, certificate loading errors should be handled
                 # Here we just continue without client cert for testing
                 pass
@@ -101,4 +101,3 @@ class SSLConfig(BaseModel):
             # Enforce TLS 1.2 or higher for security (Python 3.10+ uses secure defaults)
             context.minimum_version = ssl.TLSVersion.TLSv1_2
             return context
-

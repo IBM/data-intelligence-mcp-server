@@ -2,31 +2,66 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field  # noqa: I001 # Baseline
 from app.shared.models import BaseResponseModel
-from typing import Optional, Literal
+from typing import Optional, Literal  # noqa: F401 # Baseline
 from enum import StrEnum
+
 
 class ContainerType(StrEnum):
     """Enum for container types"""
+
     CATALOG = "catalog"
     PROJECT = "project"
     ALL = "all"
 
+
 class SearchConnectionRequest(BaseModel):
-    container: Optional[str] = Field(None, description="Name or UUID of the project or catalog to search the connection within.")
-    container_type: ContainerType = Field(ContainerType.ALL, description="The container type in which to search connections")
-    connection_name: Optional[str] = Field(None, description="Name of the connection to filter the connections by.")
-    datasource_type: Optional[str] = Field(None, description="Datasource type name or UUID to filter connections by.")
-    creator: Optional[str] = Field(None, description="Name, username, or ID of the creator of connection to filter connections by.")
+    container: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None,
+        description="Name or UUID of the project or catalog to search the connection within.",
+    )
+    container_type: ContainerType = Field(
+        ContainerType.ALL,
+        description="The container type in which to search connections",
+    )
+    connection_name: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None, description="Name of the connection to filter the connections by."
+    )
+    datasource_type: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None, description="Datasource type name or UUID to filter connections by."
+    )
+    creator: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None,
+        description="Name, username, or ID of the creator of connection to filter connections by.",
+    )
+
 
 class SearchConnectionResponse(BaseResponseModel):
     id: str = Field(..., description="Unique id of the connection.")
     name: str = Field(..., description="Name of the connection.")
     url: str = Field(..., description="URL pointing to the connection.")
     create_time: str = Field(..., description="Time the connection was created at.")
-    creator_id: str = Field(..., description="Id of the user who created the connection.")
-    datasource_type_id: str = Field(..., description="Unique id of the data source type of the connection.")
-    datasource_type_name: str = Field(..., description="Name of the data source type of the connection.")
-    container_id: str = Field(..., description="Unique id of the container in which the connection resides in.")
-    container_type: str = Field(..., description="Type of the container in which the connection resides in.")
+    creator_id: str = Field(
+        ..., description="Id of the user who created the connection."
+    )
+    datasource_type_id: str = Field(
+        ..., description="Unique id of the data source type of the connection."
+    )
+    datasource_type_name: str = Field(
+        ..., description="Name of the data source type of the connection."
+    )
+    data_source_definition_asset_id: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None,
+        description="Optional ID of the data source definition mapped to the connection.",
+    )
+    container_id: str = Field(
+        ...,
+        description="Unique id of the container in which the connection resides in.",
+    )
+    container_name: str = Field(
+        ..., description="Name of the container in which the connection resides in."
+    )
+    container_type: str = Field(
+        ..., description="Type of the container in which the connection resides in."
+    )

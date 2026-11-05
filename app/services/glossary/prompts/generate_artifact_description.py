@@ -16,24 +16,22 @@ from app.core.registry import prompt_registry
 
 @prompt_registry.prompt(
     name="Generate Glossary Artifact Description",
-    description="Generate clear, concise descriptions for glossary artifacts based on metadata"
+    description="Generate clear, concise descriptions for glossary artifacts based on metadata",
 )
 def generate_artifact_description_prompt(
-    artifact_type: str,
-    artifact_name: str,
-    metadata: str = ""
+    artifact_type: str, artifact_name: str, metadata: str = ""
 ) -> str:
     """
     Provides guidance on generating descriptions for glossary artifacts.
-    
+
     This prompt helps generate professional, informative descriptions for glossary
     artifacts (terms, categories, classifications, etc.) based on their metadata.
-    
+
     Args:
         artifact_type: Type of glossary artifact (e.g., "glossary_term", "category", "classification")
         artifact_name: Name of the artifact to generate description for
         metadata: Optional metadata about the artifact to inform the description
-    
+
     Returns:
         str: The formatted prompt text
     """

@@ -1,0 +1,11 @@
+service:
+  name: glossary_curation
+  description: "Tools for curating glossary terms in IBM Knowledge Catalog via parallel sub-agents. Supports definition generation, PI/SPI classification, and translation across large term sets."
+system_instructions: |
+  Tools for curating glossary terms in IBM Knowledge Catalog via parallel sub-agents.
+
+  Glossary Curation Tool:
+  1. glossary_curator → curate a glossary category using one of three modes:
+     - definition: generates or improves term definitions
+     - classification: classify terms according to classifications available in IKC
+     - translation: translate term names and definitions into another language

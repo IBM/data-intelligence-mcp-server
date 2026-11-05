@@ -8,4 +8,6 @@
 APPLICATION_FORM_URL_ENCODED = "application/x-www-form-urlencoded"
 
 # Log Messages
-HTTP_CLIENT_STATS_LOG_MSG = "HTTP client stats: total_requests=%d, errors=%d, semaphore_available=%d/%d"
+HTTP_CLIENT_STATS_LOG_MSG = (
+    "HTTP client stats: total_requests=%d, errors=%d, semaphore_available=%d/%d"
+)

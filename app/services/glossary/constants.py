@@ -4,10 +4,10 @@
 
 """Constants for glossary service."""
 
-from enum import StrEnum
+from enum import StrEnum  # noqa: I001 # Baseline
 from typing import TypeAlias, Optional
 
-Elicitable: TypeAlias = Optional[str]
+Elicitable: TypeAlias = Optional[str]  # noqa: UP045 # Baseline
 ELICIT_PLACEHOLDER = "default_value_for_elicitation"
 NOT_SPECIFIED_PLACEHOLDER = "default_value_for_placeholder"
 

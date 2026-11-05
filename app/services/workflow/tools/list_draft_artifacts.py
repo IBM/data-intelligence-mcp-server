@@ -6,7 +6,7 @@
 
 """Tool for listing draft business terms and data classes."""
 
-from typing import Annotated, Optional
+from typing import Annotated, Optional  # noqa: I001 # Baseline
 from pydantic import Field
 
 from app.core.registry import service_registry
@@ -45,7 +45,7 @@ def _get_item_metadata(item: dict) -> dict:
     return item.get("metadata", {}) or item
 
 
-def _extract_artifact_id(item: dict) -> Optional[str]:
+def _extract_artifact_id(item: dict) -> Optional[str]:  # noqa: UP045 # Baseline
     """Extract artifact_id from governance artifact response shapes."""
     metadata = item.get("metadata", {})
     entity = item.get("entity", {})
@@ -57,7 +57,7 @@ def _extract_artifact_id(item: dict) -> Optional[str]:
     )
 
 
-def _extract_version_id(item: dict) -> Optional[str]:
+def _extract_version_id(item: dict) -> Optional[str]:  # noqa: UP045 # Baseline
     """Extract version_id from governance artifact response shapes."""
     metadata = item.get("metadata", {})
     return (
@@ -70,7 +70,7 @@ def _extract_version_id(item: dict) -> Optional[str]:
 async def _fetch_draft_version_id(
     artifact_id: str,
     artifact_type: ArtifactType,
-) -> Optional[str]:
+) -> Optional[str]:  # noqa: UP045 # Baseline
     """Fetch the draft version id when it is not present in the list response."""
     endpoint = f"{get_artifact_api_endpoint(artifact_type)}/{artifact_id}/versions"
     try:
@@ -83,7 +83,7 @@ async def _fetch_draft_version_id(
         )
     except Exception as e:
         LOGGER.warning(
-            f"Could not fetch draft version for artifact_id={artifact_id}: {str(e)}"
+            f"Could not fetch draft version for artifact_id={artifact_id}: {e!s}"
         )
         return None
 
@@ -107,45 +107,45 @@ async def _fetch_draft_version_id(
     return None
 
 
-def _is_draft_mode_active(draft_mode) -> bool:
+def _is_draft_mode_active(draft_mode) -> bool:  # noqa: ANN001 # Baseline
     """Check if draft_mode indicates an active draft state."""
     if draft_mode is True:
         return True
-    if isinstance(draft_mode, str) and draft_mode.casefold() == "draft":
+    if isinstance(draft_mode, str) and draft_mode.casefold() == "draft":  # noqa: SIM103 # Baseline
         return True
     return False
 
 
-def _determine_state(metadata: dict, item: dict) -> Optional[str]:
+def _determine_state(metadata: dict, item: dict) -> Optional[str]:  # noqa: UP045 # Baseline
     """Determine the state of an artifact, defaulting to DRAFT if draft_mode is active."""
     state = metadata.get("state") or item.get("state")
     if state is not None:
         return state
-    
+
     draft_mode = metadata.get("draft_mode") or item.get("draft_mode")
     if _is_draft_mode_active(draft_mode):
         return "DRAFT"
-    
+
     return None
 
 
-async def _resolve_modified_by_name(metadata: dict, item: dict) -> Optional[str]:
+async def _resolve_modified_by_name(metadata: dict, item: dict) -> Optional[str]:  # noqa: UP045 # Baseline
     """Resolve modified_by IAM ID to user name, falling back to ID on error."""
     modified_by_id = metadata.get("modified_by") or item.get("modified_by")
     if not modified_by_id:
         return None
-    
+
     try:
         return await get_user_info_from_iam_id(modified_by_id, "name")
     except Exception as e:
-        LOGGER.warning(f"Could not fetch user name for ID {modified_by_id}: {str(e)}")
+        LOGGER.warning(f"Could not fetch user name for ID {modified_by_id}: {e!s}")
         return modified_by_id
 
 
 async def _create_draft_artifact_overview(
     item: dict,
     artifact_type: ArtifactType,
-) -> Optional[DraftArtifactOverview]:
+) -> Optional[DraftArtifactOverview]:  # noqa: UP045 # Baseline
     """Build one overview object from a governance artifact response item."""
     metadata = _get_item_metadata(item)
     artifact_id = _extract_artifact_id(item)
@@ -184,7 +184,7 @@ async def _fetch_draft_artifacts_for_type(
     """Fetch draft artifact overviews for one artifact type."""
     fetch_limit = min(max_results * 3, 200)
     endpoint = f"{GLOSSARY_ARTIFACT_TYPES_ENDPOINT}/{artifact_type}"
-    
+
     try:
         response = await tool_helper_service.execute_get_request(
             url=f"{tool_helper_service.base_url}{endpoint}",
@@ -194,20 +194,20 @@ async def _fetch_draft_artifacts_for_type(
             },
         )
     except Exception as e:
-        LOGGER.error(f"Failed to fetch draft artifacts for {artifact_type}: {str(e)}")
+        LOGGER.error(f"Failed to fetch draft artifacts for {artifact_type}: {e!s}")
         return []
 
     # Handle None response or missing resources
     if response is None:
         LOGGER.warning(f"Received None response for artifact_type={artifact_type}")
         return []
-    
+
     artifacts: list[DraftArtifactOverview] = []
     resources = response.get("resources", [])
     if resources is None:
         LOGGER.warning(f"Received None resources for artifact_type={artifact_type}")
         return []
-    
+
     for item in resources:
         metadata = item.get("metadata", {})
         if not is_draft_metadata(metadata, item):
@@ -222,7 +222,9 @@ async def _fetch_draft_artifacts_for_type(
     return artifacts
 
 
-def _format_draft_artifacts_as_table(artifacts: list[DraftArtifactOverview]) -> str | None:
+def _format_draft_artifacts_as_table(
+    artifacts: list[DraftArtifactOverview],
+) -> str | None:
     """Format draft artifact overviews as a markdown table."""
     if not artifacts:
         return None
@@ -248,7 +250,7 @@ def _format_draft_artifacts_as_table(artifacts: list[DraftArtifactOverview]) -> 
 
 async def _list_draft_artifacts(
     request: ListDraftArtifactsRequest,
-    ctx: Optional[Context] = None,
+    ctx: Optional[Context] = None,  # noqa: UP045 # Baseline
 ) -> ListDraftArtifactsResponse:
     """List draft business terms and/or data classes."""
     LOGGER.info(
@@ -257,7 +259,9 @@ async def _list_draft_artifacts(
     )
 
     if not supports_rich_text_format(ctx) and request.format == "table":
-        LOGGER.info("Client without rich text support detected: switching format from 'table' to 'json'")
+        LOGGER.info(
+            "Client without rich text support detected: switching format from 'table' to 'json'"
+        )
         request.format = "json"
 
     artifacts: list[DraftArtifactOverview] = []
@@ -268,7 +272,7 @@ async def _list_draft_artifacts(
             await _fetch_draft_artifacts_for_type(artifact_type, request.max_results)
         )
 
-    artifacts = artifacts[:request.max_results]
+    artifacts = artifacts[: request.max_results]
 
     formatted_output = None
     if request.format == "table":
@@ -322,17 +326,37 @@ response includes all technical details (artifact IDs, version IDs, workflow IDs
     name="list_draft_artifacts",
     annotations={
         "readOnlyHint": True,
-        "title": "List Draft Workflow Glossary Artifacts: Business Terms and Data Classes"
+        "title": "List Draft Workflow Glossary Artifacts: Business Terms and Data Classes",
     },
     description=list_draft_artifacts_description,
-    tags={"workflow", "glossary", "artifacts", "drafts", "governance","metadata_management_and_governance"},
+    tags={
+        "workflow",
+        "glossary",
+        "artifacts",
+        "drafts",
+        "governance",
+        "metadata_management_and_governance",
+    },
     meta={"version": "1.0", "service": "glossary"},
 )
 @auto_context
 async def list_draft_artifacts(
-    artifact_type: Annotated[DraftArtifactType, Field(description="Type of artifacts to list: 'glossary_term' for business terms, 'data_class' for data classes, or 'all' for both")] = "all",
-    max_results: Annotated[int, Field(description="Maximum number of draft artifacts to return (default: 50)")] = 50,
-    format: Annotated[str, Field(description="Output format: 'table' for markdown table or 'json' for structured data only")] = "table",
+    artifact_type: Annotated[
+        DraftArtifactType,
+        Field(
+            description="Type of artifacts to list: 'glossary_term' for business terms, 'data_class' for data classes, or 'all' for both"
+        ),
+    ] = "all",
+    max_results: Annotated[
+        int,
+        Field(description="Maximum number of draft artifacts to return (default: 50)"),
+    ] = 50,
+    format: Annotated[  # noqa: A002 # Baseline
+        str,
+        Field(
+            description="Output format: 'table' for markdown table or 'json' for structured data only"
+        ),
+    ] = "table",
     ctx: Context = None,
 ) -> ListDraftArtifactsResponse:
     """

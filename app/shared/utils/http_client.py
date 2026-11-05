@@ -6,7 +6,7 @@
 
 """Async HTTP client with connection pooling and error handling."""
 
-from typing import Any, Callable, Awaitable
+from typing import Any, Callable, Awaitable  # noqa: I001, UP035 # Baseline
 import logging
 from asyncio import Semaphore
 
@@ -17,10 +17,10 @@ from app.shared.exceptions.base import ExternalAPIError
 from app.shared.utils.ssl_utils import get_ssl_verify_setting
 from app.shared.utils.retry_utils import retry_on_failure
 from app.shared.utils.http_constants import (
-    APPLICATION_FORM_URL_ENCODED,
+    APPLICATION_FORM_URL_ENCODED,  # noqa: F401 # Baseline
     HTTP_CLIENT_STATS_LOG_MSG,
 )
-from app.services.constants import JSON_CONTENT_TYPE
+from app.services.constants import JSON_CONTENT_TYPE  # noqa: F401 # Baseline
 
 LOGGER = logging.getLogger(__name__)
 
@@ -32,19 +32,19 @@ _ibm_api_semaphore: Semaphore | None = None
 def get_ibm_api_semaphore() -> Semaphore:
     """
     Get the global IBM API semaphore instance (singleton pattern).
-    
+
     This semaphore controls how many concurrent requests can be made to IBM APIs,
     preventing connection pool exhaustion and protecting downstream services.
-    
+
     Returns:
         Semaphore: The global semaphore instance
     """
-    global _ibm_api_semaphore
+    global _ibm_api_semaphore  # noqa: PLW0603 # Baseline
     if _ibm_api_semaphore is None:
         _ibm_api_semaphore = Semaphore(settings.ibm_api_max_concurrent_calls)
         LOGGER.info(
             "IBM API semaphore initialized with limit: %d concurrent calls",
-            settings.ibm_api_max_concurrent_calls
+            settings.ibm_api_max_concurrent_calls,
         )
     return _ibm_api_semaphore
 
@@ -64,11 +64,11 @@ class AsyncHttpClient:
         self._error_count = 0
         self._closed = False
 
-    async def __aenter__(self):
+    async def __aenter__(self):  # noqa: ANN204 # Baseline
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb):  # noqa: ANN001, ANN204 # Baseline
         """Async context manager exit - ensures proper cleanup."""
         await self.close()
         return False
@@ -97,14 +97,14 @@ class AsyncHttpClient:
                     keepalive_expiry=settings.http_keepalive_expiry,
                 ),
             )
-            
+
             # Log connection pool configuration
             LOGGER.info(
                 "HTTP client initialized with connection pool: "
                 "max_connections=%d, max_keepalive_connections=%d, keepalive_expiry=%.1fs",
                 settings.http_max_connections,
                 settings.http_max_keepalive_connections,
-                settings.http_keepalive_expiry
+                settings.http_keepalive_expiry,
             )
         return self._client
 
@@ -119,8 +119,10 @@ class AsyncHttpClient:
             available_slots = semaphore._value
             LOGGER.info(
                 HTTP_CLIENT_STATS_LOG_MSG,
-                self._request_count, self._error_count,
-                available_slots, settings.ibm_api_max_concurrent_calls
+                self._request_count,
+                self._error_count,
+                available_slots,
+                settings.ibm_api_max_concurrent_calls,
             )
 
     async def _make_request(
@@ -144,55 +146,58 @@ class AsyncHttpClient:
         Raises:
             ExternalAPIError: If the request fails or returns an error status
         """
+
         # Define retry condition: only retry on HTTP 429 (rate limit) errors
         def should_retry_429(e: Exception) -> bool:
             return (
-                isinstance(e, httpx.HTTPStatusError)
-                and e.response.status_code == 429
+                isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 429  # noqa: PLR2004 # Baseline
             )
-        
+
         # Apply retry decorator with 429-specific condition
         @retry_on_failure(
-            max_retries=settings.retry_max_attempts - 1,  # -1 because decorator counts initial attempt
+            max_retries=settings.retry_max_attempts
+            - 1,  # -1 because decorator counts initial attempt
             backoff_factor=settings.retry_backoff_base,
             exceptions=(httpx.HTTPStatusError,),
             retry_condition=should_retry_429,
-            context_label="HTTP_429_retry"
+            context_label="HTTP_429_retry",
         )
-        async def _execute_request():
+        async def _execute_request():  # noqa: ANN202 # Baseline
             semaphore = get_ibm_api_semaphore()
             async with semaphore:
                 self._request_count += 1
                 self._log_stats_if_needed(semaphore)
-                
+
                 try:
                     client = await self.client
                     response = await request_func(client)
                     response.raise_for_status()
-                    
+
                     # Handle different content types
                     content_type = response.headers.get("content-type", "").lower()
                     if "application/json" in content_type:
                         return response.json()
-                    else:
-                        return {"content": response.content, "content_type": content_type}
-                        
+                    return {
+                        "content": response.content,
+                        "content_type": content_type,
+                    }
+
                 except httpx.HTTPStatusError as e:
                     self._error_count += 1
                     # If it's a 429, let the retry decorator handle it
-                    if e.response.status_code == 429:
+                    if e.response.status_code == 429:  # noqa: PLR2004 # Baseline
                         raise
                     # For non-429 errors, handle and raise immediately
                     handle_api_exception(e)
                     raise  # This line is never reached but satisfies type checker
-                    
+
                 except httpx.RequestError as e:
                     self._error_count += 1
-                    raise ExternalAPIError(f"HTTP request failed: {str(e)}")
+                    raise ExternalAPIError(f"HTTP request failed: {e!s}")  # noqa: B904 # Baseline
                 except Exception as e:
                     self._error_count += 1
-                    raise ExternalAPIError(f"Request failed: {str(e)}")
-        
+                    raise ExternalAPIError(f"Request failed: {e!s}")  # noqa: B904 # Baseline
+
         return await _execute_request()
 
     async def get(
@@ -215,12 +220,13 @@ class AsyncHttpClient:
         Raises:
             ExternalAPIError: If the request fails or returns an error status
         """
+
         async def request_func(client: httpx.AsyncClient) -> httpx.Response:
             return await client.get(url, params=params, headers=headers or {})
-        
+
         return await self._make_request(request_func)
 
-    async def _request_with_body(
+    async def _request_with_body(  # noqa: PLR0913 # Baseline
         self,
         method: str,
         url: str,
@@ -233,7 +239,7 @@ class AsyncHttpClient:
     ) -> dict[str, Any]:
         """
         Internal helper for HTTP methods with request body (POST, PUT, PATCH).
-        
+
         Args:
             method: HTTP method name (POST, PUT, PATCH)
             url: The URL to make the request to
@@ -243,21 +249,18 @@ class AsyncHttpClient:
             headers: Optional HTTP headers
             content: Raw bytes for binary uploads
             files: Multipart file uploads
-            
+
         Returns:
             Dict[str, Any]: JSON response data
-            
+
         Raises:
             ExternalAPIError: If the request fails or returns an error status
         """
         # Validate multiple body parameters
-        provided_params = sum([
-            data is not None,
-            json is not None,
-            content is not None,
-            files is not None
-        ])
-        
+        provided_params = sum(
+            [data is not None, json is not None, content is not None, files is not None]
+        )
+
         if provided_params > 1:
             LOGGER.warning(
                 f"Multiple body parameters provided to {method} {url}. "
@@ -265,7 +268,7 @@ class AsyncHttpClient:
                 f"Provided: data={data is not None}, json={json is not None}, "
                 f"content={content is not None}, files={files is not None}"
             )
-        
+
         async def request_func(client: httpx.AsyncClient) -> httpx.Response:
             method_func = getattr(client, method.lower())
             return await method_func(
@@ -277,10 +280,10 @@ class AsyncHttpClient:
                 content=content,
                 files=files,
             )
-        
+
         return await self._make_request(request_func)
 
-    async def post(
+    async def post(  # noqa: PLR0913 # Baseline
         self,
         url: str,
         data: dict[str, Any] | None = None,
@@ -312,7 +315,7 @@ class AsyncHttpClient:
 
         Raises:
             ExternalAPIError: If the request fails or returns an error status
-        
+
         Warning:
             Only provide ONE of: data, json, content, or files.
             If multiple are provided, precedence is: files > content > json > data
@@ -321,7 +324,7 @@ class AsyncHttpClient:
             "POST", url, data, json, params, headers, content, files
         )
 
-    async def put(
+    async def put(  # noqa: PLR0913 # Baseline
         self,
         url: str,
         data: dict[str, Any] | None = None,
@@ -353,7 +356,7 @@ class AsyncHttpClient:
 
         Raises:
             ExternalAPIError: If the request fails or returns an error status
-        
+
         Warning:
             Only provide ONE of: data, json, content, or files.
             If multiple are provided, precedence is: files > content > json > data
@@ -362,7 +365,7 @@ class AsyncHttpClient:
             "PUT", url, data, json, params, headers, content, files
         )
 
-    async def patch(
+    async def patch(  # noqa: PLR0913 # Baseline
         self,
         url: str,
         data: dict[str, Any] | None = None,
@@ -394,7 +397,7 @@ class AsyncHttpClient:
 
         Raises:
             ExternalAPIError: If the request fails or returns an error status
-        
+
         Warning:
             Only provide ONE of: data, json, content, or files.
             If multiple are provided, precedence is: files > content > json > data
@@ -423,20 +426,21 @@ class AsyncHttpClient:
         Raises:
             ExternalAPIError: If the request fails or returns an error status
         """
+
         async def request_func(client: httpx.AsyncClient) -> httpx.Response:
             return await client.delete(url, params=params, headers=headers or {})
-        
+
         return await self._make_request(request_func)
 
     async def close(self) -> None:
         """
         Close the async HTTP client and clean up resources.
-        
+
         This method is idempotent and safe to call multiple times.
         """
         if self._closed:
             return
-            
+
         if self._client is not None:
             LOGGER.debug("Closing HTTP client and releasing connections")
             try:
@@ -462,7 +466,7 @@ async def get_async_http_client() -> AsyncHttpClient:
     Returns:
         AsyncHttpClient: The global async HTTP client instance
     """
-    global _shared_client
+    global _shared_client  # noqa: PLW0603 # Baseline
     if _shared_client is None:
         _shared_client = AsyncHttpClient()
     return _shared_client
@@ -475,18 +479,18 @@ def get_http_client() -> AsyncHttpClient:
 
     Note: This client must be used with await for all methods.
     """
-    global _shared_client
+    global _shared_client  # noqa: PLW0603 # Baseline
     if _shared_client is None:
         _shared_client = AsyncHttpClient()
     return _shared_client
 
 
-def handle_api_exception(e: httpx.HTTPStatusError):
+def handle_api_exception(e: httpx.HTTPStatusError):  # noqa: ANN201 # Baseline
     try:
         # Try to get the full JSON response - we'll extract the message in _format_exception
         error_detail = e.response.text
     except Exception:
-        error_detail = str(e.response.text) if hasattr(e.response, 'text') else str(e)
+        error_detail = str(e.response.text) if hasattr(e.response, "text") else str(e)
 
     raise ExternalAPIError(
         f"HTTP error {e.response.status_code} for {e.request.url}: {error_detail}"

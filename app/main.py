@@ -8,7 +8,7 @@
 
 """WXDI MCP Server"""
 
-import argparse
+import argparse  # noqa: I001 # Baseline
 import importlib
 import pkgutil
 import sys
@@ -17,6 +17,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 from fastmcp.server.auth import JWTVerifier, OAuthProxy
+from key_value.aio.stores.redis import RedisStore
 
 from app.core.auth import get_cloud_iam_url_from_service_url
 import app.services
@@ -35,9 +36,9 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 
-def _import_modules_from_path(module_path: Path, package_prefix: str, module_type: str):
+def _import_modules_from_path(module_path: Path, package_prefix: str, module_type: str):  # noqa: ANN202 # Baseline
     """Helper function to import all modules from a given path.
-    
+
     Args:
         module_path: Path to the directory containing modules
         package_prefix: Package prefix for module names (e.g., "app.services.search.tools")
@@ -45,21 +46,26 @@ def _import_modules_from_path(module_path: Path, package_prefix: str, module_typ
     """
     if not module_path.is_dir():
         return
-    
+
     # First, import the package itself to trigger the __init__.py
     importlib.import_module(package_prefix)
-    
+
     # Then, iterate over any other modules that might not be in __init__.py
-    for _, module_name, _ in pkgutil.iter_modules([str(module_path)], f"{package_prefix}."):
+    for _, module_name, _ in pkgutil.iter_modules(
+        [str(module_path)], f"{package_prefix}."
+    ):
         try:
             importlib.import_module(module_name)
         except ImportError as e:
-            print(f"Warning: Could not import {module_type} module '{module_name}': {e}", file=sys.stderr)
+            print(
+                f"Warning: Could not import {module_type} module '{module_name}': {e}",
+                file=sys.stderr,
+            )
 
 
-def _load_tools_and_prompts(service_path: Path, service_name: str):
+def _load_tools_and_prompts(service_path: Path, service_name: str):  # noqa: ANN202 # Baseline
     """Load tools and prompts from a service directory.
-    
+
     Args:
         service_path: Path to the service directory
         service_name: Fully qualified service name (e.g., "app.services.search")
@@ -67,21 +73,25 @@ def _load_tools_and_prompts(service_path: Path, service_name: str):
     # Discover and import tools
     tools_path = service_path / "tools"
     _import_modules_from_path(tools_path, f"{service_name}.tools", "tool")
-    
+
     # Discover and import prompts
     prompts_path = service_path / "prompts"
     _import_modules_from_path(prompts_path, f"{service_name}.prompts", "prompt")
 
 
-def discover_and_import_services(package):
+def discover_and_import_services(package):  # noqa: ANN001, ANN201 # Baseline
     """Dynamically imports all tool and prompt modules to trigger registration decorators."""
-    for _, service_name, _ in pkgutil.iter_modules(package.__path__, package.__name__ + "."):
+    for _, service_name, _ in pkgutil.iter_modules(
+        package.__path__, package.__name__ + "."
+    ):
         service_module = importlib.import_module(service_name)
         service_path = Path(service_module.__file__).parent
-        
+
         # Special handling for 'internal' directory - recursively discover nested services
-        if service_name.endswith('.internal'):
-            for _, nested_service_name, _ in pkgutil.iter_modules([str(service_path)], f"{service_name}."):
+        if service_name.endswith(".internal"):
+            for _, nested_service_name, _ in pkgutil.iter_modules(
+                [str(service_path)], f"{service_name}."
+            ):
                 nested_service_module = importlib.import_module(nested_service_name)
                 nested_service_path = Path(nested_service_module.__file__).parent
                 _load_tools_and_prompts(nested_service_path, nested_service_name)
@@ -94,7 +104,7 @@ def create_server() -> FastMCP:
     """Creates and configures the MCP server."""
     print("Discovering services...", file=sys.stderr)
     discover_and_import_services(app.services)
-    
+
     # Import system-level prompts (not in service subdirectories)
     system_prompts_loaded = False
     try:
@@ -104,7 +114,30 @@ def create_server() -> FastMCP:
         print(f"Warning: Could not import system prompts: {e}", file=sys.stderr)
 
     auth = None
-    if settings.oauth_base_url and settings.oauth_upstream_client_id and settings.oauth_upstream_client_secret:
+    if (
+        settings.oauth_base_url
+        and settings.oauth_upstream_client_id
+        and settings.oauth_upstream_client_secret
+    ):
+        from redis.asyncio.retry import Retry  # noqa: I001 # Baseline
+        from redis.backoff import ExponentialBackoff
+        import redis.asyncio as redis
+
+        redis_client = redis.from_url(
+            settings.redis_url,
+            decode_responses=True,
+            health_check_interval=30,
+            socket_keepalive=True,
+            socket_connect_timeout=5,
+            socket_timeout=5,
+            retry=Retry(ExponentialBackoff(), retries=3),
+            retry_on_error=[ConnectionResetError, ConnectionError],
+            ssl_ca_certs=settings.redis_crt,
+            ssl_cert_reqs="required",
+        )
+
+        redis_store = RedisStore(client=redis_client)
+
         iam_url = get_cloud_iam_url_from_service_url(str(settings.di_service_url))
         token_verifier = JWTVerifier(
             jwks_uri=iam_url + "/identity/keys",
@@ -116,12 +149,15 @@ def create_server() -> FastMCP:
             upstream_client_id=settings.oauth_upstream_client_id,
             upstream_client_secret=settings.oauth_upstream_client_secret,
             base_url=settings.oauth_base_url,
-            resource_base_url=settings.oauth_base_url.removesuffix("semantic_agents/public/v1"),
+            resource_base_url=settings.oauth_base_url.removesuffix(
+                "semantic_agents/public/v1"
+            ),
             token_verifier=token_verifier,
             valid_scopes=["openid"],
             extra_token_params={
                 "response_type": "cloud_iam",
             },
+            client_storage=redis_store,
         )
 
     mcp = FastMCP("WXDI MCP Server", version="1.0.0", auth=auth)
@@ -148,17 +184,19 @@ def create_server() -> FastMCP:
     # Register prompts
     prompt_registry.register_all(mcp)
     actual_prompt_count = prompt_registry.get_registered_count()
-    
+
     if actual_prompt_count > 0:
         if system_prompts_loaded:
             print("✅ System prompts loaded.", file=sys.stderr)
-        print(f"Registering {actual_prompt_count} discovered prompts...", file=sys.stderr)
+        print(
+            f"Registering {actual_prompt_count} discovered prompts...", file=sys.stderr
+        )
         print("✅ Prompt registration complete.", file=sys.stderr)
 
     return mcp
 
 
-def _run_http_server(mcp: FastMCP, args) -> None:
+def _run_http_server(mcp: FastMCP, args) -> None:  # noqa: ANN001 # Baseline
     """Configure and start the MCP server in HTTP/HTTPS mode."""
     protocol = "http"
     port = settings.server_port
@@ -190,7 +228,10 @@ def _run_http_server(mcp: FastMCP, args) -> None:
     if not settings.use_https:
         highlight = "\033[1;33m"
         reset = "\033[0m"
-        print(f"⚠️ WARNING: Starting server in HTTP mode because {highlight}SERVER_HTTPS=False{reset}.", file=sys.stderr)
+        print(
+            f"⚠️ WARNING: Starting server in HTTP mode because {highlight}SERVER_HTTPS=False{reset}.",
+            file=sys.stderr,
+        )
 
     if settings.use_https:
         if ssl_cert and ssl_key:
@@ -225,7 +266,7 @@ def _run_http_server(mcp: FastMCP, args) -> None:
     mcp.run(**kwargs)
 
 
-def apply_cli_settings_overrides(args):
+def apply_cli_settings_overrides(args):  # noqa: ANN001, ANN201 # Baseline
     """Apply command line argument overrides to settings and print notifications.
 
     Args:
@@ -233,11 +274,14 @@ def apply_cli_settings_overrides(args):
     """
     if args.transport != settings.server_transport:
         settings.server_transport = args.transport
-        print(f"ℹ Transport overridden via CLI: {args.transport}", file=sys.stderr)
+        print(f"ℹ Transport overridden via CLI: {args.transport}", file=sys.stderr)  # noqa: RUF001 # Baseline
 
     if args.di_url != settings.di_service_url:
         settings.di_service_url = args.di_url
-        print(f"Data Intelligence service URL overridden via CLI: {args.di_url}", file=sys.stderr)
+        print(
+            f"Data Intelligence service URL overridden via CLI: {args.di_url}",
+            file=sys.stderr,
+        )
 
     if args.wxo:
         settings.wxo = True
@@ -258,16 +302,31 @@ def apply_cli_settings_overrides(args):
         settings.ssl_key_path = args.ssl_key
 
 
-def main():
+def main():  # noqa: ANN201 # Baseline
     """Main server entry point."""
     parser = argparse.ArgumentParser(description="IKC MCP Server")
-    parser.add_argument("--transport", choices=["stdio", "http"], default=settings.server_transport, help="Transport protocol")
-    parser.add_argument("--host", default=settings.server_host, help="Server host address")
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "http"],
+        default=settings.server_transport,
+        help="Transport protocol",
+    )
+    parser.add_argument(
+        "--host", default=settings.server_host, help="Server host address"
+    )
     parser.add_argument("--port", type=int, default=None, help="Server port number")
     parser.add_argument("--ssl-cert", help="Path to SSL certificate file")
     parser.add_argument("--ssl-key", help="Path to SSL private key file")
-    parser.add_argument("--di-url", default=settings.di_service_url, help="Data Intelligence service URL")
-    parser.add_argument("--wxo", action="store_true", help="Enable watsonx orchestrator compatibility mode")
+    parser.add_argument(
+        "--di-url",
+        default=settings.di_service_url,
+        help="Data Intelligence service URL",
+    )
+    parser.add_argument(
+        "--wxo",
+        action="store_true",
+        help="Enable watsonx orchestrator compatibility mode",
+    )
     args = parser.parse_args()
 
     apply_cli_settings_overrides(args)
@@ -279,7 +338,10 @@ def main():
         mcp = create_server()
         # Get the actual registered count after registration
         actual_registered_count = service_registry.get_registered_count()
-        print(f"✅ Server initialized with {actual_registered_count} registered tools.", file=sys.stderr)
+        print(
+            f"✅ Server initialized with {actual_registered_count} registered tools.",
+            file=sys.stderr,
+        )
 
         if args.transport == "http":
             _run_http_server(mcp, args)

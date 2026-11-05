@@ -9,7 +9,8 @@ This module provides utilities for setting up and configuring logging
 with custom formats, traceability, and structured output.
 """
 
-import logging
+import logging  # noqa: I001 # Baseline
+
 # Removed unused import: os
 import sys
 from pathlib import Path
@@ -26,15 +27,16 @@ from .constants import (
     BUILD_VERSION,
     LOG_FILE_PATH,
     set_parameter_value,
-    parameter_values
+    parameter_values,
 )
 from .filter import LoggingTraceabilityFilter
 
+
 def setup_logging(
-    logger_name: Optional[str] = None,
-    log_level: Optional[str] = None,
-    log_format: Optional[str] = None,
-    log_file_path: Optional[str] = None
+    logger_name: Optional[str] = None,  # noqa: UP045 # Baseline
+    log_level: Optional[str] = None,  # noqa: UP045 # Baseline
+    log_format: Optional[str] = None,  # noqa: UP045 # Baseline
+    log_file_path: Optional[str] = None,  # noqa: UP045 # Baseline
 ) -> logging.Logger:
     """
     Configure logging based on specified parameters.
@@ -141,7 +143,7 @@ def setup_logging(
     return logger
 
 
-def get_logger(name: Optional[str] = None) -> logging.Logger:
+def get_logger(name: Optional[str] = None) -> logging.Logger:  # noqa: UP045 # Baseline
     """
     Get a logger instance with the specified name.
 
@@ -163,7 +165,7 @@ def retrieve_parameters_from_env() -> None:
     """
     from .constants import DEFAULT_PARAMETERS
 
-    for parameter_name in DEFAULT_PARAMETERS.keys():
+    for parameter_name in DEFAULT_PARAMETERS.keys():  # noqa: SIM118 # Baseline
         set_parameter_value(parameter_name)
 
 

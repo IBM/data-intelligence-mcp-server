@@ -28,15 +28,13 @@ def _format_categories_for_table(categories_data: list[CategoryInfo]) -> list[di
         List of dictionaries formatted for table display with Name
     """
     return [
-        {
-            "Name": cat.name,
-            "category_id": cat.category_id
-        }
-        for cat in categories_data
+        {"Name": cat.name, "category_id": cat.category_id} for cat in categories_data
     ]
 
 
-async def _search_categories(category_contains: str | None = None) -> list[CategoryInfo] | str:
+async def _search_categories(
+    category_contains: str | None = None,
+) -> list[CategoryInfo] | str:
     auth_scope = "category"
     LOGGER.info("Starting searching categories...")
 
@@ -81,11 +79,9 @@ async def _search_categories(category_contains: str | None = None) -> list[Categ
             "metadata.description",
             "metadata.modified_by",
             "categories",
-            "entity.artifacts.artifact_id"
+            "entity.artifacts.artifact_id",
         ],
-        "sort": [
-            {"metadata.name.keyword": {"order": "asc"}}
-        ],
+        "sort": [{"metadata.name.keyword": {"order": "asc"}}],
         "query": {
             "bool": {
                 "filter": {
@@ -114,13 +110,17 @@ async def _search_categories(category_contains: str | None = None) -> list[Categ
             f"(e.g. category_contains='revenue' to find categories whose names contain 'revenue')."
         )
 
-    categories: list[CategoryInfo] = [
-        CategoryInfo(
-            category_id=row.get("artifact_id", ""),
-            name=row.get("metadata", {}).get("name", ""),
-        )
-        for row in search_response
-    ] if search_response else []
+    categories: list[CategoryInfo] = (
+        [
+            CategoryInfo(
+                category_id=row.get("artifact_id", ""),
+                name=row.get("metadata", {}).get("name", ""),
+            )
+            for row in search_response
+        ]
+        if search_response
+        else []
+    )
 
     if search_response:
         selected_data = ui_message_context.send_table_selector_msg(
@@ -129,7 +129,7 @@ async def _search_categories(category_contains: str | None = None) -> list[Categ
             formatted_data=_format_categories_for_table(categories),
             title="Available Categories",
             description="Select one or more categories to use for metadata enrichment",
-            unique_keys=["Name"]
+            unique_keys=["Name"],
         )
 
         categories = selected_data if selected_data is not None else categories
@@ -141,7 +141,7 @@ async def _search_categories(category_contains: str | None = None) -> list[Categ
     name="list_glossary_categories",
     annotations={
         "readOnlyHint": True,
-        "title": "List All Business Glossary Categories"
+        "title": "List All Business Glossary Categories",
     },
     tags={"metadata_management_and_governance"},
     description="""Use this tool when you need to retrieve the available business glossary categories from IBM Data Intelligence.
@@ -155,7 +155,12 @@ async def _search_categories(category_contains: str | None = None) -> list[Categ
 )
 @auto_context
 async def list_glossary_categories(
-    category_contains: Annotated[str | None, Field(description="Optional filter. Pass a full UUID to look up a category by ID (e.g. '01dbeeb5-e085-4f27-b5ab-84b3d74cc086'), or a name substring to search by name (e.g. 'revenue'). Leave empty to list all categories.")] = None
+    category_contains: Annotated[
+        str | None,
+        Field(
+            description="Optional filter. Pass a full UUID to look up a category by ID (e.g. '01dbeeb5-e085-4f27-b5ab-84b3d74cc086'), or a name substring to search by name (e.g. 'revenue'). Leave empty to list all categories."
+        ),
+    ] = None,
 ) -> list[CategoryInfo] | str:
 
     return await _search_categories(category_contains=category_contains)

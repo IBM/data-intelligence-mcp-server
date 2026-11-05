@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from app.services.user_search.models.search_users import UserSearchResult
+from app.services.user_search.models.search_users import UserSearchResult  # noqa: I001 # Baseline
 from app.services.user_search.models.search_groups import GroupSearchResult
 from app.services.user_search.models.search_roles import RoleSearchResult
 from app.services.user_search.models.search_user_groups_roles import (
@@ -10,7 +10,7 @@ from app.services.user_search.models.search_user_groups_roles import (
     UnifiedSearchResponse,
 )
 
-__all__ = [
+__all__ = [  # noqa: RUF022 # Baseline
     "UserSearchResult",
     "GroupSearchResult",
     "RoleSearchResult",

@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Annotated
+from typing import Annotated  # noqa: I001 # Baseline
 from pydantic import Field
 
 from app.core.registry import service_registry
@@ -19,7 +19,7 @@ from app.shared.utils.tool_helper_service import tool_helper_service
 
 
 async def _convert_to_lineage_id(
-    input: ConvertToLineageIdRequest,
+    input: ConvertToLineageIdRequest,  # noqa: A002 # Baseline
 ) -> ConvertToLineageIdResponse:
     is_uuid(input.container_id)
     is_uuid(input.asset_id)
@@ -45,7 +45,7 @@ async def _convert_to_lineage_id(
     if not entities:
         raise ValidationError(
             "Tool get_lineage_id finished successfully but no entities were found.",
-            remediation_steps="Verify if lineage is enabled, reimport this asset or try different one."
+            remediation_steps="Verify if lineage is enabled, reimport this asset or try different one.",
         )
 
     return ConvertToLineageIdResponse(
@@ -57,17 +57,27 @@ async def _convert_to_lineage_id(
     name="get_lineage_id",
     annotations={
         "readOnlyHint": True,
-        "title": "Convert Asset and Container IDs to Lineage Identifier"
+        "title": "Convert Asset and Container IDs to Lineage Identifier",
     },
     tags={"lineage"},
     description="Use this tool when you converts asset IDs from container scope into a unique lineage identifier required by other lineage tools."
-    "This is an alternative to search_lineage_assets when you already know the exact container and asset IDs. " \
-    "Return: A unique 64-character hexadecimal lineage identifier that can be used with other lineage tools.",
+    "This is an alternative to search_lineage_assets when you already know the exact container and asset IDs. "
+    "Return: A unique lineage identifier (either a 64-character hexadecimal string or a UUID-format string) that can be used with other lineage tools.",
 )
 @auto_context
 async def convert_asset_to_lineage_id(
-    container_id: Annotated[str, Field(description="The container identifier - can be either a catalog ID or project ID (must be valid UUID)")],
-    asset_id: Annotated[str, Field(description="The asset identifier within the container (must be valid UUID)")]
+    container_id: Annotated[
+        str,
+        Field(
+            description="The container identifier - can be either a catalog ID or project ID (must be valid UUID)"
+        ),
+    ],
+    asset_id: Annotated[
+        str,
+        Field(
+            description="The asset identifier within the container (must be valid UUID)"
+        ),
+    ],
 ) -> ConvertToLineageIdResponse:
     """Wrapper that expands ConvertToLineageIdRequest object into individual parameters."""
 

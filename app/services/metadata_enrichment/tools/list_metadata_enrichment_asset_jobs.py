@@ -1,11 +1,15 @@
-from functools import partial
+from functools import partial  # noqa: I001 # Baseline
 from typing import Annotated
 
 from pydantic import Field
 
 from app.core.registry import service_registry
-from app.services.metadata_enrichment.models.metadata_enrichment import MetadataEnrichmentAssetEnrichmentJobResponse
-from app.services.metadata_enrichment.utils.metadata_enrichment_common_utils import get_metadata_enrichment_asset_jobs
+from app.services.metadata_enrichment.models.metadata_enrichment import (
+    MetadataEnrichmentAssetEnrichmentJobResponse,
+)
+from app.services.metadata_enrichment.utils.metadata_enrichment_common_utils import (
+    get_metadata_enrichment_asset_jobs,
+)
 from app.services.tool_utils import find_project_id, find_metadata_enrichment_id
 from app.shared.exceptions.base import ServiceError
 from app.shared.logging import auto_context
@@ -14,21 +18,25 @@ from app.shared.utils.http_client import LOGGER
 
 
 async def _list_metadata_enrichment_asset_jobs(
-        project_name: str,
-        metadata_enrichment_name: str
+    project_name: str, metadata_enrichment_name: str
 ) -> list[MetadataEnrichmentAssetEnrichmentJobResponse]:
     try:
         project_id = await confirm_uuid(project_name, find_project_id)
         metadata_enrichment_id = await confirm_uuid(
             metadata_enrichment_name,
-            partial(find_metadata_enrichment_id, project_id=project_id)
+            partial(find_metadata_enrichment_id, project_id=project_id),
         )
-        LOGGER.info(f"Found project ID: {project_id} and metadata enrichment ID: {metadata_enrichment_id}")
+        LOGGER.info(
+            f"Found project ID: {project_id} and metadata enrichment ID: {metadata_enrichment_id}"
+        )
 
-        return await get_metadata_enrichment_asset_jobs(project_id, metadata_enrichment_id)
+        return await get_metadata_enrichment_asset_jobs(
+            project_id, metadata_enrichment_id
+        )
     except ServiceError:
         LOGGER.info(f"MDE '{metadata_enrichment_name}' not found.")
     return []
+
 
 @service_registry.tool(
     name="list_metadata_enrichment_asset_jobs",
@@ -40,14 +48,18 @@ async def _list_metadata_enrichment_asset_jobs(
     """,
     annotations={
         "title": "List all metadata enrichment jobs for a given project",
-        "destructiveHint": True
+        "destructiveHint": True,
     },
-    tags={"metadata_management_and_governance"}
+    tags={"metadata_management_and_governance"},
 )
 @auto_context
 async def list_metadata_enrichment_asset_jobs(
-        project_name: Annotated[str, Field(description="The name of the project.")],
-        metadata_enrichment_name: Annotated[str, Field(description="The name of the metadata enrichment asset.")],
+    project_name: Annotated[str, Field(description="The name of the project.")],
+    metadata_enrichment_name: Annotated[
+        str, Field(description="The name of the metadata enrichment asset.")
+    ],
 ) -> list[MetadataEnrichmentAssetEnrichmentJobResponse]:
 
-    return await _list_metadata_enrichment_asset_jobs(project_name, metadata_enrichment_name)
+    return await _list_metadata_enrichment_asset_jobs(
+        project_name, metadata_enrichment_name
+    )

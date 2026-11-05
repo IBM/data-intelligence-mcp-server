@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import List, Optional, Union
+from typing import List, Optional, Union  # noqa: I001, UP035 # Baseline
 from pydantic import BaseModel
 from pydantic import Field
 from app.shared.models import BaseResponseModel
@@ -11,7 +11,7 @@ from app.services.lineage.models.lineage_asset import LineageAsset
 
 
 class GetLineageGraphRequest(BaseModel):
-    lineage_ids: Union[str, List[str]] = Field(
+    lineage_ids: Union[str, List[str]] = Field(  # noqa: UP006, UP007 # Baseline
         ...,
         description="The list of lineage identifiers. Example: ['75a06535eb329a6b69d9f2b448e24e5561a5ca0a96417307e73698b2d4fb0c87', '75a06535eb329a6b69d9f2b448e24e5561a5ca0a96417307e73698b2d4fb0c88']",
     )
@@ -35,7 +35,7 @@ class GetLineageGraphRequest(BaseModel):
             - "0" if user mentions only word upstream but not downstream
             - Default is "3" for balanced view""",
     )
-    ultimate: Optional[str] = Field(
+    ultimate: Optional[str] = Field(  # noqa: UP045 # Baseline
         None,
         description="""This optional field should get value:
             - If user mentions target the value should be target
@@ -43,7 +43,7 @@ class GetLineageGraphRequest(BaseModel):
             - If both are mentioned the value should be both
             - if user mentioned word between the value should ''""",
     )
-    dates: Optional[str] = Field(
+    dates: Optional[str] = Field(  # noqa: UP045 # Baseline
         None,
         description="""Two dates in ISO 8601 format separated by comma or space. This optional field should get value:
             - If user mentions dates when assets should be valid
@@ -54,11 +54,12 @@ class GetLineageGraphRequest(BaseModel):
 
 
 class GetLineageGraphResponse(BaseResponseModel):
-    lineage_assets: List[LineageAsset] = Field(
+    lineage_assets: List[LineageAsset] = Field(  # noqa: UP006 # Baseline
         ..., description="List of all assets in the lineage graph"
     )
-    edges_in_view: Optional[List[str]] = Field(
-        ..., description="Connections between assets showing data flow in format: 'from edge: AssetA, to: AssetB, relation: RelationType'"
+    edges_in_view: Optional[List[str]] = Field(  # noqa: UP006, UP045 # Baseline
+        ...,
+        description="Connections between assets showing data flow in format: 'from edge: AssetA, to: AssetB, relation: RelationType'",
     )
     url: str = Field(
         ..., description="Direct link to visualize this lineage graph in the UI"

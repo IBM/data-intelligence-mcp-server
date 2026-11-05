@@ -7,7 +7,7 @@
 # temporary discrepancies in behavior may occur between API updates and tool updates.
 
 
-from functools import partial
+from functools import partial  # noqa: I001 # Baseline
 from typing import Annotated, Optional
 from string import Template
 
@@ -43,39 +43,35 @@ from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import confirm_uuid
 
 
-async def _list_mdes_with_data_assets(
-    project_id: str
-) -> MetadataEnrichmentResult:
+async def _list_mdes_with_data_assets(project_id: str) -> MetadataEnrichmentResult:
     """
     List MDEs that have data assets with missing terms count.
     Uses process_mdes_for_user_message to get detailed asset information including missing terms.
-    
+
     Args:
         project_id: The project ID to search for MDEs
-        
+
     Returns:
         MetadataEnrichmentResult with MDE listing including missing terms count
     """
     LOGGER.info("Listing MDEs with data assets for project: %s", project_id)
-    
+
     mdes_in_project = await find_mdes_for_project_id(project_id)
     LOGGER.info(f"Total MDEs found in project: {len(mdes_in_project)}")
-    
+
     # Use process_mdes_for_user_message to get detailed info including missing terms
     from app.services.metadata_enrichment.utils.metadata_enrichment_common_utils import (
-        process_mdes_for_user_message
+        process_mdes_for_user_message,
     )
-    
+
     mde_info, failed_mde_ids = await process_mdes_for_user_message(
-        mdes_in_project,
-        project_id
+        mdes_in_project, project_id
     )
-    
+
     LOGGER.info(
-        f"MDEs with data assets: {len(mde_info)}, "
-        f"failed: {len(failed_mde_ids)}"
+        f"MDEs with data assets: {len(mde_info)}, failed: {len(failed_mde_ids)}"
     )
-    
+
     if not mde_info:
         message = (
             "No Metadata Enrichment assets with data assets found in this project. "
@@ -88,20 +84,25 @@ async def _list_mdes_with_data_assets(
             "DO NOT attempt to run on multiple MDEs simultaneously - only ONE MDE can be processed per execution. "
             "Only MDEs with data assets are shown."
         )
-    
+
     return MetadataEnrichmentResult(
         metadata_enrichments=mde_info,
         message=message,
-        failures=failed_mde_ids if failed_mde_ids else None
+        failures=failed_mde_ids if failed_mde_ids else None,
     )
 
 
 async def _execute_term_generation(
     request: TermGenerationRequest,
-) -> TermGenerationResult | MetadataEnrichmentResult | TermGenerationJobSelectionResult | CategorySelectionResult:
+) -> (
+    TermGenerationResult
+    | MetadataEnrichmentResult
+    | TermGenerationJobSelectionResult
+    | CategorySelectionResult
+):
     """
     Main orchestration function for term generation.
-    
+
     Handles:
     1. Project validation
     2. MDE listing (if no MDE name provided)
@@ -126,7 +127,7 @@ async def _execute_term_generation(
     # Step 3: Get MDE ID
     metadata_enrichment_id = await confirm_uuid(
         request.metadata_enrichment_name,
-        partial(find_metadata_enrichment_id, project_id=project_id)
+        partial(find_metadata_enrichment_id, project_id=project_id),
     )
     LOGGER.info(f"Found MDE with ID: {metadata_enrichment_id}")
 
@@ -134,25 +135,30 @@ async def _execute_term_generation(
     data_asset_ids = await find_data_asset_ids_for_mde_id(
         metadata_enrichment_id, project_id
     )
-    
+
     if not data_asset_ids:
         raise ServiceError(
             f"Cannot run term generation: MDE '{request.metadata_enrichment_name}' "
             f"has no data assets. Please add data assets to the MDE first."
         )
-    
+
     LOGGER.info(f"Found {len(data_asset_ids)} data assets in MDE")
 
     # Step 5: Detect version and route
     is_v3 = await is_mde_v3(metadata_enrichment_id, project_id)
-    
+
     if not is_v3:
         # Legacy flow
         LOGGER.info("Executing legacy term generation flow")
-        term_generation_responses, count_of_draft_terms, category_id, category_name = await execute_term_generation_legacy(
+        (
+            term_generation_responses,
+            count_of_draft_terms,
+            category_id,
+            category_name,
+        ) = await execute_term_generation_legacy(
             project_id, metadata_enrichment_id, data_asset_ids
         )
-        
+
         # Build result
         mde_url = Template(MDE_UI_URL_TEMPLATE).substitute(
             mde_id=metadata_enrichment_id, project_id=project_id
@@ -160,16 +166,18 @@ async def _execute_term_generation(
         task_inbox_url = Template(TASK_INBOX_UI_URL_TEMPLATE).substitute(
             governance_base=get_governance_base_url()
         )
-        
+
         # Build category URL if category was configured in MDE
         category_url = None
         if category_id and category_name:
             category_url = Template(CATEGORY_UI_URL_TEMPLATE).substitute(
                 governance_base=get_governance_base_url(),
-                target_category_id=category_id
+                target_category_id=category_id,
             )
-            LOGGER.info(f"Legacy MDE used target category: {category_name} ({category_id})")
-        
+            LOGGER.info(
+                f"Legacy MDE used target category: {category_name} ({category_id})"
+            )
+
         return TermGenerationResult(
             metadata_enrichment_name=request.metadata_enrichment_name,
             project_name=request.project_name,
@@ -177,70 +185,78 @@ async def _execute_term_generation(
             task_inbox=task_inbox_url,
             target_category_url=category_url,
             failures=term_generation_responses.failures,
-            count_of_draft_terms_from_term_generation=count_of_draft_terms
+            count_of_draft_terms_from_term_generation=count_of_draft_terms,
         )
-    
-    else:
-        # V3 flow
-        LOGGER.info("Executing v3 term generation flow")
-        
-        # Resolve target category
-        category_id, category_name, _, job_selection_result = await resolve_target_category_v3(
-            mde_id=metadata_enrichment_id,
-            project_id=project_id,
-            mde_name=request.metadata_enrichment_name,
-            project_name=request.project_name,
-            job_name=request.job_name,
-            category_name=request.category_name
+
+    # V3 flow
+    LOGGER.info("Executing v3 term generation flow")
+
+    # Resolve target category
+    (
+        category_id,
+        category_name,
+        _,
+        job_selection_result,
+    ) = await resolve_target_category_v3(
+        mde_id=metadata_enrichment_id,
+        project_id=project_id,
+        mde_name=request.metadata_enrichment_name,
+        project_name=request.project_name,
+        job_name=request.job_name,
+        category_name=request.category_name,
+    )
+
+    # If job selection is needed, return that result
+    if job_selection_result is not None:
+        LOGGER.info("Returning job selection result for user input")
+        return job_selection_result
+
+    # At this point, category_id and category_name must be set
+    if not category_id or not category_name:
+        raise ServiceError(
+            "Internal error: category_id and category_name must be set after resolution"
         )
-        
-        # If job selection is needed, return that result
-        if job_selection_result is not None:
-            LOGGER.info("Returning job selection result for user input")
-            return job_selection_result
-        
-        # At this point, category_id and category_name must be set
-        if not category_id or not category_name:
-            raise ServiceError(
-                "Internal error: category_id and category_name must be set after resolution"
-            )
-        
-        # Execute term generation with category
-        LOGGER.info(f"Executing v3 term generation with category: {category_name} ({category_id})")
-        term_generation_responses, count_of_draft_terms = await execute_term_generation_v3(
-            project_id, metadata_enrichment_id, data_asset_ids, category_id
-        )
-        
-        # Build result with category URL
-        mde_url = Template(MDE_UI_URL_TEMPLATE).substitute(
-            mde_id=metadata_enrichment_id, project_id=project_id
-        )
-        task_inbox_url = Template(TASK_INBOX_UI_URL_TEMPLATE).substitute(
-            governance_base=get_governance_base_url()
-        )
-        
-        # Build category URL using template (supports both SaaS and CPD)
-        category_url = Template(CATEGORY_UI_URL_TEMPLATE).substitute(
-            governance_base=get_governance_base_url(),
-            target_category_id=category_id
-        )
-        
-        return TermGenerationResult(
-            metadata_enrichment_name=request.metadata_enrichment_name,
-            project_name=request.project_name,
-            metadata_enrichment_ui_url=mde_url,
-            task_inbox=task_inbox_url,
-            target_category_url=category_url,
-            failures=term_generation_responses.failures,
-            count_of_draft_terms_from_term_generation=count_of_draft_terms
-        )
+
+    # Execute term generation with category
+    LOGGER.info(
+        f"Executing v3 term generation with category: {category_name} ({category_id})"
+    )
+    (
+        term_generation_responses,
+        count_of_draft_terms,
+    ) = await execute_term_generation_v3(
+        project_id, metadata_enrichment_id, data_asset_ids, category_id
+    )
+
+    # Build result with category URL
+    mde_url = Template(MDE_UI_URL_TEMPLATE).substitute(
+        mde_id=metadata_enrichment_id, project_id=project_id
+    )
+    task_inbox_url = Template(TASK_INBOX_UI_URL_TEMPLATE).substitute(
+        governance_base=get_governance_base_url()
+    )
+
+    # Build category URL using template (supports both SaaS and CPD)
+    category_url = Template(CATEGORY_UI_URL_TEMPLATE).substitute(
+        governance_base=get_governance_base_url(), target_category_id=category_id
+    )
+
+    return TermGenerationResult(
+        metadata_enrichment_name=request.metadata_enrichment_name,
+        project_name=request.project_name,
+        metadata_enrichment_ui_url=mde_url,
+        task_inbox=task_inbox_url,
+        target_category_url=category_url,
+        failures=term_generation_responses.failures,
+        count_of_draft_terms_from_term_generation=count_of_draft_terms,
+    )
 
 
 @service_registry.tool(
     name="run_term_generation",
     annotations={
         "title": "Execute Term Generation within a Specified Project",
-        "destructiveHint": True
+        "destructiveHint": True,
     },
     tags={"metadata_management_and_governance"},
     description="""Use this tool when you need to execute term generation on an existing metadata enrichment asset within a specified project.
@@ -311,15 +327,38 @@ async def _execute_term_generation(
     - ALWAYS use markdown tables for all results (MDE listings, job listings, execution results)
     - Include clickable URLs in table cells where applicable
     - Keep table formatting clean and aligned
-    - Use clear, descriptive column headers""",
+    - Use clear, descriptive column headers""",  # noqa: W293 # Baseline
 )
 @auto_context
 async def execute_term_generation(
-    project_name: Annotated[str, Field(description="The name of the project you want to execute a metadata enrichment.")],
-    metadata_enrichment_name: Annotated[Optional[str], Field(description="The name of the metadata enrichment asset to run on.")] = None,
-    job_name: Annotated[Optional[str], Field(description="(v3 only) The name or UUID of the enrichment job to use for term generation. If not provided, the tool will list available jobs.")] = None,
-    category_name: Annotated[Optional[str], Field(description="(v3 only) The name or UUID of the target glossary category where generated terms will be placed. If a category name matches multiple categories, you will be prompted to select one.")] = None,
-) -> TermGenerationResult | MetadataEnrichmentResult | TermGenerationJobSelectionResult | CategorySelectionResult:
+    project_name: Annotated[
+        str,
+        Field(
+            description="The name of the project you want to execute a metadata enrichment."
+        ),
+    ],
+    metadata_enrichment_name: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(description="The name of the metadata enrichment asset to run on."),
+    ] = None,
+    job_name: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="(v3 only) The name or UUID of the enrichment job to use for term generation. If not provided, the tool will list available jobs."
+        ),
+    ] = None,
+    category_name: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="(v3 only) The name or UUID of the target glossary category where generated terms will be placed. If a category name matches multiple categories, you will be prompted to select one."
+        ),
+    ] = None,
+) -> (
+    TermGenerationResult
+    | MetadataEnrichmentResult
+    | TermGenerationJobSelectionResult
+    | CategorySelectionResult
+):
     """Wrapper that expands TermGenerationRequest into individual parameters."""
 
     request = TermGenerationRequest(

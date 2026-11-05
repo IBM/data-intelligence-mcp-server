@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Annotated, List, Literal
+from typing import Annotated, List, Literal  # noqa: I001, UP035 # Baseline
 
 from pydantic import Field
 
@@ -146,9 +146,24 @@ Raises:
 )
 @auto_context
 async def get_data_quality_for_assets(
-    asset_ids_or_names: Annotated[List[str], Field(description="List of asset UUIDs or names. Examples: ['customer_data_2023', 'sales_records_q2'], ['asset_uuid_1', 'asset_uuid_2']")],
-    container_id_or_name: Annotated[str, Field(description="Project or catalog UUID or name. Examples: 'marketing_analytics', 'financial_reports', 'supply_chain'")],
-    container_type: Annotated[Literal["catalog", "project"], Field(description="Type of container. Must be either 'catalog' or 'project'. Enum: ['project', 'catalog']")],
+    asset_ids_or_names: Annotated[
+        List[str],  # noqa: UP006 # Baseline
+        Field(
+            description="List of asset UUIDs or names. Examples: ['customer_data_2023', 'sales_records_q2'], ['asset_uuid_1', 'asset_uuid_2']"
+        ),
+    ],
+    container_id_or_name: Annotated[
+        str,
+        Field(
+            description="Project or catalog UUID or name. Examples: 'marketing_analytics', 'financial_reports', 'supply_chain'"
+        ),
+    ],
+    container_type: Annotated[
+        Literal["catalog", "project"],
+        Field(
+            description="Type of container. Must be either 'catalog' or 'project'. Enum: ['project', 'catalog']"
+        ),
+    ],
 ) -> GetDataQualityForAssetsResponse:
     """
     Wrapper that builds request model and delegates to main tool.

@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import List
+from typing import List  # noqa: I001, UP035 # Baseline
 from pydantic import BaseModel
 from pydantic import Field
 from app.shared.models import BaseResponseModel
@@ -19,7 +19,7 @@ class SqlQueryGenerationRequest(BaseModel):
         ...,
         description="Natural language request to convert to SQL.",
     )
-    instructions: List[str] = Field(
+    instructions: List[str] = Field(  # noqa: UP006 # Baseline
         default_factory=list,
         description="Instructions for SQL generation. Example: ['Do not use tech_start, tech_end, ts_id in the output column.']",
     )
@@ -32,9 +32,6 @@ class SqlQueryGenerationRequest(BaseModel):
 class SqlQueryGenerationResponse(BaseResponseModel):
     """Response model for SQL query generation."""
 
-    status: str = Field(
-        default="failed", description="Status of the generation: 'success' or 'failed'"
-    )
     project_id: str | None = Field(
         None, description="Unique identifier of the project (present on success)"
     )
@@ -44,7 +41,4 @@ class SqlQueryGenerationResponse(BaseResponseModel):
     dialect: str | None = Field(
         None,
         description="The SQL dialect used for generation: 'postgresql', 'mssql', 'oracle', or 'db2' (present on success)",
-    )
-    message: str | None = Field(
-        None, description="Error message (present on failure)"
     )

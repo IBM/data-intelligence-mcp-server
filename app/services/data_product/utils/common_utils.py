@@ -1,10 +1,10 @@
 # Copyright [2025] [IBM]
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
-from functools import wraps
-from datetime import date, timezone, datetime
+from functools import wraps  # noqa: I001 # Baseline
+from datetime import date, timezone, datetime, UTC  # noqa: F401 # Baseline
 from urllib.parse import urlencode
-from typing import Any, Dict
+from typing import Any, Dict  # noqa: UP035 # Baseline
 
 from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 from app.shared.exceptions.base import ServiceError
@@ -15,10 +15,10 @@ from app.shared.utils.helpers import append_context_to_url
 
 
 # This methods adds `@CATALOG_ID` at the end of the given field name in an object.
-def add_catalog_id_suffix(param_name="request", field_name="data_product_draft_id"):
-    def decorator(func):
+def add_catalog_id_suffix(param_name="request", field_name="data_product_draft_id"):  # noqa: ANN001, ANN201 # Baseline
+    def decorator(func):  # noqa: ANN001, ANN202 # Baseline
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202 # Baseline
             import inspect
 
             suffix = f"@{await get_dph_catalog_id_for_user(await get_access_token())}"
@@ -40,17 +40,20 @@ def add_catalog_id_suffix(param_name="request", field_name="data_product_draft_i
     return decorator
 
 
-def get_data_product_url(product_id: str, state: str):
+def get_data_product_url(product_id: str, state: str):  # noqa: ANN201 # Baseline
     query_params = {
-            "page_id": "UI_PRODUCT_DETAIL_PAGE",
-            "productState": state,
-            "version_id": product_id.split("@")[0] if "@" in product_id else product_id
-        }
-    return append_context_to_url(f"{tool_helper_service.ui_base_url}/dpx/?{urlencode(query_params)}")
+        "page_id": "UI_PRODUCT_DETAIL_PAGE",
+        "productState": state,
+        "version_id": product_id.split("@", maxsplit=1)[0]
+        if "@" in product_id
+        else product_id,
+    }
+    return append_context_to_url(
+        f"{tool_helper_service.ui_base_url}/dpx/?{urlencode(query_params)}"
+    )
 
 
-
-async def get_dph_default_project_id(bss_account_id) -> str:
+async def get_dph_default_project_id(bss_account_id) -> str:  # noqa: ANN001 # Baseline
     query_params = {
         "name": "Default Data Product Delivery Project",
         "include": "fields",
@@ -80,26 +83,25 @@ def normalize_date_string_to_datetime_utc(date_value: str) -> str:
         parsed_date = date.fromisoformat(date_value)
         return parsed_date.strftime("%Y-%m-%dT00:00:00.000Z")
     except ValueError:
-        raise ServiceError(
+        raise ServiceError(  # noqa: B904 # Baseline
             f"Invalid date format: '{date_value}'. Please provide the date in 'YYYY-MM-DD' format.",
             remediation_steps=(
                 f"Convert the date '{date_value}' to YYYY-MM-DD format (e.g., 2024-01-15) and retry."
             ),
         )
-    
-        
-    
-def check_if_date_in_future(date_value: str):
+
+
+def check_if_date_in_future(date_value: str):  # noqa: ANN201 # Baseline
     """
     Checks if the date is in future. If not, this raises a ToolProcessFailedError.
 
     Args:
         date_value (str): The date string to be checked.
     """
-    date = datetime.strptime(date_value, "%Y-%m-%dT%H:%M:%S.%fZ")
-    date = date.replace(tzinfo=timezone.utc)
+    date = datetime.strptime(date_value, "%Y-%m-%dT%H:%M:%S.%fZ")  # noqa: DTZ007 # Baseline
+    date = date.replace(tzinfo=UTC)
 
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
 
     if date.date() < today:
         raise ServiceError(
@@ -113,10 +115,10 @@ def check_if_date_in_future(date_value: str):
 def parse_iso_date(date_str: str) -> datetime:
     """Parse ISO date (YYYY-MM-DD) to datetime in UTC."""
     try:
-        return datetime.fromisoformat(date_str).replace(tzinfo=timezone.utc)
+        return datetime.fromisoformat(date_str).replace(tzinfo=UTC)
     except ValueError as e:
-        raise ServiceError(
-            f"Invalid date format: '{date_str}'. Expected YYYY-MM-DD. Error: {str(e)}",
+        raise ServiceError(  # noqa: B904 # Baseline
+            f"Invalid date format: '{date_str}'. Expected YYYY-MM-DD. Error: {e!s}",
             remediation_steps=(
                 f"Convert the date '{date_str}' to YYYY-MM-DD format (e.g., 2024-01-15) and retry."
             ),
@@ -126,7 +128,7 @@ def parse_iso_date(date_str: str) -> datetime:
 def calculate_date_one_year_before(date_str: str) -> str:
     """Calculate date one year before given date (YYYY-MM-DD)."""
     dt = parse_iso_date(date_str)
-    
+
     # Calculate one year before by subtracting from the year
     # Handle leap year edge case (Feb 29 -> Feb 28 in non-leap years)
     try:
@@ -135,24 +137,24 @@ def calculate_date_one_year_before(date_str: str) -> str:
         # This happens when date is Feb 29 and previous year is not a leap year
         # Set to Feb 28 instead
         one_year_before = dt.replace(year=dt.year - 1, day=28)
-    
+
     return one_year_before.strftime("%Y-%m-%d")
 
 
 def convert_to_iso8601_utc(dt: datetime, end_of_day: bool = False) -> str:
     """Convert datetime to Elasticsearch ISO 8601 format (YYYY-MM-DDTHH:mm:ss.SSSZ)."""
     # Ensure UTC timezone
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+    if dt.tzinfo is None:  # noqa: SIM108 # Baseline
+        dt = dt.replace(tzinfo=UTC)
     else:
-        dt = dt.astimezone(timezone.utc)
-    
+        dt = dt.astimezone(UTC)
+
     # Set time based on end_of_day flag
     if end_of_day:
         dt = dt.replace(hour=23, minute=59, second=59, microsecond=999000)
     else:
         dt = dt.replace(hour=0, minute=0, second=0, microsecond=0)
-    
+
     # Format to ISO 8601 with milliseconds
     return dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
@@ -161,7 +163,7 @@ def validate_date_range(start_date: str, end_date: str) -> tuple[str, str]:
     """Validate date range and convert to Elasticsearch ISO 8601 format. Returns (start_iso, end_iso)."""
     start_dt = parse_iso_date(start_date)
     end_dt = parse_iso_date(end_date)
-    
+
     # Validate range
     if start_dt > end_dt:
         raise ServiceError(
@@ -171,14 +173,15 @@ def validate_date_range(start_date: str, end_date: str) -> tuple[str, str]:
                 f"created_date_before ({end_date}) and retry."
             ),
         )
-    
+
     start_iso = convert_to_iso8601_utc(start_dt, end_of_day=False)
     end_iso = convert_to_iso8601_utc(end_dt, end_of_day=True)
-    
+
     return start_iso, end_iso
 
+
 @auto_context
-def validate_inputs(request, *fields_to_validate):
+def validate_inputs(request, *fields_to_validate):  # noqa: ANN001, ANN002, ANN201 # Baseline
     required_fields = fields_to_validate
 
     for field in required_fields:
@@ -194,16 +197,16 @@ def validate_inputs(request, *fields_to_validate):
             )
 
 
-def extract_contract_terms_id(response: Dict[str, Any] | bytes, context: str) -> str:
+def extract_contract_terms_id(response: Dict[str, Any] | bytes, context: str) -> str:  # noqa: UP006 # Baseline
     """Extract and validate contract terms ID from response.
-    
+
     Args:
         response: API response containing contract terms
         context: Context description for error messages (e.g., "data product draft")
-        
+
     Returns:
         str: The contract terms ID
-        
+
     Raises:
         ServiceError: If no contract terms ID is found
     """

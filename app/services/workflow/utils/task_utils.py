@@ -34,31 +34,31 @@ _ARTIFACT_TYPE_KEYWORDS: list[tuple[str, str]] = [
 ]
 
 
-def _convert_variables_to_dict(variables_list) -> dict:
+def _convert_variables_to_dict(variables_list) -> dict:  # noqa: ANN001 # Baseline
     """
     Convert variables from list format to dictionary.
-    
+
     Args:
         variables_list: Variables in list or dict format
-        
+
     Returns:
         Dictionary mapping variable names to values
     """
     if isinstance(variables_list, dict):
         return variables_list
-    
+
     variables_dict = {}
     if isinstance(variables_list, list):
         for var in variables_list:
             # Validate that both 'name' and 'value' keys exist before accessing
-            if isinstance(var, dict) and 'name' in var:
+            if isinstance(var, dict) and "name" in var:  # noqa: SIM102 # Baseline
                 # Only add if 'value' key exists, otherwise skip
-                if 'value' in var:
-                    variables_dict[var['name']] = var['value']
+                if "value" in var:
+                    variables_dict[var["name"]] = var["value"]
     return variables_dict
 
 
-def _resolve_artifact_type_key(task_title_json: dict) -> tuple[str, Optional[str]]:
+def _resolve_artifact_type_key(task_title_json: dict) -> tuple[str, Optional[str]]:  # noqa: UP045 # Baseline
     """
     Extract the artifact-type translation key and, when available, a ready-to-use
     sanitised display string from Schema B's nested artifactType object.
@@ -95,14 +95,12 @@ def _map_artifact_type_key(artifact_type_key: str) -> str:
 
 def _apply_placeholders(template: str, artifact_type: str, artifact_name: str) -> str:
     """Substitute both placeholders in a title template."""
-    return (
-        template
-        .replace(_PLACEHOLDER_TYPE, artifact_type)
-        .replace(_PLACEHOLDER_NAME, artifact_name)
+    return template.replace(_PLACEHOLDER_TYPE, artifact_type).replace(
+        _PLACEHOLDER_NAME, artifact_name
     )
 
 
-def _parse_task_title_from_json(task_title_raw: Union[str, dict]) -> Optional[str]:
+def _parse_task_title_from_json(task_title_raw: Union[str, dict]) -> Optional[str]:  # noqa: UP007, UP045 # Baseline
     """
     Parse task title from JSON template format.
 
@@ -126,7 +124,8 @@ def _parse_task_title_from_json(task_title_raw: Union[str, dict]) -> Optional[st
     """
     try:
         task_title_json: dict = (
-            task_title_raw if isinstance(task_title_raw, dict)
+            task_title_raw
+            if isinstance(task_title_raw, dict)
             else json.loads(task_title_raw.strip())
         )
 
@@ -135,7 +134,9 @@ def _parse_task_title_from_json(task_title_raw: Union[str, dict]) -> Optional[st
             return ""
 
         artifact_name: str = task_title_json.get("artifactName") or ""
-        artifact_type_key, display_override = _resolve_artifact_type_key(task_title_json)
+        artifact_type_key, display_override = _resolve_artifact_type_key(
+            task_title_json
+        )
 
         # Schema B fast path: sanitised display string already resolved
         if display_override is not None:
@@ -153,5 +154,6 @@ def _parse_task_title_from_json(task_title_raw: Union[str, dict]) -> Optional[st
     except (json.JSONDecodeError, KeyError, AttributeError) as e:
         LOGGER.debug(f"Failed to parse task_title JSON: {e}")
         return task_title_raw if isinstance(task_title_raw, str) else None
+
 
 # Made with Bob

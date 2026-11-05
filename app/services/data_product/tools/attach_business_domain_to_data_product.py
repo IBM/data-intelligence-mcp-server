@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Annotated
+from typing import Annotated  # noqa: I001 # Baseline
 from pydantic import Field
 
 from app.core.registry import service_registry
@@ -25,17 +25,17 @@ async def _attach_business_domain_to_data_product(
     LOGGER.info(
         f"In the attach_business_domain_to_data_product tool, attaching business domain {request.domain} to the data product draft {request.data_product_draft_id}."
     )
-    DPH_CATALOG_ID = await get_dph_catalog_id_for_user(await get_access_token())
+    DPH_CATALOG_ID = await get_dph_catalog_id_for_user(await get_access_token())  # noqa: N806 # Baseline
 
     # step 1: get the business domain id from cams
     search_payload = {"query": "*:*", "sort": "asset.name"}
-    
+
     response = await tool_helper_service.execute_post_request(
         url=f"{tool_helper_service.base_url}/v2/asset_types/ibm_data_product_domain/search?catalog_id={DPH_CATALOG_ID}&hide_deprecated_response_fields=false",
         json=search_payload,
         tool_name="attach_business_domain_to_data_product",
     )
-    
+
     domain_id = ""
     available_domains = []
     for result in response["results"]:
@@ -46,7 +46,9 @@ async def _attach_business_domain_to_data_product(
 
     if not domain_id:
         error_message = f'Domain name "{request.domain}" is not found, so it is not attached to {request.data_product_draft_id}. Here are the available domains: {available_domains}'
-        LOGGER.error(f"Failed to run attach_business_domain_to_data_product tool. {error_message}")
+        LOGGER.error(
+            f"Failed to run attach_business_domain_to_data_product tool. {error_message}"
+        )
         raise ServiceError(
             f"Failed to run attach_business_domain_to_data_product tool. {error_message}",
             remediation_steps=(
@@ -67,7 +69,7 @@ async def _attach_business_domain_to_data_product(
             "value": {"id": domain_id, "name": request.domain},
         }
     ]
-    
+
     await tool_helper_service.execute_patch_request(
         url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products/-/drafts/{request.data_product_draft_id}",
         headers=headers,
@@ -93,19 +95,28 @@ async def _attach_business_domain_to_data_product(
     meta={"version": "1.0", "service": "data_product"},
     annotations={
         "title": "Attach Business Domain to Data Product Draft",
-        "destructiveHint": True
-    }
+        "destructiveHint": True,
+    },
 )
 @auto_context
 async def attach_business_domain_to_data_product(
-    domain: Annotated[str, Field(description="The business domain to be attached to the data product draft.")],
-    data_product_draft_id: Annotated[str, Field(description="The ID of the data product draft to which the business domain is to be attached.")]
+    domain: Annotated[
+        str,
+        Field(
+            description="The business domain to be attached to the data product draft."
+        ),
+    ],
+    data_product_draft_id: Annotated[
+        str,
+        Field(
+            description="The ID of the data product draft to which the business domain is to be attached."
+        ),
+    ],
 ) -> AttachBusinessDomainToDataProductResponse:
     """Wrapper version that expands AttachBusinessDomainToDataProductRequest object into individual parameters."""
 
     request = AttachBusinessDomainToDataProductRequest(
-        domain=domain,
-        data_product_draft_id=data_product_draft_id
+        domain=domain, data_product_draft_id=data_product_draft_id
     )
 
     # Call the original attach_business_domain_to_data_product function

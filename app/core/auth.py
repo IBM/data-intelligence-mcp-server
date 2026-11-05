@@ -4,8 +4,9 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-from fastmcp.server.dependencies import (
+from fastmcp.server.dependencies import (  # noqa: I001 # Baseline
     get_access_token as get_fastmcp_access_token,
+    get_context as get_fastmcp_context,
     get_http_headers,
 )
 import json
@@ -31,7 +32,10 @@ from aiocache import cached
 
 from app.shared.logging import LOGGER
 
-INVALID_DI_ENV_MODE = "DI_ENV_MODE is either not provided in env or not one of SaaS or CPD"
+INVALID_DI_ENV_MODE = (
+    "DI_ENV_MODE is either not provided in env or not one of SaaS or CPD"
+)
+
 
 def get_cloud_iam_url_from_service_url(service_url: str) -> str:
     """
@@ -55,18 +59,20 @@ def get_cloud_iam_url_from_service_url(service_url: str) -> str:
 
     # Check for AWS regions first
     # AWS dev and test environments use the test IAM URL
-    if f"dev{AWS_DOMAIN_SUFFIX}" in service_url_str or f"test{AWS_DOMAIN_SUFFIX}" in service_url_str:
+    if (
+        f"dev{AWS_DOMAIN_SUFFIX}" in service_url_str
+        or f"test{AWS_DOMAIN_SUFFIX}" in service_url_str
+    ):
         return AWS_IAM_TEST_URL
     # AWS production regions use the production IAM URL
-    elif AWS_DOMAIN_SUFFIX in service_url_str:
+    if AWS_DOMAIN_SUFFIX in service_url_str:
         return AWS_IAM_URL
     # Standard cloud.ibm.com environments
-    elif "dev.cloud.ibm.com" in service_url_str:
+    if "dev.cloud.ibm.com" in service_url_str:
         return "https://iam.test.cloud.ibm.com"
-    elif "test.cloud.ibm.com" in service_url_str or "cloud.ibm.com" in service_url_str:
+    if "test.cloud.ibm.com" in service_url_str or "cloud.ibm.com" in service_url_str:
         return "https://iam.cloud.ibm.com"
-    else:
-        return "https://iam.cloud.ibm.com"
+    return "https://iam.cloud.ibm.com"
 
 
 def _ensure_bearer_prefix(token: str) -> str:
@@ -104,6 +110,7 @@ async def _get_token_from_http_headers() -> str | None:
 
 async def _get_token_from_stdio_settings() -> str | None:
     """Return a Bearer token from STDIO env settings, or None."""
+
     if settings.server_transport != "stdio":
         return None
 
@@ -111,7 +118,9 @@ async def _get_token_from_stdio_settings() -> str | None:
         return _ensure_bearer_prefix(settings.di_auth_token)
 
     if settings.di_apikey:
-        return await get_bearer_token_from_apikey(settings.di_apikey, settings.di_username)
+        return await get_bearer_token_from_apikey(
+            settings.di_apikey, settings.di_username
+        )
 
     return None
 
@@ -133,21 +142,18 @@ def get_iam_url() -> str:
     if settings.di_env_mode.upper() == ENV_MODE_SAAS:
         if settings.cloud_iam_url:
             return settings.cloud_iam_url + CLOUD_IAM_ENDPOINT
-        elif settings.di_service_url:
+        if settings.di_service_url:
             # Calculate IAM URL dynamically based on service URL
             cloud_iam_url = get_cloud_iam_url_from_service_url(settings.di_service_url)
             service_url_lower = str(settings.di_service_url).lower()
             # Use AWS-specific endpoint for all AWS environments (dev, test, and production)
             if AWS_DOMAIN_SUFFIX in service_url_lower:
                 return cloud_iam_url + AWS_IAM_ENDPOINT
-            else:
-                return cloud_iam_url + CLOUD_IAM_ENDPOINT
-        else:
-            raise ExternalAPIError("DI_SERVICE_URL is not set in env")
-    elif settings.di_env_mode.upper() == ENV_MODE_CPD:
+            return cloud_iam_url + CLOUD_IAM_ENDPOINT
+        raise ExternalAPIError("DI_SERVICE_URL is not set in env")
+    if settings.di_env_mode.upper() == ENV_MODE_CPD:
         return settings.di_service_url + CPD_IAM_ENDPOINT
-    else:
-        raise ExternalAPIError(INVALID_DI_ENV_MODE)
+    raise ExternalAPIError(INVALID_DI_ENV_MODE)
 
 
 async def get_token() -> str:
@@ -179,7 +185,7 @@ async def _decode_token_payload() -> dict:
         fastmcp_token = get_fastmcp_access_token()
         if fastmcp_token and getattr(fastmcp_token, "claims", None):
             return fastmcp_token.claims
-    except Exception:
+    except Exception:  # noqa: S110 # Baseline
         pass
 
     token = await get_token()
@@ -198,7 +204,7 @@ async def _decode_token_payload() -> dict:
     # Add padding if needed for base64 decoding
     padding = len(payload_b64) % 4
     if padding:
-        payload_b64 += '=' * (4 - padding)
+        payload_b64 += "=" * (4 - padding)
     return json.loads(base64.urlsafe_b64decode(payload_b64).decode("utf-8"))
 
 
@@ -229,7 +235,9 @@ async def _fetch_account_id_by_email(email: str) -> str:
     }
 
     try:
-        response = await client.get(f"{settings.accounts_url}/v1/accounts", headers=headers)
+        response = await client.get(
+            f"{settings.accounts_url}/v1/accounts", headers=headers
+        )
     except Exception as exc:
         LOGGER.warning(f"Failed to fetch accounts list: {exc}")
         return ""
@@ -241,9 +249,7 @@ async def _fetch_account_id_by_email(email: str) -> str:
 
     for account in resources:
         owner_email = (
-            account.get("entity", {})
-            .get("primary_owner", {})
-            .get("ibmid", "")
+            account.get("entity", {}).get("primary_owner", {}).get("ibmid", "")
         )
         if owner_email.lower() == email.lower():
             guid = account.get("metadata", {}).get("guid", "")
@@ -252,10 +258,23 @@ async def _fetch_account_id_by_email(email: str) -> str:
 
     # No match - fall back to the first account
     first_guid = resources[0].get("metadata", {}).get("guid", "")
-    LOGGER.warning(f"No account matched email {email}; using first account GUID {first_guid}")
+    LOGGER.warning(
+        f"No account matched email {email}; using first account GUID {first_guid}"
+    )
     return first_guid
 
-async def get_bss_account_id() -> str:
+
+def _get_cpd_account_id(payload: dict) -> str:
+    """Extract account_id for CPD mode from decoded JWT payload claims."""
+    account_id = (
+        payload.get("account_id")
+        or payload.get("account", {}).get("bss", "")
+        or payload.get("accountId")
+    )
+    return str(account_id) if account_id else "999"
+
+
+async def get_bss_account_id() -> str:  # noqa: PLR0911 # Baseline
     """
     Retrieves the BSS Account ID from the JWT token.
 
@@ -266,30 +285,61 @@ async def get_bss_account_id() -> str:
     picking the one whose primary-owner email matches the ``email`` claim in the
     token.
 
+
+    For MCSP (AWS) tokens the account ID lives in the top-level ``accountId``
+    claim instead of ``account.bss``.
+
     Returns:
         str: The BSS Account ID.
     """
+
+    # Per-request override takes priority — stored in session state by the agent
+    # to avoid race conditions on the shared settings singleton.
+    try:
+        ctx = get_fastmcp_context()
+        account_id = await ctx.get_state("_account_id")
+        if account_id:
+            LOGGER.debug(f"Using account_id from session state: {account_id}")
+            return account_id
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.debug(
+            "FastMCP context unavailable, skipping session-state lookup: %s", exc
+        )
+
+    # Static env-var override (set once at boot, safe for all requests).
+    if settings.account_id:
+        LOGGER.debug(f"Using account_id from settings: {settings.account_id}")
+        return settings.account_id
+
     if settings.di_env_mode.upper() == ENV_MODE_SAAS:
         payload = await _decode_token_payload()
         bss = payload.get("account", {}).get("bss", "")
         if bss:
             return bss
 
-        # bss is missing – fall back to accounts API lookup by email
+        # MCSP (AWS) tokens use a top-level accountId claim
+        mcsp_account_id = payload.get("accountId", "")
+        if mcsp_account_id:
+            return mcsp_account_id
+
+        LOGGER.debug("accountId claim empty; falling back to accounts API lookup")
+        # bss and accountId are both missing – fall back to accounts API lookup by email  # noqa: RUF003 # Baseline
         email = payload.get("email", "")
         if not email:
-            LOGGER.warning("BSS claim empty and no email in token; cannot resolve account ID")
+            LOGGER.warning(
+                "BSS claim empty and no email in token; cannot resolve account ID"
+            )
             return ""
 
-        LOGGER.debug(f"BSS claim empty, resolving account ID via accounts API for {email}")
+        LOGGER.debug(
+            f"BSS claim empty, resolving account ID via accounts API for {email}"
+        )
         return await _fetch_account_id_by_email(email)
 
-    elif settings.di_env_mode.upper() == ENV_MODE_CPD:
-        return "999"
-    else:
-        raise ExternalAPIError(
-            INVALID_DI_ENV_MODE
-        )
+    if settings.di_env_mode.upper() == ENV_MODE_CPD:
+        payload = await _decode_token_payload()
+        return _get_cpd_account_id(payload)
+    raise ExternalAPIError(INVALID_DI_ENV_MODE)
 
 
 async def get_user_identifier() -> str:
@@ -309,10 +359,7 @@ async def get_user_identifier() -> str:
         return payload.get("uid", "")
     if settings.di_env_mode.upper() == ENV_MODE_SAAS:
         return payload.get("iam_id", "")
-    else:
-        raise ExternalAPIError(
-            INVALID_DI_ENV_MODE
-        )
+    raise ExternalAPIError(INVALID_DI_ENV_MODE)
 
 
 async def get_user_email_from_token() -> str:
@@ -342,6 +389,7 @@ async def get_sub_from_token() -> str:
     payload = await _decode_token_payload()
     return payload.get("sub", "")
 
+
 def is_aws_environment() -> bool:
     """Check if the current environment is AWS based on the service URL."""
     if settings.di_service_url:
@@ -353,49 +401,38 @@ def get_request_body(api_key: str, username: str) -> dict:
     if settings.di_env_mode.upper() == ENV_MODE_SAAS:
         # AWS environments pass only apikey in body
         if is_aws_environment():
-            return {
-                "apikey": api_key
-            }
+            return {"apikey": api_key}
         # Standard IBM Cloud SaaS includes grant_type
         return {
             "apikey": api_key,
             "grant_type": "urn:ibm:params:oauth:grant-type:apikey",
         }
-    elif settings.di_env_mode.upper() == ENV_MODE_CPD:
+    if settings.di_env_mode.upper() == ENV_MODE_CPD:
         if not username:
             raise ExternalAPIError(
                 "For CPD, USERNAME has to be provided in the header if running the server under "
                 "http mode else in env if running in stdio mode"
             )
         return {"api_key": api_key, "username": username}
-    else:
-        raise ExternalAPIError(
-            INVALID_DI_ENV_MODE
-        )
+    raise ExternalAPIError(INVALID_DI_ENV_MODE)
 
 
 def get_header() -> dict:
     """
     Get headers for authentication request.
-    
+
     Returns:
         dict: Headers for the authentication request
     """
     if settings.di_env_mode.upper() == ENV_MODE_SAAS:
         # AWS environments use JSON content type
         if is_aws_environment():
-            return {
-                "Content-Type": JSON_CONTENT_TYPE,
-                "accept": JSON_CONTENT_TYPE
-            }
+            return {"Content-Type": JSON_CONTENT_TYPE, "accept": JSON_CONTENT_TYPE}
         # Standard IBM Cloud SaaS uses form-urlencoded
         return {"Content-Type": "application/x-www-form-urlencoded"}
-    elif settings.di_env_mode.upper() == ENV_MODE_CPD:
+    if settings.di_env_mode.upper() == ENV_MODE_CPD:
         return {"Content-Type": JSON_CONTENT_TYPE}
-    else:
-        raise ExternalAPIError(
-            INVALID_DI_ENV_MODE
-        )
+    raise ExternalAPIError(INVALID_DI_ENV_MODE)
 
 
 @cached(ttl=3300)  # 55 minutes - shorter than 1 hour token expiration
@@ -413,37 +450,31 @@ async def get_bearer_token_from_apikey(api_key: str, username: str) -> str:
         if settings.di_env_mode.upper() == ENV_MODE_SAAS:
             # AWS environments use JSON body and return "token" field
             if is_aws_environment():
-                response = await client.post(
-                    iam_url,
-                    headers=headers,
-                    json=req_body
-                )
+                response = await client.post(iam_url, headers=headers, json=req_body)
                 token = response.get("token", "")
                 return BEARER_PREFIX + token
             # Standard IBM Cloud SaaS uses form data and returns "access_token" field
-            else:
-                response = await client.post(
-                    iam_url,
-                    headers=headers,
-                    data=req_body,
-                )
-                token = response.get("access_token", "")
-                return BEARER_PREFIX + token
-        else:
-            # CPD uses JSON body and returns "token" field
-            response = await client.post(iam_url, headers=headers, json=req_body)
-            token = response.get("token", "")
+            response = await client.post(
+                iam_url,
+                headers=headers,
+                data=req_body,
+            )
+            token = response.get("access_token", "")
             return BEARER_PREFIX + token
+        # CPD uses JSON body and returns "token" field
+        response = await client.post(iam_url, headers=headers, json=req_body)
+        token = response.get("token", "")
+        return BEARER_PREFIX + token
 
     except ExternalAPIError:
         # This will catch HTTP errors (4xx, 5xx) that were raised by raise_for_status()
         raise
     except Exception as e:
-        raise ExternalAPIError(f"Failed to get bearer token: {str(e)}")
+        raise ExternalAPIError(f"Failed to get bearer token: {e!s}")  # noqa: B904 # Baseline
 
 
 @cached(ttl=3300)  # 55 minutes - shorter than 1 hour token expiration
-async def get_dph_catalog_id_for_user(bearer_token) -> str:
+async def get_dph_catalog_id_for_user(bearer_token) -> str:  # noqa: ANN001 # Baseline
 
     LOGGER.info("Getting DPH catalog id")
 
@@ -462,7 +493,7 @@ async def get_dph_catalog_id_for_user(bearer_token) -> str:
         # This will catch HTTP errors (4xx, 5xx) that were raised by raise_for_status()
         raise
     except Exception as e:
-        raise ExternalAPIError(f"Failed to get bearer token: {str(e)}")
+        raise ExternalAPIError(f"Failed to get bearer token: {e!s}")  # noqa: B904 # Baseline
 
 
 async def _fetch_user_id_from_management_api(iam_id: str) -> str:
@@ -481,7 +512,9 @@ async def _fetch_user_id_from_management_api(iam_id: str) -> str:
     account_id = await get_bss_account_id()
 
     if not account_id:
-        LOGGER.warning(f"Unable to get BSS account ID, falling back to iam_id: {iam_id}")
+        LOGGER.warning(
+            f"Unable to get BSS account ID, falling back to iam_id: {iam_id}"
+        )
         return iam_id
 
     # Build user management API URL
@@ -509,11 +542,12 @@ async def _fetch_user_id_from_management_api(iam_id: str) -> str:
         if user_id:
             LOGGER.debug(f"Retrieved user_id {user_id} for IAM ID {iam_id}")
             return user_id
-        else:
-            LOGGER.warning(f"User management API response missing user_id field for {iam_id}")
-            return iam_id
+        LOGGER.warning(
+            f"User management API response missing user_id field for {iam_id}"
+        )
+        return iam_id
     except Exception as api_error:
-        LOGGER.warning(f"Failed to fetch user info for IAM ID {iam_id}: {str(api_error)}")
+        LOGGER.warning(f"Failed to fetch user info for IAM ID {iam_id}: {api_error!s}")
         return iam_id
 
 
@@ -547,16 +581,19 @@ async def get_user_email_from_iam_id(bearer_token: str, iam_id: str) -> str:
         if iam_id == calling_user_id:
             email = await get_user_email_from_token()
             if email:
-                LOGGER.debug(f"Using email from token for calling user {iam_id}: {email}")
+                LOGGER.debug(
+                    f"Using email from token for calling user {iam_id}: {email}"
+                )
                 return email
-            else:
-                LOGGER.warning(f"Email not found in token for calling user {iam_id}, falling back to IAM ID")
-                return iam_id
+            LOGGER.warning(
+                f"Email not found in token for calling user {iam_id}, falling back to IAM ID"
+            )
+            return iam_id
 
         return await _fetch_user_id_from_management_api(iam_id)
 
     except Exception as e:
-        LOGGER.warning(f"Error in get_user_email_from_iam_id for {iam_id}: {str(e)}")
+        LOGGER.warning(f"Error in get_user_email_from_iam_id for {iam_id}: {e!s}")
         return iam_id
 
 
@@ -592,12 +629,13 @@ async def get_sub_from_iam_id(bearer_token: str, iam_id: str) -> str:
             if sub:
                 LOGGER.debug(f"Using sub from token for calling user {iam_id}: {sub}")
                 return sub
-            else:
-                LOGGER.warning(f"Sub not found in token for calling user {iam_id}, falling back to IAM ID")
-                return iam_id
+            LOGGER.warning(
+                f"Sub not found in token for calling user {iam_id}, falling back to IAM ID"
+            )
+            return iam_id
 
         return await _fetch_user_id_from_management_api(iam_id)
 
     except Exception as e:
-        LOGGER.warning(f"Error in get_sub_from_iam_id for {iam_id}: {str(e)}")
+        LOGGER.warning(f"Error in get_sub_from_iam_id for {iam_id}: {e!s}")
         return iam_id

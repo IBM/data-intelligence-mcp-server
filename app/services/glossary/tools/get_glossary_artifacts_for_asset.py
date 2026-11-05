@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Annotated, Dict, List, Literal, Optional
+from typing import Annotated, Dict, List, Literal, Optional  # noqa: I001, UP035 # Baseline
 
 from pydantic import Field
 from app.core.registry import service_registry
@@ -15,7 +15,7 @@ from app.services.glossary.constants import (
 from app.services.glossary.models.glossary_artifact import (
     GetGlossaryArtifactsForAssetRequest,
     GlossaryArtifact,
-    GetGlossaryArtifactsForAssetResponse
+    GetGlossaryArtifactsForAssetResponse,
 )
 from app.services.tool_utils import find_asset_id, find_catalog_id, find_project_id
 from app.shared.logging import LOGGER, auto_context
@@ -23,32 +23,35 @@ from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.utils.helpers import append_context_to_url, is_uuid_bool
 from app.shared.utils.tool_helper_service import tool_helper_service
 
-async def _extract_glossary_artifacts_from_metadata(metadata: Dict) -> List[GlossaryArtifact]:
+
+async def _extract_glossary_artifacts_from_metadata(
+    metadata: Dict,  # noqa: UP006 # Baseline
+) -> List[GlossaryArtifact]:  # noqa: UP006 # Baseline
     """
     Extract glossary terms and classifications from Global Search metadata.
-    
+
     Args:
         metadata: Metadata dictionary from global search response
-        
+
     Returns:
         List of GlossaryArtifact models
     """
-    results: List[GlossaryArtifact] = []
+    results: List[GlossaryArtifact] = []  # noqa: UP006 # Baseline
 
     # Extract terms
     term_ids = metadata.get("term_global_ids", [])
     term_names = metadata.get("terms", [])
 
-    for term_id, term_name in zip(term_ids, term_names):
+    for term_id, term_name in zip(term_ids, term_names):  # noqa: B905 # Baseline
         version_id = await _fetch_version_id(term_name)
         url = f"{tool_helper_service.ui_base_url}/v3/glossary_terms/glossary_terms/{term_id}/versions/{version_id}"
-        
+
         results.append(
             GlossaryArtifact(
                 id=term_id,
                 name=term_name,
                 artifact_type="term",
-                url=append_context_to_url(url)
+                url=append_context_to_url(url),
             )
         )
 
@@ -56,40 +59,34 @@ async def _extract_glossary_artifacts_from_metadata(metadata: Dict) -> List[Glos
     class_ids = metadata.get("classification_global_ids", [])
     class_names = metadata.get("classifications", [])
 
-    for class_id, class_name in zip(class_ids, class_names):
+    for class_id, class_name in zip(class_ids, class_names):  # noqa: B905 # Baseline
         version_id = await _fetch_version_id(class_name)
         url = f"{tool_helper_service.ui_base_url}/v3/glossary_terms/classifications/{class_id}/versions/{version_id}"
-        
+
         results.append(
             GlossaryArtifact(
                 id=class_id,
                 name=class_name,
                 artifact_type="classification",
-                url=append_context_to_url(url)
+                url=append_context_to_url(url),
             )
         )
 
     return results
 
 
-async def _fetch_version_id(name: str) -> Optional[str]:
+async def _fetch_version_id(name: str) -> Optional[str]:  # noqa: UP045 # Baseline
     """
     Fetch version ID for a glossary artifact by name.
-    
+
     Args:
         name: Name of the glossary artifact
-        
+
     Returns:
         Version ID if found, None otherwise
     """
     payload = {
-        "query": {
-            "bool": {
-                "must": [
-                    {"match": {METADATA_NAME: {"query": name}}}
-                ]
-            }
-        }
+        "query": {"bool": {"must": [{"match": {METADATA_NAME: {"query": name}}}]}}
     }
 
     response = await tool_helper_service.execute_post_request(
@@ -104,24 +101,24 @@ async def _fetch_version_id(name: str) -> Optional[str]:
     return None
 
 
-def _format_glossary_artifacts_for_display(artifacts: List[GlossaryArtifact]) -> str:
+def _format_glossary_artifacts_for_display(artifacts: List[GlossaryArtifact]) -> str:  # noqa: UP006 # Baseline
     """
     Format glossary artifacts for display to the user.
-    
+
     Args:
         artifacts: List of glossary artifacts
-        
+
     Returns:
         Formatted string representations
     """
     if not artifacts:
         return NO_GLOSSARY_ARTIFACTS_FOUND_MESSAGE
-    
+
     result_lines = [f"Found {len(artifacts)} glossary artifact(s):"]
     for artifact in artifacts:
         artifact_type = artifact.artifact_type.replace("_", " ").capitalize()
         result_lines.append(f"- {artifact.name} ({artifact_type}): {artifact.url}")
-    
+
     return "\n".join(result_lines)
 
 
@@ -130,13 +127,13 @@ async def _get_glossary_artifacts_for_asset(
 ) -> GetGlossaryArtifactsForAssetResponse:
     """
     Retrieve glossary artifacts associated with an asset.
-    
+
     Args:
         request: Request containing asset and container information
-        
+
     Returns:
         Formatted string with glossary artifacts information
-        
+
     Raises:
         ServiceError: If the artifacts cannot be retrieved
     """
@@ -148,7 +145,7 @@ async def _get_glossary_artifacts_for_asset(
     # Resolve container ID
     if is_uuid_bool(request.container_id_or_name):
         container_id = request.container_id_or_name
-    else:
+    else:  # noqa: PLR5501 # Baseline
         if request.container_type == "catalog":
             container_id = await find_catalog_id(request.container_id_or_name)
         else:
@@ -158,7 +155,9 @@ async def _get_glossary_artifacts_for_asset(
     if is_uuid_bool(request.asset_id_or_name):
         asset_id = request.asset_id_or_name
     else:
-        asset_id = await find_asset_id(request.asset_id_or_name, container_id, request.container_type)
+        asset_id = await find_asset_id(
+            request.asset_id_or_name, container_id, request.container_type
+        )
 
     # Build search query
     if is_uuid_bool(request.asset_id_or_name):
@@ -167,27 +166,16 @@ async def _get_glossary_artifacts_for_asset(
         asset_match = {"match": {METADATA_NAME: request.asset_id_or_name}}
 
     container_match = {
-        "match": {
-            f"entity.assets.{request.container_type}_id": container_id
-        }
+        "match": {f"entity.assets.{request.container_type}_id": container_id}
     }
 
-    payload = {
-        "query": {
-            "bool": {
-                "must": [
-                    asset_match,
-                    container_match
-                ]
-            }
-        }
-    }
+    payload = {"query": {"bool": {"must": [asset_match, container_match]}}}
 
     params = {
         "role": "viewer",
         "auth_cache": True,
         "auth_scope": request.container_type,
-        "tenant_scope": True
+        "tenant_scope": True,
     }
 
     response = await tool_helper_service.execute_post_request(
@@ -200,21 +188,23 @@ async def _get_glossary_artifacts_for_asset(
     if not rows:
         return GetGlossaryArtifactsForAssetResponse(
             message=NO_GLOSSARY_ARTIFACTS_FOR_ASSET_IN_CONTAINER_MESSAGE.format(
-            asset=request.asset_id_or_name,
-            container_type=request.container_type,
-            container=request.container_id_or_name
-        ))
-    
+                asset=request.asset_id_or_name,
+                container_type=request.container_type,
+                container=request.container_id_or_name,
+            )
+        )
+
     metadata = rows[0].get("metadata", {})
     results = await _extract_glossary_artifacts_from_metadata(metadata)
 
     if not results:
         return GetGlossaryArtifactsForAssetResponse(
             message=NO_GLOSSARY_ARTIFACTS_FOR_ASSET_IN_CONTAINER_MESSAGE.format(
-            asset=request.asset_id_or_name,
-            container_type=request.container_type,
-            container=request.container_id_or_name
-        ))
+                asset=request.asset_id_or_name,
+                container_type=request.container_type,
+                container=request.container_id_or_name,
+            )
+        )
 
     if results:
         ui_message_context.add_table_ui_message(
@@ -222,14 +212,16 @@ async def _get_glossary_artifacts_for_asset(
             formatted_data=_format_glossary_artifacts_for_table(results),
             title="Glossary artifacts",
         )
-    return GetGlossaryArtifactsForAssetResponse(message=_format_glossary_artifacts_for_display(results))
+    return GetGlossaryArtifactsForAssetResponse(
+        message=_format_glossary_artifacts_for_display(results)
+    )
 
 
 @service_registry.tool(
     name="get_asset_glossary_artifacts",
     annotations={
         "readOnlyHint": True,
-        "title": "Get All Business Terms and Classifications Associated with a Specific Asset"
+        "title": "Get All Business Terms and Classifications Associated with a Specific Asset",
     },
     tags={"metadata_management_and_governance"},
     description="""Use this tool when you need to retrieve all business terms and classifications (these are the only two supported types of glossary artifacts) associated with a specific asset.
@@ -237,13 +229,26 @@ async def _get_glossary_artifacts_for_asset(
     
     This tool finds all glossary terms and classification that have been assigned to a particular asset.
     This helps understand the business context and semantic meaning of the asset.
-    Return: A formatted string listing all business terms and classifications associated with the specified asset, or a message indicating no glossary artifacts were found for the asset in the container.""",
+    Return: A formatted string listing all business terms and classifications associated with the specified asset, or a message indicating no glossary artifacts were found for the asset in the container.""",  # noqa: W293 # Baseline
 )
 @auto_context
 async def get_asset_glossary_artifacts(
-    asset_id_or_name: Annotated[str, Field(description="UUID or name of the asset to retrieve glossary artifacts for")],
-    container_id_or_name: Annotated[str, Field(description="UUID or name of the project or catalog containing the asset")],
-    container_type: Annotated[Literal["catalog", "project"], Field(description="Type of container - either 'project' or 'catalog'")],
+    asset_id_or_name: Annotated[
+        str,
+        Field(
+            description="UUID or name of the asset to retrieve glossary artifacts for"
+        ),
+    ],
+    container_id_or_name: Annotated[
+        str,
+        Field(
+            description="UUID or name of the project or catalog containing the asset"
+        ),
+    ],
+    container_type: Annotated[
+        Literal["catalog", "project"],
+        Field(description="Type of container - either 'project' or 'catalog'"),
+    ],
 ) -> GetGlossaryArtifactsForAssetResponse:
     """Wrapper for get_asset_glossary_artifacts."""
     request = GetGlossaryArtifactsForAssetRequest(
@@ -252,6 +257,7 @@ async def get_asset_glossary_artifacts(
         container_type=container_type,
     )
     return await _get_glossary_artifacts_for_asset(request)
+
 
 def _format_glossary_artifacts_for_table(artifacts: list[GlossaryArtifact]) -> list:
     return [

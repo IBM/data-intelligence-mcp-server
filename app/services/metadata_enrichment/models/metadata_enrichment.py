@@ -16,51 +16,51 @@ CATEGORIES_DESC = "A list of categories to be used for metadata enrichment."
 class MetadataEnrichmentCreationRequest(BaseModel):
     """
     Unified request model for creating or updating metadata enrichment assets.
-    
+
     The tool automatically detects whether to create or update based on whether
     an MDE with the given name exists in the project:
     - If MDE exists: UPDATE mode (updates existing)
     - If MDE doesn't exist: CREATE mode (creates new)
     """
-    project_name: str = Field(
-        ..., description=PROJECT_NAME_DESC
-    )
+
+    project_name: str = Field(..., description=PROJECT_NAME_DESC)
     metadata_enrichment_name: str = Field(
-        ..., description="The name of the metadata enrichment asset. Used to find existing MDE (for update) or as the name for new MDE (for create)."
+        ...,
+        description="The name of the metadata enrichment asset. Used to find existing MDE (for update) or as the name for new MDE (for create).",
     )
-    dataset_names: Optional[list[str] | str] = Field(
+    dataset_names: Optional[list[str] | str] = Field(  # noqa: UP045 # Baseline
         None,
         description="""Dataset names to include in the metadata enrichment asset.
         - CREATE mode: Required (must be provided)
         - UPDATE mode: Ignored with warning (datasets cannot be modified after creation)""",
     )
-    dataset_names_to_remove: Optional[list[str] | str] = Field(
+    dataset_names_to_remove: Optional[list[str] | str] = Field(  # noqa: UP045 # Baseline
         None,
         description="""Dataset names to remove from the metadata enrichment asset.
         - CREATE mode: Ignored (should not be provided)
         - UPDATE mode: Optional (only updates if provided)""",
     )
-    metadata_import_names: Optional[list[str] | str] = Field(
+    metadata_import_names: Optional[list[str] | str] = Field(  # noqa: UP045 # Baseline
         None,
-        description="""List of names of metadata imports to import into the metadata enrichment asset."""
+        description="""List of names of metadata imports to import into the metadata enrichment asset.""",
     )
-    description: Optional[str] = Field(
+    description: Optional[str] = Field(  # noqa: UP045 # Baseline
         None,
-        description="Description of the metadata enrichment asset. Used in both create and update modes."
+        description="Description of the metadata enrichment asset. Used in both create and update modes.",
     )
-    new_name: Optional[str] = Field(
+    new_name: Optional[str] = Field(  # noqa: UP045 # Baseline
         None,
-        description="New name for the metadata enrichment asset. Only used in UPDATE mode to rename the MDE. Ignored in CREATE mode."
+        description="New name for the metadata enrichment asset. Only used in UPDATE mode to rename the MDE. Ignored in CREATE mode.",
     )
-    tags: Optional[list[str]] = Field(
-        None,
-        description="A list of tags to assign. Max items: 1000"
+    tags: Optional[list[str]] = Field(  # noqa: UP045 # Baseline
+        None, description="A list of tags to assign. Max items: 1000"
     )
 
 
 class PatchMetadataEnrichmentRequest(BaseModel):
     project_name: str = Field(
-        ..., description="The name of the project containing the metadata enrichment asset."
+        ...,
+        description="The name of the project containing the metadata enrichment asset.",
     )
     metadata_enrichment_name: str = Field(
         ..., description="The name of the metadata enrichment asset to patch."
@@ -72,7 +72,7 @@ class PatchMetadataEnrichmentRequest(BaseModel):
         'assign_terms', 'analyze_relationships', 'dq_sla_assessment', 'semantic_expansion',
         and 'data_search'. These will replace the existing objectives.""",
     )
-    category_names: Optional[list[str] | str] = Field(
+    category_names: Optional[list[str] | str] = Field(  # noqa: UP045 # Baseline
         None,
         description="""Optional list of category names to update the governance scope.
         If provided, these will replace the existing categories.""",
@@ -81,27 +81,30 @@ class PatchMetadataEnrichmentRequest(BaseModel):
 
 class MetadataEnrichmentExecutionRequest(BaseModel):
     project_name: str = Field(
-        ..., description="The name of the project you want to execute a metadata enrichment."
+        ...,
+        description="The name of the project you want to execute a metadata enrichment.",
     )
     metadata_enrichment_name: str = Field(
         ..., description="The name of the metadata enrichment you want to execute."
     )
-    job_name: Optional[str] = Field(
+    job_name: Optional[str] = Field(  # noqa: UP045 # Baseline
         None,
         description="The name of the job to execute the metadata enrichment asset.",
     )
-    dataset_names: Optional[list[str] | str] = Field(
+    dataset_names: Optional[list[str] | str] = Field(  # noqa: UP045 # Baseline
         None,
-        description="Dataset names of the specified datasets to be enriched with metadata."
+        description="Dataset names of the specified datasets to be enriched with metadata.",
     )
 
 
 class MetadataEnrichmentAnalysisRequest(BaseModel):
     project_name: str = Field(
-        ..., description="The name of the project for which the analysis is to be performed."
+        ...,
+        description="The name of the project for which the analysis is to be performed.",
     )
     dataset_names: list[str] | str = Field(
-        ..., description="Dataset names of the specified datasets to be enriched with metadata."
+        ...,
+        description="Dataset names of the specified datasets to be enriched with metadata.",
     )
     category_names: list[str] | str = Field(
         ...,
@@ -109,11 +112,15 @@ class MetadataEnrichmentAnalysisRequest(BaseModel):
         If a single category name is provided, it should be a string. If multiple categories are specified,
         they should be provided as a list of strings.""",
     )
-    job_name: Optional[str] = Field(None, description="The name of the job to execute the metadata enrichment asset.")
+    job_name: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None,
+        description="The name of the job to execute the metadata enrichment asset.",
+    )
 
 
-class RelationshipAnalysisType(str, Enum):
+class RelationshipAnalysisType(str, Enum):  # noqa: UP042 # Baseline
     """Enum for relationship analysis types."""
+
     PK_SHALLOW = "pk_shallow"
     PK_DEEP = "pk_deep"
     FK_SHALLOW = "fk_shallow"
@@ -123,36 +130,39 @@ class RelationshipAnalysisType(str, Enum):
 
 class RelationshipAnalysisOverwrittenConfigOptions(BaseModel):
     """Configuration options for relationship analysis."""
-    max_number_of_multiple_columns: Optional[int] = Field(
+
+    max_number_of_multiple_columns: Optional[int] = Field(  # noqa: UP045 # Baseline
         None, description="Maximum number of multiple columns to analyze."
     )
-    min_confidence: Optional[float] = Field(
+    min_confidence: Optional[float] = Field(  # noqa: UP045 # Baseline
         None, description="Minimum confidence threshold for analysis."
     )
-    auto_selection: Optional[bool] = Field(
+    auto_selection: Optional[bool] = Field(  # noqa: UP045 # Baseline
         None, description="Enable automatic selection of relationships."
     )
-    auto_selection_threshold: Optional[float] = Field(
+    auto_selection_threshold: Optional[float] = Field(  # noqa: UP045 # Baseline
         None, description="Threshold for automatic selection."
     )
-    pk_min_confidence: Optional[float] = Field(
+    pk_min_confidence: Optional[float] = Field(  # noqa: UP045 # Baseline
         None, description="Minimum confidence threshold for primary key analysis."
     )
 
 
 class RelationshipAnalysisOverwrittenConfig(BaseModel):
     """Overwritten configuration for relationship analysis."""
-    options: Optional[RelationshipAnalysisOverwrittenConfigOptions] = Field(
+
+    options: Optional[RelationshipAnalysisOverwrittenConfigOptions] = Field(  # noqa: UP045 # Baseline
         None, description="Configuration options for relationship analysis."
     )
 
 
 class RelationshipAnalysisKeyObjectives(BaseModel):
     """Key analysis objectives for relationship analysis."""
+
     type: RelationshipAnalysisType = Field(
         ..., description="The type of relationship analysis to execute."
     )
-    overwritten_config: Optional[RelationshipAnalysisOverwrittenConfig] = Field(
+    overwritten_config: Optional[RelationshipAnalysisOverwrittenConfig] = Field(  # noqa: UP045 # Baseline
         None, description="Overwritten configuration for the analysis."
     )
     is_all_dataset: bool = Field(
@@ -161,18 +171,20 @@ class RelationshipAnalysisKeyObjectives(BaseModel):
     sampling_percent: int = Field(
         0, description="Sampling percentage for the analysis (0-100)."
     )
-    dataset_ids: Optional[list[str]] = Field(
+    dataset_ids: Optional[list[str]] = Field(  # noqa: UP045 # Baseline
         None, description="List of specific dataset IDs to analyze."
     )
-    updated_dataset_ids: Optional[list[str]] = Field(
+    updated_dataset_ids: Optional[list[str]] = Field(  # noqa: UP045 # Baseline
         None, description="List of updated dataset IDs."
     )
 
 
 class StartRelationshipAnalysisRequest(BaseModel):
     """Request model for starting relationship analysis."""
+
     project_name: str = Field(
-        ..., description="The name of the project containing the metadata enrichment area."
+        ...,
+        description="The name of the project containing the metadata enrichment area.",
     )
     mde_area_name: str = Field(
         ..., description="The name of the metadata enrichment area (MDE) to analyze."
@@ -181,32 +193,35 @@ class StartRelationshipAnalysisRequest(BaseModel):
         ..., description="The type of relationship analysis to execute."
     )
     is_all_dataset: bool = Field(
-        True, description="Whether to analyze all datasets in the MDE area. If False, dataset_names must be provided."
+        True,
+        description="Whether to analyze all datasets in the MDE area. If False, dataset_names must be provided.",
     )
-    dataset_names: Optional[list[str] | str] = Field(
-        None, description="Dataset names to analyze. Required if is_all_dataset is False."
+    dataset_names: Optional[list[str] | str] = Field(  # noqa: UP045 # Baseline
+        None,
+        description="Dataset names to analyze. Required if is_all_dataset is False.",
     )
     sampling_percent: int = Field(
-        0, description="Sampling percentage for the analysis (0-100). 0 means no sampling."
+        0,
+        description="Sampling percentage for the analysis (0-100). 0 means no sampling.",
     )
-    max_number_of_multiple_columns: Optional[int] = Field(
+    max_number_of_multiple_columns: Optional[int] = Field(  # noqa: UP045 # Baseline
         None, description="Maximum number of multiple columns to analyze."
     )
-    min_confidence: Optional[float] = Field(
+    min_confidence: Optional[float] = Field(  # noqa: UP045 # Baseline
         None, description="Minimum confidence threshold for analysis."
     )
-    auto_selection: Optional[bool] = Field(
+    auto_selection: Optional[bool] = Field(  # noqa: UP045 # Baseline
         None, description="Enable automatic selection of relationships."
     )
-    auto_selection_threshold: Optional[float] = Field(
+    auto_selection_threshold: Optional[float] = Field(  # noqa: UP045 # Baseline
         None, description="Threshold for automatic selection."
     )
-    pk_min_confidence: Optional[float] = Field(
+    pk_min_confidence: Optional[float] = Field(  # noqa: UP045 # Baseline
         None, description="Minimum confidence threshold for primary key analysis."
     )
 
 
-class MetadataEnrichmentObjective(str, Enum):
+class MetadataEnrichmentObjective(str, Enum):  # noqa: UP042 # Baseline
     PROFILE = "profile"
     DQ_GEN_CONSTRAINTS = "dq_gen_constraints"
     ANALYZE_QUALITY = "analyze_quality"
@@ -218,18 +233,18 @@ class MetadataEnrichmentObjective(str, Enum):
 
 
 class ContainerAssets(BaseModel):
-    metadata_imports: Optional[list[str]] = Field(
+    metadata_imports: Optional[list[str]] = Field(  # noqa: UP045 # Baseline
         None,
         description="A list of metadata import asset identifiers to add to a new metadata enrichment asset.",
     )
 
 
 class MetadataEnrichmentAssetDataScope(BaseModel):
-    enrichment_assets: Optional[list[str]] = Field(
+    enrichment_assets: Optional[list[str]] = Field(  # noqa: UP045 # Baseline
         None,
         description="A list of data asset identifiers to add to a new Metadata Enrichment Asset.",
     )
-    container_assets: Optional[ContainerAssets] = Field(
+    container_assets: Optional[ContainerAssets] = Field(  # noqa: UP045 # Baseline
         None,
         description="A set of containers containing assets. Currently, only containers of type metadata import asset are supported.",
     )
@@ -277,14 +292,16 @@ class EnrichmentOptions(BaseModel):
     )
 
 
-class GovernanceScopeCategoryTypeEnum(str, Enum):
+class GovernanceScopeCategoryTypeEnum(str, Enum):  # noqa: UP042 # Baseline
     CATEGORY = "category"
 
+
 class TermAssignmentObjective(BaseModel):
-    term_generation_target_category_id: Optional[str] = Field(
+    term_generation_target_category_id: Optional[str] = Field(  # noqa: UP045 # Baseline
         default=None,
-        description="Identifier of the category that is used to store generated terms."
+        description="Identifier of the category that is used to store generated terms.",
     )
+
 
 class GovernanceScopeCategory(BaseModel):
     id: str = Field(description="Identifier of the category.")
@@ -294,12 +311,12 @@ class GovernanceScopeCategory(BaseModel):
     )
 
 
-class SamplingMethodEnum(str, Enum):
+class SamplingMethodEnum(str, Enum):  # noqa: UP042 # Baseline
     RANDOM = "random"
     TOP = "top"
 
 
-class SamplingAnalysisMethodEnum(str, Enum):
+class SamplingAnalysisMethodEnum(str, Enum):  # noqa: UP042 # Baseline
     FIXED = "fixed"
     PERCENTAGE = "percentage"
 
@@ -329,14 +346,14 @@ class SamplingStructuredSampleSizePercentageOptions(BaseModel):
 
 
 class SamplingStructuredSampleSize(BaseModel):
-    name: Optional[str] = Field(
+    name: Optional[str] = Field(  # noqa: UP045 # Baseline
         None, description="An optional name for the sample size configuration."
     )
-    options: Optional[SamplingStructuredSampleSizeOptions] = Field(
+    options: Optional[SamplingStructuredSampleSizeOptions] = Field(  # noqa: UP045 # Baseline
         None,
         description="Sample size options for structured data assets of a metadata enrichment asset. Required if sampling method is 'fixed'.",
     )
-    percentage_options: Optional[SamplingStructuredSampleSizePercentageOptions] = Field(
+    percentage_options: Optional[SamplingStructuredSampleSizePercentageOptions] = Field(  # noqa: UP045 # Baseline
         None,
         description="Initial sample size percentage options for structured data assets in a metadata enrichment asset. Required if sampling method is 'percentage'.",
     )
@@ -367,7 +384,7 @@ class Sampling(BaseModel):
     )
 
 
-class DatascopeOfRerunsEnum(str, Enum):
+class DatascopeOfRerunsEnum(str, Enum):  # noqa: UP042 # Baseline
     ALL = "all"
     DELTA = "delta"
 
@@ -433,29 +450,31 @@ class MetadataEnrichmentAssetObjective(BaseModel):
         DataQuality(),
         description="Initialization information for the data quality objectives for metadata Enrichment",
     )
-    term_assignment: Optional[TermAssignmentObjective] = Field(
+    term_assignment: Optional[TermAssignmentObjective] = Field(  # noqa: UP045 # Baseline
         default=None,
         description="Term assignment objective prototype of a metadata enrichment asset",
     )
 
+
 class MetadataEnrichmentGlobalSettings(BaseModel):
-    disable_all_job_run_notifications: Optional[bool] = Field(
+    disable_all_job_run_notifications: Optional[bool] = Field(  # noqa: UP045 # Baseline
         True, description="Whether to disable all job run notifications."
     )
 
+
 class MetadataEnrichmentAsset(BaseModel):
-    tags: Optional[list[str]] = Field(
+    tags: Optional[list[str]] = Field(  # noqa: UP045 # Baseline
         None,
         description="List of tags associated with the metadata enrichment asset.",
     )
     name: str = Field(
         description="The name of the metadata enrichment asset to be created."
     )
-    description: Optional[str] = Field(
+    description: Optional[str] = Field(  # noqa: UP045 # Baseline
         None,
         description="The description of the metadata enrichment asset.",
     )
-    global_settings: Optional[MetadataEnrichmentGlobalSettings] = Field(
+    global_settings: Optional[MetadataEnrichmentGlobalSettings] = Field(  # noqa: UP045 # Baseline
         None,
         description="Global settings objective for metadata enrichment asset.",
     )
@@ -464,10 +483,11 @@ class MetadataEnrichmentAsset(BaseModel):
         description="Initialization information for a metadata enrichment asset's data scope definition.",
     )
 
-    def __init__(self, name: str):
+    def __init__(self, name: str):  # noqa: ANN204 # Baseline
         super().__init__(name=name)
 
-class OperationStatusEnum(str, Enum):
+
+class OperationStatusEnum(str, Enum):  # noqa: UP042 # Baseline
     ACCEPTED = "accepted"
     NOT_STARTED = "not_started"
     IN_PROGRESS = "in_progress"
@@ -476,25 +496,27 @@ class OperationStatusEnum(str, Enum):
     SUCCEEDED = "succeeded"
     SUCCEEDED_WITH_ERRORS = "succeeded_with_errors"
 
+
 class DataScopeOperationSummary(BaseModel):
     project_id: str = Field(description="Project ID.")
     mde_asset_id: str = Field(description="MDE Asset ID.")
+
 
 class DataScopeOperation(BaseResponseModel):
     id: str = Field(description="The unique identifier of this resource.")
     status: OperationStatusEnum = Field(
         description="Status of a metadata enrichment asset operation."
     )
-    target_resource_id: Optional[str] = Field(
+    target_resource_id: Optional[str] = Field(  # noqa: UP045 # Baseline
         None, description="The identifier of the target resource."
     )
-    target_resource_location: Optional[str] = Field(
+    target_resource_location: Optional[str] = Field(  # noqa: UP045 # Baseline
         None, description="The target resource location."
     )
     operation_summary: DataScopeOperationSummary = Field(
         description="Data scope operation summary object."
     )
-    mde_url_location: Optional[str] = Field(
+    mde_url_location: Optional[str] = Field(  # noqa: UP045 # Baseline
         None, description="The mde url location of the target resource."
     )
 
@@ -514,19 +536,18 @@ class MetadataEnrichmentAssetObjectivePatch(BaseModel):
 
 
 class MetadataEnrichmentAssetPatch(BaseModel):
-    tags: Optional[list[str]] = Field(
+    tags: Optional[list[str]] = Field(  # noqa: UP045 # Baseline
         None,
         description="List of tags associated with the metadata enrichment asset.",
     )
-    name: Optional[str] = Field(
-        None,
-        description="The name of the metadata enrichment asset to be created."
+    name: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None, description="The name of the metadata enrichment asset to be created."
     )
-    description: Optional[str] = Field(
+    description: Optional[str] = Field(  # noqa: UP045 # Baseline
         None,
         description="The description of the metadata enrichment asset.",
     )
-    global_settings: Optional[MetadataEnrichmentGlobalSettings] = Field(
+    global_settings: Optional[MetadataEnrichmentGlobalSettings] = Field(  # noqa: UP045 # Baseline
         None,
         description="Global settings objective for metadata enrichment asset.",
     )
@@ -548,7 +569,9 @@ class MetadataEnrichmentAssetDataScopeUpdateRequest(BaseModel):
 class MetadataEnrichmentAssetPatchResponse(BaseResponseModel):
     id: str = Field(..., description="The unique identifier of this resource.")
     name: str = Field(..., description="The name of the metadata enrichment asset.")
-    mde_url_location: Optional[str] = Field(None, description="The mde url location of the metadata enrichment asset.")
+    mde_url_location: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None, description="The mde url location of the metadata enrichment asset."
+    )
 
 
 class MetadataEnrichmentRun(BaseResponseModel):
@@ -576,25 +599,30 @@ class MetadataEnrichmentAssetInfo(BaseModel):
 
 class MetadataEnrichmentAssetJob(BaseModel):
     """Job information for a metadata enrichment asset."""
+
     id: str = Field(..., description="The unique identifier of the job.")
     name: str = Field(..., description="The name of the job.")
 
 
 class KeyAnalysis(BaseModel):
     """Key analysis information for a metadata enrichment asset."""
-    key_analysis_id: str = Field(..., description="The unique identifier of the key analysis.")
+
+    key_analysis_id: str = Field(
+        ..., description="The unique identifier of the key analysis."
+    )
 
 
 class TermAssignment(BaseModel):
     """Term assignment configuration for metadata enrichment."""
-    term_generation_target_category_id: Optional[str] = Field(
-        default=None,
-        description="The target category ID for term generation."
+
+    term_generation_target_category_id: Optional[str] = Field(  # noqa: UP045 # Baseline
+        default=None, description="The target category ID for term generation."
     )
 
 
 class MetadataEnrichmentAssetObjectiveResponse(BaseResponseModel):
     """Objective information in metadata enrichment asset response."""
+
     enrichment_options: EnrichmentOptions = Field(
         ..., description="Enrichment options of metadata enrichment asset."
     )
@@ -604,17 +632,17 @@ class MetadataEnrichmentAssetObjectiveResponse(BaseResponseModel):
     sampling: Sampling = Field(
         ..., description="Sampling options for the metadata enrichment asset."
     )
-    term_assignment: Optional[TermAssignment] = Field(
-        default=None,
-        description="Term assignment configuration."
+    term_assignment: Optional[TermAssignment] = Field(  # noqa: UP045 # Baseline
+        default=None, description="Term assignment configuration."
     )
     datascope_of_reruns: str = Field(
         description="The type of data scope to be used in metadata enrichment job reruns."
     )
 
 
-class MetadataEnrichmentAssetStatusEnum(str, Enum):
+class MetadataEnrichmentAssetStatusEnum(str, Enum):  # noqa: UP042 # Baseline
     """Status values for metadata enrichment assets."""
+
     READY = "ready"
     UPDATING = "updating"
     DELETION_PENDING = "deletion_pending"
@@ -624,18 +652,35 @@ class MetadataEnrichmentAssetStatusEnum(str, Enum):
 
 class MetadataEnrichmentAssetResponse(BaseResponseModel):
     """Response model for metadata enrichment asset GET operations."""
+
     href: str = Field(..., description="The URL to the metadata enrichment asset.")
-    id: str = Field(..., description="The unique identifier of the metadata enrichment asset.")
+    id: str = Field(
+        ..., description="The unique identifier of the metadata enrichment asset."
+    )
     project_id: str = Field(..., description="The unique identifier of the project.")
-    last_updated_at: str = Field(..., description="The timestamp when the asset was last updated.")
-    last_updater_id: str = Field(..., description="The ID of the user who last updated the asset.")
-    last_accessed_at: str = Field(..., description="The timestamp when the asset was last accessed.")
-    last_accessor_id: str = Field(..., description="The ID of the user who last accessed the asset.")
-    creator_id: str = Field(..., description="The ID of the user who created the asset.")
-    created_at: str = Field(..., description="The timestamp when the asset was created.")
+    last_updated_at: str = Field(
+        ..., description="The timestamp when the asset was last updated."
+    )
+    last_updater_id: str = Field(
+        ..., description="The ID of the user who last updated the asset."
+    )
+    last_accessed_at: str = Field(
+        ..., description="The timestamp when the asset was last accessed."
+    )
+    last_accessor_id: str = Field(
+        ..., description="The ID of the user who last accessed the asset."
+    )
+    creator_id: str = Field(
+        ..., description="The ID of the user who created the asset."
+    )
+    created_at: str = Field(
+        ..., description="The timestamp when the asset was created."
+    )
     name: str = Field(..., description="The name of the metadata enrichment asset.")
-    job: MetadataEnrichmentAssetJob = Field(..., description="Job information for the asset.")
-    key_analysis: Optional[KeyAnalysis] = Field(
+    job: MetadataEnrichmentAssetJob = Field(
+        ..., description="Job information for the asset."
+    )
+    key_analysis: Optional[KeyAnalysis] = Field(  # noqa: UP045 # Baseline
         None, description="Key analysis information for the asset."
     )
     objective: MetadataEnrichmentAssetObjectiveResponse = Field(
@@ -643,8 +688,9 @@ class MetadataEnrichmentAssetResponse(BaseResponseModel):
     )
     status: MetadataEnrichmentAssetStatusEnum = Field(
         default=MetadataEnrichmentAssetStatusEnum.INITIALIZING,
-        description="The current status of the metadata enrichment asset."
+        description="The current status of the metadata enrichment asset.",
     )
+
 
 # Human readable map from MDE terminology to match UI terminology
 ENRICHMENT_OBJECTIVES_MAP = {
@@ -654,52 +700,51 @@ ENRICHMENT_OBJECTIVES_MAP = {
     "dq_sla_assessment": "Monitor data quality with SLA rules",
     "dq_gen_constraints": "Identify data quality checks",
     "semantic_expansion": "Expand metadata",
-    "analyze_relationships": "Set relationships"
+    "analyze_relationships": "Set relationships",
 }
+
 
 class TermGenerationRequest(BaseModel):
     """
     Request model for running term generation on metadata enrichment assets.
-    
+
     Supports both legacy and v3 MDE APIs:
     - Legacy: Only project_name and metadata_enrichment_name required
     - V3: Additional job_name and category_name for multi-job MDEs
     """
-    project_name: str = Field(
-        ..., description=PROJECT_NAME_DESC
+
+    project_name: str = Field(..., description=PROJECT_NAME_DESC)
+    metadata_enrichment_name: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None, description="The name of the metadata enrichment asset to run on."
     )
-    metadata_enrichment_name: Optional[str] = Field(
+    job_name: Optional[str] = Field(  # noqa: UP045 # Baseline
         None,
-        description="The name of the metadata enrichment asset to run on."
+        description="(V3 only) The name of the job within the MDE to run term generation on. If not provided, user will be prompted to select from available jobs.",
     )
-    job_name: Optional[str] = Field(
+    category_name: Optional[str] = Field(  # noqa: UP045 # Baseline
         None,
-        description="(V3 only) The name of the job within the MDE to run term generation on. If not provided, user will be prompted to select from available jobs."
-    )
-    category_name: Optional[str] = Field(
-        None,
-        description="(V3 only) The name of the target category for generated terms. If not provided, uses the job's configured target category or prompts user to select."
+        description="(V3 only) The name of the target category for generated terms. If not provided, uses the job's configured target category or prompts user to select.",
     )
 
 
 class AssetProcessingResult(BaseModel):
     """Result for a single asset in batch processing."""
+
     asset_id: str = Field(description="The unique identifier of the asset.")
-    error_message: Optional[str] = Field(
+    error_message: Optional[str] = Field(  # noqa: UP045 # Baseline
         None,
-        description="Error message from the API when processing failed, if available."
+        description="Error message from the API when processing failed, if available.",
     )
 
 
 class TermGenerationBatchResponse(BaseResponseModel):
     """Response model for batch term generation operations."""
+
     successes: list[AssetProcessingResult] = Field(
-        default_factory=list,
-        description="List of successfully processed assets."
+        default_factory=list, description="List of successfully processed assets."
     )
     failures: list[AssetProcessingResult] = Field(
-        default_factory=list,
-        description="List of assets that failed processing."
+        default_factory=list, description="List of assets that failed processing."
     )
 
 
@@ -707,70 +752,85 @@ class TermGenerationResult(BaseResponseModel):
     metadata_enrichment_name: str = Field(
         ..., description="The name of the metadata enrichment."
     )
-    project_name: str = Field(
-        ..., description=PROJECT_NAME_DESC
-    )
+    project_name: str = Field(..., description=PROJECT_NAME_DESC)
     metadata_enrichment_ui_url: str = Field(
         ..., description="The URL to the metadata enrichment asset in the UI."
     )
-    task_inbox: str = Field(
-        ..., description="The URL to the task inbox in the UI."
-    )
-    target_category_url: Optional[str] = Field(
+    task_inbox: str = Field(..., description="The URL to the task inbox in the UI.")
+    target_category_url: Optional[str] = Field(  # noqa: UP045 # Baseline
         None,
-        description="(V3 only) The URL to the target category where terms were generated."
+        description="(V3 only) The URL to the target category where terms were generated.",
     )
-    failures: Optional[list[AssetProcessingResult]] = Field(
-        None,
-        description="List of assets that failed processing."
+    failures: Optional[list[AssetProcessingResult]] = Field(  # noqa: UP045 # Baseline
+        None, description="List of assets that failed processing."
     )
     count_of_draft_terms_from_term_generation: int = Field(
-        ..., description="The count of draft terms generated from running term generation"
+        ...,
+        description="The count of draft terms generated from running term generation",
     )
 
 
 class DataAssets(BaseModel):
     """Model representing an enrichment asset within a metadata enrichment."""
+
     id: str = Field(..., description="Unique identifier of the enrichment asset")
-    missing_terms_count: int = Field(0, description="Number of missing terms in the data asset")
-    published_terms_count: int = Field(0, description="Number of published terms in the data asset")
-    draft_terms_count: int = Field(0, description="Number of draft terms in the data asset")
+    missing_terms_count: int = Field(
+        0, description="Number of missing terms in the data asset"
+    )
+    published_terms_count: int = Field(
+        0, description="Number of published terms in the data asset"
+    )
+    draft_terms_count: int = Field(
+        0, description="Number of draft terms in the data asset"
+    )
 
 
 class EnrichmentAssetsInfo(BaseModel):
     """Model representing enrichment assets information from API response."""
+
     asset_ids: list[DataAssets] = Field(
         default_factory=list,
-        description="List of asset information including IDs, names, gaps, and URLs"
+        description="List of asset information including IDs, names, gaps, and URLs",
     )
     asset_count: int = Field(..., description="Total count of assets")
 
 
 class MetadataEnrichmentDetails(BaseModel):
     """Model representing details of a metadata enrichment."""
-    objective: list[str] = Field(..., description="List of objectives for the metadata enrichment (e.g., 'profile', 'assign_terms')")
+
+    objective: list[str] = Field(
+        ...,
+        description="List of objectives for the metadata enrichment (e.g., 'profile', 'assign_terms')",
+    )
     name: str = Field(..., description="Name of the metadata enrichment")
     data_assets: EnrichmentAssetsInfo = Field(
-        ...,
-        description="Enrichment assets information including asset IDs and count"
+        ..., description="Enrichment assets information including asset IDs and count"
     )
-    mde_url: str = Field(..., description="URL to the metadata enrichment asset in the UI")
+    mde_url: str = Field(
+        ..., description="URL to the metadata enrichment asset in the UI"
+    )
 
 
 class MetadataEnrichmentResult(BaseResponseModel):
     """Result model when metadata enrichment name is not specified."""
+
     metadata_enrichments: dict[str, MetadataEnrichmentDetails] = Field(
         ...,
-        description="Dictionary of available metadata enrichment assets with their details. Keys are metadata enrichment IDs (mde_id), values contain the enrichment details including objectives, name, data assets, target category id, and governance id."
+        description="Dictionary of available metadata enrichment assets with their details. Keys are metadata enrichment IDs (mde_id), values contain the enrichment details including objectives, name, data assets, target category id, and governance id.",
     )
     message: str = Field(
-        ..., description="Message prompting user to specify which metadata enrichment to use."
+        ...,
+        description="Message prompting user to specify which metadata enrichment to use.",
     )
-    failures: Optional[list[str]] = Field(default=None, description="List of metadata enrichment asset IDs that failed to process")
+    failures: Optional[list[str]] = Field(  # noqa: UP045 # Baseline
+        default=None,
+        description="List of metadata enrichment asset IDs that failed to process",
+    )
 
 
 class JobOption(BaseModel):
     """Model representing a job option for term generation."""
+
     job_id: str = Field(..., description="Job ID")
     job_name: str = Field(..., description="Job name")
     target_category_id: str = Field(..., description="Target category ID")
@@ -779,6 +839,7 @@ class JobOption(BaseModel):
 
 class TermGenerationJobSelectionResult(BaseModel):
     """Result model when user needs to select a job for v3 term generation."""
+
     message: str = Field(
         ..., description="Message prompting user to select a job or provide category"
     )
@@ -788,112 +849,122 @@ class TermGenerationJobSelectionResult(BaseModel):
     mde_name: str = Field(..., description="Name of the MDE")
     project_name: str = Field(..., description="Name of the project")
 
+
 class CategoryOption(BaseModel):
     """Model representing a category option when duplicates exist."""
+
     category_id: str = Field(..., description="Category UUID")
     category_name: str = Field(..., description="Category name")
     parent_path: str = Field(
-        ..., 
-        description="Full parent hierarchy path (e.g., 'Finance >> Risk Management >> subcat_3')"
+        ...,
+        description="Full parent hierarchy path (e.g., 'Finance >> Risk Management >> subcat_3')",
     )
 
 
 class CategorySelectionResult(BaseModel):
     """Result model when user needs to select from duplicate category names.
-    
+
     User selects a category and re-runs the tool with the selected category UUID.
     """
+
     message: str = Field(..., description="Prompt message for user")
     available_categories: list[CategoryOption] = Field(
         default_factory=list,
-        description="List of categories with parent hierarchy (empty if >5 duplicates)"
+        description="List of categories with parent hierarchy (empty if >5 duplicates)",
     )
     request_uuid: bool = Field(
-        False, 
-        description="True if >5 duplicates - user should provide UUID instead"
+        False, description="True if >5 duplicates - user should provide UUID instead"
     )
     category_name: str = Field(..., description="The ambiguous category name")
-    duplicate_count: int = Field(..., description="Total number of duplicate categories found")
+    duplicate_count: int = Field(
+        ..., description="Total number of duplicate categories found"
+    )
     mde_name: str = Field(..., description="MDE name")
     project_name: str = Field(..., description="Project name")
 
 
-
 class MetadataImportResponse(BaseResponseModel):
     """Response model when metadata import name is not specified."""
+
     name: str = Field(..., description="Name of the metadata import")
-    asset_id: str = Field(..., description="Connection / Asset ID of the metadata import")
+    asset_id: str = Field(
+        ..., description="Connection / Asset ID of the metadata import"
+    )
     href: str = Field(..., description="URL to the metadata import")
 
 
 class JobRunStatus(BaseResponseModel):
     """Model representing a job run status."""
+
     status: str = Field(..., description="Job run status")
     run_id: str = Field(..., description="Job Run / Asset ID")
 
+
 class CategoryInfo(BaseResponseModel):
     """Model representing a single category."""
+
     name: str = Field(..., description="Category name")
     category_id: str = Field(..., description="Unique identifier for the category")
 
+
 class ListEnrichmentCategoriesResponse(BaseResponseModel):
     """Model representing categories."""
+
     categories: list[str] = Field(..., description="List of categories")
+
 
 class StartRelationshipAnalysisResponse(BaseResponseModel):
     """Model representing relationship analysis."""
-    relationship_analysis: dict = Field(..., description="Relationship analysis response")
+
+    relationship_analysis: dict = Field(
+        ..., description="Relationship analysis response"
+    )
 
 
 class MetadataEnrichmentJobScheduleInfo(BaseModel):
-    repeat: Optional[bool] = Field(
-        False,
-        description="Whether or not to repeat this enrichment schedule."
+    repeat: Optional[bool] = Field(  # noqa: UP045 # Baseline
+        False, description="Whether or not to repeat this enrichment schedule."
     )
-    start_on: Optional[float] = Field(
-        None,
-        description="The start time of the schedule."
+    start_on: Optional[float] = Field(  # noqa: UP045 # Baseline
+        None, description="The start time of the schedule."
     )
-    end_on: Optional[float] = Field(
-        None,
-        description="The end time of the schedule."
-    )
+    end_on: Optional[float] = Field(None, description="The end time of the schedule.")  # noqa: UP045 # Baseline
+
 
 class MetadataEnrichmentJobRetentionPolicy(BaseModel):
-    days: Optional[int] = Field(
-        None,
-        description="Number of days to retain for each metadata enrichment asset."
+    days: Optional[int] = Field(  # noqa: UP045 # Baseline
+        None, description="Number of days to retain for each metadata enrichment asset."
     )
-    amount: Optional[int] = Field(
-        None,
-        description="Amount to retain for each metadata enrichment asset."
+    amount: Optional[int] = Field(  # noqa: UP045 # Baseline
+        None, description="Amount to retain for each metadata enrichment asset."
     )
 
+
 class MetadataEnrichmentJobDelegationConfiguration(BaseModel):
-    skip_notifications: Optional[bool] = Field(
+    skip_notifications: Optional[bool] = Field(  # noqa: UP045 # Baseline
         True,
-        description="Whether or not to skip notifications when enrichment job is skipped."
+        description="Whether or not to skip notifications when enrichment job is skipped.",
     )
     enrichment_objective: MetadataEnrichmentAssetObjective = Field(
         description="Objective of the metadata enrichment job.",
-        default_factory=MetadataEnrichmentAssetObjective
+        default_factory=MetadataEnrichmentAssetObjective,
     )
+
 
 class MetadataEnrichmentAssetEnrichmentJob(BaseModel):
     name: str = Field(description="The name of the metadata enrichment job.")
-    description: Optional[str] = Field(
-        None,
-        description="The description of the metadata enrichment job."
+    description: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None, description="The description of the metadata enrichment job."
     )
-    schedule: Optional[str] = Field(
+    schedule: Optional[str] = Field(  # noqa: UP045 # Baseline
         None,
         description="The cron schedule of the enrichment job to create.",
     )
-    schedule_info: Optional[MetadataEnrichmentJobScheduleInfo] = Field(
+    schedule_info: Optional[MetadataEnrichmentJobScheduleInfo] = Field(  # noqa: UP045 # Baseline
         None,
         description="The schedule of the enrichment job to create.",
     )
-    retention_policy: Optional[MetadataEnrichmentJobRetentionPolicy] = Field(
+    retention_policy: Optional[MetadataEnrichmentJobRetentionPolicy] = Field(  # noqa: UP045 # Baseline
         None,
         description="The retention policy of the enrichment job to create.",
     )
@@ -901,32 +972,31 @@ class MetadataEnrichmentAssetEnrichmentJob(BaseModel):
         description="Delegation configuration of the enrichment job.",
         default_factory=MetadataEnrichmentJobDelegationConfiguration,
     )
-    def __init__(self, name: str):
+
+    def __init__(self, name: str):  # noqa: ANN204 # Baseline
         super().__init__(name=name)
 
+
 class MetadataEnrichmentAssetEnrichmentJobResponse(BaseResponseModel):
-    id: Optional[str] = Field(
-        None,
-        description="The id of the enrichment asset enrichment job."
+    id: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None, description="The id of the enrichment asset enrichment job."
     )
-    name: Optional[str] = Field(description="The name of the metadata enrichment job.")
-    description: Optional[str] = Field(
-        None,
-        description="The description of the metadata enrichment job."
+    name: Optional[str] = Field(description="The name of the metadata enrichment job.")  # noqa: UP045 # Baseline
+    description: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None, description="The description of the metadata enrichment job."
     )
-    schedule: Optional[str] = Field(
+    schedule: Optional[str] = Field(  # noqa: UP045 # Baseline
         None,
         description="The cron schedule of the enrichment job to create.",
     )
-    schedule_info: Optional[MetadataEnrichmentJobScheduleInfo] = Field(
+    schedule_info: Optional[MetadataEnrichmentJobScheduleInfo] = Field(  # noqa: UP045 # Baseline
         None,
         description="The schedule of the enrichment job to create.",
     )
-    retention_policy: Optional[MetadataEnrichmentJobRetentionPolicy] = Field(
+    retention_policy: Optional[MetadataEnrichmentJobRetentionPolicy] = Field(  # noqa: UP045 # Baseline
         None,
         description="The retention policy of the enrichment job to create.",
     )
-    delegate_configuration: Optional[MetadataEnrichmentJobDelegationConfiguration] = Field(
-        None,
-        description="Delegation configuration of the enrichment job."
+    delegate_configuration: Optional[MetadataEnrichmentJobDelegationConfiguration] = (  # noqa: UP045 # Baseline
+        Field(None, description="Delegation configuration of the enrichment job.")
     )

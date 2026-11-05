@@ -2,10 +2,13 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from app.core.registry import service_registry
-from app.services.search.models.search_data_source_definition import SearchDataSourceDefinitionRequest, SearchDataSourceDefinitionResponse
+from app.core.registry import service_registry  # noqa: I001 # Baseline
+from app.services.search.models.search_data_source_definition import (
+    SearchDataSourceDefinitionRequest,
+    SearchDataSourceDefinitionResponse,
+)
 
-from typing import List, Optional, Annotated
+from typing import List, Optional, Annotated  # noqa: UP035 # Baseline
 from pydantic import Field
 from urllib.parse import urlencode
 
@@ -13,19 +16,24 @@ from app.shared.exceptions.base import ServiceError
 from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.services.tool_utils import (
-    get_platform_assets_catalog_id, 
-    find_datasource_type_asset_id, 
-    get_datasource_type_name
+    get_platform_assets_catalog_id,
+    find_datasource_type_asset_id,
+    get_datasource_type_name,
 )
-from app.shared.utils.helpers import is_uuid_bool, get_closest_match, append_context_to_url
+from app.shared.utils.helpers import (
+    is_uuid_bool,
+    get_closest_match,
+    append_context_to_url,
+)
 from app.shared.logging import LOGGER, auto_context
 from app.services.constants import ASSET_TYPE_BASE_ENDPOINT
 from app.shared.utils.utils_tools import format_connections_or_dsds_for_table
 
+
 async def _search_data_source_definition(
-    request: SearchDataSourceDefinitionRequest
-) -> List[SearchDataSourceDefinitionResponse]:
-    # Validate the request 
+    request: SearchDataSourceDefinitionRequest,
+) -> List[SearchDataSourceDefinitionResponse]:  # noqa: UP006 # Baseline
+    # Validate the request
     _validate_search_dsd_request(request)
 
     LOGGER.info(
@@ -34,14 +42,11 @@ async def _search_data_source_definition(
         request.datasource_type,
         request.hostname,
         request.port,
-        request.physical_collection
+        request.physical_collection,
     )
 
     pac_catalog_id = await get_platform_assets_catalog_id()
-    params = {
-        "catalog_id": pac_catalog_id,
-        "hide_deprecated_response_fields": False
-    }
+    params = {"catalog_id": pac_catalog_id, "hide_deprecated_response_fields": False}
 
     payload = {"limit": 100, "sort": "asset.name<string>", "include": "entity"}
 
@@ -49,18 +54,24 @@ async def _search_data_source_definition(
         if is_uuid_bool(request.datasource_type):
             datasource_asset_id = request.datasource_type
         else:
-            datasource_asset_id = await find_datasource_type_asset_id(request.datasource_type)
+            datasource_asset_id = await find_datasource_type_asset_id(
+                request.datasource_type
+            )
         payload["query"] = f"ibm_data_source.data_source_type_id:{datasource_asset_id}"
     elif request.hostname or request.port or request.physical_collection:
-        payload["query"] = retrieve_asset_endpoint_query(request.hostname, request.port, request.physical_collection)
+        payload["query"] = retrieve_asset_endpoint_query(
+            request.hostname, request.port, request.physical_collection
+        )
     else:
         payload["query"] = "*:*"
-    
+
     response = await tool_helper_service.execute_post_request(
-        url=str(tool_helper_service.base_url) + ASSET_TYPE_BASE_ENDPOINT + "/ibm_data_source/search",
+        url=str(tool_helper_service.base_url)
+        + ASSET_TYPE_BASE_ENDPOINT
+        + "/ibm_data_source/search",
         params=params,
         json=payload,
-        tool_name="search_data_source_definition"
+        tool_name="search_data_source_definition",
     )
 
     output = []
@@ -68,7 +79,7 @@ async def _search_data_source_definition(
     if request.name:
         dsd_id = find_dsd_by_name(response, request.name)
 
-    for result in response.get('results', []):
+    for result in response.get("results", []):
         if dsd_id and result["metadata"]["asset_id"] != dsd_id:
             continue
         datasource_type_id = result["entity"]["ibm_data_source"]["data_source_type_id"]
@@ -80,24 +91,27 @@ async def _search_data_source_definition(
             creator_id=result["metadata"]["creator_id"],
             datasource_type_id=datasource_type_id,
             datasource_type_name=datasource_type_name,
-            url=append_context_to_url(_create_dsd_url(result["metadata"]["asset_id"], pac_catalog_id))
+            url=append_context_to_url(
+                _create_dsd_url(result["metadata"]["asset_id"], pac_catalog_id)
+            ),
         )
         output.append(dsd)
 
     if output:
-        ui_message_context.add_table_ui_message(tool_name="search_data_source_definition", formatted_data=format_connections_or_dsds_for_table(output), title="Data source definitions")
-        return output
-    else:
-        raise ServiceError(
-            "Could not find data source definition(s)."
+        ui_message_context.add_table_ui_message(
+            tool_name="search_data_source_definition",
+            formatted_data=format_connections_or_dsds_for_table(output),
+            title="Data source definitions",
         )
+        return output
+    raise ServiceError("Could not find data source definition(s).")
 
 
 @service_registry.tool(
     name="search_data_source_definition",
     annotations={
         "readOnlyHint": True,
-        "title": "Query and Search Data Source Definitions with Advanced Filtering"
+        "title": "Query and Search Data Source Definitions with Advanced Filtering",
     },
     description="""Use this tool when you need to find data source definitions (DSDs) by name, type, endpoint, or physical collection.
                     Understand user's request about searching data source definitions aka DSD
@@ -132,17 +146,40 @@ async def _search_data_source_definition(
                         - Hostname + port + physical collection + name
                     - Invalid values will result in errors
                     Return: A list of objects, each containing data source definition details including ID, name, creation time, creator ID, datasource type information, and URL.""",
-    tags={"search", "data_source_definition","metadata_management_and_governance"},
-    meta={"version": "1.0", "service": "search"}
+    tags={"search", "data_source_definition", "metadata_management_and_governance"},
+    meta={"version": "1.0", "service": "search"},
 )
 @auto_context
 async def search_data_source_definition(
-    name: Annotated[Optional[str], Field(description="Name of the data source definition to search for.")],
-    datasource_type: Annotated[Optional[str], Field(description="Datasource type name or UUID to filter data source definitions by.")],
-    hostname: Annotated[Optional[str], Field(description="Hostname/IP address of the data source to filter data source definitions by.")],
-    port: Annotated[Optional[str], Field(description="Port number of the hostname of the data source to filter data source definitions by.")],
-    physical_collection: Annotated[Optional[str], Field(description="Database name, bucket name, or project ID of the data source to filter data source definitions by.")]
-) -> List[SearchDataSourceDefinitionResponse]:
+    name: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(description="Name of the data source definition to search for."),
+    ],
+    datasource_type: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Datasource type name or UUID to filter data source definitions by."
+        ),
+    ],
+    hostname: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Hostname/IP address of the data source to filter data source definitions by."
+        ),
+    ],
+    port: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Port number of the hostname of the data source to filter data source definitions by."
+        ),
+    ],
+    physical_collection: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Database name, bucket name, or project ID of the data source to filter data source definitions by."
+        ),
+    ],
+) -> List[SearchDataSourceDefinitionResponse]:  # noqa: UP006 # Baseline
     """Wrapper that expands SearchDataSourceDefinitionRequest object into individual parameters."""
 
     request = SearchDataSourceDefinitionRequest(
@@ -150,11 +187,12 @@ async def search_data_source_definition(
         datasource_type=datasource_type,
         hostname=hostname,
         port=port,
-        physical_collection=physical_collection
+        physical_collection=physical_collection,
     )
 
     # Call the original search_data_source_definition function
     return await _search_data_source_definition(request)
+
 
 def _validate_search_dsd_request(request: SearchDataSourceDefinitionRequest) -> None:
     if request.port and not request.hostname:
@@ -162,23 +200,30 @@ def _validate_search_dsd_request(request: SearchDataSourceDefinitionRequest) -> 
         LOGGER.error(error_msg)
         raise ServiceError(error_msg)
 
-    if request.datasource_type and (request.hostname or request.port or request.physical_collection):
+    if request.datasource_type and (
+        request.hostname or request.port or request.physical_collection
+    ):
         error_msg = "Datasource type filter cannot be provided with endpoint or physical collection filter."
         LOGGER.error(error_msg)
         raise ServiceError(error_msg)
 
-def retrieve_asset_endpoint_query(hostname: Optional[str], port: Optional[str], physical_collection: Optional[str]) -> str:
+
+def retrieve_asset_endpoint_query(
+    hostname: Optional[str],  # noqa: UP045 # Baseline
+    port: Optional[str],  # noqa: UP045 # Baseline
+    physical_collection: Optional[str],  # noqa: UP045 # Baseline
+) -> str:
     """
     Format endpoint query parameters for data source definition search.
-    
+
     Creates a properly formatted query string for the DSD search API based on the provided
     hostname, port, and physical collection parameters.
-    
+
     Args:
         hostname (Optional[str]): Hostname or IP address of the data source.
         port (Optional[str]): Port number of the data source.
         physical_collection (Optional[str]): Database name, bucket name, or project ID.
-    
+
     Returns:
         str: Formatted query string for the DSD search API.
     """
@@ -194,6 +239,7 @@ def retrieve_asset_endpoint_query(hostname: Optional[str], port: Optional[str], 
         if physical_collection:
             query_str += f"{physical_collection}"
     return query_str
+
 
 def find_dsd_by_name(response: dict, dsd_name: str) -> str:
     """
@@ -215,10 +261,10 @@ def find_dsd_by_name(response: dict, dsd_name: str) -> str:
 
     if result_id:
         return result_id
-    else:
-        raise ServiceError(
-            f"Couldn't find any matching data source definition with name '{dsd_name}'"
-        )
+    raise ServiceError(
+        f"Couldn't find any matching data source definition with name '{dsd_name}'"
+    )
+
 
 def _create_dsd_url(dsd_id: str, catalog_id: str) -> str:
     """
@@ -231,7 +277,5 @@ def _create_dsd_url(dsd_id: str, catalog_id: str) -> str:
     """
     dsd_url_prefix = str(tool_helper_service.ui_base_url) + "/data/catalogs/"
     url = dsd_url_prefix + catalog_id + "/asset/" + dsd_id
-    query_params = {
-        "ds_gov_summary": "true"
-    }
+    query_params = {"ds_gov_summary": "true"}
     return f"{url}?{urlencode(query_params)}"

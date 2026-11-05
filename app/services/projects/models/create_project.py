@@ -1,7 +1,7 @@
-from pydantic import BaseModel
+from pydantic import BaseModel  # noqa: I001 # Baseline
 from pydantic import Field
 from app.shared.models import BaseResponseModel
-from typing import Optional, List
+from typing import Optional, List  # noqa: UP035 # Baseline
 
 # Copyright [2025] [IBM]
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
@@ -9,16 +9,15 @@ from typing import Optional, List
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
+
 class CreateProjectRequest(BaseModel):
     """Request model for creating a new project"""
 
-    name: Optional[str] = Field(
-        default=None, description="The name of the new project"
-    )
-    description: Optional[str] = Field(
+    name: Optional[str] = Field(default=None, description="The name of the new project")  # noqa: UP045 # Baseline
+    description: Optional[str] = Field(  # noqa: UP045 # Baseline
         default="MCP generated project", description="A description for the new project"
     )
-    type: Optional[str] = Field(
+    type: Optional[str] = Field(  # noqa: UP045 # Baseline
         default=None,
         description="The project type where the project is generated",
         examples=[
@@ -26,7 +25,7 @@ class CreateProjectRequest(BaseModel):
             "wx,df: IBM watsonx projects (wx) or Data Fabric (df)",
         ],
     )
-    storage: Optional[str] = Field(
+    storage: Optional[str] = Field(  # noqa: UP045 # Baseline
         default=None,
         description="Storage where the project stores",
         examples=[
@@ -34,7 +33,7 @@ class CreateProjectRequest(BaseModel):
             "assetfiles",
         ],
     )
-    tags: Optional[List] = Field(
+    tags: Optional[List] = Field(  # noqa: UP006, UP045 # Baseline
         default=[],
         description="List of user defined tags that are attached to the project",
     )

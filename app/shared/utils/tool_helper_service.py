@@ -7,7 +7,7 @@
 import json
 import re
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union  # noqa: UP035 # Baseline
 
 from app.core.auth import get_access_token
 from app.core.settings import settings
@@ -20,8 +20,8 @@ from app.shared.utils.http_client import get_http_client
 def create_default_headers(
     content_type: str = JSON_CONTENT_TYPE,
     accept_type: str = JSON_CONTENT_TYPE,
-    additional_headers: Optional[Dict[str, str]] = None,
-) -> Dict[str, str]:
+    additional_headers: Optional[Dict[str, str]] = None,  # noqa: UP006, UP045 # Baseline
+) -> Dict[str, str]:  # noqa: UP006 # Baseline
     """
     Create headers for API requests.
 
@@ -56,7 +56,7 @@ class ToolHelperService:
     handling errors.
     """
 
-    def __init__(self):
+    def __init__(self):  # noqa: ANN204 # Baseline
         self.base_url = settings.di_service_url
         self.resource_controller_url = settings.resource_controller_url
         self.user_management_url = settings.user_management_url
@@ -66,10 +66,10 @@ class ToolHelperService:
     async def execute_get_request(
         self,
         url: str,
-        headers: Dict[str, str] = create_default_headers(),
-        params: Optional[Dict[str, Any]] = None,
-        tool_name: Optional[str] = None,
-    ) -> Dict[str, Any] | bytes:
+        headers: Dict[str, str] = create_default_headers(),  # noqa: UP006 # Baseline
+        params: Optional[Dict[str, Any]] = None,  # noqa: UP006, UP045 # Baseline
+        tool_name: Optional[str] = None,  # noqa: UP045 # Baseline
+    ) -> Dict[str, Any] | bytes:  # noqa: UP006 # Baseline
         """
         Execute a GET request with authorization header and handle common error patterns.
 
@@ -95,26 +95,24 @@ class ToolHelperService:
 
             return response_json
         except ExternalAPIError as e:
-            LOGGER.error(
-                f"{tool_name or 'Request'} to {url} failed with error: {str(e)}"
-            )
-            raise self._format_exception(e, HTTPMethod.GET, tool_name)
+            LOGGER.error(f"{tool_name or 'Request'} to {url} failed with error: {e!s}")
+            raise self._format_exception(e, HTTPMethod.GET, tool_name)  # noqa: B904 # Baseline
 
-    async def _execute_request_with_body(
+    async def _execute_request_with_body(  # noqa: PLR0913 # Baseline
         self,
         method: HTTPMethod,
         url: str,
-        headers: Dict[str, str],
-        json: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
-        data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None,
-        content: Optional[bytes] = None,
-        files: Optional[Dict[str, Any]] = None,
-        tool_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        headers: Dict[str, str],  # noqa: UP006 # Baseline
+        json: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,  # noqa: UP006, UP007, UP045 # Baseline
+        data: Optional[Dict[str, Any]] = None,  # noqa: UP006, UP045 # Baseline
+        params: Optional[Dict[str, Any]] = None,  # noqa: UP006, UP045 # Baseline
+        content: Optional[bytes] = None,  # noqa: UP045 # Baseline
+        files: Optional[Dict[str, Any]] = None,  # noqa: UP006, UP045 # Baseline
+        tool_name: Optional[str] = None,  # noqa: UP045 # Baseline
+    ) -> Dict[str, Any]:  # noqa: UP006 # Baseline
         """
         Internal helper for HTTP methods with request body (POST, PUT, PATCH).
-        
+
         Args:
             method: HTTP method enum (POST, PUT, PATCH)
             url: URL for the request
@@ -125,10 +123,10 @@ class ToolHelperService:
             content: Optional raw bytes to send in the request body
             files: Multipart file uploads
             tool_name: Name of the tool making the request (for error messages)
-            
+
         Returns:
             Dict[str, Any]: JSON response
-            
+
         Raises:
             ExternalAPIError: If the request fails
         """
@@ -149,22 +147,20 @@ class ToolHelperService:
             )
             return response_json
         except ExternalAPIError as e:
-            LOGGER.error(
-                f"{tool_name or 'Request'} to {url} failed with error: {str(e)}"
-            )
-            raise self._format_exception(e, method, tool_name)
+            LOGGER.error(f"{tool_name or 'Request'} to {url} failed with error: {e!s}")
+            raise self._format_exception(e, method, tool_name)  # noqa: B904 # Baseline
 
-    async def execute_post_request(
+    async def execute_post_request(  # noqa: PLR0913 # Baseline
         self,
         url: str,
-        headers: Dict[str, str] = create_default_headers(),
-        json: Optional[Dict[str, Any]] = None,
-        data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None,
-        content: Optional[bytes] = None,
-        files: Optional[Dict[str, Any]] = None,
-        tool_name: Optional[str] = None,
-    ) -> Dict[str, Any] | bytes:
+        headers: Dict[str, str] = create_default_headers(),  # noqa: UP006 # Baseline
+        json: Optional[Dict[str, Any]] = None,  # noqa: UP006, UP045 # Baseline
+        data: Optional[Dict[str, Any]] = None,  # noqa: UP006, UP045 # Baseline
+        params: Optional[Dict[str, Any]] = None,  # noqa: UP006, UP045 # Baseline
+        content: Optional[bytes] = None,  # noqa: UP045 # Baseline
+        files: Optional[Dict[str, Any]] = None,  # noqa: UP006, UP045 # Baseline
+        tool_name: Optional[str] = None,  # noqa: UP045 # Baseline
+    ) -> Dict[str, Any] | bytes:  # noqa: UP006 # Baseline
         """
         Execute a POST request with authorization header and handle common error patterns.
 
@@ -189,17 +185,17 @@ class ToolHelperService:
             HTTPMethod.POST, url, headers, json, data, params, content, files, tool_name
         )
 
-    async def execute_put_request(
+    async def execute_put_request(  # noqa: PLR0913 # Baseline
         self,
         url: str,
-        headers: Dict[str, str] = create_default_headers(),
-        json: Optional[Dict[str, Any]] = None,
-        data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None,
-        content: Optional[bytes] = None,
-        files: Optional[Dict[str, Any]] = None,
-        tool_name: Optional[str] = None,
-    ) -> Dict[str, Any] | bytes:
+        headers: Dict[str, str] = create_default_headers(),  # noqa: UP006 # Baseline
+        json: Optional[Dict[str, Any]] = None,  # noqa: UP006, UP045 # Baseline
+        data: Optional[Dict[str, Any]] = None,  # noqa: UP006, UP045 # Baseline
+        params: Optional[Dict[str, Any]] = None,  # noqa: UP006, UP045 # Baseline
+        content: Optional[bytes] = None,  # noqa: UP045 # Baseline
+        files: Optional[Dict[str, Any]] = None,  # noqa: UP006, UP045 # Baseline
+        tool_name: Optional[str] = None,  # noqa: UP045 # Baseline
+    ) -> Dict[str, Any] | bytes:  # noqa: UP006 # Baseline
         """
         Execute a PUT request with authorization header and handle common error patterns.
 
@@ -224,17 +220,19 @@ class ToolHelperService:
             HTTPMethod.PUT, url, headers, json, data, params, content, files, tool_name
         )
 
-    async def execute_patch_request(
+    async def execute_patch_request(  # noqa: PLR0913 # Baseline
         self,
         url: str,
-        headers: Dict[str, str] = create_default_headers(content_type=JSON_PATCH_CONTENT_TYPE),
-        json: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
-        data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None,
-        content: Optional[bytes] = None,
-        files: Optional[Dict[str, Any]] = None,
-        tool_name: Optional[str] = None,
-    ) -> Dict[str, Any] | bytes:
+        headers: Dict[str, str] = create_default_headers(  # noqa: UP006 # Baseline
+            content_type=JSON_PATCH_CONTENT_TYPE
+        ),
+        json: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,  # noqa: UP006, UP007, UP045 # Baseline
+        data: Optional[Dict[str, Any]] = None,  # noqa: UP006, UP045 # Baseline
+        params: Optional[Dict[str, Any]] = None,  # noqa: UP006, UP045 # Baseline
+        content: Optional[bytes] = None,  # noqa: UP045 # Baseline
+        files: Optional[Dict[str, Any]] = None,  # noqa: UP006, UP045 # Baseline
+        tool_name: Optional[str] = None,  # noqa: UP045 # Baseline
+    ) -> Dict[str, Any] | bytes:  # noqa: UP006 # Baseline
         """
         Execute a PATCH request with authorization header and handle common error patterns.
 
@@ -256,16 +254,24 @@ class ToolHelperService:
             ExternalAPIError: If the request fails
         """
         return await self._execute_request_with_body(
-            HTTPMethod.PATCH, url, headers, json, data, params, content, files, tool_name
+            HTTPMethod.PATCH,
+            url,
+            headers,
+            json,
+            data,
+            params,
+            content,
+            files,
+            tool_name,
         )
-        
+
     async def execute_delete_request(
         self,
         url: str,
-        headers: Dict[str, str] = create_default_headers(),
-        params: Optional[Dict[str, Any]] = None,
-        tool_name: Optional[str] = None,
-    ) -> Dict[str, Any] | bytes:
+        headers: Dict[str, str] = create_default_headers(),  # noqa: UP006 # Baseline
+        params: Optional[Dict[str, Any]] = None,  # noqa: UP006, UP045 # Baseline
+        tool_name: Optional[str] = None,  # noqa: UP045 # Baseline
+    ) -> Dict[str, Any] | bytes:  # noqa: UP006 # Baseline
         """
         Execute a DELETE request with authorization header and handle common error patterns.
 
@@ -290,16 +296,14 @@ class ToolHelperService:
 
             return response_json
         except ExternalAPIError as e:
-            LOGGER.error(
-                f"{tool_name or 'Request'} to {url} failed with error: {str(e)}"
-            )
-            raise self._format_exception(e, HTTPMethod.DELETE, tool_name)
+            LOGGER.error(f"{tool_name or 'Request'} to {url} failed with error: {e!s}")
+            raise self._format_exception(e, HTTPMethod.DELETE, tool_name)  # noqa: B904 # Baseline
 
     def _format_exception(
         self,
         exception: ExternalAPIError,
         method: HTTPMethod,
-        tool_name: Optional[str] = None,
+        tool_name: Optional[str] = None,  # noqa: UP045 # Baseline
     ) -> ExternalAPIError | ServiceError:
         """
         Handle API error with smart formatting and truncation.
@@ -323,41 +327,49 @@ class ToolHelperService:
         error_detail = self._extract_error_detail(exception.message)
         error_category = self._get_error_category(status_code)
         sanitized_message = self._get_sanitized_message(status_code, error_detail)
-        
+
         error_message = self._build_error_message(
-            tool_name, error_category, status_code, sanitized_message, error_detail,
-            original_message=exception.message
+            tool_name,
+            error_category,
+            status_code,
+            sanitized_message,
+            error_detail,
+            original_message=exception.message,
         )
-        
+
         return self._raise_formatted_error(
             status_code, method, error_message, exception.message
         )
-    
+
     def _parse_status_code(self, message: str) -> str | None:
         """Parse status code from exception message.
-        
+
         Returns:
             Status code string if found, or "request_failed" for non-HTTP errors
         """
         status_code_match = re.search(r"HTTP error (\d+)", message)
         if status_code_match:
             return status_code_match.group(1)
-        
+
         # Check for "Request failed:" pattern (e.g., JSON parsing errors)
         if message.startswith("Request failed:"):
             return "request_failed"
-        
+
         return None
-    
+
     def _extract_error_detail(self, message: str) -> str:
         """Extract error detail from exception message."""
-        error_detail_match = re.search(r"HTTP error \d+ for .+?: (.+)", message, re.DOTALL)
+        error_detail_match = re.search(
+            r"HTTP error \d+ for .+?: (.+)", message, re.DOTALL
+        )
         if error_detail_match:
             return error_detail_match.group(1).strip()
-        
-        LOGGER.debug(f"Could not find error_detail pattern in exception.message: {message[:200]}")
+
+        LOGGER.debug(
+            f"Could not find error_detail pattern in exception.message: {message[:200]}"
+        )
         return ""
-    
+
     def _get_error_category(self, status_code: str | None) -> str:
         """Get error category from status code."""
         if status_code == "request_failed":
@@ -365,23 +377,29 @@ class ToolHelperService:
         if status_code and status_code.isdigit():
             return self._categorize_error(int(status_code))
         return "Unknown Error"
-    
+
     def _get_sanitized_message(self, status_code: str | None, error_detail: str) -> str:
         """Get sanitized message from error detail, skipping for 500 errors."""
         if status_code == "500":
             return ""
-        
-        LOGGER.debug(f"Extracting message from error_detail (first 200 chars): {error_detail[:200]}")
+
+        LOGGER.debug(
+            f"Extracting message from error_detail (first 200 chars): {error_detail[:200]}"
+        )
         sanitized = self._extract_error_message(error_detail, max_length=250)
-        LOGGER.debug(f"Extracted sanitized_message: {sanitized[:100] if sanitized else 'EMPTY'}")
+        LOGGER.debug(
+            f"Extracted sanitized_message: {sanitized[:100] if sanitized else 'EMPTY'}"
+        )
         return sanitized
 
     def _get_error_message_code(self, error_detail: str) -> str:
-        LOGGER.debug(f"Extracting error message code from error_detail (first 200 chars): {error_detail[:200]}")
+        LOGGER.debug(
+            f"Extracting error message code from error_detail (first 200 chars): {error_detail[:200]}"
+        )
         error_message_code = self._extract_error_message_code(error_detail)
         LOGGER.debug(f"Extracted error message code: {error_message_code}")
         return error_message_code
-    
+
     def _format_request_failed_error(
         self, base_message: str, original_message: str, error_detail: str
     ) -> str:
@@ -390,22 +408,26 @@ class ToolHelperService:
             actual_error = original_message.replace("Request failed: ", "", 1)
             return f"{base_message}. {actual_error}"
         return f"{base_message}. {error_detail if error_detail else original_message}"
-    
+
     def _format_404_error(
-        self, base_message: str, status_code: str, error_detail: str, sanitized_message: str
+        self,
+        base_message: str,
+        status_code: str,
+        error_detail: str,
+        sanitized_message: str,
     ) -> str:
         """Format 404 error message."""
         error_message_code = self._get_error_message_code(error_detail)
-        
+
         not_implemented_error = self._handle_not_implemented_error(
             error_message_code, base_message, status_code, sanitized_message
         )
         if not_implemented_error:
             return not_implemented_error
-        
+
         message = f"{base_message} (Status: {status_code}). Resource was not found."
         return f"{message} {sanitized_message}" if sanitized_message else message
-    
+
     def _format_status_code_error(
         self, base_message: str, status_code: str, sanitized_message: str
     ) -> str:
@@ -413,125 +435,154 @@ class ToolHelperService:
         message = f"{base_message} (Status: {status_code})"
         return f"{message}. {sanitized_message}" if sanitized_message else message
 
-    def _build_error_message(
-        self, tool_name: Optional[str], error_category: str,
-        status_code: str | None, sanitized_message: str, error_detail: str,
-        original_message: str = ""
+    def _build_error_message(  # noqa: PLR0913 # Baseline
+        self,
+        tool_name: Optional[str],  # noqa: UP045 # Baseline
+        error_category: str,
+        status_code: str | None,
+        sanitized_message: str,
+        error_detail: str,
+        original_message: str = "",
     ) -> str:
         """Build formatted error message."""
-        tool_display = tool_name or 'request'
+        tool_display = tool_name or "request"
         base_message = f"Tool {tool_display} call failed: {error_category}"
-        
+
         if status_code == "request_failed":
-            return self._format_request_failed_error(base_message, original_message, error_detail)
-        
+            return self._format_request_failed_error(
+                base_message, original_message, error_detail
+            )
+
         if status_code == "500":
             return f"{base_message} (Status: {status_code}). Internal server error."
-        
+
         if status_code == "404":
-            return self._format_404_error(base_message, status_code, error_detail, sanitized_message)
-        
+            return self._format_404_error(
+                base_message, status_code, error_detail, sanitized_message
+            )
+
         if status_code == "403":
             message = f"{base_message} (Status: {status_code}). Operation is forbidden."
             return f"{message} {sanitized_message}" if sanitized_message else message
-        
+
         if status_code:
-            return self._format_status_code_error(base_message, status_code, sanitized_message)
-        
-        return f"{base_message}. {sanitized_message}" if sanitized_message else base_message
-    
-    def _handle_not_implemented_error(self, error_message_code: str, base_message: str, status_code: str, sanitized_message: str) -> str | None:
-        if error_message_code.lower() == "not_implemented" and settings.di_env_mode == "CPD":
+            return self._format_status_code_error(
+                base_message, status_code, sanitized_message
+            )
+
+        return (
+            f"{base_message}. {sanitized_message}"
+            if sanitized_message
+            else base_message
+        )
+
+    def _handle_not_implemented_error(  # noqa: RET503 # Baseline
+        self,
+        error_message_code: str,
+        base_message: str,
+        status_code: str,
+        sanitized_message: str,
+    ) -> str | None:
+        if (
+            error_message_code.lower() == "not_implemented"
+            and settings.di_env_mode == "CPD"
+        ):
             message = f"{base_message} (Status: {status_code}). This capability is not available in this CPD version or the functionality is not enabled. Please refer to https://github.com/IBM/data-intelligence-mcp-server/blob/main/TOOLS_PROMPTS.md (TOOLS_PROMPTS.md) for information about the versions where this is available. Consider upgrading to the right version to access this capability."
             return f"{message} {sanitized_message}" if sanitized_message else message
 
-        if error_message_code.lower() == "not_implemented" and settings.di_env_mode == "SaaS":
+        if (
+            error_message_code.lower() == "not_implemented"
+            and settings.di_env_mode == "SaaS"
+        ):
             message = f"{base_message} (Status: {status_code}). This capability is not available in this SaaS version or the functionality is not enabled."
             return f"{message} {sanitized_message}" if sanitized_message else message
 
     def _raise_formatted_error(
-        self, status_code: str | None, method: HTTPMethod,
-        error_message: str, original_message: str
+        self,
+        status_code: str | None,
+        method: HTTPMethod,
+        error_message: str,
+        original_message: str,
     ) -> ExternalAPIError | ServiceError:
         """Raise appropriate error type based on status code."""
         LOGGER.error(f"{error_message}, Full exception: {original_message}")
-        
+
         # Request processing errors (e.g., JSON parsing) should not be retried
         if status_code == "request_failed":
             raise ServiceError(error_message)
-        
+
         if status_code == "404" and method in [HTTPMethod.GET, HTTPMethod.DELETE]:
             raise ServiceError(error_message)
-        
+
         if status_code == "403":
             raise ServiceError(error_message)
-        
+
         raise ExternalAPIError(error_message)
-    
-    def _categorize_error(self, status_code: int) -> str:
+
+    def _categorize_error(self, status_code: int) -> str:  # noqa: PLR0911 # Baseline
         """
         Categorize HTTP error by status code.
-        
+
         Args:
             status_code: HTTP status code
-            
+
         Returns:
             str: Error category name
         """
-        if 400 <= status_code < 500:
-            if status_code == 400:
+        if 400 <= status_code < 500:  # noqa: PLR2004 # Baseline
+            if status_code == 400:  # noqa: PLR2004 # Baseline
                 return "Validation Error"
-            elif status_code == 401:
+            if status_code == 401:  # noqa: PLR2004 # Baseline
                 return "Authentication Error"
-            elif status_code == 403:
+            if status_code == 403:  # noqa: PLR2004 # Baseline
                 return "Authorization Error"
-            elif status_code == 404:
+            if status_code == 404:  # noqa: PLR2004 # Baseline
                 return "Not Found Error"
-            elif status_code == 422:
+            if status_code == 422:  # noqa: PLR2004 # Baseline
                 return "Validation Error"
-            else:
-                return "Client Error"
-        elif 500 <= status_code < 600:
+            return "Client Error"
+        if 500 <= status_code < 600:  # noqa: PLR2004 # Baseline
             return "Server Error"
-        else:
-            return "Unknown Error"
-    
+        return "Unknown Error"
+
     def _extract_error_message(self, error_detail: str, max_length: int = 250) -> str:
         """
         Extract error message from error detail.
         If error_detail is JSON, tries to extract message from errors array or message field.
         Otherwise, returns empty string to show only categorized error.
-        
+
         Args:
             error_detail: Original error detail (could be JSON string or plain text)
             max_length: Maximum length for the extracted message
-            
+
         Returns:
             str: Extracted and sanitized error message, or empty string if no message found
         """
         if not error_detail:
             return ""
-        
+
         json_str = self._find_json_string(error_detail)
         if not json_str:
             return ""
-        
+
         error_json = self._parse_json_safely(json_str)
         if error_json is None:
             return ""
-        
+
         # Try to extract message from errors array first
         message = self._extract_message_from_errors_array(error_json, max_length)
         if message:
             return message
-        
+
         # Fallback to top-level message field
         message = self._extract_message_from_top_level(error_json, max_length)
         if message:
             return message
-        
+
         # No message found
-        LOGGER.debug(f"Could not extract message from error_json. Keys: {list(error_json.keys()) if isinstance(error_json, dict) else 'not a dict'}")
+        LOGGER.debug(
+            f"Could not extract message from error_json. Keys: {list(error_json.keys()) if isinstance(error_json, dict) else 'not a dict'}"
+        )
         return ""
 
     def _extract_error_message_code(self, error_detail: str) -> str:
@@ -539,181 +590,232 @@ class ToolHelperService:
         Extract error message code from error detail.
         If error_detail is JSON, tries to extract message code from errors array or message field.
         Otherwise, returns empty string to show only categorized error.
-        
+
         Args:
             error_detail: Original error detail (could be JSON string or plain text)
-            
+
         Returns:
             str: Extracted and sanitized error message code, or empty string if no message found
         """
         if not error_detail:
             return ""
-        
+
         json_str = self._find_json_string(error_detail)
         if not json_str:
             return ""
-        
+
         error_json = self._parse_json_safely(json_str)
         if error_json is None:
             return ""
-        
+
         # Try to extract error message code from errors array first
         message = self._extract_message_code_from_errors_array(error_json)
         if message:
             return message
-        
+
         # No error message code found
-        LOGGER.debug(f"Could not extract error message code from error_json. Keys: {list(error_json.keys()) if isinstance(error_json, dict) else 'not a dict'}")
+        LOGGER.debug(
+            f"Could not extract error message code from error_json. Keys: {list(error_json.keys()) if isinstance(error_json, dict) else 'not a dict'}"
+        )
         return ""
-    
+
     def _find_json_string(self, error_detail: str) -> str:
         """Find and extract JSON string from error detail."""
         for i, char in enumerate(error_detail):
-            if char in ['{', '[']:
+            if char in ["{", "["]:
                 return error_detail[i:]
-        
+
         LOGGER.debug(f"No JSON found in error_detail: {error_detail[:100]}")
         return ""
-    
+
     def _parse_json_safely(self, json_str: str) -> dict | list | None:
         """Parse JSON string safely, returning None on failure."""
         try:
             return json.loads(json_str)
         except (json.JSONDecodeError, TypeError) as e:
-            LOGGER.error(f"Failed to parse error_detail as JSON: {e}. JSON string: {json_str[:200]}")
+            LOGGER.error(
+                f"Failed to parse error_detail as JSON: {e}. JSON string: {json_str[:200]}"
+            )
             return None
-    
-    def _extract_message_from_errors_array(self, error_json: dict | list, max_length: int) -> str:
+
+    def _extract_message_from_errors_array(
+        self, error_json: dict | list, max_length: int
+    ) -> str:
         """Extract message from errors array if present."""
         if not isinstance(error_json, dict) or "errors" not in error_json:
             return ""
-        
+
         errors = error_json.get("errors", [])
         if not isinstance(errors, list) or len(errors) == 0:
             LOGGER.debug(f"errors is not a list or is empty: {errors}")
             return ""
-        
+
         first_error = errors[0]
         if not isinstance(first_error, dict) or "message" not in first_error:
             LOGGER.debug(f"first_error is not dict or has no message: {first_error}")
             return ""
-        
+
         message = first_error.get("message", "")
         if message:
             LOGGER.debug(f"Extracted message from errors[0]: {message[:100]}")
             return self._sanitize_error_message(message, max_length)
-        
+
         return ""
-        
+
     def _extract_message_code_from_errors_array(self, error_json: dict | list) -> str:
         """Extract message code from errors array if present."""
         if not isinstance(error_json, dict) or "errors" not in error_json:
             return ""
-        
+
         errors = error_json.get("errors", [])
         if not isinstance(errors, list) or len(errors) == 0:
             LOGGER.debug(f"errors is not a list or is empty: {errors}")
             return ""
-        
+
         first_error = errors[0]
         if not isinstance(first_error, dict) or "code" not in first_error:
-            LOGGER.debug(f"first_error is not dict or has no error message code: {first_error}")
+            LOGGER.debug(
+                f"first_error is not dict or has no error message code: {first_error}"
+            )
             return ""
-        
+
         message = first_error.get("code", "")
         return message
-    
-    def _extract_message_from_top_level(self, error_json: dict | list, max_length: int) -> str:
+
+    def _extract_message_from_top_level(
+        self, error_json: dict | list, max_length: int
+    ) -> str:
         """Extract message from top-level message field if present."""
         if not isinstance(error_json, dict) or "message" not in error_json:
             return ""
-        
+
         message = error_json.get("message", "")
         if message:
             LOGGER.debug(f"Extracted message from top-level: {message[:100]}")
             return self._sanitize_error_message(message, max_length)
-        
+
         return ""
-    
+
     def _sanitize_error_message(self, error_message: str, max_length: int = 250) -> str:
         """
         Sanitize and truncate error message to prevent information overload and leak sensitive data.
-        
+
         Args:
             error_message: Original error message
             max_length: Maximum length for the sanitized message
-            
+
         Returns:
             str: Sanitized and truncated error message
         """
         if not error_message:
             return ""
-        
+
         sanitized = error_message
-        
+
         # IMPORTANT: Order matters - sanitize most specific patterns first
-        
+
         # Remove URLs first (but keep domain for context) - do this before token sanitization
         # to avoid partial matches in URLs
-        sanitized = re.sub(r'https?://[^\s]+', '[URL]', sanitized)
-        
+        sanitized = re.sub(r"https?://[^\s]+", "[URL]", sanitized)
+
         # Remove database connection strings (contains credentials, do before generic token matching)
-        sanitized = re.sub(r'\b(?:postgresql|postgres|mysql|mongodb|redis|mssql|sqlserver|oracle|sqlite)://[^\s]+', 
-                          '[DATABASE_URL]', sanitized, flags=re.IGNORECASE)
-        
+        sanitized = re.sub(
+            r"\b(?:postgresql|postgres|mysql|mongodb|redis|mssql|sqlserver|oracle|sqlite)://[^\s]+",
+            "[DATABASE_URL]",
+            sanitized,
+            flags=re.IGNORECASE,
+        )
+
         # Remove potential AWS/Azure/GCP keys or ARNs (specific patterns before generic tokens)
         # Note: Using [a-z0-9] instead of [a-zA-Z0-9] since IGNORECASE flag makes case redundant
         # Note: Escaping - to avoid it being interpreted as a range operator (which would create duplicates with 0-9)
-        sanitized = re.sub(r'\b(?:AKIA|ASIA|arn:aws|azure-|gcp-)[a-z0-9/_\-]+', '[CLOUD_CREDENTIAL]', sanitized, flags=re.IGNORECASE)
-        
+        sanitized = re.sub(
+            r"\b(?:AKIA|ASIA|arn:aws|azure-|gcp-)[a-z0-9/_\-]+",
+            "[CLOUD_CREDENTIAL]",
+            sanitized,
+            flags=re.IGNORECASE,
+        )
+
         # Remove Bearer tokens (Bearer followed by alphanumeric string) - specific pattern
         # Note: Using [a-z0-9] instead of [a-zA-Z0-9] since IGNORECASE flag makes case redundant
         # Note: Escaping - to avoid it being interpreted as a range operator
-        sanitized = re.sub(r'\bBearer\s+[a-z0-9_\-]{20,}\b', 'Bearer [REDACTED]', sanitized, flags=re.IGNORECASE)
-        
+        sanitized = re.sub(
+            r"\bBearer\s+[a-z0-9_\-]{20,}\b",
+            "Bearer [REDACTED]",
+            sanitized,
+            flags=re.IGNORECASE,
+        )
+
         # Handle Stripe-style keys (sk_live_..., pk_test_...) - specific pattern
         # Note: Using [a-z0-9] instead of [A-Za-z0-9] since IGNORECASE flag makes case redundant
-        sanitized = re.sub(r'\b(sk|pk|rk)_(live|test|prod)_[a-z0-9]{24,}\b', r'\1_\2_[REDACTED]', sanitized, flags=re.IGNORECASE)
-        
+        sanitized = re.sub(
+            r"\b(sk|pk|rk)_(live|test|prod)_[a-z0-9]{24,}\b",
+            r"\1_\2_[REDACTED]",
+            sanitized,
+            flags=re.IGNORECASE,
+        )
+
         # Remove potential API keys with prefixes (e.g., "apikey:abc123...", "token:...")
         # Note: api[_-]?key already matches "apikey" (when optional [_-]? is empty), so "apikey" is redundant
-        sanitized = re.sub(r'\b(api[_-]?key|token|secret|password|pwd|credential|auth[_-]?token)[=:]\s*[^\s]+', 
-                          r'\1=[REDACTED]', sanitized, flags=re.IGNORECASE)
-        
+        sanitized = re.sub(
+            r"\b(api[_-]?key|token|secret|password|pwd|credential|auth[_-]?token)[=:]\s*[^\s]+",
+            r"\1=[REDACTED]",
+            sanitized,
+            flags=re.IGNORECASE,
+        )
+
         # Remove potential API keys, tokens, or secrets (long alphanumeric strings)
         # Catch strings of 32+ characters (common token/secret lengths) - do this after specific patterns
-        sanitized = re.sub(r'\b[a-zA-Z0-9]{32,}\b', '[REDACTED]', sanitized)
-        
+        sanitized = re.sub(r"\b[a-zA-Z0-9]{32,}\b", "[REDACTED]", sanitized)
+
         # Remove potential email addresses (but keep domain context)
-        sanitized = re.sub(r'\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b', '[EMAIL]', sanitized)
-        
+        sanitized = re.sub(
+            r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b", "[EMAIL]", sanitized
+        )
+
         # Remove potential IP addresses (IPv4)
-        sanitized = re.sub(r'\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b', '[IP]', sanitized)
+        sanitized = re.sub(r"\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b", "[IP]", sanitized)
         # Remove IPv6 addresses (simplified pattern)
-        sanitized = re.sub(r'\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b', '[IP]', sanitized)
-        
+        sanitized = re.sub(
+            r"\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b", "[IP]", sanitized
+        )
+
         # Remove potential file paths with sensitive names (e.g., /home/user/.ssh/id_rsa)
         # Match paths containing sensitive keywords or file extensions
-        sanitized = re.sub(r'[/\\][^\s]*(?:passwd|password|secret|key|credential|token|\.env|\.pem|\.key|\.p12|\.pfx|id_rsa|id_dsa|id_ed25519)[^\s]*', 
-                          '[FILE_PATH]', sanitized, flags=re.IGNORECASE)
-        
+        sanitized = re.sub(
+            r"[/\\][^\s]*(?:passwd|password|secret|key|credential|token|\.env|\.pem|\.key|\.p12|\.pfx|id_rsa|id_dsa|id_ed25519)[^\s]*",
+            "[FILE_PATH]",
+            sanitized,
+            flags=re.IGNORECASE,
+        )
+
         # Remove potential UUIDs (which might be sensitive IDs) - do before generic alphanumeric
-        sanitized = re.sub(r'\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b', 
-                          '[UUID]', sanitized, flags=re.IGNORECASE)
-        
+        sanitized = re.sub(
+            r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b",
+            "[UUID]",
+            sanitized,
+            flags=re.IGNORECASE,
+        )
+
         # Remove potential credit card numbers (16 digits, possibly with spaces or dashes)
-        sanitized = re.sub(r'\b(?:\d{4}[-\s]?){3}\d{4}\b', '[CREDIT_CARD]', sanitized)
-        
+        sanitized = re.sub(r"\b(?:\d{4}[-\s]?){3}\d{4}\b", "[CREDIT_CARD]", sanitized)
+
         # Remove potential SSN (XXX-XX-XXXX)
-        sanitized = re.sub(r'\b\d{3}-\d{2}-\d{4}\b', '[SSN]', sanitized)
-        
+        sanitized = re.sub(r"\b\d{3}-\d{2}-\d{4}\b", "[SSN]", sanitized)
+
         # Remove potential phone numbers (various formats)
-        sanitized = re.sub(r'\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b', '[PHONE]', sanitized)
-        
+        sanitized = re.sub(
+            r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b",
+            "[PHONE]",
+            sanitized,
+        )
+
         # Truncate if too long
         if len(sanitized) > max_length:
-            sanitized = sanitized[:max_length].rsplit(' ', 1)[0] + "... (message truncated)"
-        
+            sanitized = (
+                sanitized[:max_length].rsplit(" ", 1)[0] + "... (message truncated)"
+            )
+
         return sanitized.strip()
 
 

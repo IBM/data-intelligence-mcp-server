@@ -10,7 +10,7 @@ prompt into a valid Global Search ES DSL query body.
 """
 
 import json
-from typing import List
+from typing import List  # noqa: UP035 # Baseline
 
 from app.services.constants import GS_BASE_ENDPOINT, TEXT_TO_QUERY_BASE_ENDPOINT
 from app.services.text_to_query_search.constants import MAX_SEARCH_RESULTS
@@ -40,9 +40,9 @@ def parse_and_enrich_query_data(query_data: dict | str) -> dict:
 
 async def call_text_to_query_api(
     search_prompt: str,
-    artifact_types: List[str] | None,
+    artifact_types: List[str] | None,  # noqa: UP006 # Baseline
     container_details: Container | None,
-    resolved_names_mapping: List[dict] | None = None,
+    resolved_names_mapping: List[dict] | None = None,  # noqa: UP006 # Baseline
 ) -> dict:
     """Call the text-to-query API and return a validated ES DSL query dict.
 
@@ -87,7 +87,9 @@ async def call_text_to_query_api(
 
     if resolved_names_mapping:
         names_to_ids.extend(resolved_names_mapping)
-        LOGGER.info("Added %d resolved entities to names_to_ids", len(resolved_names_mapping))
+        LOGGER.info(
+            "Added %d resolved entities to names_to_ids", len(resolved_names_mapping)
+        )
 
     text_to_query_payload = {
         "include_raw_model_input_output": False,
@@ -160,9 +162,9 @@ async def fetch_search_page(query: dict) -> dict:
 
 async def generate_gs_query(
     search_prompt: str,
-    artifact_types: List[str] | None = None,
+    artifact_types: List[str] | None = None,  # noqa: UP006 # Baseline
     container_details: Container | None = None,
-    resolved_names_mapping: List[dict] | None = None,
+    resolved_names_mapping: List[dict] | None = None,  # noqa: UP006 # Baseline
     max_attempts: int = MAX_QUERY_GENERATION_ATTEMPTS,
 ) -> tuple[dict, dict | None]:
     """Generate an ES DSL query from a natural language prompt, with retry logic.
@@ -214,7 +216,9 @@ async def generate_gs_query(
 
         except (ExternalAPIError, ConnectionError, TimeoutError) as e:
             last_exception = e
-            LOGGER.warning("Query generation attempt %d failed: %s", attempt + 1, str(e))
+            LOGGER.warning(
+                "Query generation attempt %d failed: %s", attempt + 1, str(e)
+            )
             if attempt == max_attempts - 1:
                 LOGGER.error(
                     "All %d query generation attempts failed. Last error: %s",

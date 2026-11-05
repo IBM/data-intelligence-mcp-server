@@ -24,9 +24,9 @@ Similarity labels (shared):
     ≥ 0.70  → "Highly Relevant"
     ≥ 0.60  → "Maybe Relevant"
     < 0.60  → "Low Relevance"
-"""
+"""  # noqa: RUF002 # Baseline
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001 # Baseline
 
 import re
 from typing import Optional
@@ -40,21 +40,22 @@ from app.shared.utils.http_client import get_http_client
 # Shared helper
 # ---------------------------------------------------------------------------
 
+
 def get_similarity_label(score: float) -> str:
     """Convert a similarity score in [0, 1] to a human-readable label."""
-    if score > 0.85:
+    if score > 0.85:  # noqa: PLR2004 # Baseline
         return "Near Exact Match"
-    elif score >= 0.70:
+    if score >= 0.70:  # noqa: PLR2004 # Baseline
         return "Highly Relevant"
-    elif score >= 0.60:
+    if score >= 0.60:  # noqa: PLR2004 # Baseline
         return "Maybe Relevant"
-    else:
-        return "Low Relevance"
+    return "Low Relevance"
 
 
 # ---------------------------------------------------------------------------
 # Granite embedding client
 # ---------------------------------------------------------------------------
+
 
 class GraniteEmbeddingClient:
     """Async client for Granite embedding models.
@@ -70,7 +71,7 @@ class GraniteEmbeddingClient:
         # module-level singleton:
         from app.services.similarity_utils import embedding_client
         vec = await embedding_client.get_embedding("some text")
-    """
+    """  # noqa: RUF002 # Baseline
 
     def __init__(self) -> None:
         self.mode = "api" if settings.granite_embedding_url else "local"
@@ -89,6 +90,7 @@ class GraniteEmbeddingClient:
             return
         try:
             from sentence_transformers import SentenceTransformer
+
             model_name = settings.granite_local_model
             cache_dir = settings.granite_local_cache_dir
             LOGGER.info("Loading local Granite model: %s", model_name)
@@ -108,7 +110,7 @@ class GraniteEmbeddingClient:
     # Public API
     # ------------------------------------------------------------------
 
-    async def get_embedding(self, text: str) -> Optional[list[float]]:
+    async def get_embedding(self, text: str) -> Optional[list[float]]:  # noqa: UP045 # Baseline
         """Return the embedding vector for *text*, or ``None`` on failure.
 
         Args:
@@ -121,7 +123,9 @@ class GraniteEmbeddingClient:
             return await self._get_api_embedding(text)
         return self._get_local_embedding(text)
 
-    async def get_embeddings_batch(self, texts: list[str]) -> list[Optional[list[float]]]:
+    async def get_embeddings_batch(
+        self, texts: list[str]
+    ) -> list[Optional[list[float]]]:  # noqa: UP045 # Baseline
         """Return embedding vectors for a list of texts.
 
         Calls are made sequentially for the API mode; for local mode all
@@ -144,12 +148,14 @@ class GraniteEmbeddingClient:
     # Backend implementations
     # ------------------------------------------------------------------
 
-    async def _get_api_embedding(self, text: str) -> Optional[list[float]]:
+    async def _get_api_embedding(self, text: str) -> Optional[list[float]]:  # noqa: UP045 # Baseline
         """Call the remote Granite embeddings API."""
         try:
             headers: dict[str, str] = {"Content-Type": "application/json"}
             if settings.granite_embedding_api_key:
-                headers["Authorization"] = f"Bearer {settings.granite_embedding_api_key}"
+                headers["Authorization"] = (
+                    f"Bearer {settings.granite_embedding_api_key}"
+                )
 
             payload = {"text": text, "model": settings.granite_embedding_model}
 
@@ -168,7 +174,7 @@ class GraniteEmbeddingClient:
             LOGGER.error("Granite API embedding failed: %s", e)
             return None
 
-    def _get_local_embedding(self, text: str) -> Optional[list[float]]:
+    def _get_local_embedding(self, text: str) -> Optional[list[float]]:  # noqa: UP045 # Baseline
         """Encode a single text with the local SentenceTransformer model."""
         try:
             self._ensure_local_model()
@@ -179,7 +185,9 @@ class GraniteEmbeddingClient:
             LOGGER.error("Local Granite embedding failed: %s", e)
             return None
 
-    def _get_local_embeddings_batch(self, texts: list[str]) -> list[Optional[list[float]]]:
+    def _get_local_embeddings_batch(
+        self, texts: list[str]
+    ) -> list[Optional[list[float]]]:  # noqa: UP045 # Baseline
         """Encode a batch of texts with the local SentenceTransformer model."""
         try:
             self._ensure_local_model()
@@ -190,7 +198,7 @@ class GraniteEmbeddingClient:
             return [None] * len(texts)
 
 
-# Module-level singleton – import and use directly:
+# Module-level singleton – import and use directly:  # noqa: RUF003 # Baseline
 #   from app.services.similarity_utils import embedding_client
 # Guard: only instantiate when the required Granite settings are present on the
 # Settings object.  BM25SimilarityService and CosineSimilarityService are always
@@ -207,8 +215,9 @@ except AttributeError:
 
 
 # ---------------------------------------------------------------------------
-# Cosine similarity – torch backend
+# Cosine similarity – torch backend  # noqa: RUF003 # Baseline
 # ---------------------------------------------------------------------------
+
 
 class CosineSimilarityService:
     """Cosine similarity over dense float vectors using torch.
@@ -219,12 +228,13 @@ class CosineSimilarityService:
     - matrix:    score_matrix(X, Y) → 2-D tensor  (n × m)
 
     All inputs are accepted as plain Python lists or torch.Tensor objects.
-    """
+    """  # noqa: RUF002 # Baseline
 
     @staticmethod
-    def _to_tensor(vec):
+    def _to_tensor(vec):  # noqa: ANN001, ANN205 # Baseline
         """Convert list or tensor to a 1-D or 2-D float32 tensor."""
         import torch
+
         if isinstance(vec, torch.Tensor):
             return vec.float()
         return torch.tensor(vec, dtype=torch.float32)
@@ -234,7 +244,7 @@ class CosineSimilarityService:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def score(vec1, vec2) -> float:
+    def score(vec1, vec2) -> float:  # noqa: ANN001 # Baseline
         """Cosine similarity between two 1-D vectors.
 
         Args:
@@ -245,17 +255,18 @@ class CosineSimilarityService:
             float in [0.0, 1.0].
         """
         try:
-            import torch
+            import torch  # noqa: F401 # Baseline
+
             t1 = CosineSimilarityService._to_tensor(vec1).unsqueeze(0)  # (1, d)
             t2 = CosineSimilarityService._to_tensor(vec2).unsqueeze(0)  # (1, d)
-            sim = CosineSimilarityService.score_matrix(t1, t2)          # (1, 1)
+            sim = CosineSimilarityService.score_matrix(t1, t2)  # (1, 1)
             return float(sim[0, 0].clamp(0.0, 1.0))
         except Exception as e:
             LOGGER.error("CosineSimilarityService.score failed: %s", e)
             return 0.0
 
     @staticmethod
-    def score_batch(query_vec, corpus_vecs) -> list[float]:
+    def score_batch(query_vec, corpus_vecs) -> list[float]:  # noqa: ANN001 # Baseline
         """Cosine similarity between one query vector and many corpus vectors.
 
         Args:
@@ -264,24 +275,27 @@ class CosineSimilarityService:
 
         Returns:
             list[float] of length n, each value in [0.0, 1.0].
-        """
+        """  # noqa: RUF002 # Baseline
         try:
             import torch
-            q = CosineSimilarityService._to_tensor(query_vec).unsqueeze(0)   # (1, d)
+
+            q = CosineSimilarityService._to_tensor(query_vec).unsqueeze(0)  # (1, d)
             if isinstance(corpus_vecs, torch.Tensor):
-                C = corpus_vecs.float()
+                C = corpus_vecs.float()  # noqa: N806 # Baseline
                 if C.dim() == 1:
-                    C = C.unsqueeze(0)
+                    C = C.unsqueeze(0)  # noqa: N806 # Baseline
             else:
-                C = torch.stack([CosineSimilarityService._to_tensor(v) for v in corpus_vecs])  # (n, d)
-            sim = CosineSimilarityService.score_matrix(q, C)   # (1, n)
+                C = torch.stack(  # noqa: N806 # Baseline
+                    [CosineSimilarityService._to_tensor(v) for v in corpus_vecs]
+                )  # (n, d)
+            sim = CosineSimilarityService.score_matrix(q, C)  # (1, n)
             return sim[0].clamp(0.0, 1.0).tolist()
         except Exception as e:
             LOGGER.error("CosineSimilarityService.score_batch failed: %s", e)
             return [0.0] * (len(corpus_vecs) if hasattr(corpus_vecs, "__len__") else 0)
 
     @staticmethod
-    def score_matrix(X, Y) -> "torch.Tensor":
+    def score_matrix(X, Y) -> torch.Tensor:  # noqa: ANN001, F821, N803 # Baseline
         """Cosine similarity between every row of X and every row of Y.
 
         Args:
@@ -293,12 +307,13 @@ class CosineSimilarityService:
             (Caller may clamp to [0, 1] for embedding outputs.)
         """
         import torch
+
         if not isinstance(X, torch.Tensor):
-            X = torch.tensor(X, dtype=torch.float32)
+            X = torch.tensor(X, dtype=torch.float32)  # noqa: N806 # Baseline
         if not isinstance(Y, torch.Tensor):
-            Y = torch.tensor(Y, dtype=torch.float32)
-        X = X.float()
-        Y = Y.float()
+            Y = torch.tensor(Y, dtype=torch.float32)  # noqa: N806 # Baseline
+        X = X.float()  # noqa: N806 # Baseline
+        Y = Y.float()  # noqa: N806 # Baseline
         # L2-normalise rows; guard against zero vectors
         xnorm = X / (X.norm(dim=1, keepdim=True).clamp(min=1e-12))
         ynorm = Y / (Y.norm(dim=1, keepdim=True).clamp(min=1e-12))
@@ -311,8 +326,9 @@ class CosineSimilarityService:
 
 
 # ---------------------------------------------------------------------------
-# BM25 – TokenizedBM25 backend with a corpus-derived word vocabulary
+# BM25 – TokenizedBM25 backend with a corpus-derived word vocabulary  # noqa: RUF003 # Baseline
 # ---------------------------------------------------------------------------
+
 
 def _tokenize(text: str) -> list[str]:
     """Lowercase word tokenizer: split on any non-alphanumeric character."""
@@ -341,8 +357,8 @@ class BM25SimilarityService:
         self.b = b
         self.device = device
         self._documents: list[str] = []
-        self._vocab: dict[str, int] = {}   # word → token ID (1-based; 0 = pad)
-        self._model = None                 # TokenizedBM25 instance (or None)
+        self._vocab: dict[str, int] = {}  # word → token ID (1-based; 0 = pad)
+        self._model = None  # TokenizedBM25 instance (or None)
         self._torch_available = self._check_torch()
 
     # ------------------------------------------------------------------
@@ -352,8 +368,9 @@ class BM25SimilarityService:
     @staticmethod
     def _check_torch() -> bool:
         try:
-            import torch   # noqa: F401
-            import scipy   # noqa: F401
+            import torch  # noqa: F401, I001 # Baseline
+            import scipy  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -363,16 +380,17 @@ class BM25SimilarityService:
         for doc in documents:
             for word in _tokenize(doc):
                 if word not in vocab:
-                    vocab[word] = len(vocab) + 1   # 0 reserved for padding
+                    vocab[word] = len(vocab) + 1  # 0 reserved for padding
         return vocab
 
     def _encode(self, text: str) -> list[int]:
         """Encode text as a list of integer token IDs (unknowns → 0)."""
         return [self._vocab.get(w, 0) for w in _tokenize(text)] or [0]
 
-    def _texts_to_tensor(self, texts: list[str]) -> "torch.Tensor":
+    def _texts_to_tensor(self, texts: list[str]) -> torch.Tensor:  # noqa: F821 # Baseline
         """Encode a list of texts into a padded 2-D int64 tensor."""
         import torch
+
         encoded = [self._encode(t) for t in texts]
         max_len = max(len(e) for e in encoded)
         padded = [e + [0] * (max_len - len(e)) for e in encoded]
@@ -390,21 +408,24 @@ class BM25SimilarityService:
         """
         self._documents = list(documents)
         self._vocab = self._build_vocab(self._documents)
-        vocab_size = len(self._vocab) + 1   # +1 for padding slot 0
+        vocab_size = len(self._vocab) + 1  # +1 for padding slot 0
 
         if self._torch_available:
             try:
                 from bm25 import TokenizedBM25
+
                 corpus_tensor = self._texts_to_tensor(self._documents)
                 self._model = TokenizedBM25(
-                    k1=self.k1, b=self.b,
+                    k1=self.k1,
+                    b=self.b,
                     vocab_size=vocab_size,
                     device=self.device,
                 )
                 self._model.index(corpus_tensor)
                 LOGGER.debug(
                     "BM25SimilarityService: indexed %d documents, vocab size %d",
-                    len(self._documents), vocab_size,
+                    len(self._documents),
+                    vocab_size,
                 )
                 return
             except Exception as e:
@@ -446,9 +467,10 @@ class BM25SimilarityService:
 
         if self._torch_available and self._model is not None:
             try:
-                import torch
+                import torch  # noqa: F401 # Baseline
+
                 q_tensor = self._texts_to_tensor(queries)
-                raw = self._model.score_batch(q_tensor)   # (Q, D)
+                raw = self._model.score_batch(q_tensor)  # (Q, D)
                 return self._normalise_matrix(raw).tolist()
             except Exception as e:
                 LOGGER.error("BM25 batch scoring failed: %s", e)
@@ -465,7 +487,7 @@ class BM25SimilarityService:
             list of (document, score) tuples, highest score first.
         """
         scores = self.score(query)
-        pairs = list(zip(self._documents, scores))
+        pairs = list(zip(self._documents, scores))  # noqa: B905 # Baseline
         pairs.sort(key=lambda x: x[1], reverse=True)
         return pairs
 
@@ -480,9 +502,10 @@ class BM25SimilarityService:
 
     def _score_torch(self, query: str) -> list[float]:
         try:
-            import torch
-            q_tensor = self._texts_to_tensor([query])          # (1, seq)
-            raw = self._model.score_batch(q_tensor).squeeze(0) # (D,)
+            import torch  # noqa: F401 # Baseline
+
+            q_tensor = self._texts_to_tensor([query])  # (1, seq)
+            raw = self._model.score_batch(q_tensor).squeeze(0)  # (D,)
             normalised = self._normalise_vector(raw)
             return normalised.tolist()
         except Exception as e:
@@ -492,8 +515,9 @@ class BM25SimilarityService:
     def _score_fallback(self, query: str) -> list[float]:
         """Pure-Python BM25 (Okapi BM25) — no torch/scipy needed."""
         import math
+
         query_tokens = _tokenize(query)
-        N = len(self._documents)
+        N = len(self._documents)  # noqa: N806 # Baseline
         if N == 0 or not query_tokens:
             return [0.0] * N
 
@@ -535,15 +559,15 @@ class BM25SimilarityService:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _normalise_vector(t: "torch.Tensor") -> "torch.Tensor":
+    def _normalise_vector(t: torch.Tensor) -> torch.Tensor:  # noqa: F821 # Baseline
         """Min-max normalise a 1-D tensor to [0, 1]."""
         lo, hi = t.min(), t.max()
-        if (hi - lo).abs() < 1e-12:
+        if (hi - lo).abs() < 1e-12:  # noqa: PLR2004 # Baseline
             return t.clamp(0.0, 1.0)
         return (t - lo) / (hi - lo)
 
     @staticmethod
-    def _normalise_matrix(t: "torch.Tensor") -> "torch.Tensor":
+    def _normalise_matrix(t: torch.Tensor) -> torch.Tensor:  # noqa: F821 # Baseline
         """Row-wise min-max normalise a 2-D tensor to [0, 1]."""
         lo = t.min(dim=1, keepdim=True).values
         hi = t.max(dim=1, keepdim=True).values
@@ -556,6 +580,6 @@ class BM25SimilarityService:
         if not scores:
             return scores
         lo, hi = min(scores), max(scores)
-        if hi - lo < 1e-12:
+        if hi - lo < 1e-12:  # noqa: PLR2004 # Baseline
             return [min(1.0, max(0.0, s)) for s in scores]
         return [(s - lo) / (hi - lo) for s in scores]

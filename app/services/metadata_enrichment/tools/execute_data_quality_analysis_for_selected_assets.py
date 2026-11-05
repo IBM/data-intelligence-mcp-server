@@ -7,7 +7,7 @@
 # temporary discrepancies in behavior may occur between API updates and tool updates.
 
 
-from typing import Annotated, Optional
+from typing import Annotated, Optional  # noqa: I001 # Baseline
 
 from pydantic import Field
 from app.core.registry import service_registry
@@ -39,7 +39,7 @@ async def _execute_data_quality_analysis_for_selected_assets(
             MetadataEnrichmentObjective.DQ_GEN_CONSTRAINTS,
             MetadataEnrichmentObjective.ANALYZE_QUALITY,
         ],
-        job_name=request.job_name
+        job_name=request.job_name,
     )
 
 
@@ -47,7 +47,7 @@ async def _execute_data_quality_analysis_for_selected_assets(
     name="run_data_quality_analysis",
     annotations={
         "title": "Execute Data Quality Analysis and Constraint Generation for Selected Datasets",
-        "destructiveHint": True
+        "destructiveHint": True,
     },
     tags={"metadata_management_and_governance"},
     description="""Use this tool when you need to execute data quality analysis for specific datasets within a project.
@@ -69,15 +69,35 @@ async def _execute_data_quality_analysis_for_selected_assets(
     5. Constructing a URL to the metadata enrichment UI for monitoring.
 
     The function assumes the datasets and categories are valid within the project. It does not handle dataset or category creation.
-    Return: A list of objects containing job details including metadata enrichment ID, job ID, job run ID, project ID, and a UI URL to monitor the data quality analysis progress.""",
+    Return: A list of objects containing job details including metadata enrichment ID, job ID, job run ID, project ID, and a UI URL to monitor the data quality analysis progress.""",  # noqa: W293 # Baseline
 )
 @auto_context
 async def execute_data_quality_analysis_for_selected_assets(
-    project_name: Annotated[str, Field(description="The name of the project for which the analysis is to be performed.")],
-    dataset_names: Annotated[list[str] | str, Field(description="Dataset names of the specified datasets to be enriched with metadata.")],
-    category_names: Annotated[list[str] | str, Field(description="""Names of the categories for which data quality analysis is required. 
-                                                     If a single category name is provided, it should be a string. If multiple categories are specified, they should be provided as a list of strings.""")],
-    job_name: Annotated[Optional[str], Field(description="The name of the job to execute the metadata enrichment asset.")],
+    project_name: Annotated[
+        str,
+        Field(
+            description="The name of the project for which the analysis is to be performed."
+        ),
+    ],
+    dataset_names: Annotated[
+        list[str] | str,
+        Field(
+            description="Dataset names of the specified datasets to be enriched with metadata."
+        ),
+    ],
+    category_names: Annotated[
+        list[str] | str,
+        Field(
+            description="""Names of the categories for which data quality analysis is required. 
+                                                     If a single category name is provided, it should be a string. If multiple categories are specified, they should be provided as a list of strings."""  # noqa: W291 # Baseline
+        ),
+    ],
+    job_name: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="The name of the job to execute the metadata enrichment asset."
+        ),
+    ],
 ) -> list[MetadataEnrichmentRun]:
     """Wrapper that MetadataEnrichmentAnalysisRequest expands object into individual parameters."""
 
@@ -85,6 +105,6 @@ async def execute_data_quality_analysis_for_selected_assets(
         project_name=project_name,
         dataset_names=dataset_names,
         category_names=category_names,
-        job_name=job_name
+        job_name=job_name,
     )
     return await _execute_data_quality_analysis_for_selected_assets(request)

@@ -9,27 +9,24 @@ from app.core.registry import prompt_registry
 
 @prompt_registry.prompt(
     name="Search Assets prompt",
-    description="Get guidance on how to search for data assets effectively"
+    description="Get guidance on how to search for data assets effectively",
 )
-def search_guide_prompt(
-    search_query: str,
-    container_type: str = "catalog"
-) -> str:
+def search_guide_prompt(search_query: str, container_type: str = "catalog") -> str:
     """
     Provides guidance on searching for data assets in catalog or project.
-    
+
     This prompt helps users understand how to effectively search for data assets
     and provides a structured approach to finding what they need.
-    
+
     Args:
-        search_query: Search term to find assets. Can be a keyword or phrase (e.g., "STOCKS", "customer data"). 
+        search_query: Search term to find assets. Can be a keyword or phrase (e.g., "STOCKS", "customer data").
                      The search can find semantically equivalent terms in asset names, descriptions, and metadata.
         container_type: The container type in which to search assets, defaults to catalog. Valid values are: 'catalog' (organization-wide search) or 'project' (project-specific search)
     """
     prompt_content = f"""I need help finding data assets in our catalog. 
 
 Search term: {search_query}
-Search scope: {container_type or 'catalog'}
+Search scope: {container_type or "catalog"}
 
 Please help me:
 1. Understand what types of assets might match my search term (tables, columns, datasets, etc.)
@@ -37,7 +34,6 @@ Please help me:
 3. Guide me on using the search_asset tool with the right parameters
 4. Explain what information I'll get back and how to use it
 
-Provide clear, actionable guidance to help me find what I need."""
+Provide clear, actionable guidance to help me find what I need."""  # noqa: W291 # Baseline
 
     return prompt_content
-

@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Annotated
+from typing import Annotated  # noqa: I001 # Baseline
 
 from pydantic import Field
 from app.core.registry import service_registry
@@ -27,10 +27,12 @@ async def _run_data_quality_rule(
     LOGGER.info(
         "Running data quality rule via util: rule=%s project=%s ",
         request.data_quality_rule_id_or_name,
-        request.project_id_or_name
+        request.project_id_or_name,
     )
-    result = await run_data_quality_rule_util(request.project_id_or_name, request.data_quality_rule_id_or_name)
-    
+    result = await run_data_quality_rule_util(
+        request.project_id_or_name, request.data_quality_rule_id_or_name
+    )
+
     # Convert DataQualityRule to RunDataQualityRuleResponse
     return RunDataQualityRuleResponse(
         data_quality_rule_id=result.data_quality_rule_id,
@@ -44,7 +46,7 @@ async def _run_data_quality_rule(
     name="run_data_quality_rule",
     annotations={
         "title": "Execute Data Quality Rule to Generate Quality Assessment",
-        "destructiveHint": True
+        "destructiveHint": True,
     },
     description="""Executes a specific data quality rule and returns details about the execution. Use when the user wants to re-run a rule.
     Do NOT use when the user only wants to view rule. Do NOT use for creating, updating, or deleting rules. Do NOT call this tool for describe data quality rules.
@@ -61,14 +63,21 @@ async def _run_data_quality_rule(
     
     Raises:
         ToolProcessFailedError: If the data quality rule run fails.
-        ExternalServiceError: If the data quality rule service request fails.""",
+        ExternalServiceError: If the data quality rule service request fails.""",  # noqa: W293 # Baseline
     tags={"run", "data_quality"},
     meta={"version": "1.0", "service": "data_quality"},
 )
 @auto_context
 async def run_data_quality_rule(
-    project_id_or_name: Annotated[str, Field(description="The ID or name of the project containing the data quality rule.")],
-    data_quality_rule_id_or_name: Annotated[str, Field(description="The ID or name of the data quality rule to execute.")],
+    project_id_or_name: Annotated[
+        str,
+        Field(
+            description="The ID or name of the project containing the data quality rule."
+        ),
+    ],
+    data_quality_rule_id_or_name: Annotated[
+        str, Field(description="The ID or name of the data quality rule to execute.")
+    ],
 ) -> RunDataQualityRuleResponse:
     """
     Wrapper that builds request model and delegates to main tool.

@@ -7,10 +7,14 @@ Tool for retrieving schema assets for text-to-SQL operations.
 This tool accesses the semantic_automation API to get schema assets.
 """
 
-from typing import Any, List, Literal, Optional, Annotated
+from typing import Any, List, Literal, Optional, Annotated  # noqa: I001, UP035 # Baseline
 from pydantic import Field
 from app.core.registry import service_registry
-from app.services.constants import GET_SEMANTIC_MODEL, CONNECTIONS_BASE_ENDPOINT, CAMS_ASSETS_BASE_ENDPOINT
+from app.services.constants import (
+    GET_SEMANTIC_MODEL,
+    CONNECTIONS_BASE_ENDPOINT,
+    CAMS_ASSETS_BASE_ENDPOINT,
+)
 from app.services.text_to_sql.models.get_semantic_model import (
     GetSemanticModelRequest,
     GetSemanticModelResponse,
@@ -18,11 +22,11 @@ from app.services.text_to_sql.models.get_semantic_model import (
     PropertyMetadata,
 )
 from app.services.tool_utils import (
-    find_project_id, 
-    find_catalog_id, 
+    find_project_id,
+    find_catalog_id,
     find_connection_id,
     find_data_source_definition_asset_id,
-    get_platform_assets_catalog_id
+    get_platform_assets_catalog_id,
 )
 from app.shared.exceptions.base import ServiceError, ValidationError
 from app.shared.logging.generate_context import auto_context
@@ -37,9 +41,11 @@ async def _resolve_container_id(container_id_or_name: str, container_type: str) 
         return await confirm_uuid(container_id_or_name, find_project_id)
     return await confirm_uuid(container_id_or_name, find_catalog_id)
 
+
 async def _resolve_connection_ids(
-    connection_ids_or_names: Optional[list[str]], container_info: list[dict]
-) -> Optional[list[str]]:
+    connection_ids_or_names: Optional[list[str]],  # noqa: UP045 # Baseline
+    container_info: list[dict],  # noqa: UP045 # Baseline
+) -> Optional[list[str]]:  # noqa: UP045 # Baseline
     """Resolve connection IDs from names or validate UUID."""
     if not connection_ids_or_names:
         return None
@@ -47,7 +53,9 @@ async def _resolve_connection_ids(
     connection_ids = []
 
     for connection_id_or_name in connection_ids_or_names:
-        connection_id = await _check_or_find_connection_id_in_containers(connection_id_or_name, container_info)
+        connection_id = await _check_or_find_connection_id_in_containers(
+            connection_id_or_name, container_info
+        )
         connection_ids.append(connection_id)
 
     return connection_ids
@@ -58,29 +66,40 @@ async def _check_or_find_connection_id_in_containers(
 ) -> str:
     """Check if connection_id_or_name is a UUID, if not, find the connection ID by name in given containers."""
     from app.shared.utils.helpers import is_uuid_bool
+
     connection_id = ""
     if is_uuid_bool(connection_id_or_name):
         for container in container_info:
             try:
                 connection_id = await _validate_connection_uuid(
-                    connection_uuid=connection_id_or_name, container_id=container['container_id'], container_type=container['container_type']
+                    connection_uuid=connection_id_or_name,
+                    container_id=container["container_id"],
+                    container_type=container["container_type"],
                 )
                 return connection_id
             except ServiceError:
-                LOGGER.warning(f"Connection with ID '{connection_id_or_name}' not found in {container['container_type']} '{container['container_id']}'")
+                LOGGER.warning(
+                    f"Connection with ID '{connection_id_or_name}' not found in {container['container_type']} '{container['container_id']}'"
+                )
     else:
         for container in container_info:
             try:
                 connection_id = await find_connection_id(
-                    connection_name=connection_id_or_name, container_id=container['container_id'], container_type=container['container_type']
+                    connection_name=connection_id_or_name,
+                    container_id=container["container_id"],
+                    container_type=container["container_type"],
                 )
                 return connection_id
             except ServiceError:
-                LOGGER.warning(f"Connection with name '{connection_id_or_name}' not found in {container['container_type']} '{container['container_id']}'")
+                LOGGER.warning(
+                    f"Connection with name '{connection_id_or_name}' not found in {container['container_type']} '{container['container_id']}'"
+                )
     if not connection_id:
-        raise ServiceError(f"Connection with name or ID '{connection_id_or_name}' not found in any container.",
-        remediation_steps = "Please provide correct connection_id_or_name of existing connection. ",
-        tool="get_semantic_model")
+        raise ServiceError(
+            f"Connection with name or ID '{connection_id_or_name}' not found in any container.",
+            remediation_steps="Please provide correct connection_id_or_name of existing connection. ",
+            tool="get_semantic_model",
+        )
     return connection_id
 
 
@@ -100,33 +119,39 @@ async def _validate_connection_uuid(
     if connection_uuid not in connection_ids:
         raise ServiceError(
             f"Connection with ID '{connection_uuid}' not found in {container_type} '{container_id}'",
-            remediation_steps = "Please provide correct connection_id_or_name of existing connection. ",
-            tool="get_semantic_model"
+            remediation_steps="Please provide correct connection_id_or_name of existing connection. ",
+            tool="get_semantic_model",
         )
 
     return connection_uuid
 
 
 async def _resolve_data_source_definition_id(
-    data_source_definition_id_or_name: Optional[str],
-) -> Optional[str]:
+    data_source_definition_id_or_name: Optional[str],  # noqa: UP045 # Baseline
+) -> Optional[str]:  # noqa: UP045 # Baseline
     """Resolve DSD ID from name or validate UUID."""
 
     if not data_source_definition_id_or_name:
         return None
-    
+
     from app.shared.utils.helpers import is_uuid_bool
-    
+
     dsd_id = ""
     if is_uuid_bool(data_source_definition_id_or_name):
-        dsd_id = await _validate_data_source_definition_uuid(data_source_definition_id_or_name)
+        dsd_id = await _validate_data_source_definition_uuid(
+            data_source_definition_id_or_name
+        )
     else:
-        dsd_id = await find_data_source_definition_asset_id(data_source_definition_id_or_name)
+        dsd_id = await find_data_source_definition_asset_id(
+            data_source_definition_id_or_name
+        )
 
     if not dsd_id:
-        raise ServiceError(f"DSD with name or ID '{data_source_definition_id_or_name}' not found.",
-        remediation_steps = "Please provide correct data_source_definition_id_or_name of existing data source definition. ",
-        tool="get_semantic_model")
+        raise ServiceError(
+            f"DSD with name or ID '{data_source_definition_id_or_name}' not found.",
+            remediation_steps="Please provide correct data_source_definition_id_or_name of existing data source definition. ",
+            tool="get_semantic_model",
+        )
 
     return dsd_id
 
@@ -138,7 +163,7 @@ async def _validate_data_source_definition_uuid(
     params = {
         "catalog_id": await get_platform_assets_catalog_id(),
         "hide_deprecated_response_fields": False,
-        "evaluate_data_policies": True
+        "evaluate_data_policies": True,
     }
     response = await tool_helper_service.execute_get_request(
         url=str(tool_helper_service.base_url)
@@ -146,20 +171,20 @@ async def _validate_data_source_definition_uuid(
         + f"/{data_source_definition_id}",
         params=params,
     )
-    if  not isinstance(response, dict) or "metadata" not in response:
+    if not isinstance(response, dict) or "metadata" not in response:
         raise ServiceError(
             f"Data source definition with ID '{data_source_definition_id}' not found",
-        remediation_steps = "Please provide correct data_source_definition_id_or_name of existing data source definition. ",
-        tool="get_semantic_model"
+            remediation_steps="Please provide correct data_source_definition_id_or_name of existing data source definition. ",
+            tool="get_semantic_model",
         )
     return data_source_definition_id
 
 
 def _build_request_context(
     request: GetSemanticModelRequest,
-    connection_ids: Optional[list[str]],
-    container_ids: Optional[list],
-    dsd_id: Optional[str],
+    connection_ids: Optional[list[str]],  # noqa: UP045 # Baseline
+    container_ids: Optional[list],  # noqa: UP045 # Baseline
+    dsd_id: Optional[str],  # noqa: UP045 # Baseline
 ) -> dict:
     """Build the context dictionary for the API request."""
     context = {}
@@ -208,39 +233,47 @@ def _parse_schema_asset(asset_data: dict) -> SemanticModel:
         properties=properties,
     )
 
-def _check_container_info_format(container_info: List[dict[str, str | Literal["catalog", "project"]]]) -> None:
+
+def _check_container_info_format(
+    container_info: List[dict[str, str | Literal["catalog", "project"]]],  # noqa: UP006 # Baseline
+) -> None:
     """
     Validate the format of the container_info parameter
     """
     container_info_validation_message = "Provide container_info as a list of dictionaries with keys container_id_or_name and container_type (optional)"
     for item in container_info:
         if not isinstance(item, dict):
-            raise ValidationError("Each item in container_info must be a dictionary",
-            remediation_steps=container_info_validation_message,
-            tool="get_semantic_model")
-        if len(item) > 2:
-            raise ValidationError("container_info items can have at most 'container_type' and 'container_id_or_name' keys",
-            remediation_steps=container_info_validation_message,
-            tool="get_semantic_model")
-        elif len(item) == 2:
+            raise ValidationError(
+                "Each item in container_info must be a dictionary",
+                remediation_steps=container_info_validation_message,
+                tool="get_semantic_model",
+            )
+        if len(item) > 2:  # noqa: PLR2004 # Baseline
+            raise ValidationError(
+                "container_info items can have at most 'container_type' and 'container_id_or_name' keys",
+                remediation_steps=container_info_validation_message,
+                tool="get_semantic_model",
+            )
+        if len(item) == 2:  # noqa: PLR2004 # Baseline
             if "container_type" not in item or "container_id_or_name" not in item:
                 raise ValidationError(
                     "Container_info can only have 'container_type' and 'container_id_or_name' keys",
                     remediation_steps=container_info_validation_message,
-                    tool="get_semantic_model"
+                    tool="get_semantic_model",
                 )
             if item["container_type"].lower() not in ["catalog", "project"]:
                 raise ValidationError(
                     f"Invalid value for container_type: {item['container_type']}. Container type must be either 'catalog' or 'project'",
                     remediation_steps=container_info_validation_message,
-                    tool="get_semantic_model"
+                    tool="get_semantic_model",
                 )
         elif "container_id_or_name" not in item:
-                raise ValidationError(
-                    "Container_info is required to have 'container_id_or_name' key",
-                    remediation_steps=container_info_validation_message,
-                    tool="get_semantic_model"
-                )
+            raise ValidationError(
+                "Container_info is required to have 'container_id_or_name' key",
+                remediation_steps=container_info_validation_message,
+                tool="get_semantic_model",
+            )
+
 
 def _validate_request(request: GetSemanticModelRequest) -> None:
     """
@@ -252,7 +285,7 @@ def _validate_request(request: GetSemanticModelRequest) -> None:
 
     The 'other fields' are: connection_ids_or_names, asset_ids,
     data_source_definition_id_or_name, document_library_ids
-    Validate that schema_names is provided with EITHER connections 
+    Validate that schema_names is provided with EITHER connections
     OR dsd NOT both AND NOT alone
     """
     # Check the format of container_info
@@ -261,16 +294,15 @@ def _validate_request(request: GetSemanticModelRequest) -> None:
 
     # Define the optional fields (excluding container_info and query)
     other_fields = [
-        'connection_ids_or_names',
-        'asset_ids',
-        'data_source_definition_id_or_name',
-        'document_library_ids'
+        "connection_ids_or_names",
+        "asset_ids",
+        "data_source_definition_id_or_name",
+        "document_library_ids",
     ]
 
     # Count how many other fields are not None
     non_none_other_fields = [
-        field for field in other_fields
-        if getattr(request, field) is not None
+        field for field in other_fields if getattr(request, field) is not None
     ]
 
     has_containers = request.container_info is not None
@@ -293,7 +325,7 @@ def _validate_request(request: GetSemanticModelRequest) -> None:
             f"Without container_info, only one other field can be provided."
             f"Found {other_fields_count} fields: {', '.join(non_none_other_fields)}",
             remediation_steps=parameter_validation_remediation_steps_msg,
-            tool="get_semantic_model"
+            tool="get_semantic_model",
         )
 
     if has_containers and other_fields_count > 1:
@@ -301,7 +333,7 @@ def _validate_request(request: GetSemanticModelRequest) -> None:
             f"With container_info, only one additional field can be provided."
             f"Found {other_fields_count} fields: {', '.join(non_none_other_fields)}",
             remediation_steps=parameter_validation_remediation_steps_msg,
-            tool="get_semantic_model"
+            tool="get_semantic_model",
         )
 
     # Check schema_names, valid scenarios:
@@ -313,13 +345,17 @@ def _validate_request(request: GetSemanticModelRequest) -> None:
             OR with data_source_definition_id_or_name
             - schema_names cannot be provided by itself
     """
-    if has_schema_names:
-        if request.connection_ids_or_names is None and request.data_source_definition_id_or_name is None:
+    if has_schema_names:  # noqa: SIM102 # Baseline
+        if (
+            request.connection_ids_or_names is None
+            and request.data_source_definition_id_or_name is None
+        ):
             raise ValidationError(
                 "Schema names cannot be provided by itself, it needs to be provided with either connections or data source definition",
                 remediation_steps=schema_names_validation_remediation_steps_msg,
-                tool="get_semantic_model"
+                tool="get_semantic_model",
             )
+
 
 async def _get_semantic_model(
     request: GetSemanticModelRequest,
@@ -331,12 +367,16 @@ async def _get_semantic_model(
     container_ids = []
     if request.container_info:
         for container in request.container_info:
-            if 'container_type' not in container:
+            if "container_type" not in container:
                 container_type = "project"
             else:
                 container_type = str(container["container_type"]).lower()
-            container_id = await _resolve_container_id(container["container_id_or_name"], container_type)
-            container_ids.append({"container_id": container_id, "container_type": container_type})
+            container_id = await _resolve_container_id(
+                container["container_id_or_name"], container_type
+            )
+            container_ids.append(
+                {"container_id": container_id, "container_type": container_type}
+            )
 
     # Resolve connections and their ids
     if container_ids:
@@ -346,11 +386,14 @@ async def _get_semantic_model(
     else:
         pac_catalog_id = await get_platform_assets_catalog_id()
         connection_ids = await _resolve_connection_ids(
-            request.connection_ids_or_names, [{"container_id": pac_catalog_id, "container_type": "catalog"}]
+            request.connection_ids_or_names,
+            [{"container_id": pac_catalog_id, "container_type": "catalog"}],
         )
 
     # Resolve DSD and its id
-    dsd_id = await _resolve_data_source_definition_id(request.data_source_definition_id_or_name)
+    dsd_id = await _resolve_data_source_definition_id(
+        request.data_source_definition_id_or_name
+    )
 
     LOGGER.info(
         "Calling get_semantic_model for containers: %s, connection ids: %s, asset IDs: %s, data source definition ID: %s, document library IDs: %s, schema_names: %s",
@@ -359,7 +402,7 @@ async def _get_semantic_model(
         request.asset_ids,
         dsd_id,
         request.document_library_ids,
-        request.schema_names
+        request.schema_names,
     )
 
     # Build query parameters and request body
@@ -373,7 +416,7 @@ async def _get_semantic_model(
 
     if context:
         request_body["context"] = context
-    
+
     LOGGER.info(f"Request body: {request_body}")
 
     # Make API request to get schema assets (POST request with JSON body)
@@ -397,7 +440,7 @@ async def _get_semantic_model(
     )
 
     return GetSemanticModelResponse(
-        container_ids=[container['container_id'] for container in container_ids],
+        container_ids=[container["container_id"] for container in container_ids],
         schema_assets=schema_assets,
         total_count=total_count,
     )
@@ -407,7 +450,7 @@ async def _get_semantic_model(
     name="get_semantic_model",
     annotations={
         "readOnlyHint": True,
-        "title": "Get Relevant Semantic Model Assets for a User Question"
+        "title": "Get Relevant Semantic Model Assets for a User Question",
     },
     tags={"generative_ai"},
     description="""Use this tool when you need to find schema and assets to answer a question and return list of retrieved assets.
@@ -430,26 +473,64 @@ async def _get_semantic_model(
                        - optional parameters should be set to None if not provided
                        - Invalid values will result in errors
                        Query API Reference: https://api.dataplatform.cloud.ibm.com/semantic_automation/v1/swagger-ui/index.html
-                       Returns: The list of container IDs searched, relevant schema assets with their metadata (tables, columns, relationships), and the total count of assets found matching the user's query.""",
+                       Returns: The list of container IDs searched, relevant schema assets with their metadata (tables, columns, relationships), and the total count of assets found matching the user's query.""",  # noqa: W293 # Baseline
 )
 @auto_context
-async def get_semantic_model(
-    query: Annotated[str, Field(description="The search prompt from the user about data assets potentially with additional searching details")],
-    container_info: Annotated[Optional[List[dict[str, str | Literal["project", "catalog"]]]], Field(description="Optional list of dictionaries that contain container(s) information to retrieve schema assets from. Each dictionary should conatin 'container_id_or_name' key and optionally 'container_type' key. If 'container_type' not provided, then default is 'project'. The key 'container_id_or_name' is required. Example: [{'container_id_or_name': 'testCatalog', 'container_type': 'catalog'}, {'container_id_or_name': 'testProject'}]")] = None,
-    connection_ids_or_names: Annotated[Optional[List[str]], Field(description="Optional list of connection IDs or names to filter schema assets by specific connections.")] = None,
-    asset_ids: Annotated[Optional[List[str]], Field(description="Optional list of specific asset IDs to retrieve schema for.")] = None,
-    data_source_definition_id_or_name: Annotated[Optional[str], Field(description="Optional data source definition name or asset ID.")] = None,
-    document_library_ids: Annotated[Optional[str], Field(description="The document libraries to use (for Lakehouse only) for schema linking to assets. If empty, all document libraries will be used.")] = None,
-    schema_names: Annotated[Optional[List[str]], Field(description="Optional list of schema names to filter assets to specific schemas.")] = None,
+async def get_semantic_model(  # noqa: PLR0913 # Baseline
+    query: Annotated[
+        str,
+        Field(
+            description="The search prompt from the user about data assets potentially with additional searching details"
+        ),
+    ],
+    container_info: Annotated[
+        Optional[List[dict[str, str | Literal["project", "catalog"]]]],  # noqa: UP006, UP045 # Baseline
+        Field(
+            description="Optional list of dictionaries that contain container(s) information to retrieve schema assets from. Each dictionary should conatin 'container_id_or_name' key and optionally 'container_type' key. If 'container_type' not provided, then default is 'project'. The key 'container_id_or_name' is required. Example: [{'container_id_or_name': 'testCatalog', 'container_type': 'catalog'}, {'container_id_or_name': 'testProject'}]"
+        ),
+    ] = None,
+    connection_ids_or_names: Annotated[
+        Optional[List[str]],  # noqa: UP006, UP045 # Baseline
+        Field(
+            description="Optional list of connection IDs or names to filter schema assets by specific connections."
+        ),
+    ] = None,
+    asset_ids: Annotated[
+        Optional[List[str]],  # noqa: UP006, UP045 # Baseline
+        Field(
+            description="Optional list of specific asset IDs to retrieve schema for."
+        ),
+    ] = None,
+    data_source_definition_id_or_name: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(description="Optional data source definition name or asset ID."),
+    ] = None,
+    document_library_ids: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="The document libraries to use (for Lakehouse only) for schema linking to assets. If empty, all document libraries will be used."
+        ),
+    ] = None,
+    schema_names: Annotated[
+        Optional[List[str]],  # noqa: UP006, UP045 # Baseline
+        Field(
+            description="Optional list of schema names to filter assets to specific schemas."
+        ),
+    ] = None,
 ) -> GetSemanticModelResponse:
     """Wrapper version of get_semantic_model."""
-    
+
     LOGGER.info(
         "get_semantic_model called with: container_info=%s, query=%s, "
         "connection_ids_or_names=%s, asset_ids=%s (type=%s), data_source_definition_id_or_name=%s, document_library_ids=%s , schema_names=%s",
-        container_info, query, connection_ids_or_names,
-        asset_ids, type(asset_ids).__name__ if asset_ids is not None else "NoneType",
-        data_source_definition_id_or_name, document_library_ids, schema_names
+        container_info,
+        query,
+        connection_ids_or_names,
+        asset_ids,
+        type(asset_ids).__name__ if asset_ids is not None else "NoneType",
+        data_source_definition_id_or_name,
+        document_library_ids,
+        schema_names,
     )
 
     request = GetSemanticModelRequest(
