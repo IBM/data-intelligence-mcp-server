@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Any, Dict, List, Optional, Union, Annotated
+from typing import Any, Dict, List, Optional, Union, Annotated  # noqa: F401, I001, UP035 # Baseline
 from pydantic import Field
 
 from app.core.registry import service_registry
@@ -63,34 +63,38 @@ TOOLS_DESCRIPTION = """ Use this tool when you need to performs a comparison of 
     Raises:
         ExternalServiceError: If the API request fails (status code != 200)
         ToolProcessFailedError: If no entities are found for the given IDs
-    """
+    """  # noqa: W293 # Baseline
 
-def _transform_assets(asset_changes: List[Dict[str, Any]]) -> List[LineageComparisonAsset]:
+
+def _transform_assets(
+    asset_changes: List[Dict[str, Any]],  # noqa: UP006 # Baseline
+) -> List[LineageComparisonAsset]:  # noqa: UP006 # Baseline
     """
     Transforms asset changes from API response to LineageComparisonAsset objects.
     Filters out assets with no changes.
-    
+
     Args:
         asset_changes: List of asset change objects from API response
-        
+
     Returns:
         List of LineageComparisonAsset objects
     """
     LOGGER.info(f"Processing {len(asset_changes)} asset changes from API")
-    
+
     # Filter assets with non-empty changes
     filtered_assets = [
-        asset for asset in asset_changes
+        asset
+        for asset in asset_changes
         if asset.get("changes") and len(asset.get("changes", [])) > 0
     ]
-    
+
     LOGGER.info(f"Filtered to {len(filtered_assets)} assets with non-empty changes")
-    
+
     lineage_assets_model = []
     for asset in filtered_assets:
         asset_data = asset.get("asset", {})
         changes = asset.get("changes", [])
-        
+
         lineage_asset = LineageComparisonAsset(
             id=asset_data.get("id", ""),
             name=asset_data.get("name", ""),
@@ -99,36 +103,37 @@ def _transform_assets(asset_changes: List[Dict[str, Any]]) -> List[LineageCompar
             descendants_removed=asset.get("number_of_removed_descendants", 0),
         )
         lineage_assets_model.append(lineage_asset)
-    
+
     return lineage_assets_model
 
 
-def _transform_edges(edge_changes: List[Dict[str, Any]]) -> List[LineageComparisonEdge]:
+def _transform_edges(edge_changes: List[Dict[str, Any]]) -> List[LineageComparisonEdge]:  # noqa: UP006 # Baseline
     """
     Transforms edge changes from API response to LineageComparisonEdge objects.
     Filters out edges with no changes.
-    
+
     Args:
         edge_changes: List of edge change objects from API response
-        
+
     Returns:
         List of LineageComparisonEdge objects
     """
     LOGGER.info(f"Processing {len(edge_changes)} edge changes from API")
-    
+
     # Filter edges with non-empty changes
     filtered_edges = [
-        edge for edge in edge_changes
+        edge
+        for edge in edge_changes
         if edge.get("changes") and len(edge.get("changes", [])) > 0
     ]
-    
+
     LOGGER.info(f"Filtered to {len(filtered_edges)} edges with non-empty changes")
-    
+
     lineage_edges_model = []
     for edge_change in filtered_edges:
         edge = edge_change.get("edge", {})
         changes = edge_change.get("changes", [])
-        
+
         lineage_edge = LineageComparisonEdge(
             source=edge.get("source", ""),
             target=edge.get("target", ""),
@@ -136,7 +141,7 @@ def _transform_edges(edge_changes: List[Dict[str, Any]]) -> List[LineageComparis
             changes=list(changes),  # Convert set to list
         )
         lineage_edges_model.append(lineage_edge)
-    
+
     return lineage_edges_model
 
 
@@ -146,11 +151,11 @@ async def _get_lineage_comparison(
 
     # Validate and parse dates
     dates_verified = verify_dates([request.base_version, request.compared_version])
-    
-    if not dates_verified or len(dates_verified) != 2:
+
+    if not dates_verified or len(dates_verified) != 2:  # noqa: PLR2004 # Baseline
         raise ValidationError(
             f"Invalid dates provided. Expected 2 valid ISO-8601 dates, got: base_version={request.base_version}, compared_version={request.compared_version}",
-            remediation_steps="Provide dates in valid ISO-8601 format"
+            remediation_steps="Provide dates in valid ISO-8601 format",
         )
 
     # Parse compared lineage IDs
@@ -170,18 +175,18 @@ async def _get_lineage_comparison(
     payload = {
         "compared_lineage_assets": compared_lineage_ids,
         "base_version": dates_verified[0],
-        "compared_version": dates_verified[1]
+        "compared_version": dates_verified[1],
     }
 
     # Add lineage graph context if initial assets are provided
     if graph_initial_ids:
-        payload["lineage"] = {
-            "initial_asset_ids": graph_initial_ids
-        }
+        payload["lineage"] = {"initial_asset_ids": graph_initial_ids}
 
     try:
         response = await tool_helper_service.execute_post_request(
-            url=str(tool_helper_service.base_url) + LINEAGE_BASE_ENDPOINT + "/compare_lineage",
+            url=str(tool_helper_service.base_url)
+            + LINEAGE_BASE_ENDPOINT
+            + "/compare_lineage",
             json=payload,
         )
     except ExternalAPIError as e:
@@ -191,14 +196,11 @@ async def _get_lineage_comparison(
                 lineage_assets=[],
                 lineage_edges=[],
                 success=False,
-                error=SERVICE_UNAVAILABLE_MESSAGE
-            )
+                error=SERVICE_UNAVAILABLE_MESSAGE,
+            ),
         )
 
-    LOGGER.info(
-        f"payload={payload}, "
-        f"response={response}"
-    )
+    LOGGER.info(f"payload={payload}, response={response}")
 
     # Transform assets and edges from API response
     asset_changes = response.get("asset_changes", [])
@@ -206,44 +208,70 @@ async def _get_lineage_comparison(
 
     lineage_assets_model = _transform_assets(asset_changes)
     lineage_edges_model = _transform_edges(edge_changes)
-    
+
     return GetLineageComparisonResponse(
-        lineage_assets=lineage_assets_model,
-        lineage_edges=lineage_edges_model
+        lineage_assets=lineage_assets_model, lineage_edges=lineage_edges_model
     )
+
 
 @service_registry.tool(
     name="get_lineage_comparison",
     annotations={
         "readOnlyHint": True,
-        "title": "Get Compare Lineage Assets Between Two Versions"
+        "title": "Get Compare Lineage Assets Between Two Versions",
     },
     description=TOOLS_DESCRIPTION,
-    tags={"lineage"}
+    tags={"lineage"},
 )
 @auto_context
 async def get_lineage_comparison(
-    compared_lineage_assets: Annotated[str, Field(description="""The list of asset IDs of assets to be compared.
+    compared_lineage_assets: Annotated[
+        str,
+        Field(
+            description="""The list of asset IDs of assets to be compared.
         For graphs, this should contain all asset IDs returned by get_lineage_graph.
-        For single asset comparison, this contains the asset ID(s) to compare.""")],
-    base_version: Annotated[str, Field(description="Base version datetime in ISO-8601 format specifying the earlier lineage version to compare. Example: '2025-11-12T10:00:00Z'")],
-    compared_version: Annotated[str, Field(description="Compared version datetime in ISO-8601 format specifying the later lineage version to compare. Example: '2025-11-12T12:00:00Z'")],
-    initial_lineage_assets: Annotated[Optional[str], Field(description="Optional comma-separated list of initial asset IDs for graph comparison. Required for graph comparison, None for single asset comparison")] = None,
+        For single asset comparison, this contains the asset ID(s) to compare."""
+        ),
+    ],
+    base_version: Annotated[
+        str,
+        Field(
+            description="Base version datetime in ISO-8601 format specifying the earlier lineage version to compare. Example: '2025-11-12T10:00:00Z'"
+        ),
+    ],
+    compared_version: Annotated[
+        str,
+        Field(
+            description="Compared version datetime in ISO-8601 format specifying the later lineage version to compare. Example: '2025-11-12T12:00:00Z'"
+        ),
+    ],
+    initial_lineage_assets: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Optional comma-separated list of initial asset IDs for graph comparison. Required for graph comparison, None for single asset comparison"
+        ),
+    ] = None,
 ) -> GetLineageComparisonResponse:
     """
     Wrapper version that expands GetLineageComparisonRequest object into individual parameters.
     """
-    
+
     # Parse compared assets
-    compared_assets_list = [asset.strip() for asset in compared_lineage_assets.split(',') if asset.strip()]
-    
+    compared_assets_list = [
+        asset.strip() for asset in compared_lineage_assets.split(",") if asset.strip()
+    ]
+
     # Build lineage object if initial assets provided
     lineage_obj = None
     if initial_lineage_assets:
-        initial_assets_list = [asset.strip() for asset in initial_lineage_assets.split(',') if asset.strip()]
+        initial_assets_list = [
+            asset.strip()
+            for asset in initial_lineage_assets.split(",")
+            if asset.strip()
+        ]
         if initial_assets_list:
             lineage_obj = LineageRequestBodyPart(initial_asset_ids=initial_assets_list)
-    
+
     request = GetLineageComparisonRequest(
         compared_lineage_assets=compared_assets_list,
         lineage=lineage_obj,
@@ -253,5 +281,6 @@ async def get_lineage_comparison(
 
     # Call the original get_lineage_comparison function
     return await _get_lineage_comparison(request)
+
 
 # Made with Bob

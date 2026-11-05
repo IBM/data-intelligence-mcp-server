@@ -6,7 +6,7 @@
 # and subject to change. While we strive to keep this tool synchronized with the latest API versions,
 # temporary discrepancies in behavior may occur between API updates and tool updates.
 
-from functools import partial
+from functools import partial  # noqa: I001 # Baseline
 from string import Template
 from typing import Annotated, Optional
 
@@ -18,7 +18,8 @@ from app.services.metadata_enrichment.models.advanced_profiling import (
     SamplingPreset,
 )
 from app.services.metadata_enrichment.utils.metadata_enrichment_common_utils import (
-    MDE_UI_URL_TEMPLATE, get_metadata_enrichment_asset_jobs,
+    MDE_UI_URL_TEMPLATE,
+    get_metadata_enrichment_asset_jobs,
 )
 from app.services.metadata_enrichment.utils.advanced_profiling_utils import (
     execute_advanced_profiling_job,
@@ -48,14 +49,16 @@ async def _execute_advanced_profiling(
 
     # Confirm project ID
     project_id = await confirm_uuid(request.project_name, find_project_id)
-    
+
     # Confirm metadata enrichment asset ID
     metadata_enrichment_id = await find_metadata_enrichment_id(
         request.metadata_enrichment_name, project_id
     )
 
     if request.job_name is None:
-        mde_jobs = await get_metadata_enrichment_asset_jobs(project_id, metadata_enrichment_id)
+        mde_jobs = await get_metadata_enrichment_asset_jobs(
+            project_id, metadata_enrichment_id
+        )
         if len(mde_jobs) == 1:
             job_id = mde_jobs[0].id
         else:
@@ -64,16 +67,23 @@ async def _execute_advanced_profiling(
                 remediation_steps="Invoke the tool 'list_metadata_enrichment_asset_jobs' with the metadata enrichment name and project name as input to list all the available jobs.",
             )
     else:
-        job_id = await confirm_uuid(request.job_name,
-                                    partial(find_asset_id_exact_match, container_id=project_id, artifact_type="job", raise_errors=False))
+        job_id = await confirm_uuid(
+            request.job_name,
+            partial(
+                find_asset_id_exact_match,
+                container_id=project_id,
+                artifact_type="job",
+                raise_errors=False,
+            ),
+        )
 
     if not job_id:
         raise ServiceError(
             message=f"No job found with the name {request.job_name} in the MDE {request.metadata_enrichment_name}",
             remediation_steps=f"No job was found with the name {request.job_name} in the MDE {request.metadata_enrichment_name}"
-                              f"Invoke the tool 'list_metadata_enrichment_asset_jobs' to list all the available jobs or as the user to create a new job.",
+            f"Invoke the tool 'list_metadata_enrichment_asset_jobs' to list all the available jobs or as the user to create a new job.",
         )
-    
+
     # Confirm dataset IDs
     dataset_names = confirm_list_str(request.dataset_names)
     dataset_ids = [
@@ -82,7 +92,7 @@ async def _execute_advanced_profiling(
         )
         for dataset_name in dataset_names
     ]
-    
+
     # Determine sampling configuration
     if request.sampling_preset == SamplingPreset.CUSTOM:
         if not request.custom_sampling:
@@ -93,7 +103,7 @@ async def _execute_advanced_profiling(
         sampling_config = request.custom_sampling.structured
     else:
         sampling_config = get_sampling_config_for_preset(request.sampling_preset)
-    
+
     # Build unique_value_table_info with connection_id lookup if provided
     unique_value_table_info = None
     if request.unique_value_table_info:
@@ -102,16 +112,16 @@ async def _execute_advanced_profiling(
             connection_id = await find_connection_id(
                 request.unique_value_table_info.location.connection_name,
                 project_id,
-                'project'
+                "project",
             )
-            
+
             if not connection_id:
                 raise ServiceError(
                     message=f"No connection found with name '{request.unique_value_table_info.location.connection_name}' "
                     f"in project '{request.project_name}'.",
                     remediation_steps="Invoke the tool 'search_connection' to list all the available connections.",
                 )
-            
+
             # Build the payload with resolved connection_id
             unique_value_table_info = {
                 "location": {
@@ -124,10 +134,10 @@ async def _execute_advanced_profiling(
             }
         except ServiceError as e:
             # Re-raise with additional context about advanced profiling
-            raise ServiceError(
-                f"Failed to configure unique value table for advanced profiling: {str(e)}"
+            raise ServiceError(  # noqa: B904 # Baseline
+                f"Failed to configure unique value table for advanced profiling: {e!s}"
             )
-    
+
     # Execute the advanced profiling job with resolved IDs
     advanced_profiling_response = await execute_advanced_profiling_job(
         metadata_enrichment_id=metadata_enrichment_id,
@@ -137,7 +147,7 @@ async def _execute_advanced_profiling(
         job_id=job_id,
         unique_value_table_info=unique_value_table_info,
     )
-    
+
     # Construct the UI URL for monitoring
     mde_url = Template(MDE_UI_URL_TEMPLATE).substitute(
         mde_id=metadata_enrichment_id, project_id=project_id
@@ -153,7 +163,7 @@ async def _execute_advanced_profiling(
     name="execute_advanced_profiling",
     annotations={
         "title": "Execute Advanced Data Profiling with Configurable Sampling",
-        "destructiveHint": True
+        "destructiveHint": True,
     },
     tags={"metadata_management_and_governance"},
     description="""Use this tool when you need to execute advanced profiling on a metadata enrichment asset for selected datasets.
@@ -177,22 +187,47 @@ async def _execute_advanced_profiling(
     6. Returning job details and a URL to monitor progress in the UI.
 
     The function assumes the metadata enrichment asset and datasets exist within the project.
-    Return: The job run ID, metadata enrichment asset ID, project ID, UI URL to monitor the profiling job, and an href location to retrieve job run details.""",
+    Return: The job run ID, metadata enrichment asset ID, project ID, UI URL to monitor the profiling job, and an href location to retrieve job run details.""",  # noqa: W291 # Baseline
 )
 @auto_context
 async def execute_advanced_profiling(
-    project_name: Annotated[str, Field(description="The name of the project containing the metadata enrichment asset.")],
-    metadata_enrichment_name: Annotated[str, Field(description="The name of the metadata enrichment asset to run advanced profiling on.")],
-    dataset_names: Annotated[list[str] | str, Field(description="Dataset names to be profiled. Can be a single string or list of strings.")],
-    job_name: Annotated[Optional[str], Field(description="The name of the job to execute the metadata enrichment asset.")],
-    sampling_preset: Annotated[str, Field(description="""The sampling preset to use for profiling: 
+    project_name: Annotated[
+        str,
+        Field(
+            description="The name of the project containing the metadata enrichment asset."
+        ),
+    ],
+    metadata_enrichment_name: Annotated[
+        str,
+        Field(
+            description="The name of the metadata enrichment asset to run advanced profiling on."
+        ),
+    ],
+    dataset_names: Annotated[
+        list[str] | str,
+        Field(
+            description="Dataset names to be profiled. Can be a single string or list of strings."
+        ),
+    ],
+    job_name: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="The name of the job to execute the metadata enrichment asset."
+        ),
+    ],
+    sampling_preset: Annotated[
+        str,
+        Field(
+            description="""The sampling preset to use for profiling: 
                                           - basic: Minimum sample size (1,000 rows, 100 values for classification) 
                                           - moderate: Balanced approach (10,000 rows, 100 values for classification) 
                                           - comprehensive: Large sample size (100,000 rows, all values for classification) 
-                                          - custom: User-defined sampling configuration""")] = "basic",
+                                          - custom: User-defined sampling configuration"""  # noqa: W291 # Baseline
+        ),
+    ] = "basic",
 ) -> AdvancedProfilingResponse:
     """Wrapper that expands AdvancedProfilingRequest into individual parameters."""
-    
+
     request = AdvancedProfilingRequest(
         project_name=project_name,
         metadata_enrichment_name=metadata_enrichment_name,

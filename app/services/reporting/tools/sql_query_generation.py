@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Annotated
+from typing import Annotated  # noqa: I001 # Baseline
 from pydantic import Field
 
 from app.core.auth import get_bss_account_id
@@ -75,7 +75,14 @@ async def _check_if_project_is_enabled_for_text_to_sql(project_id: str) -> None:
         response.get("enable_gen_ai") and response.get("onboard_metadata_for_gen_ai")
     ):
         raise ServiceError(
-            f"Project with id: {project_id} is not enabled for text2sql, please enable it first."
+            f"Project with id: {project_id} is not enabled for text2sql, please enable it first.",
+            service="reporting",
+            tool="sql_query_generation",
+            remediation_steps=(
+                "Call the enable_container_for_text_to_sql tool with the project name, "
+                "then call check_if_onboarding_job_is_completed to confirm onboarding is done "
+                "before retrying this tool."
+            ),
         )
 
 
@@ -96,8 +103,8 @@ async def _sql_query_generation(
 
     Returns:
         SqlQueryGenerationResponse: The result of the SQL query generation, containing either:
-            - On success: status="success", project_id, generated_sql_query, and dialect
-            - On failure: status="failed", message with error details
+            - On success: success=True, project_id, generated_sql_query, and dialect
+            - On failure: success=False, error with error details
 
     Raises:
         ServiceError: If handshake fails, project is not enabled, or database type is unsupported.
@@ -110,7 +117,9 @@ async def _sql_query_generation(
 
     # Handshake API call to get database type
     tenant_id = await get_bss_account_id()
-    handshake_url = f"{tool_helper_service.base_url}{REPORTING_BASE_ENDPOINT}/{tenant_id}/handshake"
+    handshake_url = (
+        f"{tool_helper_service.base_url}{REPORTING_BASE_ENDPOINT}/{tenant_id}/handshake"
+    )
 
     try:
         handshake_response = await tool_helper_service.execute_get_request(
@@ -118,34 +127,53 @@ async def _sql_query_generation(
         )
     except Exception as e:
         LOGGER.error(f"Handshake API call failed: {e}")
-        raise ExternalAPIError(
-            f"Handshake API call failed: {str(e)}",
+        raise ExternalAPIError(  # noqa: B904 # Baseline
+            f"Handshake API call failed: {e!s}",
             service="reporting",
             tool="sql_query_generation",
+            remediation_steps=(
+                "Verify that the reporting service is reachable and the tenant account is active. "
+                "Check network connectivity and retry the operation."
+            ),
         )
 
     if handshake_response.get("status") != "ACTIVE":
-        LOGGER.error(
-            f"Handshake failed or status not active: {handshake_response}"
-        )
+        LOGGER.error(f"Handshake failed or status not active: {handshake_response}")
         raise ServiceError(
-            f"Handshake failed or status not active: {handshake_response}"
+            f"Handshake failed or status not active: {handshake_response}",
+            service="reporting",
+            tool="sql_query_generation",
+            remediation_steps=(
+                "The reporting service is not active for this tenant. "
+                "Verify your tenant account has the reporting service enabled, or contact support."
+            ),
         )
 
     db_type = handshake_response.get("db_type")
     if db_type is None:
-        return SqlQueryGenerationResponse(
-            status="failed",
-            message="Database type not found in handshake response",
+        raise ServiceError(
+            "Database type not found in handshake response",
+            service="reporting",
+            tool="sql_query_generation",
+            remediation_steps=(
+                "The reporting service handshake did not return a database type. "
+                "Contact support to verify the tenant reporting configuration."
+            ),
         )
 
     dialect = DB_TYPE_MAPPING.get(db_type)
 
     # Handle unmapped db_type
     if dialect is None:
-        return SqlQueryGenerationResponse(
-            status="failed",
-            message=f"Unsupported db_type: {db_type}",
+        raise ServiceError(
+            f"Unsupported db_type: {db_type}",
+            service="reporting",
+            tool="sql_query_generation",
+            remediation_steps=(
+                f"The database type '{db_type}' is not supported. "
+                "Supported types are: postgresql, mssql, oracle, db2. "
+                "Contact support if your database type should be supported."
+            ),
         )
 
     # Resolve project_id
@@ -179,25 +207,40 @@ async def _sql_query_generation(
         )
     except Exception as e:
         LOGGER.error(f"SQL generation API call failed: {e}")
-        raise ExternalAPIError(
-            f"SQL generation API call failed: {str(e)}",
+        raise ExternalAPIError(  # noqa: B904 # Baseline
+            f"SQL generation API call failed: {e!s}",
             service="reporting",
             tool="sql_query_generation",
+            remediation_steps=(
+                "Verify that the project has been onboarded for text-to-sql by calling "
+                "check_if_onboarding_job_is_completed with the project name. "
+                "If not onboarded, call enable_container_for_text_to_sql first, then retry."
+            ),
         )
 
     if not response or "generated_sql_queries" not in response:
         LOGGER.error(f"SQL generation failed: {response}")
-        return SqlQueryGenerationResponse(
-            status="failed",
-            message=f"SQL generation failed: {response}",
+        raise ServiceError(
+            "SQL generation failed: unexpected response from text-to-sql API.",
+            service="reporting",
+            tool="sql_query_generation",
+            remediation_steps=(
+                "Verify the project is correctly onboarded for text-to-sql. "
+                "Try rephrasing the natural language query and retry the operation."
+            ),
         )
 
     generated_sql_queries = response.get("generated_sql_queries")
     if not generated_sql_queries or len(generated_sql_queries) == 0:
         LOGGER.error("SQL generation failed: No SQL queries generated")
-        return SqlQueryGenerationResponse(
-            status="failed",
-            message="SQL generation failed: No SQL queries generated",
+        raise ServiceError(
+            "SQL generation failed: No SQL queries generated",
+            service="reporting",
+            tool="sql_query_generation",
+            remediation_steps=(
+                "Try rephrasing the natural language query to be more specific. "
+                "Ensure the project data model contains tables relevant to the query."
+            ),
         )
 
     generated_sql_query = _escape_sql_quotes(generated_sql_queries[0].get("sql"))
@@ -207,7 +250,7 @@ async def _sql_query_generation(
     )
 
     return SqlQueryGenerationResponse(
-        status="success",
+        success=True,
         project_id=project_id,
         generated_sql_query=generated_sql_query,
         dialect=dialect,
@@ -218,19 +261,33 @@ async def _sql_query_generation(
     name="create_reporting_sql_query",
     description="""Use this tool when you need to generate a SQL query from a natural language input for a given project using a text-to-SQL service for reporting-related use cases. The tool verifies reporting service connectivity, resolves the project ID, and generates the SQL query based on the project context and SQL dialect.
   Query API Reference: https://api.dataplatform.cloud.ibm.com/semantic_automation/v1/swagger-ui/index.html
-  Return: The generation status ("success" or "failed"), and on success: the project ID, generated SQL query, and SQL dialect used; or on failure: an error message.""",
+  Return: The generation result with the project ID, generated SQL query, and SQL dialect used on success, or an error message with remediation steps on failure.""",
     annotations={
         "readOnlyHint": True,
-        "title": "Generate SQL Query from Natural Language for Reporting"
+        "title": "Generate SQL Query from Natural Language for Reporting",
     },
-    tags={"metadata_management_and_governance"}
+    tags={"metadata_management_and_governance"},
 )
 @auto_context
 async def sql_query_generation(
-    project_name: Annotated[str, Field(description="Name of the project containing the data model for SQL generation.")],
-    query: Annotated[str, Field(description="Natural language request to convert to SQL.")],
-    instructions: Annotated[list | None, Field(description="Instructions for SQL generation. Example: ['Do not use tech_start, tech_end, ts_id in the output column.']")] = None,
-    raw_output: Annotated[bool, Field(description="Whether to return raw output from the model.")] = False,
+    project_name: Annotated[
+        str,
+        Field(
+            description="Name of the project containing the data model for SQL generation."
+        ),
+    ],
+    query: Annotated[
+        str, Field(description="Natural language request to convert to SQL.")
+    ],
+    instructions: Annotated[
+        list | None,
+        Field(
+            description="Instructions for SQL generation. Example: ['Do not use tech_start, tech_end, ts_id in the output column.']"
+        ),
+    ] = None,
+    raw_output: Annotated[
+        bool, Field(description="Whether to return raw output from the model.")
+    ] = False,
 ) -> SqlQueryGenerationResponse:
     """
     Wrapper that expands SqlQueryGenerationRequest object into individual parameters.

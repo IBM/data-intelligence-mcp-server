@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Annotated
+from typing import Annotated  # noqa: I001 # Baseline
 from pydantic import Field
 from app.core.registry import service_registry
 from app.services.data_protection_rules.models.search_rule import (
@@ -17,7 +17,7 @@ from app.services.constants import SEARCH_PATH
 from app.shared.utils.tool_helper_service import tool_helper_service
 
 
-TABLE_TITLE_DATA_PROTECTION_RULES="Data protection rules"
+TABLE_TITLE_DATA_PROTECTION_RULES = "Data protection rules"
 METADATA_NAME = "metadata.name"
 METADAT_DESCRIPTION = "metadata.description"
 
@@ -37,7 +37,7 @@ async def _search_rules(
         response = await tool_helper_service.execute_post_request(
             url=f"{tool_helper_service.base_url}{SEARCH_PATH}?role=viewer&auth_scope=all&auth_cache=true&tenant_scope=true",
             json=payload,
-            tool_name="search_data_protection_rules"
+            tool_name="search_data_protection_rules",
         )
         number_of_responses = response["size"]
         if number_of_responses == 0:
@@ -49,39 +49,50 @@ async def _search_rules(
         data_protection_rules = []
 
         if settings.di_env_mode.upper() == ENV_MODE_SAAS:
-            url_prefix = str(tool_helper_service.ui_base_url) + "/governance/rules/dataProtection/view/"
+            url_prefix = (
+                str(tool_helper_service.ui_base_url)
+                + "/governance/rules/dataProtection/view/"
+            )
         else:
-            url_prefix = str(tool_helper_service.ui_base_url) + "/gov/rules/dataProtection/view/"
+            url_prefix = (
+                str(tool_helper_service.ui_base_url) + "/gov/rules/dataProtection/view/"
+            )
         for row in response["rows"]:
             data_protection_rules.append(
                 {
                     "name": row.get("metadata", {}).get("name", ""),
                     "description": row.get("metadata", {}).get("description", ""),
                     "modified_on": row.get("metadata", {}).get("modified_on", ""),
-                    "url": url_prefix + row.get("artifact_id", "")
+                    "url": url_prefix + row.get("artifact_id", ""),
                 }
             )
 
         format_response = format_data_protection_rule_for_table(data_protection_rules)
-        ui_message_context.add_table_ui_message(tool_name="search_data_protection_rules",
-                         formatted_data=format_response, title=TABLE_TITLE_DATA_PROTECTION_RULES)
-        
+        ui_message_context.add_table_ui_message(
+            tool_name="search_data_protection_rules",
+            formatted_data=format_response,
+            title=TABLE_TITLE_DATA_PROTECTION_RULES,
+        )
+
     except ExternalAPIError as e:
         LOGGER.error(
-            f"Failed to run search_data_protection_rules tool. Error while searching data protection rules: {str(e)}"
+            f"Failed to run search_data_protection_rules tool. Error while searching data protection rules: {e!s}"
         )
-        raise ExternalAPIError(
-            f"Failed to run search_data_protection_rules tool. Error while searching data protection rules: {str(e)}"
+        raise ExternalAPIError(  # noqa: B904 # Baseline
+            f"Failed to run search_data_protection_rules tool. Error while searching data protection rules: {e!s}"
         )
     except Exception as e:
         LOGGER.error(
-            f"Failed to run search_data_protection_rules tool. Error while searching data protection rules: {str(e)}"
+            f"Failed to run search_data_protection_rules tool. Error while searching data protection rules: {e!s}"
         )
-        raise ServiceError(
-            f"Failed to run search_data_protection_rules tool. Error while searching data protection rules: {str(e)}"
+        raise ServiceError(  # noqa: B904 # Baseline
+            f"Failed to run search_data_protection_rules tool. Error while searching data protection rules: {e!s}"
         )
 
-    return SearchDataProtectionRuleResponse(count=number_of_responses, data_protection_rules=data_protection_rules)
+    return SearchDataProtectionRuleResponse(
+        count=number_of_responses, data_protection_rules=data_protection_rules
+    )
+
 
 def format_data_protection_rule_for_table(data_protection_rules: list[dict]) -> list:
     """Format data protection rules list by changing keys to Title Case for table display."""
@@ -90,16 +101,17 @@ def format_data_protection_rule_for_table(data_protection_rules: list[dict]) -> 
             "Name": rule.get("name", ""),
             "Description": rule.get("description", ""),
             "Modified On": rule.get("modified_on", ""),
-            "URL": rule.get("url", "")
+            "URL": rule.get("url", ""),
         }
         for rule in data_protection_rules
     ]
+
 
 @service_registry.tool(
     name="search_data_protection_rules",
     annotations={
         "readOnlyHint": True,
-        "title": "Search and List All Data Protection Rules by Name or Description"
+        "title": "Search and List All Data Protection Rules by Name or Description",
     },
     description="""
     Use this tool when you need to search all data protection rules to return data protection rules that match the given search query.
@@ -114,7 +126,12 @@ def format_data_protection_rule_for_table(data_protection_rules: list[dict]) -> 
 )
 @auto_context
 async def search_rules(
-    search_data_protection_rules_query: Annotated[str, Field(description='The search query to search for data protection rules. If the user wants to search for data protection rules with a specific name or description, this is the name to search for. If user wants to search for all data protection rules, this value should be "*".')]
+    search_data_protection_rules_query: Annotated[
+        str,
+        Field(
+            description='The search query to search for data protection rules. If the user wants to search for data protection rules with a specific name or description, this is the name to search for. If user wants to search for all data protection rules, this value should be "*".'
+        ),
+    ],
 ) -> SearchDataProtectionRuleResponse:
     """Wrapper version that expands SearchDataProtectionRuleRequest object into individual parameters."""
 
@@ -125,6 +142,7 @@ async def search_rules(
     # Call the original search_data_protection_rules function
     return await _search_rules(request)
 
+
 def get_dps_search_payload(search_data_protection_rules_query: str) -> dict:
     if search_data_protection_rules_query == "*":
         return {
@@ -134,26 +152,25 @@ def get_dps_search_payload(search_data_protection_rules_query: str) -> dict:
                 "artifact_id",
                 METADATA_NAME,
                 METADAT_DESCRIPTION,
-                "metadata.modified_on"
+                "metadata.modified_on",
             ],
             "query": {
                 "bool": {
                     "must": [
                         {"match": {"provider_type_id": "dps"}},
-                        {"match": {"metadata.artifact_type": "data_protection_rule"}}
+                        {"match": {"metadata.artifact_type": "data_protection_rule"}},
                     ]
                 }
-            }
+            },
         }
-    else:
-        return {
+    return {
         "size": 10000,
         "from": "0",
         "_source": [
             "artifact_id",
             METADATA_NAME,
             METADAT_DESCRIPTION,
-            "metadata.modified_on"
+            "metadata.modified_on",
         ],
         "query": {
             "bool": {
@@ -161,12 +178,12 @@ def get_dps_search_payload(search_data_protection_rules_query: str) -> dict:
                     {"match": {"provider_type_id": "dps"}},
                     {"match": {"metadata.artifact_type": "data_protection_rule"}},
                     {
-                            "gs_user_query": {
+                        "gs_user_query": {
                             "search_string": search_data_protection_rules_query,
-                            "semantic_search_enabled": True
+                            "semantic_search_enabled": True,
                         }
-                    }
+                    },
                 ]
             }
-        }
+        },
     }

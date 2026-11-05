@@ -4,14 +4,19 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-import re
-from typing import List, Set
+import re  # noqa: I001 # Baseline
+from typing import List, Set  # noqa: UP035 # Baseline
 
 from typing import Annotated
 from pydantic import Field
 
 from app.core.registry import service_registry
-from app.core.auth import get_bss_account_id, get_sub_from_iam_id, get_user_identifier, get_access_token
+from app.core.auth import (
+    get_bss_account_id,
+    get_sub_from_iam_id,
+    get_user_identifier,
+    get_access_token,
+)
 from app.services.constants import (
     PROJECTS_BASE_ENDPOINT,
     CATALOGS_BASE_ENDPOINT,
@@ -30,59 +35,63 @@ from app.shared.utils.helpers import get_project_or_space_type_based_on_context
 from app.services.tool_utils import _build_container_from_response
 from app.shared.utils.utils_tools import format_containers_for_table
 
-def _parse_container_types(container_type_str: str) -> Set[str]:
+
+def _parse_container_types(container_type_str: str) -> Set[str]:  # noqa: UP006 # Baseline
     """
     Parse container type string and return a set of normalized container types.
     Handles various formats like "catalog,project", "projects and catalogs", etc.
-    
+
     Args:
         container_type_str: The container type string to parse
-        
+
     Returns:
         Set[str]: Set of normalized container types ("catalog", "project", "space")
     """
     # Normalize the string: lowercase, remove extra spaces
     normalized = container_type_str.lower().strip()
-    
+
     # Handle "all" case
     if normalized == "all":
         return {"catalog", "project", "space"}
-    
+
     # Split by common delimiters: comma, "and", spaces
     # Using a safe regex pattern to avoid ReDoS vulnerability
-    parts = re.split(r'[,\s]+', normalized.replace(' and ', ' '))
-    
+    parts = re.split(r"[,\s]+", normalized.replace(" and ", " "))
+
     container_types = set()
     for part in parts:
-        part = part.strip()
+        part = part.strip()  # noqa: PLW2901 # Baseline
         if not part:
             continue
-            
+
         # Remove trailing 's' to handle plurals (catalogs -> catalog, projects -> project)
-        if part.endswith('s') and len(part) > 1:
-            part = part[:-1]
-        
+        if part.endswith("s") and len(part) > 1:
+            part = part[:-1]  # noqa: PLW2901 # Baseline
+
         # Map to valid container types
         if part in ["catalog", "project", "space"]:
             container_types.add(part)
-    
+
     return container_types if container_types else {"catalog", "project", "space"}
 
 
-async def _list_single_container_type(container_type: str, roles: List[str] | None = None) -> List[Container]:
+async def _list_single_container_type(
+    container_type: str,
+    roles: List[str] | None = None,  # noqa: UP006 # Baseline
+) -> List[Container]:  # noqa: UP006 # Baseline
     """
     List all containers of a single given type.
-    
+
     Args:
         container_type: The type of the container - "project", "catalog", or "space"
         roles: Optional list of roles to filter projects by (only for "project" type).
                When provided, the current user's member identifier is used as the member filter.
-        
+
     Returns:
         List[Container]: List of container objects of given type
     """
     params = {"limit": 100}
-    
+
     if container_type == "project":
         params["bss_account_id"] = await get_bss_account_id()
 
@@ -96,84 +105,85 @@ async def _list_single_container_type(container_type: str, roles: List[str] | No
             url=str(tool_helper_service.base_url) + PROJECTS_BASE_ENDPOINT,
             params=params,
         )
-        
+
         return [
             _build_container_from_response(resource, "project", "guid")
             for resource in response.get("resources", [])
         ]
-        
-    elif container_type == "space":
+
+    if container_type == "space":
         params["bss_account_id"] = await get_bss_account_id()
         space_type = get_project_or_space_type_based_on_context()
         if space_type:
             params["type"] = space_type
-            
+
         response = await tool_helper_service.execute_get_request(
             url=str(tool_helper_service.base_url) + SPACES_BASE_ENDPOINT,
             params=params,
         )
-        
+
         return [
             _build_container_from_response(resource, "space", "id")
             for resource in response.get("resources", [])
         ]
-        
-    else:  # "catalog"
-        params["bss_account_id"] = await get_bss_account_id()
-        
-        response = await tool_helper_service.execute_get_request(
-            url=str(tool_helper_service.base_url) + CATALOGS_BASE_ENDPOINT,
-            params=params,
-        )
-        
-        return [
-            _build_container_from_response(catalog, "catalog", "guid")
-            for catalog in response.get("catalogs", [])
-        ]
+
+    # "catalog"
+    params["bss_account_id"] = await get_bss_account_id()
+
+    response = await tool_helper_service.execute_get_request(
+        url=str(tool_helper_service.base_url) + CATALOGS_BASE_ENDPOINT,
+        params=params,
+    )
+
+    return [
+        _build_container_from_response(catalog, "catalog", "guid")
+        for catalog in response.get("catalogs", [])
+    ]
 
 
-async def _list_asset_containers(container_type: ContainerType, roles: List[str] | None = None) -> List[Container]:
+async def _list_asset_containers(
+    container_type: ContainerType,
+    roles: List[str] | None = None,  # noqa: UP006 # Baseline
+) -> List[Container]:  # noqa: UP006 # Baseline
     """
     List all containers of given type(s).
-    
+
     Args:
         container_type: The type of the container - supports various formats
         roles: Optional list of roles to filter projects by the current user's membership role.
                Only applied when listing projects.
-        
+
     Returns:
         List[Container]: List of container objects of given type
     """
     # Parse the container type string to get normalized types
     container_types = _parse_container_types(str(container_type))
-    
+
     # Fetch containers for each type
     all_containers = []
-    
+
     if "catalog" in container_types:
         catalogs = await _list_single_container_type("catalog")
         all_containers.extend(catalogs)
-    
+
     if "project" in container_types:
         projects = await _list_single_container_type("project", roles=roles)
         all_containers.extend(projects)
-    
+
     if "space" in container_types:
         spaces = await _list_single_container_type("space")
         all_containers.extend(spaces)
-    
+
     return all_containers
 
 
-async def _list_containers(
-    request: ListContainersRequest
-) -> ListContainersResponse:
+async def _list_containers(request: ListContainersRequest) -> ListContainersResponse:
     """
     Lists all available containers based on the specified type.
-    
+
     Args:
         request: ListContainersRequest containing container_type and optional roles
-        
+
     Returns:
         ListContainersResponse with list of containers and metadata
     """
@@ -183,7 +193,9 @@ async def _list_containers(
         request.roles,
     )
 
-    containers = await _list_asset_containers(request.container_type, roles=request.roles)
+    containers = await _list_asset_containers(
+        request.container_type, roles=request.roles
+    )
 
     LOGGER.info(
         "Found %d containers of type '%s'",
@@ -193,7 +205,9 @@ async def _list_containers(
 
     if len(containers) > 0:
         ui_message_context.add_table_ui_message(
-            "list_containers", format_containers_for_table(containers),title="Containers"
+            "list_containers",
+            format_containers_for_table(containers),
+            title="Containers",
         )
 
     return ListContainersResponse(
@@ -207,7 +221,7 @@ async def _list_containers(
     name="list_containers",
     annotations={
         "readOnlyHint": True,
-        "title": "List All Available Containers (Catalogs, Projects, and Spaces)"
+        "title": "List All Available Containers (Catalogs, Projects, and Spaces)",
     },
     tags={"metadata_management_and_governance"},
     description="""Use this tool when you need to list all available containers - catalogs, projects or spaces.
@@ -219,25 +233,30 @@ async def _list_containers(
     - Also supports combinations: "catalog,project", "projects and catalogs", "catalogs, projects", etc.
     - Handles both singular and plural forms
     - Defaults to "all" if not specified
-    Returns: List of containers with their IDs, names, types, and URLs""",
+    Returns: List of containers with their IDs, names, types, and URLs""",  # noqa: W293 # Baseline
 )
 @auto_context
 async def list_containers(
-    container_type: Annotated[ContainerType, Field(description="Type of container to list - 'project', 'catalog', 'space', or 'all'. Defaults to 'all'.")] = ContainerType.ALL,
+    container_type: Annotated[
+        ContainerType,
+        Field(
+            description="Type of container to list - 'project', 'catalog', 'space', or 'all'. Defaults to 'all'."
+        ),
+    ] = ContainerType.ALL,
     roles: Annotated[
-        List[str] | None,
+        List[str] | None,  # noqa: UP006 # Baseline
         Field(
             description="Filter projects by the current user's role(s). Only applicable when listing projects. "
-                        "Valid values: 'admin', 'editor', 'viewer'. "
-                        "Example: use ['editor'] to list projects where I am an Editor.",
+            "Valid values: 'admin', 'editor', 'viewer'. "
+            "Example: use ['editor'] to list projects where I am an Editor.",
         ),
     ] = None,
 ) -> ListContainersResponse:
     """Wrapper that expands ListContainersRequest object into individual parameters."""
-    
+
     # Convert string to ContainerType enum
     container_type_enum = ContainerType(container_type)
     request = ListContainersRequest(container_type=container_type_enum, roles=roles)
-    
+
     # Call the original list_containers function
     return await _list_containers(request)

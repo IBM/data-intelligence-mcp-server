@@ -39,6 +39,7 @@ FIELD_PROPERTIES = "properties"
 FIELD_OUTPUT = "output"
 FIELD_ASSETS_OUT = "assets_out"
 FIELD_PARTS_OUT = "parts_out"
+FIELD_DELIVERY_METHODS = "delivery_methods"
 
 # URL-related fields
 FIELD_OPEN_URL = "Open URL"

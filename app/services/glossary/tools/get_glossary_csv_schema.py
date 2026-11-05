@@ -4,7 +4,7 @@
 
 """Tool for retrieving CSV schema information for glossary imports."""
 
-from typing import Optional
+from typing import Optional  # noqa: I001 # Baseline
 from fastmcp import Context
 
 from app.core.registry import service_registry
@@ -13,29 +13,26 @@ from app.shared.logging import LOGGER, auto_context
 
 
 async def _get_glossary_csv_schema(
-    ctx: Optional[Context] = None,
+    ctx: Optional[Context] = None,  # noqa: UP045 # Baseline # NOSONAR
 ) -> CSVSchemaInfo:
     """
     Get CSV schema information for glossary import.
-    
+
     Args:
         ctx: Optional MCP context
-        
+
     Returns:
         CSVSchemaInfo with detailed schema information
     """
     LOGGER.info("get_glossary_csv_schema called")
-    
+
     return CSVSchemaInfo(
         description=(
             "CSV format for importing glossary terms and categories."
             "The CSV must follow comma-separated values format with a header row. "
             "Each row represents either a glossary term or a category."
         ),
-        required_columns=[
-            "Name",
-            "Artifact Type"
-        ],
+        required_columns=["Name", "Artifact Type"],
         optional_columns={
             # Category field
             "Category": "Parent category path - required for terms (defaults to '[uncategorized]'), optional for categories (empty for top-level)",
@@ -63,12 +60,9 @@ async def _get_glossary_csv_schema(
             "Creator": "Who created the artifact",
             "Created At": "When the artifact was created",
             "Modifier": "Who last modified the artifact",
-            "Modified At": "When the artifact was last modified"
+            "Modified At": "When the artifact was last modified",
         },
-        allowed_artifact_types=[
-            "glossary_term",
-            "category"
-        ],
+        allowed_artifact_types=["glossary_term", "category"],
         allowed_status_values=[],
         example_csv="""Name,Artifact Type,Category,Description,Related Terms,Synonyms
 Risk Management,category,[uncategorized],Category for risk-related terms,,
@@ -85,8 +79,8 @@ Loss Given Default,glossary_term,Risk Management,The percentage of exposure the 
             "Column names are case-sensitive",
             "CSV must use comma as delimiter",
             "Text containing commas should be quoted",
-            "First row must be the header row"
-        ]
+            "First row must be the header row",
+        ],
     )
 
 
@@ -94,7 +88,7 @@ Loss Given Default,glossary_term,Risk Management,The percentage of exposure the 
     name="get_glossary_csv_schema",
     annotations={
         "readOnlyHint": True,
-        "title": "Get CSV Format Schema and Validation Rules for Glossary Import Operations"
+        "title": "Get CSV Format Schema and Validation Rules for Glossary Import Operations",
     },
     tags={"metadata_management_and_governance"},
     description="""Get detailed information about the CSV schema for importing glossary artifacts.
@@ -121,14 +115,14 @@ Returns: comprehensive schema information that helps LLMs understand how to:
 )
 @auto_context
 async def get_glossary_csv_schema(
-    ctx: Optional[Context] = None,
+    ctx: Optional[Context] = None,  # noqa: UP045 # Baseline
 ) -> CSVSchemaInfo:
     """
     Wrapper for get_glossary_csv_schema.
 
     Args:
         ctx: Optional MCP context
-        
+
     Returns:
         CSVSchemaInfo with detailed schema information
     """

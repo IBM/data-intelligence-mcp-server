@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Annotated
+from typing import Annotated  # noqa: I001 # Baseline
 from pydantic import Field
 
 from app.core.registry import service_registry
@@ -30,7 +30,7 @@ async def _get_data_product_subscription_details(
 ) -> GetDataProductSubscriptionDetailsResponse:
     """
     Retrieve the content (items) of a specific data product subscription.
-    
+
     Fetches all items being delivered in a subscription, including delivery
     states and access information.
     """
@@ -38,7 +38,7 @@ async def _get_data_product_subscription_details(
         f"In get_data_product_subscription_details tool, "
         f"subscription_id={request.subscription_id}"
     )
-    
+
     if not request.subscription_id or not request.subscription_id.strip():
         raise ServiceError(
             "Missing required subscription_id. "
@@ -48,25 +48,26 @@ async def _get_data_product_subscription_details(
                 "then retry this tool with that ID."
             ),
         )
-    
+
     try:
         # Build the subscription items URL
         items_url = f"{tool_helper_service.base_url}/v2/asset_lists/{request.subscription_id}/items"
-        
+
         LOGGER.info(f"Fetching subscription items from: {items_url}")
-        
+
         # Execute the request
         response_data = await tool_helper_service.execute_get_request(
-            url=items_url,
-            tool_name="get_data_product_subscription_details"
+            url=items_url, tool_name="get_data_product_subscription_details"
         )
-        
+
         # Extract key information
         items = response_data.get("items", [])
         total_count = response_data.get("total_count", 0)
-        
-        LOGGER.info(f"Retrieved {len(items)} items from subscription (total: {total_count})")
-        
+
+        LOGGER.info(
+            f"Retrieved {len(items)} items from subscription (total: {total_count})"
+        )
+
         # Convert items to SubscriptionItem objects
         subscription_items = []
         for item in items:
@@ -76,23 +77,23 @@ async def _get_data_product_subscription_details(
                 properties=item.get("properties"),
                 state=item.get("state"),
                 created_at=item.get("created_at"),
-                last_updated_at=item.get("last_updated_at")
+                last_updated_at=item.get("last_updated_at"),
             )
             subscription_items.append(subscription_item)
-        
+
         # Return the response
         return GetDataProductSubscriptionDetailsResponse(
             items=subscription_items,
             total_count=total_count,
-            subscription_id=request.subscription_id
+            subscription_id=request.subscription_id,
         )
-        
+
     except ServiceError:
         raise
     except Exception as e:
         error_message = f"Exception when getting subscription details: {e!s}"
         LOGGER.error(error_message)
-        raise ServiceError(
+        raise ServiceError(  # noqa: B904 # Baseline
             f"Failed to retrieve subscription details. {error_message}",
             remediation_steps=(
                 "Verify the subscription_id is valid. "
@@ -112,7 +113,7 @@ async def _get_data_product_subscription_details(
     This tool retrieves all items from a specific subscription (asset list) by its ID.
     Each item represents a subscribed data product with detailed delivery information:
     - Asset IDs and catalog information
-    - Delivery method details (e.g., Arrow Flight)
+    - Delivery method details (e.g., Use Flight service)
     - Data product delivery state (e.g., succeeded, failed, in_progress)
     - Output assets (flight descriptors for accessing data)
     - Copy text for accessing the data
@@ -133,24 +134,28 @@ async def _get_data_product_subscription_details(
     - Flight descriptors or URLs to access the data
 
     Returns: List of items in the subscription with delivery details, total count of items, and the subscription ID that was queried
-    """,
+    """,  # noqa: W291, W293 # Baseline
     tags={"read", "data_product", "subscriptions"},
     meta={"version": "1.0", "service": "data_product"},
     annotations={
         "title": "Get Content in a Specific Data Product Subscription",
-        "readOnlyHint": True
-    }
+        "readOnlyHint": True,
+    },
 )
 @auto_context
 async def get_data_product_subscription_details(
-    subscription_id: Annotated[str, Field(description="The ID of the subscription (asset list) to retrieve items from. This is a UUID obtained from search_data_product_subscriptions.")]
+    subscription_id: Annotated[
+        str,
+        Field(
+            description="The ID of the subscription (asset list) to retrieve items from. This is a UUID obtained from search_data_product_subscriptions."
+        ),
+    ],
 ) -> GetDataProductSubscriptionDetailsResponse:
     """Wrapper version that expands GetDataProductSubscriptionDetailsRequest object into individual parameters."""
-    
-    request = GetDataProductSubscriptionDetailsRequest(
-        subscription_id=subscription_id
-    )
-    
+
+    request = GetDataProductSubscriptionDetailsRequest(subscription_id=subscription_id)
+
     return await _get_data_product_subscription_details(request)
+
 
 # Made with Bob

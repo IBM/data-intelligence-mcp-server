@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Annotated
+from typing import Annotated  # noqa: I001 # Baseline
 from pydantic import Field
 
 from app.core.registry import service_registry
@@ -25,7 +25,7 @@ from app.shared.utils.helpers import confirm_uuid
 from app.shared.utils.tool_helper_service import tool_helper_service
 
 
-async def _generate_sql_query(
+async def _generate_sql_query(  # NOSONAR
     request: GenerateSqlQueryRequest,
 ) -> GenerateSqlQueryResponse:
     container_id = await confirm_uuid(
@@ -37,7 +37,11 @@ async def _generate_sql_query(
         container_id, request.container_type
     )
 
-    payload = {"query": request.request, "raw_output": "true", "add_sql_safety_check": "false"}
+    payload = {
+        "query": request.request,
+        "raw_output": "true",
+        "add_sql_safety_check": "false",
+    }
 
     LOGGER.info(
         "Calling generate_sql_query, container_id_or_name: %s, container_type: %s, request: %s",
@@ -67,7 +71,7 @@ async def _generate_sql_query(
         if "422" in str(e):
             error_str = str(e)
             if "SAL0363E" in error_str:
-                raise ServiceError(
+                raise ServiceError(  # noqa: B904 # Baseline
                     f"SQL query generation failed for '{request.container_id_or_name}'. "
                     f"No relevant schema information was found for the requested assets.",
                     remediation_steps=(
@@ -77,36 +81,35 @@ async def _generate_sql_query(
                     tool="create_sql_query",
                     service="semantic-automation-service",
                 )
-            elif "SAL0249E" in error_str:
-                raise ServiceError(
+            if "SAL0249E" in error_str:
+                raise ServiceError(  # noqa: B904 # Baseline
                     f"SQL query generation failed for '{request.container_id_or_name}'. "
                     f"Please check if your question can be answered using {request.container_id_or_name}'s assets.",
                     tool="create_sql_query",
                     service="semantic-automation-service",
                 )
-            elif "SAL0248E" in error_str:
-                raise ServiceError(
+            if "SAL0248E" in error_str:
+                raise ServiceError(  # noqa: B904 # Baseline
                     f"SQL query generation failed for '{request.container_id_or_name}'. "
                     f"DDL/DML operations detected in the question are not supported. Please try rephrasing your question.",
                     remediation_steps="Try again with rephrased question",
                     tool="create_sql_query",
                     service="semantic-automation-service",
                 )
-            elif "SAL0298E" in error_str:
-                raise ServiceError(
+            if "SAL0298E" in error_str:
+                raise ServiceError(  # noqa: B904 # Baseline
                     f"SQL query generation failed for '{request.container_id_or_name}'. "
                     f"Invalid query was generated. Please try rephrasing your question.",
                     remediation_steps="Try again with rephrased question",
                     tool="create_sql_query",
                     service="semantic-automation-service",
                 )
-            else:
-                # Generic 422 error message
-                raise ServiceError(
-                    f"SQL query generation failed for '{request.container_id_or_name}'. ",
-                    tool="create_sql_query",
-                    service="semantic-automation-service",
-                )
+            # Generic 422 error message
+            raise ServiceError(  # noqa: B904 # Baseline
+                f"SQL query generation failed for '{request.container_id_or_name}'. ",
+                tool="create_sql_query",
+                service="semantic-automation-service",
+            )
         raise
 
     return GenerateSqlQueryResponse(
@@ -121,15 +124,22 @@ async def _generate_sql_query(
   Returns: The SQL query generated from the natural language question, which can be executed against data assets in the specified project or catalog.""",
     annotations={
         "readOnlyHint": True,
-        "title": "Generate SQL Query from Natural Language"
+        "title": "Generate SQL Query from Natural Language",
     },
-    tags={"generative_ai"}
+    tags={"generative_ai"},
 )
 @auto_context
 async def generate_sql_query(
     request: Annotated[str, Field(description="The question the user raised.")],
-    container_id_or_name: Annotated[str, Field(description="The id or name of the container containing the data to query.")],
-    container_type: Annotated[str, Field(description="Type of the container, either 'catalog' or 'project'.")]
+    container_id_or_name: Annotated[
+        str,
+        Field(
+            description="The id or name of the container containing the data to query."
+        ),
+    ],
+    container_type: Annotated[
+        str, Field(description="Type of the container, either 'catalog' or 'project'.")
+    ],
 ) -> GenerateSqlQueryResponse:
     """Wrapper version that expands GenerateSqlQueryRequest object into individual parameters."""
 

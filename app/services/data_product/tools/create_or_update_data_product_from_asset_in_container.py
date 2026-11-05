@@ -4,7 +4,7 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-import time
+import time  # noqa: I001 # Baseline
 from typing import Any, cast, Annotated
 from pydantic import Field
 
@@ -23,36 +23,39 @@ from app.services.data_product.utils.data_product_creation_utils import (
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 
+
 @auto_context
 async def _create_or_update_data_product_from_asset_in_container(
     request: CreateOrUpdateDataProductFromAssetInContainerRequest,
 ) -> CreateOrUpdateDataProductFromAssetInContainerResponse:
     """
     Create or update a data product using pre-imported DPH catalog assets.
-    
+
     This tool expects target_asset_ids from the import_remote_assets_to_data_product_catalog tool.
     It only handles data product creation/update, not asset import.
     """
     asset_count = len(request.target_asset_ids)
     asset_summary = ", ".join(request.target_asset_ids[:3])
-    if asset_count > 3:
+    if asset_count > 3:  # noqa: PLR2004 # Baseline
         asset_summary += f" and {asset_count - 3} more"
-    
+
     LOGGER.info(
         f"Creating/updating data product with {asset_count} DPH catalog asset(s): {asset_summary}"
     )
-    
+
     # Step 1: Determine operation type and validate inputs
     is_create = is_data_product_draft_create(request)
     if is_create:
         LOGGER.info("Operation type: CREATE new data product draft")
         await validate_inputs_for_draft_create(request, "name", "description")
     else:
-        LOGGER.info(f"Operation type: UPDATE existing draft {request.existing_data_product_draft_id}")
+        LOGGER.info(
+            f"Operation type: UPDATE existing draft {request.existing_data_product_draft_id}"
+        )
 
     # Step 2: Get DPH catalog ID
     dph_catalog_id = await get_dph_catalog_id_for_user(await get_access_token())
-    
+
     # Use the provided target_asset_ids directly (they're already in DPH catalog)
     target_asset_ids = request.target_asset_ids
 
@@ -62,26 +65,26 @@ async def _create_or_update_data_product_from_asset_in_container(
         payload = get_data_product_draft_method_creation_payload(
             dph_catalog_id, target_asset_ids, request
         )
-        
+
         # Log timing for data product draft creation
         start_time = time.time()
         LOGGER.info(
             f"Starting data product draft creation with {asset_count} asset(s) at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}"
         )
-        
+
         response = await tool_helper_service.execute_post_request(
             url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products",
             json=payload,
             tool_name="create_update_data_product_from_asset_in_container",
         )
-        
+
         end_time = time.time()
         duration = end_time - start_time
         LOGGER.info(
             f"Completed data product draft creation at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))}"
         )
         LOGGER.info(
-            f"Data product draft creation took {duration:.2f} seconds ({duration/60:.2f} minutes)"
+            f"Data product draft creation took {duration:.2f} seconds ({duration / 60:.2f} minutes)"
         )
         message = f"Created data product draft with {asset_count} data asset item(s) successfully."
         response_dict = cast(dict[str, Any], response)
@@ -102,31 +105,39 @@ async def _create_or_update_data_product_from_asset_in_container(
         message = f"Updated data product draft with {asset_count} data asset item(s) successfully."
         draft = cast(dict[str, Any], response)
 
-    data_product_draft_id = request.existing_data_product_draft_id if request.existing_data_product_draft_id else draft["id"]
+    data_product_draft_id = (
+        request.existing_data_product_draft_id
+        if request.existing_data_product_draft_id
+        else draft["id"]
+    )
 
     if request.is_restricted:
-        await apply_restricted_patch(data_product_draft_id, "create_update_data_product_from_asset_in_container")
+        await apply_restricted_patch(
+            data_product_draft_id, "create_update_data_product_from_asset_in_container"
+        )
     contract_terms_id = draft["contract_terms"][0]["id"]
 
     return CreateOrUpdateDataProductFromAssetInContainerResponse(
         message=message,
         data_product_draft_id=data_product_draft_id,
         contract_terms_id=contract_terms_id,
-        url=get_data_product_url(data_product_draft_id, "draft")
+        url=get_data_product_url(data_product_draft_id, "draft"),
     )
 
 
 def get_data_product_draft_method_creation_payload(
-    dph_catalog_id: str, data_asset_ids: list[str], request: CreateOrUpdateDataProductFromAssetInContainerRequest
+    dph_catalog_id: str,
+    data_asset_ids: list[str],
+    request: CreateOrUpdateDataProductFromAssetInContainerRequest,
 ) -> dict:
     """
     Generate payload for creating a data product draft with multiple assets.
-    
+
     Args:
         dph_catalog_id: The DPH catalog ID
         data_asset_ids: List of asset IDs to include in the data product
         request: The request containing data product information
-        
+
     Returns:
         Payload dictionary for the API request
     """
@@ -139,7 +150,7 @@ def get_data_product_draft_method_creation_payload(
         }
         for asset_id in data_asset_ids
     ]
-    
+
     return {
         "drafts": [
             {
@@ -161,11 +172,11 @@ def get_patch_data_asset_items_to_draft_payload(
 ) -> list[dict]:
     """
     Generate payload for patching a data product draft with multiple assets.
-    
+
     Args:
         dph_catalog_id: The DPH catalog ID
         data_asset_ids: List of asset IDs to add to the data product
-        
+
     Returns:
         List of patch operations for the API request
     """
@@ -176,14 +187,11 @@ def get_patch_data_asset_items_to_draft_payload(
             "value": {
                 "asset": {
                     "id": asset_id,
-                    "container": {
-                        "id": dph_catalog_id,
-                        "type": "catalog"
-                    },
-                    "type": "data_asset"
+                    "container": {"id": dph_catalog_id, "type": "catalog"},
+                    "type": "data_asset",
                 },
-                "delivery_methods": []
-            }
+                "delivery_methods": [],
+            },
         }
         for asset_id in data_asset_ids
     ]
@@ -210,21 +218,46 @@ def get_patch_data_asset_items_to_draft_payload(
         target_asset_ids=["dph-asset-id-3"]
         existing_data_product_draft_id="existing-draft-id-123"
     Returns: This tool returns detailed information about the created or updated data product draft, including its unique identifier, associated contract terms ID, and a direct URL to access the draft.
-    """,
+    """,  # noqa: W293 # Baseline
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
     annotations={
         "title": "Create or Update Data Product Draft from Pre-Imported DPH Catalog Assets",
-        "destructiveHint": True
-    }
+        "destructiveHint": True,
+    },
 )
 @auto_context
 async def create_or_update_data_product_from_asset_in_container(
-    target_asset_ids: Annotated[list[str], Field(description="List of DPH catalog asset IDs (from import_remote_assets_to_data_product_catalog tool).")],
-    name: Annotated[str | None, Field(description="The name of the data product. Required for CREATE operations.")] = None,
-    description: Annotated[str | None, Field(description="The description of the data product. Required for CREATE operations.")] = None,
-    existing_data_product_draft_id: Annotated[str | None, Field(description="The ID of the existing data product draft. Provide only for UPDATE operations.")] = None,
-    is_restricted: Annotated[bool, Field(description="If True, the data product draft is marked as restricted. Access requires approval and the current user is set as the approver. Applies to both CREATE and UPDATE operations.")] = False,
+    target_asset_ids: Annotated[
+        list[str],
+        Field(
+            description="List of DPH catalog asset IDs (from import_remote_assets_to_data_product_catalog tool)."
+        ),
+    ],
+    name: Annotated[
+        str | None,
+        Field(
+            description="The name of the data product. Required for CREATE operations."
+        ),
+    ] = None,
+    description: Annotated[
+        str | None,
+        Field(
+            description="The description of the data product. Required for CREATE operations."
+        ),
+    ] = None,
+    existing_data_product_draft_id: Annotated[
+        str | None,
+        Field(
+            description="The ID of the existing data product draft. Provide only for UPDATE operations."
+        ),
+    ] = None,
+    is_restricted: Annotated[
+        bool,
+        Field(
+            description="If True, the data product draft is marked as restricted. Access requires approval and the current user is set as the approver. Applies to both CREATE and UPDATE operations."
+        ),
+    ] = False,
 ) -> CreateOrUpdateDataProductFromAssetInContainerResponse:
     """Create or update a data product draft using pre-imported DPH catalog assets."""
 

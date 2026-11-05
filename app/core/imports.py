@@ -6,7 +6,7 @@
 import importlib
 
 
-def import_obj(dotted: str):
+def import_obj(dotted: str):  # noqa: ANN201 # Baseline
     module, attr = dotted.rsplit(".", 1)
     mod = importlib.import_module(module)
     return getattr(mod, attr)

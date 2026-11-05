@@ -2,12 +2,19 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Callable, Awaitable, Literal, List
+from typing import Callable, Awaitable, Literal, List  # noqa: F401, I001, UP035 # Baseline
 from app.shared.logging import LOGGER
 from app.services import tool_utils
-from app.services.tool_utils import find_category_id, find_connection_id, find_metadata_enrichment_id, find_metadata_import_id
+from app.services.tool_utils import (
+    find_category_id,
+    find_connection_id,
+    find_metadata_enrichment_id,
+    find_metadata_import_id,
+)
 from app.shared.exceptions.base import ServiceError
-from app.services.text_to_query_search.constants import CONTAINER_TYPE_PROJECT_AND_CATALOG
+from app.services.text_to_query_search.constants import (
+    CONTAINER_TYPE_PROJECT_AND_CATALOG,
+)
 from app.services.user_search.utils.search_utils import search_users_by_query
 from app.core.auth import get_user_identifier
 
@@ -17,13 +24,13 @@ ContextRequirement = Literal["container_id", "container_id_and_type", None]
 
 async def find_user_id(user_name: str) -> str | None:
     """
-    Find user ID by user name, email, or username using fuzzy matching.    
+    Find user ID by user name, email, or username using fuzzy matching.
     Args:
         user_name: Name, email, or username to search for
-        
+
     Returns:
         User ID if found, None otherwise
-        
+
     Raises:
         ServiceError: When user is not found
     """
@@ -34,7 +41,7 @@ async def find_user_id(user_name: str) -> str | None:
     if results:
         LOGGER.info(f"Found user '{user_name}' with ID: {results[0].user_id}")
         return results[0].user_id
-    
+
     error_msg = f"User '{user_name}' not found"
     LOGGER.error(error_msg)
     raise ServiceError(error_msg)
@@ -59,14 +66,14 @@ def _validate_context(
 ) -> None:
     """
     Validate that required context is available for entity resolution.
-    
+
     Args:
         entity_name: Name of the entity being resolved
         entity_type: Type of the entity
         required_context: What context is required ('container_id', 'container_id_and_type', or None)
         container_id: The container ID (may be None)
         container_type: The container type (may be None)
-        
+
     Raises:
         ServiceError: If required context is not available
     """
@@ -83,14 +90,14 @@ def _validate_context(
 
 async def find_container_id(container_name: str, container_type: str) -> str:
     """Find container id for given container name and type.
-    
+
     Args:
         container_name: Name of the container to find.
         container_type: Type of container ('catalog', 'project', or 'project_and_catalog').
-        
+
     Returns:
         The container id.
-        
+
     Raises:
         ServiceError: If container is not found or container_type is invalid.
     """
@@ -114,20 +121,19 @@ async def _resolve_single_entity(
 ) -> dict | None:
     """
     Resolve a single entity from names_mapping to include its ID.
-    
+
     Returns:
         Dict with name, type, and id if successful, None otherwise
     """
     entity_name = entity.get("name")
     entity_type = entity.get("type")
-    
+
     if not entity_name or not entity_type:
         LOGGER.warning(
-            "Skipping invalid names_mapping entry: %s (missing name or type)",
-            entity
+            "Skipping invalid names_mapping entry: %s (missing name or type)", entity
         )
         return None
-    
+
     # Check if entity type is supported
     if entity_type not in ENTITY_RESOLVERS:
         LOGGER.warning(
@@ -137,13 +143,15 @@ async def _resolve_single_entity(
             ", ".join(ENTITY_RESOLVERS.keys()),
         )
         return None
-    
+
     # Get resolver configuration
     required_context, resolver_func = ENTITY_RESOLVERS[entity_type]
-    
+
     # Validate context availability
-    _validate_context(entity_name, entity_type, required_context, container_id, container_type)
-    
+    _validate_context(
+        entity_name, entity_type, required_context, container_id, container_type
+    )
+
     # Call the appropriate resolver function
     if required_context == "container_id_and_type":
         entity_id = await resolver_func(entity_name, container_id, container_type)
@@ -155,41 +163,44 @@ async def _resolve_single_entity(
         raise ValueError(
             f"Unsupported required context '{required_context}' for entity '{entity_name}'"
         )
-    
+
     if entity_id:
         return {"name": entity_name, "type": entity_type, "id": entity_id}
-    
+
     # Log when entity is not found
     LOGGER.warning("Entity '%s' of type '%s' not found", entity_name, entity_type)
     return None
 
 
 async def resolve_names_mapping_to_ids(
-    names_mapping: List[dict] | None,
+    names_mapping: List[dict] | None,  # noqa: UP006 # Baseline
     container_id: str | None,
     container_type: str | None,
-) -> List[dict]:
+) -> List[dict]:  # noqa: UP006 # Baseline
     """
     Resolve entity names to IDs for names_mapping parameter.
-    
+
     Args:
         names_mapping: List of dicts with 'name' and 'type' keys
         container_id: Container ID (project or catalog) for context
         container_type: Container type ('project' or 'catalog')
-        
+
     Returns:
         List of dicts with 'name', 'type', and 'id' keys (only successfully resolved entities)
     """
     if not names_mapping:
         return []
-    
+
     resolved_mapping = []
-    
+
     for entity in names_mapping:
-        resolved_entity = await _resolve_single_entity(entity, container_id, container_type)
+        resolved_entity = await _resolve_single_entity(
+            entity, container_id, container_type
+        )
         if resolved_entity:
             resolved_mapping.append(resolved_entity)
-    
+
     return resolved_mapping
+
 
 # Made with Bob

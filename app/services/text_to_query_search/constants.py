@@ -7,7 +7,11 @@ MAX_SEARCH_RESULTS: int = 100
 # Container type constant for searching across both projects and catalogs
 CONTAINER_TYPE_PROJECT_AND_CATALOG = "project_and_catalog"
 
-VALID_CONTAINER_TYPES: list[str] = ["project", "catalog", CONTAINER_TYPE_PROJECT_AND_CATALOG]
+VALID_CONTAINER_TYPES: list[str] = [
+    "project",
+    "catalog",
+    CONTAINER_TYPE_PROJECT_AND_CATALOG,
+]
 
 VALID_ARTIFACT_TYPES: list[str] = [
     "data_asset",
@@ -24,7 +28,7 @@ VALID_ARTIFACT_TYPES: list[str] = [
     "data_protection_rule",
     "reference_data",
     "metadata_enrichment_area",
-    "metadata_import"
+    "metadata_import",
 ]
 
 # Named entities that can be used within names_to_ids text2query API request body.
@@ -33,7 +37,7 @@ VALID_NAMED_ENTITIES: list[str] = [
     "metadata_import",
     "metadata_enrichment_area",
     "category",
-    "user"
+    "user",
 ]
 
 # Governance artifact types that share the glossary-term URL pattern.
@@ -105,6 +109,6 @@ TOOL_DESCRIPTION = """Use this tool when you need to searched items and return l
                             * Only add extra columns when the user's request explicitly calls for that data (e.g. "show assets modified last week" → add modified_on column; "list all assets" → three columns only).
                             * If a column value is the same for every row (e.g. all results are from the same project the user already named), omit that column to avoid redundant output.
                        Query API Reference: https://api.dataplatform.cloud.ibm.com/semantic_automation/v1/swagger-ui/index.html
-                       Returns: The generated search query, list of matching assets with their metadata and URLs, and an optional message if results exceed the display limit or when assets are selected."""
+                       Returns: The generated search query, list of matching assets with their metadata and URLs, and an optional message if results exceed the display limit or when assets are selected."""  # noqa: W293 # Baseline
 
 # Made with Bob

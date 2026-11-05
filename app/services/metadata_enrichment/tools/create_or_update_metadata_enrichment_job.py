@@ -1,23 +1,29 @@
-from typing import Optional, Annotated
+from typing import Optional, Annotated  # noqa: I001 # Baseline
 
 from pydantic import Field
 
 from app.core.registry import service_registry
-from app.services.metadata_enrichment.constants import CREATE_OR_UPDATE_METADATA_ENRICHMENT_ASSET_JOBS_TOOL_NAME
-from app.services.metadata_enrichment.models.metadata_enrichment import MetadataEnrichmentAssetEnrichmentJobResponse
-from app.services.metadata_enrichment.utils.metadata_enrichment_common_utils import call_create_or_update_metadata_enrichment_asset_jobs
-from app.shared.exceptions.base import ServiceError, ValidationError
+from app.services.metadata_enrichment.constants import (
+    CREATE_OR_UPDATE_METADATA_ENRICHMENT_ASSET_JOBS_TOOL_NAME,
+)
+from app.services.metadata_enrichment.models.metadata_enrichment import (
+    MetadataEnrichmentAssetEnrichmentJobResponse,
+)
+from app.services.metadata_enrichment.utils.metadata_enrichment_common_utils import (
+    call_create_or_update_metadata_enrichment_asset_jobs,
+)
+from app.shared.exceptions.base import ServiceError, ValidationError  # noqa: F401 # Baseline
 from app.shared.logging import auto_context
 
 
-async def _create_or_metadata_enrichment_asset_jobs(
-        project_name: str,
-        metadata_enrichment_name: str,
-        job_name: str,
-        category_names: list[str] |str,
-        objectives: list[str] | str,
-        job_description: Optional[str],
-        primary_category_name: Optional[str]
+async def _create_or_metadata_enrichment_asset_jobs(  # noqa: PLR0913 # Baseline
+    project_name: str,
+    metadata_enrichment_name: str,
+    job_name: str,
+    category_names: list[str] | str,
+    objectives: list[str] | str,
+    job_description: Optional[str],  # noqa: UP045 # Baseline
+    primary_category_name: Optional[str],  # noqa: UP045 # Baseline
 ) -> MetadataEnrichmentAssetEnrichmentJobResponse:
     if not project_name:
         raise ValidationError(
@@ -57,7 +63,8 @@ async def _create_or_metadata_enrichment_asset_jobs(
         category_names,
         objectives,
         job_description,
-        primary_category_name)
+        primary_category_name,
+    )
 
 
 @service_registry.tool(
@@ -75,23 +82,34 @@ async def _create_or_metadata_enrichment_asset_jobs(
     The objectives is the list of names of objectives used in the enrichment job.
     Supported objectives are 'profile', 'dq_gen_constraints', 'analyze_quality', 'assign_terms',
     'analyze_relationships', 'dq_sla_assessment', 'semantic_expansion', and 'data_search'.
-    """,
-    annotations={
-        "title": "Create or update a MDE job",
-        "destructiveHint": True
-    },
-    tags={"metadata_management_and_governance"}
+    """,  # noqa: W293 # Baseline
+    annotations={"title": "Create or update a MDE job", "destructiveHint": True},
+    tags={"metadata_management_and_governance"},
 )
 @auto_context
-async def create_or_update_metadata_enrichment_asset_jobs(
-        project_name: Annotated[str, Field(description="The name of the project.")],
-        metadata_enrichment_name: Annotated[str, Field(description="The name of the metadata enrichment asset.")],
-        job_name: Annotated[str, Field(description="The name of the job.")],
-        objectives: Annotated[list[str] | str, Field(description="""List of names of objectives for the enrichment job.
-                                                      Supported objectives are 'profile', 'dq_gen_constraints', 'analyze_quality', 'assign_terms', 'analyze_relationships', 'dq_sla_assessment', 'semantic_expansion', and 'data_search'.""")],
-        category_names: Annotated[list[str] | str, Field(description="""Category names for governance scope.""")],
-        job_description: Optional[str] = None,
-        primary_category_name: Annotated[Optional[str], Field(description="Identifier of the category that is used to store generated terms.")] = None,
+async def create_or_update_metadata_enrichment_asset_jobs(  # noqa: PLR0913 # Baseline
+    project_name: Annotated[str, Field(description="The name of the project.")],
+    metadata_enrichment_name: Annotated[
+        str, Field(description="The name of the metadata enrichment asset.")
+    ],
+    job_name: Annotated[str, Field(description="The name of the job.")],
+    objectives: Annotated[
+        list[str] | str,
+        Field(
+            description="""List of names of objectives for the enrichment job.
+                                                      Supported objectives are 'profile', 'dq_gen_constraints', 'analyze_quality', 'assign_terms', 'analyze_relationships', 'dq_sla_assessment', 'semantic_expansion', and 'data_search'."""
+        ),
+    ],
+    category_names: Annotated[
+        list[str] | str, Field(description="""Category names for governance scope.""")
+    ],
+    job_description: Optional[str] = None,  # noqa: UP045 # Baseline
+    primary_category_name: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Identifier of the category that is used to store generated terms."
+        ),
+    ] = None,
 ) -> MetadataEnrichmentAssetEnrichmentJobResponse:
 
     return await _create_or_metadata_enrichment_asset_jobs(
@@ -101,5 +119,5 @@ async def create_or_update_metadata_enrichment_asset_jobs(
         category_names,
         objectives,
         job_description,
-        primary_category_name
+        primary_category_name,
     )

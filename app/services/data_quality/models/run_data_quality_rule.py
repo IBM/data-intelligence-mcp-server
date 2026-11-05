@@ -2,9 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field  # noqa: I001 # Baseline
 from app.shared.models import BaseResponseModel
-from typing import Optional, Any
+from typing import Optional, Any  # noqa: F401 # Baseline
 
 
 class RunDataQualityRuleRequest(BaseModel):
@@ -12,9 +12,9 @@ class RunDataQualityRuleRequest(BaseModel):
         ..., description="Project ID or project name in which the rule to executed."
     )
     data_quality_rule_id_or_name: str = Field(
-    ...,
-    description="ID or name of the data quality rule to run."
-   )
+        ..., description="ID or name of the data quality rule to run."
+    )
+
 
 class RunDataQualityRuleResponse(BaseResponseModel):
     data_quality_rule_id: str = Field(
@@ -26,6 +26,6 @@ class RunDataQualityRuleResponse(BaseResponseModel):
     data_quality_rule_ui_url: str = Field(
         ..., description="UI URL to view the executed data quality rule."
     )
-    data_quality_rule_name: Optional[str] = Field(
+    data_quality_rule_name: Optional[str] = Field(  # noqa: UP045 # Baseline
         None, description="Name of the data quality rule."
     )

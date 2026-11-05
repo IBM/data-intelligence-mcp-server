@@ -11,18 +11,20 @@ This module provides functionality to claim, complete, or unclaim workflow tasks
 3. Performing the specified action on the task
 """
 
-import json
+import json  # noqa: I001 # Baseline
 import re
 from enum import Enum
-from typing import Annotated, List, Dict, Optional, Any, Type
+from typing import Annotated, List, Dict, Optional, Any, Type, Union  # noqa: UP035 # Baseline
 from pydantic import BaseModel, Field, create_model
+import mcp_types
+from fastmcp.server.elicitation import get_elicitation_schema
 from app.core.registry import service_registry
 from app.core.auth import get_user_identifier
 from app.services.constants import WORKFLOW_TASK_ENDPOINT
 from app.services.workflow.models.task_action import (
     TaskActionRequest,
     TaskActionResponse,
-    FormProperty
+    FormProperty,
 )
 from app.services.workflow.utils.task_utils import _parse_task_title_from_json
 from app.shared.logging import LOGGER, auto_context
@@ -41,40 +43,200 @@ from fastmcp.server.context import Context
 
 class ElicitationNotSupportedError(Exception):
     """Raised when the MCP client does not support elicitation."""
+
     pass
 
 
+# ---------------------------------------------------------------------------
+# Modern-protocol (2026-07-28+) elicitation helpers
+# ---------------------------------------------------------------------------
+
+_ELICIT_INPUT_ID = "task_action_elicit"
+_CLAIM_PREVIEW_INPUT_ID = "task_action_claim_preview"
+
+
+def _build_input_required_result(
+    input_id: str,
+    message: str,
+    response_type: Type[BaseModel],  # noqa: UP006 # Baseline
+) -> mcp_types.InputRequiredResult:
+    """
+    Build an InputRequiredResult carrying a single ElicitRequest.
+
+    Used by the modern sessionless protocol (2026-07-28+) to ask the client
+    for input.  The client fulfils the request and retries the tool call;
+    the tool then reads the answer via _read_elicit_from_input_responses().
+
+    Args:
+        input_id:      Key under which the ElicitRequest is registered.
+        message:       Human-readable prompt shown to the user.
+        response_type: Pydantic model that describes the expected response.
+
+    Returns:
+        InputRequiredResult that FastMCP serialises to the wire.
+    """
+    schema = get_elicitation_schema(response_type)
+    elicit_req = mcp_types.ElicitRequest(
+        params=mcp_types.ElicitRequestFormParams(
+            message=message,
+            requestedSchema=schema,
+        )
+    )
+    return mcp_types.InputRequiredResult(input_requests={input_id: elicit_req})
+
+
+def _read_elicit_from_input_responses(
+    ctx: Context,
+    input_id: str,
+    response_type: Type[BaseModel],  # noqa: UP006 # Baseline
+) -> Optional[BaseModel]:  # noqa: UP045 # Baseline
+    """
+    Read and validate the elicitation response from ctx.input_responses.
+
+    Called on the retry round of a modern-protocol tool invocation after the
+    client has fulfilled the InputRequiredResult returned on the first round.
+
+    Args:
+        ctx:           MCP Context on the retry round.
+        input_id:      Key used in the original InputRequiredResult.
+        response_type: Pydantic model to parse the raw content dict into.
+
+    Returns:
+        Validated response_type instance, or None if the user declined/cancelled
+        or the response could not be validated.
+    """
+    input_responses = ctx.input_responses
+    if input_responses is None:
+        return None
+    response = input_responses.get(input_id)
+    if response is None:
+        return None
+    # InputResponse is a Union; ElicitResult carries .action and .content
+    if not isinstance(response, mcp_types.ElicitResult):
+        LOGGER.warning(
+            "Unexpected input_response type for '%s': %s", input_id, type(response)
+        )
+        return None
+    if response.action != "accept":
+        LOGGER.info(
+            "Elicitation '%s' not accepted (action=%s)", input_id, response.action
+        )
+        return None
+    try:
+        return response_type.model_validate(response.content or {})
+    except Exception as exc:
+        LOGGER.warning(
+            "Failed to validate elicitation response for '%s': %s", input_id, exc
+        )
+        return None
+
+
+# Sentinel distinguishing "ctx does not use the modern protocol" from the
+# valid modern-protocol results (None means 'declined' there).
+_NOT_MODERN_PROTOCOL = object()
+
+
+def _is_modern_elicit_ctx(ctx: Context) -> bool:
+    """
+    Check whether ctx uses the modern sessionless elicitation protocol (2026-07-28+).
+
+    The context must advertise the protocol via ``_is_modern_protocol()`` and
+    carry its ``input_responses`` in a dict-or-None shape.
+    """
+    if not (hasattr(ctx, "_is_modern_protocol") and ctx._is_modern_protocol()):
+        return False
+    return isinstance(getattr(ctx, "input_responses", None), (dict, type(None)))
+
+
+class _ModernElicitResponse:
+    """
+    Thin wrapper giving a validated modern-protocol payload the same
+    ``.action`` / ``.data`` shape as a legacy ctx.elicit() response.
+    """
+
+    action = "accept"
+
+    def __init__(self, data: Any):  # noqa: ANN204 # Baseline
+        self.data = data
+
+
+def _modern_elicit_declined(input_responses: Optional[dict], input_id: str) -> bool:  # noqa: UP045 # Baseline
+    """Check whether the client explicitly declined or cancelled the elicitation."""
+    if input_responses is None or input_id not in input_responses:
+        return False
+    resp = input_responses[input_id]
+    return isinstance(resp, mcp_types.ElicitResult) and resp.action != "accept"
+
+
+def _handle_modern_elicit(  # noqa: ANN202 # Baseline
+    ctx: Context,
+    input_id: str,
+    message: str,
+    response_type: Type[BaseModel],  # noqa: UP006 # Baseline
+    operation_name: str,
+):
+    """
+    Serve elicitation via the modern sessionless protocol (2026-07-28+, guard pattern).
+
+    Args:
+        ctx:           MCP Context.
+        input_id:      Key used in the InputRequiredResult round-trip.
+        message:       Human-readable prompt shown to the user.
+        response_type: Pydantic model that describes the expected response.
+        operation_name: Name of operation for logging.
+
+    Returns:
+        A response object (accepted), None (declined/cancelled), or an
+        InputRequiredResult to be propagated to the client — or the
+        _NOT_MODERN_PROTOCOL sentinel when ctx does not use the modern
+        protocol, so the caller should fall back to the legacy one.
+    """
+    if not _is_modern_elicit_ctx(ctx):
+        return _NOT_MODERN_PROTOCOL
+
+    validated = _read_elicit_from_input_responses(ctx, input_id, response_type)
+    if validated is not None:
+        LOGGER.info(f"{operation_name} accepted (modern protocol): {validated}")
+        return _ModernElicitResponse(validated)
+    if _modern_elicit_declined(getattr(ctx, "input_responses", None), input_id):
+        LOGGER.info(f"{operation_name} declined or cancelled (modern protocol)")
+        return None
+    LOGGER.info(f"Returning InputRequiredResult for '{input_id}' ({operation_name})")
+    return _build_input_required_result(input_id, message, response_type)
+
+
 REJECTION_COMMENT_MIN_LENGTH = 4
-_PENDING_REJECTION_ACTIONS: Dict[str, str] = {}
+_PENDING_REJECTION_ACTIONS: Dict[str, str] = {}  # noqa: UP006 # Baseline
 
 _TOOL_NAME = "perform_workflow_task_action"
 _NETWORK_REMEDIATION = "Check network connectivity and verify the workflow service is accessible. Retry the operation."
 
-def _get_task_display_name(task_data: Dict[str, Any]) -> str:
+
+def _get_task_display_name(task_data: Dict[str, Any]) -> str:  # noqa: UP006 # Baseline
     """
     Extract the best display name for a task, preferring title over name.
-    
+
     Args:
         task_data: Task data dictionary from API response
-        
+
     Returns:
         Task display name (title if available, otherwise name, otherwise "Unknown Task")
     """
     entity = task_data.get("entity", {})
     metadata = task_data.get("metadata", {})
-    
+
     # Try to get task_title from entity first
     task_title_raw = entity.get("task_title", "")
     if task_title_raw:
         task_title = _parse_task_title_from_json(task_title_raw)
         if task_title:
             return task_title
-    
+
     # Fall back to metadata name
     return metadata.get("name", "Unknown Task")
 
 
-def _get_artifact_type(task_data: Dict[str, Any]) -> Optional[str]:
+def _get_artifact_type(task_data: Dict[str, Any]) -> Optional[str]:  # noqa: UP006, UP045 # Baseline
     """
     Return the artifact type string for a task, or None when it cannot be determined.
 
@@ -125,14 +287,14 @@ def _get_artifact_type(task_data: Dict[str, Any]) -> Optional[str]:
         return None
     except Exception as exc:  # noqa: BLE001
         LOGGER.warning(
-            "_get_artifact_type: unexpected error parsing task_title – %s: %s",
+            "_get_artifact_type: unexpected error parsing task_title – %s: %s",  # noqa: RUF001 # Baseline
             type(exc).__name__,
             exc,
         )
         return None
 
 
-def _is_business_term_approval_task(task_data: Dict[str, Any]) -> bool:
+def _is_business_term_approval_task(task_data: Dict[str, Any]) -> bool:  # noqa: UP006 # Baseline
     """
     Return True when task_data represents a business-term (glossary_term) or data-class
     (data_class) approval task.  Delegates to :func:`_get_artifact_type`.
@@ -149,7 +311,7 @@ def _is_business_term_approval_task(task_data: Dict[str, Any]) -> bool:
     return result
 
 
-def _select_skill_text(task_data: Dict[str, Any]) -> Optional[str]:
+def _select_skill_text(task_data: Dict[str, Any]) -> Optional[str]:  # noqa: UP006, UP045 # Baseline
     """
     Return the skill instructions text appropriate for the task's artifact type.
 
@@ -161,109 +323,125 @@ def _select_skill_text(task_data: Dict[str, Any]) -> Optional[str]:
     if artifact_type is None:
         return None
     if "data_class" in artifact_type:
-        LOGGER.info("_select_skill_text: data_class task → DATA_CLASS_SKILL_TEXT (loaded=%s)", DATA_CLASS_SKILL_TEXT is not None)
+        LOGGER.info(
+            "_select_skill_text: data_class task → DATA_CLASS_SKILL_TEXT (loaded=%s)",
+            DATA_CLASS_SKILL_TEXT is not None,
+        )
         return DATA_CLASS_SKILL_TEXT
     if "glossary_term" in artifact_type:
-        LOGGER.info("_select_skill_text: glossary_term task → BUSINESS_TERM_SKILL_TEXT (loaded=%s)", BUSINESS_TERM_SKILL_TEXT is not None)
+        LOGGER.info(
+            "_select_skill_text: glossary_term task → BUSINESS_TERM_SKILL_TEXT (loaded=%s)",
+            BUSINESS_TERM_SKILL_TEXT is not None,
+        )
         return BUSINESS_TERM_SKILL_TEXT
-    LOGGER.info("_select_skill_text: unrecognised artifact_type=%r → None", artifact_type)
+    LOGGER.info(
+        "_select_skill_text: unrecognised artifact_type=%r → None", artifact_type
+    )
     return None
 
 
-async def _get_task_details(task_id: str) -> Dict[str, Any]:
+async def _get_task_details(task_id: str) -> Dict[str, Any]:  # noqa: UP006 # Baseline
     """
     Retrieve task details from the workflow API.
-    
+
     Args:
         task_id: Unique identifier of the task
-        
+
     Returns:
         Dictionary containing task details including form properties
-        
+
     Raises:
         ToolError: If the request fails
     """
     try:
         response = await tool_helper_service.execute_get_request(
             url=f"{tool_helper_service.base_url}{WORKFLOW_TASK_ENDPOINT}/{task_id}",
-            tool_name=_TOOL_NAME
+            tool_name=_TOOL_NAME,
         )
         return response
     except KeyError as e:
-        error_msg = f"Missing required field in task details response for task '{task_id}': {str(e)}"
+        error_msg = f"Missing required field in task details response for task '{task_id}': {e!s}"
         LOGGER.error(error_msg)
         raise ServiceError(
             error_msg,
             service="workflow",
             tool=_TOOL_NAME,
-            remediation_steps=f"Verify the workflow task API is returning complete data for task '{task_id}'. Contact support if the issue persists."
+            remediation_steps=f"Verify the workflow task API is returning complete data for task '{task_id}'. Contact support if the issue persists.",
         ) from e
     except (ConnectionError, TimeoutError) as e:
-        error_msg = f"Network error while retrieving task details for task '{task_id}': {str(e)}"
+        error_msg = (
+            f"Network error while retrieving task details for task '{task_id}': {e!s}"
+        )
         LOGGER.error(error_msg)
         raise ExternalAPIError(
             error_msg,
             service="workflow",
             tool=_TOOL_NAME,
-            remediation_steps=_NETWORK_REMEDIATION
+            remediation_steps=_NETWORK_REMEDIATION,
         ) from e
     except Exception as e:
-        error_msg = f"Unexpected error retrieving task details for task '{task_id}': {str(e)}"
+        error_msg = (
+            f"Unexpected error retrieving task details for task '{task_id}': {e!s}"
+        )
         LOGGER.error(error_msg)
         raise ServiceError(
             error_msg,
             service="workflow",
             tool=_TOOL_NAME,
-            remediation_steps=f"Verify that task ID '{task_id}' exists and you have permission to access it. Check the service logs for more details."
+            remediation_steps=f"Verify that task ID '{task_id}' exists and you have permission to access it. Check the service logs for more details.",
         ) from e
 
 
-def _is_task_already_claimed(task_data: Dict[str, Any]) -> bool:
+def _is_task_already_claimed(task_data: Dict[str, Any]) -> bool:  # noqa: UP006 # Baseline
     """
     Check if a task is already claimed.
-    
+
     Args:
         task_data: Task data dictionary from API response
-        
+
     Returns:
         True if task is claimed, False otherwise
     """
     entity = task_data.get("entity", {})
     claimed_at = entity.get("claimed_at")
-    
+
     if claimed_at:
         LOGGER.info(f"Task is already claimed (claimed_at: {claimed_at})")
         return True
-    
+
     return False
 
 
-def _transform_form_properties(form_properties: List[Dict[str, Any]]) -> List[FormProperty]:
+def _transform_form_properties(
+    form_properties: List[Dict[str, Any]],  # noqa: UP006 # Baseline
+) -> List[FormProperty]:  # noqa: UP006 # Baseline
     """
     Transform raw form properties into simplified format.
-    
+
     Args:
         form_properties: List of raw form property dictionaries from API
-        
+
     Returns:
         List of FormProperty objects with id and value populated
     """
     simplified_properties = []
-    
+
     for prop in form_properties:
         # Skip non-dictionary elements
         if not isinstance(prop, dict):
-            LOGGER.warning(f"Skipping non-dictionary form property during transformation: {prop} (type: {type(prop).__name__})")
+            LOGGER.warning(
+                f"Skipping non-dictionary form property during transformation: {prop} (type: {type(prop).__name__})"
+            )
             continue
-        
+
         # Extract basic properties
         prop_id = prop.get("id")
         prop_value = prop.get("value", "")
-        
+
         if prop_id is None:
             LOGGER.warning(f"Skipping form property without id: {prop}")
             continue
-        
+
         # Create simplified form property
         # For now, only populate id and value as strings, leave others empty
         form_prop = FormProperty(
@@ -272,11 +450,11 @@ def _transform_form_properties(form_properties: List[Dict[str, Any]]) -> List[Fo
             date_value=None,
             period_value=None,
             long_value=None,
-            list_value=None
+            list_value=None,
         )
-        
+
         simplified_properties.append(form_prop)
-    
+
     LOGGER.info(f"Transformed {len(simplified_properties)} form properties")
     return simplified_properties
 
@@ -291,7 +469,7 @@ def _sanitize_enum_member_name(enum_value_id: str, index: int) -> str:
     return sanitized
 
 
-def _build_runtime_multi_select_type(field_name: str, enum_ids: List[str]) -> Any:
+def _build_runtime_multi_select_type(field_name: str, enum_ids: List[str]) -> Any:  # noqa: UP006 # Baseline
     """
     Build a runtime enum class for elicitation schema generation.
 
@@ -300,7 +478,7 @@ def _build_runtime_multi_select_type(field_name: str, enum_ids: List[str]) -> An
     Literal produces a stable JSON schema with explicit enum choices for MCP
     clients.
     """
-    members: Dict[str, str] = {}
+    members: Dict[str, str] = {}  # noqa: UP006 # Baseline
     for index, enum_id in enumerate(enum_ids):
         member_name = _sanitize_enum_member_name(enum_id, index)
         while member_name in members:
@@ -311,12 +489,12 @@ def _build_runtime_multi_select_type(field_name: str, enum_ids: List[str]) -> An
     LOGGER.debug(
         "Generated runtime Enum for elicitation field '%s' with values=%s",
         field_name,
-        list(members.values())
+        list(members.values()),
     )
     return enum_type
 
 
-def _resolve_action_field_type(action_prop: Dict[str, Any]) -> type:
+def _resolve_action_field_type(action_prop: Dict[str, Any]) -> type:  # noqa: UP006 # Baseline
     """
     Resolve the Python type for the special 'action' field on complete actions.
 
@@ -331,14 +509,19 @@ def _resolve_action_field_type(action_prop: Dict[str, Any]) -> type:
         action_type = _build_runtime_multi_select_type("action", enum_ids)
         LOGGER.info(
             "Added 'action' field for complete action with runtime enum choices from enum_values: %s",
-            enum_ids
+            enum_ids,
         )
         return action_type
-    LOGGER.info("Added 'action' field for complete action (no enum_values found, falling back to string)")
+    LOGGER.info(
+        "Added 'action' field for complete action (no enum_values found, falling back to string)"
+    )
     return str
 
 
-def _add_action_field(fields: Dict[str, Any], form_properties: List[Dict[str, Any]]) -> None:
+def _add_action_field(
+    fields: Dict[str, Any],  # noqa: UP006 # Baseline
+    form_properties: List[Dict[str, Any]],  # noqa: UP006 # Baseline
+) -> None:
     """
     Add the special 'action' radio field for the 'complete' action.
 
@@ -351,9 +534,12 @@ def _add_action_field(fields: Dict[str, Any], form_properties: List[Dict[str, An
         form_properties: List of raw form property dictionaries from API
     """
     action_prop = next(
-        (prop for prop in form_properties
-         if isinstance(prop, dict) and prop.get("id") == "action"),
-        None
+        (
+            prop
+            for prop in form_properties
+            if isinstance(prop, dict) and prop.get("id") == "action"
+        ),
+        None,
     )
     if not action_prop:
         return
@@ -364,12 +550,12 @@ def _add_action_field(fields: Dict[str, Any], form_properties: List[Dict[str, An
         Field(
             ...,
             description="Select the action to perform on the task",
-            json_schema_extra={"ui": {"widget": "radio"}}
-        )
+            json_schema_extra={"ui": {"widget": "radio"}},
+        ),
     )
 
 
-def _resolve_property_type(prop: Dict[str, Any]) -> type:
+def _resolve_property_type(prop: Dict[str, Any]) -> type:  # noqa: UP006 # Baseline
     """
     Determine the Python type for a single form property.
 
@@ -390,9 +576,7 @@ def _resolve_property_type(prop: Dict[str, Any]) -> type:
     if enum_ids and prop_type.lower() in ("enum", "string"):
         resolved_type = _build_runtime_multi_select_type(prop_id, enum_ids)
         LOGGER.debug(
-            "Property '%s' uses runtime Enum from enum_values=%s",
-            prop_id,
-            enum_ids
+            "Property '%s' uses runtime Enum from enum_values=%s", prop_id, enum_ids
         )
         return resolved_type
 
@@ -401,12 +585,14 @@ def _resolve_property_type(prop: Dict[str, Any]) -> type:
         "Property '%s' resolved to python type '%s' from prop_type='%s'",
         prop_id,
         getattr(resolved_type, "__name__", str(resolved_type)),
-        prop_type
+        prop_type,
     )
     return resolved_type
 
 
-def _form_supports_rejection_comment_validation(form_properties: List[Dict[str, Any]]) -> bool:
+def _form_supports_rejection_comment_validation(
+    form_properties: List[Dict[str, Any]],  # noqa: UP006 # Baseline
+) -> bool:
     """
     Determine whether the task form can express a rejection action with a comment.
 
@@ -418,8 +604,12 @@ def _form_supports_rejection_comment_validation(form_properties: List[Dict[str, 
         and a comment field.
     """
     action_prop = next(
-        (prop for prop in form_properties if isinstance(prop, dict) and prop.get("id") == "action"),
-        None
+        (
+            prop
+            for prop in form_properties
+            if isinstance(prop, dict) and prop.get("id") == "action"
+        ),
+        None,
     )
     if not action_prop:
         return False
@@ -454,7 +644,7 @@ def _is_reject_like_action_value(action_value: Any) -> bool:
     return "reject" in normalized if normalized else False
 
 
-def _build_rejection_comment_retry_metadata(action_value: Any) -> Dict[str, str]:
+def _build_rejection_comment_retry_metadata(action_value: Any) -> Dict[str, str]:  # noqa: UP006 # Baseline
     """
     Build machine-readable retry metadata for rejection comment recovery.
 
@@ -477,20 +667,20 @@ def _store_pending_rejection_action(task_id: str, action_value: Any) -> None:
     _PENDING_REJECTION_ACTIONS[task_id] = str(action_value)
 
 
-def _pop_pending_rejection_action(task_id: str) -> Optional[str]:
+def _pop_pending_rejection_action(task_id: str) -> Optional[str]:  # noqa: UP045 # Baseline
     """Remove and return a previously stored reject-like action."""
     return _PENDING_REJECTION_ACTIONS.pop(task_id, None)
 
 
-def _peek_pending_rejection_action(task_id: str) -> Optional[str]:
+def _peek_pending_rejection_action(task_id: str) -> Optional[str]:  # noqa: UP045 # Baseline
     """Return a previously stored reject-like action without clearing it."""
     return _PENDING_REJECTION_ACTIONS.get(task_id)
 
 
 def _restore_pending_rejection_action(
     task_id: str,
-    form_values: Optional[Dict[str, Any]]
-) -> Optional[Dict[str, Any]]:
+    form_values: Optional[Dict[str, Any]],  # noqa: UP006, UP045 # Baseline
+) -> Optional[Dict[str, Any]]:  # noqa: UP006, UP045 # Baseline
     """
     Restore a previously stored reject-like action when retry input contains only comment.
 
@@ -547,8 +737,8 @@ def _build_rejection_comment_retry_message(action_value: Any) -> str:
 
 def _validate_rejection_comment(
     task_id: str,
-    form_values: Optional[Dict[str, Any]]
-) -> Optional[TaskActionResponse]:
+    form_values: Optional[Dict[str, Any]],  # noqa: UP006, UP045 # Baseline
+) -> Optional[TaskActionResponse]:  # noqa: UP045 # Baseline
     """
     Validate the hard-coded rejection comment rule for task completion.
 
@@ -576,11 +766,14 @@ def _validate_rejection_comment(
     return TaskActionResponse(
         status_code=400,
         message=_build_rejection_comment_retry_message(action_value),
-        retry_metadata=_build_rejection_comment_retry_metadata(action_value)
+        retry_metadata=_build_rejection_comment_retry_metadata(action_value),
     )
 
 
-def _build_property_field(prop: Dict[str, Any], is_complete_action: bool) -> Optional[tuple]:
+def _build_property_field(
+    prop: Dict[str, Any],  # noqa: UP006 # Baseline
+    is_complete_action: bool,  # noqa: UP006 # Baseline
+) -> Optional[tuple]:  # noqa: UP045 # Baseline
     """
     Build a single (name, (type, Field)) tuple for a form property.
 
@@ -597,7 +790,7 @@ def _build_property_field(prop: Dict[str, Any], is_complete_action: bool) -> Opt
     if not prop_id:
         return None
 
-    # Skip 'action' field from form properties – we add our own above
+    # Skip 'action' field from form properties – we add our own above  # noqa: RUF003 # Baseline
     if prop_id == "action" and is_complete_action:
         return None
 
@@ -609,30 +802,38 @@ def _build_property_field(prop: Dict[str, Any], is_complete_action: bool) -> Opt
         prop_id,
         prop.get("type", "string"),
         getattr(python_type, "__name__", str(python_type)),
-        _prop_writable(prop)
+        _prop_writable(prop),
     )
 
-    field_default = ... if isinstance(python_type, type) and issubclass(python_type, Enum) else ""
-    return (prop_id, (python_type, Field(default=field_default, description=description)))
+    field_default = (
+        ... if isinstance(python_type, type) and issubclass(python_type, Enum) else ""
+    )
+    return (
+        prop_id,
+        (python_type, Field(default=field_default, description=description)),
+    )
 
 
-def _create_elicitation_schema(form_properties: List[Dict[str, Any]], action: str = "") -> Type[BaseModel]:
+def _create_elicitation_schema(
+    form_properties: List[Dict[str, Any]],  # noqa: UP006 # Baseline
+    action: str = "",  # noqa: UP006 # Baseline
+) -> Type[BaseModel]:  # noqa: UP006 # Baseline
     """
     Create a dynamic pydantic BaseModel class for MCP elicitation from form properties.
-    
+
     Args:
         form_properties: List of raw form property dictionaries from API
         action: Action being performed (used to determine if action field should be added)
-        
+
     Returns:
         A pydantic BaseModel class with fields corresponding to form properties
     """
-    fields: Dict[str, Any] = {}
+    fields: Dict[str, Any] = {}  # noqa: UP006 # Baseline
 
     LOGGER.debug(
         "Creating elicitation schema for action='%s' from raw property ids=%s",
         action,
-        [prop.get("id") for prop in form_properties if isinstance(prop, dict)]
+        [prop.get("id") for prop in form_properties if isinstance(prop, dict)],
     )
 
     # For 'complete' action, add an 'action' field as the first field
@@ -643,25 +844,29 @@ def _create_elicitation_schema(form_properties: List[Dict[str, Any]], action: st
     is_complete_action = action == "complete"
     for prop in form_properties:
         if not isinstance(prop, dict):
-            LOGGER.warning(f"Skipping non-dictionary property in schema creation: {prop} (type: {type(prop).__name__})")
+            LOGGER.warning(
+                f"Skipping non-dictionary property in schema creation: {prop} (type: {type(prop).__name__})"
+            )
             continue
 
         result = _build_property_field(prop, is_complete_action)
         if result is not None:
             fields[result[0]] = result[1]
 
-    model = create_model('DynamicElicitationModel', **fields)
+    model = create_model("DynamicElicitationModel", **fields)
     try:
         schema = model.model_json_schema()
         LOGGER.debug(
             "Generated elicitation schema fields=%s",
             {
                 field_name: schema.get("properties", {}).get(field_name, {})
-                for field_name in fields.keys()
-            }
+                for field_name in fields.keys()  # noqa: SIM118 # Baseline
+            },
         )
     except Exception as exc:
-        LOGGER.warning("Failed to serialize elicitation schema for debug logging: %s", exc)
+        LOGGER.warning(
+            "Failed to serialize elicitation schema for debug logging: %s", exc
+        )
 
     return model
 
@@ -669,10 +874,10 @@ def _create_elicitation_schema(form_properties: List[Dict[str, Any]], action: st
 def _map_property_type_to_python_type(prop_type: str) -> type:
     """
     Map form property type to Python type for pydantic fields.
-    
+
     Args:
         prop_type: Form property type string (e.g., "string", "integer", "boolean", "date")
-        
+
     Returns:
         Python type (str, int, float, bool)
     """
@@ -688,19 +893,19 @@ def _map_property_type_to_python_type(prop_type: str) -> type:
         "datetime": str,
         "time": str,
         "enum": str,
-        "multi-enum": List[str],
+        "multi-enum": List[str],  # noqa: UP006 # Baseline
     }
-    
+
     return type_mapping.get(prop_type.lower(), str)
 
 
-def _extract_enum_value_ids(prop: Dict[str, Any]) -> List[str]:
+def _extract_enum_value_ids(prop: Dict[str, Any]) -> List[str]:  # noqa: UP006 # Baseline
     """
     Extract enum value IDs from a form property's enum_values field.
-    
+
     Args:
         prop: Form property dictionary that may contain an 'enum_values' list
-        
+
     Returns:
         List of enum value ID strings, or empty list if not available
     """
@@ -708,7 +913,7 @@ def _extract_enum_value_ids(prop: Dict[str, Any]) -> List[str]:
     if not isinstance(enum_values, list) or not enum_values:
         LOGGER.debug("Property '%s' has no enum_values", prop.get("id", "unknown"))
         return []
-    
+
     ids = []
     for ev in enum_values:
         if isinstance(ev, dict) and "id" in ev:
@@ -720,67 +925,80 @@ def _extract_enum_value_ids(prop: Dict[str, Any]) -> List[str]:
         "Extracted enum_values for property '%s': raw=%s, ids=%s",
         prop.get("id", "unknown"),
         enum_values,
-        ids
+        ids,
     )
     return ids
 
 
-def _describe_writable_properties(form_properties: List[Dict[str, Any]], action: str = "") -> str:
+def _describe_writable_properties(
+    form_properties: List[Dict[str, Any]],  # noqa: UP006 # Baseline
+    action: str = "",  # noqa: UP006 # Baseline
+) -> str:
     """
     Build a human-readable description of writable form properties.
-    
+
     This is used as a fallback when MCP elicitation is not supported, so the
     client/LLM can present the required fields to the user.
-    
+
     Args:
         form_properties: List of raw form property dictionaries from API
         action: Action being performed (used to determine if action field should be included)
-        
+
     Returns:
         Formatted string listing each writable field with its details
     """
     writable_props = [
-        prop for prop in form_properties
+        prop
+        for prop in form_properties
         if isinstance(prop, dict) and _prop_writable(prop)
     ]
-    
+
     if not writable_props:
         return "No writable form properties found."
-    
+
     lines = []
     requires_rejection_comment_validation = (
-        action == "complete" and _form_supports_rejection_comment_validation(form_properties)
+        action == "complete"
+        and _form_supports_rejection_comment_validation(form_properties)
     )
-    
+
     # For 'complete' action, include the special 'action' field first
     if action == "complete":
         _append_action_field_description(lines, form_properties)
-    
+
     for prop in writable_props:
         prop_id = prop.get("id", "unknown")
         if prop_id == "action" and action == "complete":
             continue  # already handled above
-        lines.append(_describe_single_property(prop, requires_rejection_comment_validation))
-    
+        lines.append(
+            _describe_single_property(prop, requires_rejection_comment_validation)
+        )
+
     return "\n".join(lines)
 
 
-def _append_action_field_description(lines: List[str], form_properties: List[Dict[str, Any]]) -> None:
+def _append_action_field_description(
+    lines: List[str],  # noqa: UP006 # Baseline
+    form_properties: List[Dict[str, Any]],  # noqa: UP006 # Baseline
+) -> None:
     """
     Append the special 'action' field description for complete actions.
-    
+
     Args:
         lines: Mutable list to append the description line to
         form_properties: Raw form property dictionaries to find the action field in
     """
     action_prop = next(
-        (prop for prop in form_properties
-         if isinstance(prop, dict) and prop.get("id") == "action"),
-        None
+        (
+            prop
+            for prop in form_properties
+            if isinstance(prop, dict) and prop.get("id") == "action"
+        ),
+        None,
     )
     if not action_prop:
         return
-    
+
     choices = _format_choices(action_prop)
     if choices:
         lines.append(f"⊙ action: {choices}")
@@ -789,17 +1007,17 @@ def _append_action_field_description(lines: List[str], form_properties: List[Dic
 
 
 def _describe_single_property(
-    prop: Dict[str, Any],
-    requires_rejection_comment_validation: bool = False
+    prop: Dict[str, Any],  # noqa: UP006 # Baseline
+    requires_rejection_comment_validation: bool = False,  # noqa: UP006 # Baseline
 ) -> str:
     """
     Format a single form property as a human-readable description line.
-    
+
     Args:
         prop: Form property dictionary with id, type, name/description, and optional enum_values
         requires_rejection_comment_validation: True when comment should mention the
             hard-coded minimum length for rejection flows
-        
+
     Returns:
         Formatted description string like "🗈 comment: description" or "field_id: description [Choices: a, b]"
     """
@@ -812,18 +1030,17 @@ def _describe_single_property(
             f"{description} Minimum length: {REJECTION_COMMENT_MIN_LENGTH} characters "
             "when submitting a rejection action."
         )
-    
+
     choices = _format_choices(prop)
     suffix = f" [Choices: {choices}]" if choices else ""
-    
+
     # Add special prefix for comment fields
     if prop_id == "comment":
         return f"🗈 {prop_id}: {description}{suffix}"
-    else:
-        return f"{prop_id}: {description}{suffix}"
+    return f"{prop_id}: {description}{suffix}"
 
 
-def _format_choices(prop: Dict[str, Any]) -> Optional[str]:
+def _format_choices(prop: Dict[str, Any]) -> Optional[str]:  # noqa: UP006, UP045 # Baseline
     """
     Format enum choices from a property as a comma-separated string of IDs.
 
@@ -839,7 +1056,7 @@ def _format_choices(prop: Dict[str, Any]) -> Optional[str]:
     return ", ".join(enum_ids) if enum_ids else None
 
 
-def _format_enum_choices_for_display(prop: Dict[str, Any]) -> Optional[str]:
+def _format_enum_choices_for_display(prop: Dict[str, Any]) -> Optional[str]:  # noqa: UP006, UP045 # Baseline
     """
     Format enum choices using human-readable labels for informational display.
 
@@ -856,9 +1073,9 @@ def _format_enum_choices_for_display(prop: Dict[str, Any]) -> Optional[str]:
     if not isinstance(enum_values, list) or not enum_values:
         return None
 
-    labels: List[str] = []
+    labels: List[str] = []  # noqa: UP006 # Baseline
     for ev in enum_values:
-        if isinstance(ev, dict):
+        if isinstance(ev, dict):  # noqa: SIM108 # Baseline
             label = ev.get("name") or ev.get("id", "")
         else:
             label = str(ev)
@@ -868,7 +1085,7 @@ def _format_enum_choices_for_display(prop: Dict[str, Any]) -> Optional[str]:
     return ", ".join(labels) if labels else None
 
 
-def _describe_action_prop(prop: Dict[str, Any]) -> str:
+def _describe_action_prop(prop: Dict[str, Any]) -> str:  # noqa: UP006 # Baseline
     """Return the bullet line for the action field."""
     display_choices = _format_enum_choices_for_display(prop)
     if display_choices:
@@ -876,7 +1093,7 @@ def _describe_action_prop(prop: Dict[str, Any]) -> str:
     return "\n- Action: choose an action"
 
 
-def _describe_non_action_prop(prop: Dict[str, Any], has_rejection: bool) -> str:
+def _describe_non_action_prop(prop: Dict[str, Any], has_rejection: bool) -> str:  # noqa: UP006 # Baseline
     """Return the bullet line for any writable field other than action."""
     prop_id = prop.get("id", "unknown")
     prop_name = prop.get("name", prop_id).capitalize()
@@ -894,7 +1111,9 @@ def _describe_non_action_prop(prop: Dict[str, Any], has_rejection: bool) -> str:
     return f"\n- {prop_name}: {description}"
 
 
-def _describe_properties_for_claim_preview(form_properties: List[Dict[str, Any]]) -> str:
+def _describe_properties_for_claim_preview(
+    form_properties: List[Dict[str, Any]],  # noqa: UP006 # Baseline
+) -> str:
     """
     Build a plain-text, human-readable bullet list of what the user will need
     to provide when they later complete this task.
@@ -916,7 +1135,7 @@ def _describe_properties_for_claim_preview(form_properties: List[Dict[str, Any]]
         return "No additional information required."
 
     has_rejection = _form_supports_rejection_comment_validation(form_properties)
-    lines: List[str] = []
+    lines: List[str] = []  # noqa: UP006 # Baseline
 
     action_prop = next(
         (p for p in writable_props if isinstance(p, dict) and p.get("id") == "action"),
@@ -933,31 +1152,34 @@ def _describe_properties_for_claim_preview(form_properties: List[Dict[str, Any]]
     return "".join(lines)
 
 
-def _prop_writable(prop: Dict[str, Any]) -> bool:
+def _prop_writable(prop: Dict[str, Any]) -> bool:  # noqa: UP006 # Baseline
     """
     Check if a property is writable.
-    
+
     Args:
         prop: Form property dictionary
-        
+
     Returns:
         True if writable, False otherwise
     """
     return prop.get("writable", True)
 
 
-def _filter_writable_properties(form_properties: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _filter_writable_properties(
+    form_properties: List[Dict[str, Any]],  # noqa: UP006 # Baseline
+) -> List[Dict[str, Any]]:  # noqa: UP006 # Baseline
     """
     Filter form properties to only writable ones, with type safety.
-    
+
     Args:
         form_properties: List of raw form property dictionaries
-        
+
     Returns:
         List of writable properties (dictionaries only)
     """
     return [
-        prop for prop in form_properties
+        prop
+        for prop in form_properties
         if isinstance(prop, dict) and _prop_writable(prop)
     ]
 
@@ -965,12 +1187,12 @@ def _filter_writable_properties(form_properties: List[Dict[str, Any]]) -> List[D
 def _is_elicitation_not_supported_error(error_str: str) -> bool:
     """
     Check if an error indicates that elicitation is not supported by the MCP client.
-    
+
     Common patterns: MCP error code -32042, "elicitation" in message, "not supported"
-    
+
     Args:
         error_str: Error message string
-        
+
     Returns:
         True if error indicates elicitation is not supported
     """
@@ -981,13 +1203,13 @@ def _is_elicitation_not_supported_error(error_str: str) -> bool:
     )
 
 
-def _convert_response_data_to_dict(response_data: Any) -> Dict[str, Any]:
+def _convert_response_data_to_dict(response_data: Any) -> Dict[str, Any]:  # noqa: UP006 # Baseline
     """
     Convert elicitation response data to dictionary.
-    
+
     Args:
         response_data: Response data from elicitation (BaseModel or dict)
-        
+
     Returns:
         Dictionary representation of the response data
     """
@@ -996,17 +1218,68 @@ def _convert_response_data_to_dict(response_data: Any) -> Dict[str, Any]:
     return response_data or {}
 
 
-async def _call_elicit_with_error_handling(
+def _handle_legacy_elicit_failure(
+    error: Exception,
+    operation_name: str,
+    raise_on_not_supported: bool,
+    action_context: str,
+) -> Any:
+    """
+    Map a failed legacy ctx.elicit() call to a return value or a raise.
+
+    Args:
+        error: The exception raised by ctx.elicit().
+        operation_name: Name of operation for logging.
+        raise_on_not_supported: If True, raise ElicitationNotSupportedError when not supported;
+                                if False, return the 'NOT_SUPPORTED' sentinel string.
+        action_context: Additional context for error messages (e.g., action name like "complete").
+
+    Returns:
+        None for generic failures, or 'NOT_SUPPORTED' when elicitation is not
+        supported and raise_on_not_supported=False.
+
+    Raises:
+        ElicitationNotSupportedError: If elicitation is not supported and
+            raise_on_not_supported=True.
+    """
+    error_str = str(error)
+    LOGGER.warning(f"Failed to call {operation_name}: {error_str}")
+
+    if not _is_elicitation_not_supported_error(error_str):
+        return None
+    if raise_on_not_supported:
+        LOGGER.error(f"MCP client does not support elicitation: {error_str}")
+        action_msg = f" for the '{action_context}' action" if action_context else ""
+        raise ElicitationNotSupportedError(
+            "The MCP client does not support elicitation, which is required"
+            f"{action_msg}. The task's state is unchanged. Error: {error_str}"
+        )
+    LOGGER.info(f"MCP client does not support {operation_name}; proceeding without it")
+    return "NOT_SUPPORTED"
+
+
+async def _call_elicit_with_error_handling(  # noqa: PLR0913 # Baseline
     ctx: Context,
     message: str,
-    response_type: Type[BaseModel],
+    response_type: Type[BaseModel],  # noqa: UP006 # Baseline
     operation_name: str,
     raise_on_not_supported: bool = True,
-    action_context: str = ""
-) -> Optional[Any]:
+    action_context: str = "",
+    input_id: str = _ELICIT_INPUT_ID,
+) -> Union[Any, mcp_types.InputRequiredResult, None]:  # noqa: UP007 # Baseline
     """
-    Call ctx.elicit with standardized error handling and logging.
-    
+    Call elicitation with standardized error handling, supporting both protocol eras.
+
+    For the modern sessionless protocol (2026-07-28+) the function uses the
+    guard pattern:
+      - If ctx.input_responses does NOT contain ``input_id``, return an
+        ``InputRequiredResult`` so the client can ask the user and retry.
+      - If ctx.input_responses DOES contain ``input_id``, parse and return
+        a synthetic response object whose ``.data`` matches ``response_type``.
+
+    For the legacy protocol (pre-2026-07-28) the function calls ctx.elicit()
+    directly as before.
+
     Args:
         ctx: MCP context for elicitation
         message: Message to display to user
@@ -1015,129 +1288,147 @@ async def _call_elicit_with_error_handling(
         raise_on_not_supported: If True, raise ElicitationNotSupportedError when not supported;
                                 if False, return a sentinel value ('NOT_SUPPORTED')
         action_context: Additional context for error messages (e.g., action name like "complete")
-        
+        input_id: Key for the elicitation request in InputRequiredResult (modern protocol)
+
     Returns:
-        Response object if successful and accepted
+        Response object (with .data and .action) if successful and accepted
+        InputRequiredResult if the modern protocol needs input from the client (must be
+            returned as the tool result — callers must propagate it up immediately)
         None if declined/cancelled
         'NOT_SUPPORTED' string if not supported and raise_on_not_supported=False
-        
+
     Raises:
         ElicitationNotSupportedError: If client doesn't support elicitation and raise_on_not_supported=True
     """
+    # ------------------------------------------------------------------
+    # Modern protocol branch (2026-07-28+): guard / InputRequiredResult
+    # ------------------------------------------------------------------
+    modern_result = _handle_modern_elicit(
+        ctx, input_id, message, response_type, operation_name
+    )
+    if modern_result is not _NOT_MODERN_PROTOCOL:
+        return modern_result
+
+    # ------------------------------------------------------------------
+    # Legacy protocol branch
+    # ------------------------------------------------------------------
     try:
-        response = await ctx.elicit(
-            message=message,
-            response_type=response_type
-        )
-        
-        if response is not None and response.action == 'accept':
+        response = await ctx.elicit(message=message, response_type=response_type)
+        if response is not None and response.action == "accept":
             LOGGER.info(f"{operation_name} accepted, received: {response.data}")
             return response
-        else:
-            LOGGER.info(f"{operation_name} declined or cancelled")
-            return None
-            
-    except Exception as e:
-        error_str = str(e)
-        LOGGER.warning(f"Failed to call {operation_name}: {error_str}")
-        
-        if _is_elicitation_not_supported_error(error_str):
-            if raise_on_not_supported:
-                LOGGER.error(f"MCP client does not support elicitation: {error_str}")
-                action_msg = f" for the '{action_context}' action" if action_context else ""
-                raise ElicitationNotSupportedError(
-                    "The MCP client does not support elicitation, which is required"
-                    f"{action_msg}. The task's state is unchanged. Error: {error_str}"
-                )
-            else:
-                LOGGER.info(f"MCP client does not support {operation_name}; proceeding without it")
-                return 'NOT_SUPPORTED'
-        
+        LOGGER.info(f"{operation_name} declined or cancelled")
         return None
+    except Exception as e:
+        return _handle_legacy_elicit_failure(
+            e, operation_name, raise_on_not_supported, action_context
+        )
 
 
 def _validate_and_filter_properties(
     ctx: Context,
-    form_properties: List[Dict[str, Any]],
-    operation_name: str
-) -> Optional[List[Dict[str, Any]]]:
+    form_properties: List[Dict[str, Any]],  # noqa: UP006 # Baseline
+    operation_name: str,  # noqa: UP006 # Baseline
+) -> Optional[List[Dict[str, Any]]]:  # noqa: UP006, UP045 # Baseline
     """
     Validate context and filter form properties to writable ones.
-    
+
     Args:
         ctx: MCP context (can be None)
         form_properties: List of raw form property dictionaries
         operation_name: Name of operation for logging (e.g., "elicitation", "claim preview")
-        
+
     Returns:
         List of writable properties if validation passes, None otherwise
     """
     if ctx is None:
         LOGGER.warning(f"No context provided, skipping {operation_name}")
         return None
-    
+
     # Log any non-dictionary elements for debugging (only for main elicitation)
     if operation_name == "elicitation":
-        non_dict_elements = [prop for prop in form_properties if not isinstance(prop, dict)]
+        non_dict_elements = [
+            prop for prop in form_properties if not isinstance(prop, dict)
+        ]
         if non_dict_elements:
             LOGGER.warning(
                 f"Found {len(non_dict_elements)} non-dictionary elements in form_properties "
                 f"during {operation_name}: {non_dict_elements[:5]}..."
             )
-    
+
     # Filter to writable properties
     writable_props = _filter_writable_properties(form_properties)
-    
+
     if not writable_props:
         LOGGER.info(f"No writable properties found for {operation_name}; skipping")
         return None
-    
+
     return writable_props
 
 
 async def _handle_elicitation(
-    form_properties: List[Dict[str, Any]],
+    form_properties: List[Dict[str, Any]],  # noqa: UP006 # Baseline
     task_display_name: str,
     action: str,
-    ctx: Context
-) -> Optional[Dict[str, str]]:
+    ctx: Context,
+) -> Union[Dict[str, str], mcp_types.InputRequiredResult, None]:  # noqa: UP006, UP007 # Baseline
     """
     Handle MCP elicitation to collect user input for form properties.
-    
+
     Args:
         form_properties: List of raw form property dictionaries
         task_display_name: Display name of the task for context in the elicitation message
         action: Action being performed (claim or complete)
         ctx: MCP context for elicitation
-        
+
     Returns:
-        Dictionary mapping property IDs to user-provided values, or None if elicitation failed
+        Dictionary mapping property IDs to user-provided values on success,
+        InputRequiredResult when the modern protocol still needs input (must be
+            propagated up as the tool result),
+        None if elicitation failed or was declined.
     """
     # Validate context and filter to writable properties
-    writable_props = _validate_and_filter_properties(ctx, form_properties, "elicitation")
+    writable_props = _validate_and_filter_properties(
+        ctx, form_properties, "elicitation"
+    )
     if writable_props is None:
         return None
-    
+
     # Create JSON Schema for elicitation
     schema = _create_elicitation_schema(writable_props, action)
-    
+
     # Create elicitation message
-    message = f"Please provide the required information to {action} task: {task_display_name}"
-    
-    LOGGER.info(f"Sending elicitation request for {len(writable_props)} properties for action: {action}")
-    response = await _call_elicit_with_error_handling(ctx, message, schema, "elicitation", action_context=action)
-    
+    message = (
+        f"Please provide the required information to {action} task: {task_display_name}"
+    )
+
+    LOGGER.info(
+        f"Sending elicitation request for {len(writable_props)} properties for action: {action}"
+    )
+    response = await _call_elicit_with_error_handling(
+        ctx,
+        message,
+        schema,
+        "elicitation",
+        action_context=action,
+        input_id=_ELICIT_INPUT_ID,
+    )
+
+    # Propagate InputRequiredResult directly to the caller
+    if isinstance(response, mcp_types.InputRequiredResult):
+        return response
+
     if response is not None:
         return _convert_response_data_to_dict(response.data)
     return None
 
 
 async def _handle_claim_preview_elicitation(
-    form_properties: List[Dict[str, Any]],
+    form_properties: List[Dict[str, Any]],  # noqa: UP006 # Baseline
     task_display_name: str,
     ctx: Context,
     has_skill: bool = False,
-) -> tuple[bool, bool]:
+) -> Union[tuple[bool, bool], mcp_types.InputRequiredResult]:  # noqa: UP007 # Baseline
     """
     Show a confirmation-only elicitation before claiming a task.
 
@@ -1156,13 +1447,17 @@ async def _handle_claim_preview_elicitation(
         has_skill: Whether an evaluation skill is available for this task.
 
     Returns:
-        A ``(confirm_claim, gather_additional_data)`` tuple.
+        A ``(confirm_claim, gather_additional_data)`` tuple, or an
+        ``InputRequiredResult`` when the modern protocol still needs input
+        (must be propagated up as the tool result).
         ``confirm_claim`` is True when the user confirmed the claim (or when
         elicitation is not supported).  ``gather_additional_data`` is True
         only when ``has_skill`` is True *and* the user opted in.
     """
     # Validate context and filter to writable properties
-    writable_props = _validate_and_filter_properties(ctx, form_properties, "claim preview elicitation")
+    writable_props = _validate_and_filter_properties(
+        ctx, form_properties, "claim preview elicitation"
+    )
     if writable_props is None:
         # For claim preview, if validation fails, proceed with claim
         return True, False
@@ -1179,7 +1474,7 @@ async def _handle_claim_preview_elicitation(
     # enables the evaluation skill injection.
     #
     # When no skill is available we present only confirm_claim.
-    model_fields: Dict[str, Any] = {
+    model_fields: Dict[str, Any] = {  # noqa: UP006 # Baseline
         "confirm_claim": (
             bool,
             Field(
@@ -1222,11 +1517,20 @@ async def _handle_claim_preview_elicitation(
         has_skill,
     )
     response = await _call_elicit_with_error_handling(
-        ctx, message, confirmation_model, "claim preview elicitation", raise_on_not_supported=False
+        ctx,
+        message,
+        confirmation_model,
+        "claim preview elicitation",
+        raise_on_not_supported=False,
+        input_id=_CLAIM_PREVIEW_INPUT_ID,
     )
 
+    # Propagate InputRequiredResult to caller
+    if isinstance(response, mcp_types.InputRequiredResult):
+        return response
+
     # Handle different response types
-    if response == 'NOT_SUPPORTED':
+    if response == "NOT_SUPPORTED":
         # Elicitation not supported — proceed with claim, no skill injection
         return True, False
     if response is None:
@@ -1247,13 +1551,13 @@ async def _handle_claim_preview_elicitation(
     return confirmed, gather
 
 
-def _extract_status_from_response(response: Any) -> Optional[int]:
+def _extract_status_from_response(response: Any) -> Optional[int]:  # noqa: UP045 # Baseline
     """
     Extract HTTP status code from a successful API response body.
-    
+
     Args:
         response: Response data from API (expected dict)
-        
+
     Returns:
         Status code integer if found, None otherwise
     """
@@ -1265,13 +1569,13 @@ def _extract_status_from_response(response: Any) -> Optional[int]:
     return None
 
 
-def _extract_status_from_error(error_msg: str) -> Optional[int]:
+def _extract_status_from_error(error_msg: str) -> Optional[int]:  # noqa: UP045 # Baseline
     """
     Extract HTTP status code from an error message string.
-    
+
     Args:
         error_msg: Error message string, potentially containing "HTTP error NNN"
-        
+
     Returns:
         Status code integer if found, None otherwise
     """
@@ -1285,20 +1589,20 @@ async def _perform_claim_or_complete(
     task_id: str,
     action: str,
     user_id: str,
-    form_properties: List[FormProperty]
+    form_properties: List[FormProperty],  # noqa: UP006 # Baseline
 ) -> int:
     """
     Perform claim or complete action on the task.
-    
+
     Args:
         task_id: Unique identifier of the task
         action: Either "claim" or "complete"
         user_id: User ID to associate with the action
         form_properties: List of simplified form properties
-        
+
     Returns:
         HTTP status code from the action
-        
+
     Raises:
         ToolError: If the request fails
     """
@@ -1310,124 +1614,130 @@ async def _perform_claim_or_complete(
             "date_value": prop.date_value,
             "period_value": prop.period_value,
             "long_value": prop.long_value,
-            "list_value": prop.list_value
+            "list_value": prop.list_value,
         }
         for prop in form_properties
     ]
-    
+
     # Build request body
     request_body = {
         "action": action,
         "assignee": user_id,
-        "form_properties": form_props_dict
+        "form_properties": form_props_dict,
     }
-    
+
     try:
         response = await tool_helper_service.execute_post_request(
             url=f"{tool_helper_service.base_url}{WORKFLOW_TASK_ENDPOINT}/{task_id}/actions",
             json=request_body,
-            tool_name=_TOOL_NAME
+            tool_name=_TOOL_NAME,
         )
-        
+
         # If we reach here, the request was successful (2xx status)
-        LOGGER.info(f"Task {task_id} {action} successful for user {user_id}. Response: {response}")
-        
+        LOGGER.info(
+            f"Task {task_id} {action} successful for user {user_id}. Response: {response}"
+        )
+
         # Try to extract status from response body if available
         status = _extract_status_from_response(response)
         if status is not None:
             return status
-        
+
         return 200  # Default success status code
-        
+
     except KeyError as e:
-        error_msg = f"Missing required field in {action} response for task '{task_id}': {str(e)}"
+        error_msg = (
+            f"Missing required field in {action} response for task '{task_id}': {e!s}"
+        )
         LOGGER.error(error_msg)
         raise ServiceError(
             error_msg,
             service="workflow",
             tool=_TOOL_NAME,
-            remediation_steps=f"Verify the workflow task API is returning complete data when performing '{action}' action. Contact support if the issue persists."
+            remediation_steps=f"Verify the workflow task API is returning complete data when performing '{action}' action. Contact support if the issue persists.",
         ) from e
     except (ConnectionError, TimeoutError) as e:
-        error_msg = f"Network error while performing '{action}' on task '{task_id}': {str(e)}"
+        error_msg = (
+            f"Network error while performing '{action}' on task '{task_id}': {e!s}"
+        )
         LOGGER.error(error_msg)
         raise ExternalAPIError(
             error_msg,
             service="workflow",
             tool=_TOOL_NAME,
-            remediation_steps=_NETWORK_REMEDIATION
+            remediation_steps=_NETWORK_REMEDIATION,
         ) from e
     except Exception as e:
         error_msg = str(e)
         LOGGER.error(f"Failed to {action} task {task_id}: {error_msg}")
-        
+
         # Try to extract status code from error message
         status = _extract_status_from_error(error_msg)
         if status is not None:
             LOGGER.info(f"Extracted status code {status} from error")
             return status
-        
+
         # If we can't extract a status code, raise ServiceError
         raise ServiceError(
             f"Failed to {action} task '{task_id}': {error_msg}",
             service="workflow",
             tool=_TOOL_NAME,
-            remediation_steps=f"Verify that task ID '{task_id}' exists and you have permission to {action} it. Check if the task is in the correct state for this action."
+            remediation_steps=f"Verify that task ID '{task_id}' exists and you have permission to {action} it. Check if the task is in the correct state for this action.",
         ) from e
 
 
 async def _perform_unclaim(task_id: str) -> int:
     """
     Perform unclaim action on the task.
-    
+
     Args:
         task_id: Unique identifier of the task
-        
+
     Returns:
         HTTP status code from the unclaim action
-        
+
     Raises:
         ToolError: If the request fails
     """
     # Build request body with task ID in array format
-    request_body = {
-        "ids": [task_id]
-    }
-    
+    request_body = {"ids": [task_id]}
+
     try:
         response = await tool_helper_service.execute_post_request(
             url=f"{tool_helper_service.base_url}{WORKFLOW_TASK_ENDPOINT}/unclaim",
             json=request_body,
-            tool_name=_TOOL_NAME
+            tool_name=_TOOL_NAME,
         )
-        
+
         # Extract status code from response if available
         status = _extract_status_from_response(response)
         if status is not None:
             LOGGER.info(f"Task {task_id} unclaimed with status {status}")
             return status
-        
+
         # Default success status code if no status in response
         LOGGER.info(f"Task {task_id} unclaimed successfully")
         return 200
-        
+
     except KeyError as e:
-        error_msg = f"Missing required field in unclaim response for task '{task_id}': {str(e)}"
+        error_msg = (
+            f"Missing required field in unclaim response for task '{task_id}': {e!s}"
+        )
         LOGGER.error(error_msg)
         raise ServiceError(
             error_msg,
             service="workflow",
             tool=_TOOL_NAME,
-            remediation_steps="Verify the workflow task API is returning complete data when unclaiming. Contact support if the issue persists."
+            remediation_steps="Verify the workflow task API is returning complete data when unclaiming. Contact support if the issue persists.",
         ) from e
     except (ConnectionError, TimeoutError) as e:
-        error_msg = f"Network error while unclaiming task '{task_id}': {str(e)}"
+        error_msg = f"Network error while unclaiming task '{task_id}': {e!s}"
         LOGGER.error(error_msg)
         raise ExternalAPIError(
             error_msg,
             service="workflow",
             tool=_TOOL_NAME,
-            remediation_steps=_NETWORK_REMEDIATION
+            remediation_steps=_NETWORK_REMEDIATION,
         ) from e
     except Exception as e:
         error_msg = str(e)
@@ -1440,17 +1750,17 @@ async def _perform_unclaim(task_id: str) -> int:
             f"Failed to unclaim task '{task_id}': {error_msg}",
             service="workflow",
             tool=_TOOL_NAME,
-            remediation_steps=f"Verify that task ID '{task_id}' exists and is currently claimed by you. Check the service logs for more details."
+            remediation_steps=f"Verify that task ID '{task_id}' exists and is currently claimed by you. Check the service logs for more details.",
         ) from e
 
 
-async def _get_authenticated_user_id() -> Optional[str]:
+async def _get_authenticated_user_id() -> Optional[str]:  # noqa: UP045 # Baseline
     """
     Get the authenticated user ID from the bearer token.
-    
+
     Returns:
         User ID string or None if authentication fails
-        
+
     Raises:
         ToolError: If user identifier cannot be retrieved
     """
@@ -1461,48 +1771,56 @@ async def _get_authenticated_user_id() -> Optional[str]:
                 "Unable to retrieve user identifier from authentication token",
                 service="workflow",
                 tool=_TOOL_NAME,
-                remediation_steps="Verify that you are properly authenticated with a valid bearer token."
+                remediation_steps="Verify that you are properly authenticated with a valid bearer token.",
             )
         LOGGER.info(f"Using authenticated user ID: {user_id}")
         return user_id
     except Exception as e:
-        error_msg = f"Failed to get user identifier: {str(e)}"
+        error_msg = f"Failed to get user identifier: {e!s}"
         LOGGER.error(error_msg)
         raise ServiceError(
             f"Authentication required: {error_msg}",
             service="workflow",
             tool=_TOOL_NAME,
-            remediation_steps="Verify that you are properly authenticated with a valid bearer token. Check your authentication credentials and try again."
+            remediation_steps="Verify that you are properly authenticated with a valid bearer token. Check your authentication credentials and try again.",
         ) from e
 
 
-def _extract_and_validate_form_properties(task_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _extract_and_validate_form_properties(
+    task_data: Dict[str, Any],  # noqa: UP006 # Baseline
+) -> List[Dict[str, Any]]:  # noqa: UP006 # Baseline
     """
     Extract and validate form properties from task data.
-    
+
     Args:
         task_data: Task data dictionary from API response
-        
+
     Returns:
         List of validated form property dictionaries
     """
     entity = task_data.get("entity", {})
     form_properties_raw = entity.get("form_properties", [])
-    
+
     # Validate that form_properties is a list
     if not isinstance(form_properties_raw, list):
-        LOGGER.warning(f"form_properties is not a list: {form_properties_raw} (type: {type(form_properties_raw).__name__})")
+        LOGGER.warning(
+            f"form_properties is not a list: {form_properties_raw} (type: {type(form_properties_raw).__name__})"
+        )
         return []
-    
+
     # Log any non-dictionary elements for debugging
-    non_dict_elements = [prop for prop in form_properties_raw if not isinstance(prop, dict)]
+    non_dict_elements = [
+        prop for prop in form_properties_raw if not isinstance(prop, dict)
+    ]
     if non_dict_elements:
-        LOGGER.warning(f"Found {len(non_dict_elements)} non-dictionary elements in form_properties: {non_dict_elements[:5]}...")
-    
+        LOGGER.warning(
+            f"Found {len(non_dict_elements)} non-dictionary elements in form_properties: {non_dict_elements[:5]}..."
+        )
+
     if not form_properties_raw:
         LOGGER.info("No form properties found, proceeding with empty form")
         return []
-    
+
     return form_properties_raw
 
 
@@ -1514,19 +1832,19 @@ def _normalize_form_value_for_rest(value: Any) -> str:
 
 
 def _prepare_form_properties_with_user_values(
-    form_properties: List[FormProperty],
-    user_values: Optional[Dict[str, str]]
+    form_properties: List[FormProperty],  # noqa: UP006 # Baseline
+    user_values: Optional[Dict[str, str]],  # noqa: UP006, UP045 # Baseline
 ) -> None:
     """
     Update form properties with user values from elicitation.
-    
+
     Args:
         form_properties: List of FormProperty objects to update
         user_values: Dictionary of property IDs to user-provided values
     """
     if not user_values:
         return
-    
+
     for prop in form_properties:
         if prop.id in user_values:
             prop.value = _normalize_form_value_for_rest(user_values[prop.id])
@@ -1536,18 +1854,22 @@ def _prepare_form_properties_with_user_values(
 def _generate_action_message(action: str, status_code: int) -> str:
     """
     Generate appropriate success/error message based on action and status code.
-    
+
     Args:
         action: Action type (claim, complete, unclaim)
         status_code: HTTP status code from the action
-        
+
     Returns:
         Appropriate message string
     """
     # Handle unclaim separately as it has its own endpoint
     if action == "unclaim":
-        return "Task unclaimed successfully" if status_code == 200 else f"Unclaim completed with status {status_code}"
-    
+        return (
+            "Task unclaimed successfully"
+            if status_code == 200  # noqa: PLR2004 # Baseline
+            else f"Unclaim completed with status {status_code}"
+        )
+
     # Handle claim and complete
     if action == "claim":
         success_message = "Task claimed successfully"
@@ -1558,46 +1880,43 @@ def _generate_action_message(action: str, status_code: int) -> str:
     else:
         success_message = f"Task {action} successfully"
         error_message = f"{action.capitalize()} completed with status {status_code}"
-    
-    return success_message if status_code == 200 else error_message
+
+    return success_message if status_code == 200 else error_message  # noqa: PLR2004 # Baseline
 
 
 async def _handle_unclaim_action(task_id: str) -> TaskActionResponse:
     """
     Handle the unclaim action flow.
-    
+
     Args:
         task_id: Unique identifier of the task
-        
+
     Returns:
         TaskActionResponse with status and message
     """
     try:
         status_code = await _perform_unclaim(task_id)
         message = _generate_action_message("unclaim", status_code)
-        
-        return TaskActionResponse(
-            status_code=status_code,
-            message=message
-        )
+
+        return TaskActionResponse(status_code=status_code, message=message)
     except ServiceError as e:
-        return TaskActionResponse(
-            status_code=500,
-            message=str(e)
-        )
+        return TaskActionResponse(status_code=500, message=str(e))
 
 
-def _build_elicitation_unavailable_response(form_properties_raw: List[Dict[str, Any]], action: str) -> TaskActionResponse:
+def _build_elicitation_unavailable_response(
+    form_properties_raw: List[Dict[str, Any]],  # noqa: UP006 # Baseline
+    action: str,  # noqa: UP006 # Baseline
+) -> TaskActionResponse:
     """
     Build a 501 response listing required form fields when elicitation is unavailable.
-    
+
     This is returned when the MCP client does not support elicitation and no
     form_values were provided, enabling the client to retry with values.
-    
+
     Args:
         form_properties_raw: Raw form property dictionaries from the task
         action: Action being performed (e.g. "complete")
-        
+
     Returns:
         TaskActionResponse with status 501 and descriptive field listing
     """
@@ -1615,68 +1934,84 @@ def _build_elicitation_unavailable_response(form_properties_raw: List[Dict[str, 
 async def _resolve_user_values_for_complete(
     request: TaskActionRequest,
     ctx: Context,
-    form_properties_raw: List[Dict[str, Any]],
-    task_display_name: str
-) -> Optional[TaskActionResponse]:
+    form_properties_raw: List[Dict[str, Any]],  # noqa: UP006 # Baseline
+    task_display_name: str,
+) -> Union[TaskActionResponse, mcp_types.InputRequiredResult, None]:  # noqa: UP007 # Baseline
     """
     Resolve user-supplied form values for the 'complete' action.
-    
+
     Tries three strategies in order:
     1. Use request.form_values if provided (skip elicitation)
-    2. Attempt MCP elicitation if the client supports it
+    2. Attempt MCP elicitation if the client supports it (legacy or modern)
     3. Return a 501 response listing required fields
-    
+
     Args:
         request: The task action request (may contain form_values)
         ctx: MCP context for elicitation
         form_properties_raw: Raw form properties from the task
         task_display_name: Task display name for elicitation message
-        
+
     Returns:
         A TaskActionResponse (501 or 499) if the flow should abort early,
+        an InputRequiredResult when the modern protocol still needs input
+            (must be returned as the tool result immediately),
         or None if user values were resolved successfully (stored in
         request.form_values or obtained via elicitation — caller should
         check request.form_values).
-        
+
     Design:
         This uses the "early return" pattern — a non-None return means
         the caller should stop and return the response immediately.
         When None is returned, the caller retrieves user values via
         the return channel described below.
-        
+
         On success, the resolved values dict is attached to
         ``request.form_values`` so the caller can access it.
     """
     # Strategy 1: values provided directly
     if request.form_values:
-        LOGGER.info(f"Using form_values provided in request ({len(request.form_values)} fields)")
+        LOGGER.info(
+            f"Using form_values provided in request ({len(request.form_values)} fields)"
+        )
         return None  # caller reads request.form_values
-    
+
     # Strategy 2: attempt MCP elicitation
     if client_supports_elicitation(ctx):
         try:
-            user_values = await _handle_elicitation(form_properties_raw, task_display_name, request.action, ctx)
+            user_values = await _handle_elicitation(
+                form_properties_raw, task_display_name, request.action, ctx
+            )
         except ElicitationNotSupportedError:
-            return _build_elicitation_unavailable_response(form_properties_raw, request.action)
-        
+            return _build_elicitation_unavailable_response(
+                form_properties_raw, request.action
+            )
+
+        # Modern protocol: propagate InputRequiredResult up as the tool result
+        if isinstance(user_values, mcp_types.InputRequiredResult):
+            return user_values
+
         if user_values is None:
             LOGGER.info("Task completion cancelled due to elicitation rejection")
-            return TaskActionResponse(status_code=499, message="Task completion cancelled by user")
-        
+            return TaskActionResponse(
+                status_code=499, message="Task completion cancelled by user"
+            )
+
         # Store resolved values on the request for the caller
         request.form_values = user_values
         return None
-    
+
     # Strategy 3: no way to obtain values — return field listing
-    LOGGER.info("Client does not support elicitation and no form_values provided; returning 501 with field descriptions")
+    LOGGER.info(
+        "Client does not support elicitation and no form_values provided; returning 501 with field descriptions"
+    )
     return _build_elicitation_unavailable_response(form_properties_raw, request.action)
 
 
 async def _handle_claim_action(
     request: TaskActionRequest,
-    task_data: Dict[str, Any],
-    ctx: Context
-) -> TaskActionResponse:
+    task_data: Dict[str, Any],  # noqa: UP006 # Baseline
+    ctx: Context,  # noqa: UP006 # Baseline
+) -> Union[TaskActionResponse, mcp_types.InputRequiredResult]:  # noqa: UP007 # Baseline
     """
     Handle the claim action flow.
 
@@ -1727,7 +2062,8 @@ async def _handle_claim_action(
         ctx: MCP context for optional claim-preview elicitation
 
     Returns:
-        TaskActionResponse with status and message
+        TaskActionResponse with status and message, or InputRequiredResult
+        when the modern protocol still needs input from the client.
     """
     # Guard: task must not already be claimed
     if _is_task_already_claimed(task_data):
@@ -1756,13 +2092,17 @@ async def _handle_claim_action(
 
     gather_additional_data = False
     if client_supports_elicitation(ctx):
-        claim_confirmed, gather_additional_data = await _handle_claim_preview_elicitation(
+        preview_result = await _handle_claim_preview_elicitation(
             form_properties_raw, task_display_name, ctx, has_skill=has_skill
         )
+        # Modern protocol: propagate InputRequiredResult up as the tool result
+        if isinstance(preview_result, mcp_types.InputRequiredResult):
+            return preview_result
+        claim_confirmed, gather_additional_data = preview_result
         if not claim_confirmed:
             return TaskActionResponse(
                 status_code=499,
-                message="Task claim cancelled by user after reviewing the required completion information"
+                message="Task claim cancelled by user after reviewing the required completion information",
             )
 
     # Transform form properties
@@ -1770,15 +2110,19 @@ async def _handle_claim_action(
 
     # Perform the claim
     try:
-        status_code = await _perform_claim_or_complete(request.task_id, "claim", user_id, form_properties)
-        skill_instructions: Optional[str] = (
-            skill_text
-            if status_code == 200 and gather_additional_data
-            else None
+        status_code = await _perform_claim_or_complete(
+            request.task_id, "claim", user_id, form_properties
+        )
+        skill_instructions: Optional[str] = (  # noqa: UP045 # Baseline
+            skill_text if status_code == 200 and gather_additional_data else None  # noqa: PLR2004 # Baseline
         )
         if skill_instructions is not None:
             artifact_type = _get_artifact_type(task_data) or ""
-            skill_name = "data-class-evaluation" if "data_class" in artifact_type else "business-term-evaluation"
+            skill_name = (
+                "data-class-evaluation"
+                if "data_class" in artifact_type
+                else "business-term-evaluation"
+            )
             log_skill_injected(skill_name)
         return TaskActionResponse(
             status_code=status_code,
@@ -1792,8 +2136,8 @@ async def _handle_claim_action(
 async def _handle_complete_action(
     request: TaskActionRequest,
     ctx: Context,
-    task_data: Dict[str, Any]
-) -> TaskActionResponse:
+    task_data: Dict[str, Any],  # noqa: UP006 # Baseline
+) -> Union[TaskActionResponse, mcp_types.InputRequiredResult]:  # noqa: UP007 # Baseline
     """
     Handle the complete action flow.
 
@@ -1867,7 +2211,9 @@ async def _handle_complete_action(
     if early_response is not None:
         return early_response
 
-    request.form_values = _restore_pending_rejection_action(request.task_id, request.form_values)
+    request.form_values = _restore_pending_rejection_action(
+        request.task_id, request.form_values
+    )
 
     validation_error = _validate_rejection_comment(request.task_id, request.form_values)
     if validation_error is not None:
@@ -1880,17 +2226,19 @@ async def _handle_complete_action(
 
     # Perform the complete action
     try:
-        status_code = await _perform_claim_or_complete(request.task_id, "complete", user_id, form_properties)
+        status_code = await _perform_claim_or_complete(
+            request.task_id, "complete", user_id, form_properties
+        )
         _pop_pending_rejection_action(request.task_id)
         return TaskActionResponse(
             status_code=status_code,
-            message=_generate_action_message("complete", status_code)
+            message=_generate_action_message("complete", status_code),
         )
     except ServiceError as e:
         return TaskActionResponse(status_code=500, message=str(e))
 
 
-task_action_description="""
+task_action_description = """
     Use this tool when you need to perform an action on a workflow task: claim, complete, or unclaim.
     
     This tool allows you to:
@@ -1935,14 +2283,13 @@ task_action_description="""
     
     Make sure to use a request json object for the parameters.
     Returns: The status code and message indicating the result of the workflow task action (claim, complete, or unclaim).
-    """
+    """  # noqa: W293 # Baseline
 
 
 # explicit context for MCP elicitation, no autocontext
 async def _task_action(
-    request: TaskActionRequest,
-    ctx: Context
-) -> TaskActionResponse:
+    request: TaskActionRequest, ctx: Context
+) -> Union[TaskActionResponse, mcp_types.InputRequiredResult]:  # noqa: UP007 # Baseline
     """
     Perform an action on a workflow task.
 
@@ -1951,10 +2298,13 @@ async def _task_action(
         ctx: MCP context for elicitation (used for claim/complete actions)
 
     Returns:
-        TaskActionResponse object containing status code and message
+        TaskActionResponse object containing status code and message, or
+        InputRequiredResult when the modern protocol needs input from the client.
     """
-    LOGGER.info(f"Performing action '{request.action}' on task with task_id: {request.task_id}")
-    
+    LOGGER.info(
+        f"Performing action '{request.action}' on task with task_id: {request.task_id}"
+    )
+
     # Route to appropriate action handler
     if request.action == "unclaim":
         return await _handle_unclaim_action(request.task_id)
@@ -1964,36 +2314,52 @@ async def _task_action(
 
     if request.action == "claim":
         return await _handle_claim_action(request, task_data, ctx)
-    else:  # complete
-        return await _handle_complete_action(request, ctx, task_data)
+    # complete
+    return await _handle_complete_action(request, ctx, task_data)
 
 
 @service_registry.tool(
     name="perform_workflow_task_action",
     annotations={
         "title": "Perform Actions on Workflow Tasks: Claim, Complete, or Unclaim",
-        "destructiveHint": True
+        "destructiveHint": True,
     },
     description=task_action_description,
-    tags={"workflow", "flowable", "tasks", "governance","metadata_management_and_governance"},
+    tags={
+        "workflow",
+        "flowable",
+        "tasks",
+        "governance",
+        "metadata_management_and_governance",
+    },
     meta={"version": "1.0", "service": _TOOL_NAME},
 )
 @auto_context
 async def perform_workflow_task_action(
     task_id: Annotated[str, Field(description="Unique identifier of the task")],
-    action: Annotated[str, Field(description="Action to perform on the task: 'claim' to assign the task, 'complete' to finish it, or 'unclaim' to release it")] = "claim",
-    form_values: Annotated[Optional[Dict[str, str]], Field(description="""Optional pre-filled form field values for the 'complete' action. 
-                                                           Use this to supply values when elicitation is not supported or on retry 
-                                                           after a 501 response. Keys must match form property IDs from the task.""")] = None,
-    ctx: Context = None
-) -> TaskActionResponse:
+    action: Annotated[
+        str,
+        Field(
+            description="Action to perform on the task: 'claim' to assign the task, 'complete' to finish it, or 'unclaim' to release it"
+        ),
+    ] = "claim",
+    form_values: Annotated[
+        Optional[Dict[str, str]],  # noqa: UP006, UP045 # Baseline
+        Field(
+            description="""Optional pre-filled form field values for the 'complete' action.
+                                                           Use this to supply values when elicitation is not supported or on retry
+                                                           after a 501 response. Keys must match form property IDs from the task."""
+        ),
+    ] = None,
+    ctx: Context = None,
+) -> Union[TaskActionResponse, mcp_types.InputRequiredResult]:  # noqa: UP007 # Baseline
     """Wrapper version of perform_workflow_task_action."""
-    
+
     request = TaskActionRequest(task_id=task_id, action=action, form_values=form_values)
-    
+
     # Use the real context if available, otherwise use minimal context
     if ctx is not None:
         return await _task_action(request, ctx)
-    
+
     # Fallback for wxo version or when context is not available
     return await _task_action(request, MinimalContext())

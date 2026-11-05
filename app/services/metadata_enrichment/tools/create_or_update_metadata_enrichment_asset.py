@@ -7,24 +7,28 @@
 # temporary discrepancies in behavior may occur between API updates and tool updates.
 
 
-from functools import partial
+from functools import partial  # noqa: I001 # Baseline
 from typing import Annotated, Optional, Union
 
 from pydantic import Field
 
 from app.core.registry import service_registry
-from app.services.metadata_enrichment.constants import CREATE_OR_UPDATE_METADATA_ENRICHMENT_ASSET_TOOL_NAME
+from app.services.metadata_enrichment.constants import (
+    CREATE_OR_UPDATE_METADATA_ENRICHMENT_ASSET_TOOL_NAME,
+)
 from app.services.metadata_enrichment.models.metadata_enrichment import (
     MetadataEnrichmentCreationRequest,
     DataScopeOperation,
     MetadataEnrichmentAssetPatchResponse,
 )
 from app.services.metadata_enrichment.utils.metadata_enrichment_common_utils import (
-    create_metadata_enrichment, update_metadata_enrichment,
+    create_metadata_enrichment,
+    update_metadata_enrichment,
 )
 from app.services.tool_utils import (
     find_metadata_enrichment_id,
-    find_project_id, )
+    find_project_id,
+)
 from app.shared.exceptions.base import ServiceError
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import confirm_uuid
@@ -32,7 +36,7 @@ from app.shared.utils.helpers import confirm_uuid
 
 async def _create_or_update_metadata_enrichment_asset(
     request: MetadataEnrichmentCreationRequest,
-) -> Union[DataScopeOperation, MetadataEnrichmentAssetPatchResponse]:
+) -> Union[DataScopeOperation, MetadataEnrichmentAssetPatchResponse]:  # noqa: UP007 # Baseline
 
     LOGGER.info(
         f"create_or_update_metadata_enrichment_asset called with project_name: {request.project_name}, "
@@ -47,16 +51,22 @@ async def _create_or_update_metadata_enrichment_asset(
     try:
         metadata_enrichment_id = await confirm_uuid(
             request.metadata_enrichment_name,
-            partial(find_metadata_enrichment_id, project_id=project_id)
+            partial(find_metadata_enrichment_id, project_id=project_id),
         )
-        LOGGER.info(f"Found existing MDE with ID: {metadata_enrichment_id}. Using UPDATE mode.")
+        LOGGER.info(
+            f"Found existing MDE with ID: {metadata_enrichment_id}. Using UPDATE mode."
+        )
     except ServiceError:
-        LOGGER.info(f"MDE '{request.metadata_enrichment_name}' not found. Using CREATE mode.")
+        LOGGER.info(
+            f"MDE '{request.metadata_enrichment_name}' not found. Using CREATE mode."
+        )
 
     if metadata_enrichment_id:
-        return await update_metadata_enrichment(metadata_enrichment_id,project_id, request)
-    else:
-        return await create_metadata_enrichment(project_id, request)
+        return await update_metadata_enrichment(
+            metadata_enrichment_id, project_id, request
+        )
+    return await create_metadata_enrichment(project_id, request)
+
 
 @service_registry.tool(
     name=CREATE_OR_UPDATE_METADATA_ENRICHMENT_ASSET_TOOL_NAME,
@@ -81,27 +91,60 @@ async def _create_or_update_metadata_enrichment_asset(
     
     The function assumes that the datasets provided are valid and exist.
     It does not handle the creation of datasets or categories if they do not already exist.
-    """,
+    """,  # noqa: W291, W293 # Baseline
     annotations={
         "title": "Create or Update Metadata Enrichment Asset Configuration",
-        "destructiveHint": True
+        "destructiveHint": True,
     },
-    tags={"metadata_management_and_governance"}
+    tags={"metadata_management_and_governance"},
 )
 @auto_context
-async def create_or_update_metadata_enrichment_asset(
+async def create_or_update_metadata_enrichment_asset(  # noqa: PLR0913 # Baseline
     project_name: Annotated[str, Field(description="The name of the project.")],
-    metadata_enrichment_name: Annotated[str, Field(description="The name of the metadata enrichment asset. Used to find existing MDE (for update) or as the name for new MDE (for create).")],
-    dataset_names: Annotated[Optional[list[str] | str], Field(description="""Dataset names to include in the metadata enrichment asset. 
-                                                              - CREATE mode: Required (must be provided)""")] = None,
-    dataset_names_to_remove: Annotated[Optional[list[str]], Field(description="""Dataset names to remove from the metadata enrichment asset. 
+    metadata_enrichment_name: Annotated[
+        str,
+        Field(
+            description="The name of the metadata enrichment asset. Used to find existing MDE (for update) or as the name for new MDE (for create)."
+        ),
+    ],
+    dataset_names: Annotated[
+        Optional[list[str] | str],  # noqa: UP045 # Baseline
+        Field(
+            description="""Dataset names to include in the metadata enrichment asset. 
+                                                              - CREATE mode: Required (must be provided)"""  # noqa: W291 # Baseline
+        ),
+    ] = None,
+    dataset_names_to_remove: Annotated[
+        Optional[list[str]],  # noqa: UP045 # Baseline
+        Field(
+            description="""Dataset names to remove from the metadata enrichment asset. 
                                                                   - CREATE mode: Ignored (should not be provided) 
-                                                                  - UPDATE mode: Optional (only updates if provided)""")] = None,
-    metadata_import_names: Annotated[Optional[list[str] | str], Field(description="List of names of metadata imports to import into the metadata enrichment asset.")] = None,
-    description: Annotated[Optional[str], Field(description="Description of the metadata enrichment asset. Used in both create and update modes.")] = None,
-    new_name: Annotated[Optional[str], Field(description="New name for the metadata enrichment asset. Only used in UPDATE mode to rename the MDE. Ignored in CREATE mode.")] = None,
-    tags: Annotated[Optional[list[str]], Field(description="A list of tags to assign. Max items: 1000")] = None,
-) -> Union[DataScopeOperation, MetadataEnrichmentAssetPatchResponse]:
+                                                                  - UPDATE mode: Optional (only updates if provided)"""  # noqa: W291 # Baseline
+        ),
+    ] = None,
+    metadata_import_names: Annotated[
+        Optional[list[str] | str],  # noqa: UP045 # Baseline
+        Field(
+            description="List of names of metadata imports to import into the metadata enrichment asset."
+        ),
+    ] = None,
+    description: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Description of the metadata enrichment asset. Used in both create and update modes."
+        ),
+    ] = None,
+    new_name: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="New name for the metadata enrichment asset. Only used in UPDATE mode to rename the MDE. Ignored in CREATE mode."
+        ),
+    ] = None,
+    tags: Annotated[
+        Optional[list[str]],  # noqa: UP045 # Baseline
+        Field(description="A list of tags to assign. Max items: 1000"),
+    ] = None,
+) -> Union[DataScopeOperation, MetadataEnrichmentAssetPatchResponse]:  # noqa: UP007 # Baseline
     """Wrapper that expands MetadataEnrichmentCreationRequest into individual parameters."""
 
     request = MetadataEnrichmentCreationRequest(

@@ -10,13 +10,13 @@ assets so that files written to COS buckets are visible in the project UI.
 """
 
 import os
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, cast  # noqa: UP035 # Baseline
 
 from app.shared.logging import LOGGER
 from app.shared.utils.tool_helper_service import tool_helper_service
 
 
-async def get_cams_asset_id(project_id: str, object_key: str) -> Optional[str]:
+async def get_cams_asset_id(project_id: str, object_key: str) -> Optional[str]:  # noqa: UP045 # Baseline
     """Return the CAMS asset_id for *object_key* in *project_id*, or None.
 
     Searches by the basename of *object_key* so both full paths
@@ -35,7 +35,7 @@ async def get_cams_asset_id(project_id: str, object_key: str) -> Optional[str]:
     """
     from app.shared.exceptions.base import ServiceError
 
-    filename = os.path.basename(object_key)
+    filename = os.path.basename(object_key)  # noqa: PTH119 # Baseline
     LOGGER.info(
         f"[cams_utils] Searching for CAMS asset: filename={filename!r} "
         f"object_key={object_key!r} project_id={project_id!r}"
@@ -43,7 +43,7 @@ async def get_cams_asset_id(project_id: str, object_key: str) -> Optional[str]:
     try:
         search_url = f"{tool_helper_service.base_url}/v2/asset_types/asset/search"
         search_response = cast(
-            Dict[str, Any],
+            Dict[str, Any],  # noqa: UP006 # Baseline
             await tool_helper_service.execute_post_request(
                 url=search_url,
                 json={"query": f"asset.name:{filename}", "limit": 10000},
@@ -68,7 +68,9 @@ async def get_cams_asset_id(project_id: str, object_key: str) -> Optional[str]:
             LOGGER.info(f"[cams_utils] No CAMS asset found for {filename!r}")
         return asset_id
     except Exception as e:
-        LOGGER.warning(f"[cams_utils] Error looking up CAMS asset for {filename!r}: {e}")
+        LOGGER.warning(
+            f"[cams_utils] Error looking up CAMS asset for {filename!r}: {e}"
+        )
         raise ServiceError(f"Error finding CAMS asset for file {filename}: {e}") from e
 
 
@@ -84,12 +86,12 @@ async def create_cams_asset(
         object_key: Full storage path used as the attachment ``object_key``.
         mime_type: MIME type of the file (e.g. ``"application/json"``).
     """
-    filename = os.path.basename(object_key)
+    filename = os.path.basename(object_key)  # noqa: PTH119 # Baseline
     LOGGER.info(
         f"[cams_utils] Creating CAMS asset: filename={filename!r} "
         f"object_key={object_key!r} mime_type={mime_type!r}"
     )
-    payload: Dict[str, Any] = {
+    payload: Dict[str, Any] = {  # noqa: UP006 # Baseline
         "metadata": {
             "project_id": project_id,
             "name": filename,
@@ -97,9 +99,7 @@ async def create_cams_asset(
             "asset_attributes": ["data_asset"],
             "asset_category": "USER",
         },
-        "entity": {
-            "data_asset": {"dataset": False, "mime_type": mime_type}
-        },
+        "entity": {"data_asset": {"dataset": False, "mime_type": mime_type}},
         "attachments": [
             {
                 "object_key": object_key,
@@ -123,7 +123,7 @@ async def create_cams_asset(
 
 async def delete_cams_assets(
     project_id: str,
-    asset_ids: List[Optional[str]],
+    asset_ids: List[Optional[str]],  # noqa: UP006, UP045 # Baseline
 ) -> None:
     """Bulk-delete CAMS assets by ID.
 

@@ -7,7 +7,7 @@
 # temporary discrepancies in behavior may occur between API updates and tool updates.
 
 
-from functools import partial
+from functools import partial  # noqa: I001 # Baseline
 from string import Template
 from typing import Annotated, Optional
 
@@ -20,7 +20,8 @@ from app.services.metadata_enrichment.models.metadata_enrichment import (
 from app.services.metadata_enrichment.utils.metadata_enrichment_common_utils import (
     MDE_UI_URL_TEMPLATE,
     execute_metadata_enrichment_with_assets,
-    find_job_id_in_metadata_enrichment, get_metadata_enrichment_asset_jobs,
+    find_job_id_in_metadata_enrichment,  # noqa: F401 # Baseline
+    get_metadata_enrichment_asset_jobs,
 )
 from app.services.tool_utils import (
     confirm_list_str,
@@ -52,7 +53,9 @@ async def _execute_metadata_enrichment_asset_for_selected_assets(
         for dataset_name in confirm_list_str(request.dataset_names)
     ]
     if request.job_name is None:
-        mde_jobs = await get_metadata_enrichment_asset_jobs(project_id, metadata_enrichment_id)
+        mde_jobs = await get_metadata_enrichment_asset_jobs(
+            project_id, metadata_enrichment_id
+        )
         if len(mde_jobs) == 1:
             job_id = mde_jobs[0].id
         else:
@@ -61,8 +64,15 @@ async def _execute_metadata_enrichment_asset_for_selected_assets(
                 remediation_steps="Invoke the tool 'list_metadata_enrichment_asset_jobs' to list all the available jobs for the selected MDE and surface them back to the user.",
             )
     else:
-        job_id = await confirm_uuid(request.job_name,
-                                    partial(find_asset_id_exact_match, container_id=project_id, artifact_type="job", raise_errors=False))
+        job_id = await confirm_uuid(
+            request.job_name,
+            partial(
+                find_asset_id_exact_match,
+                container_id=project_id,
+                artifact_type="job",
+                raise_errors=False,
+            ),
+        )
 
     if not job_id:
         raise ServiceError(
@@ -92,7 +102,7 @@ async def _execute_metadata_enrichment_asset_for_selected_assets(
     name="run_metadata_enrichment_asset_for_selected_assets",
     annotations={
         "title": "Execute Pre-configured Metadata Enrichment Asset on Selected Datasets",
-        "destructiveHint": True
+        "destructiveHint": True,
     },
     tags={"metadata_management_and_governance"},
     description="""Use this tool when you need to execute a metadata enrichment asset for selected datasets within a specified project.
@@ -111,14 +121,32 @@ async def _execute_metadata_enrichment_asset_for_selected_assets(
     
     The function assumes the metadata enrichment asset is already defined and valid within the project,
     and the datasets specified exist. It does not handle asset creation or validation of dataset names beyond exact matching.
-    Return: Job execution details including metadata enrichment ID, job ID, job run ID, project ID, and a UI URL to monitor the enrichment progress.""",
+    Return: Job execution details including metadata enrichment ID, job ID, job run ID, project ID, and a UI URL to monitor the enrichment progress.""",  # noqa: W293 # Baseline
 )
 @auto_context
 async def execute_metadata_enrichment_asset_for_selected_assets(
-    project_name: Annotated[str, Field(description="The name of the project you want to execute a metadata enrichment.")],
-    metadata_enrichment_name: Annotated[str, Field(description="The name of the metadata enrichment you want to execute.")],
-    dataset_names: Annotated[list[str] | str, Field(description="Dataset names of the specified datasets to be enriched with metadata.")],
-job_name: Annotated[Optional[str], Field(description="The name of the job to execute the metadata enrichment asset.")],
+    project_name: Annotated[
+        str,
+        Field(
+            description="The name of the project you want to execute a metadata enrichment."
+        ),
+    ],
+    metadata_enrichment_name: Annotated[
+        str,
+        Field(description="The name of the metadata enrichment you want to execute."),
+    ],
+    dataset_names: Annotated[
+        list[str] | str,
+        Field(
+            description="Dataset names of the specified datasets to be enriched with metadata."
+        ),
+    ],
+    job_name: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="The name of the job to execute the metadata enrichment asset."
+        ),
+    ],
 ) -> MetadataEnrichmentRun:
     """Wrapper that MetadataEnrichmentExecutionRequest expands object into individual parameters."""
 

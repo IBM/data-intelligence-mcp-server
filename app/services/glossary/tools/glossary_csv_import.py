@@ -4,7 +4,7 @@
 
 """Tool for importing glossary artifacts from CSV files."""
 
-from typing import Annotated, Optional
+from typing import Annotated, Optional  # noqa: I001 # Baseline
 from pydantic import Field
 from fastmcp import Context
 
@@ -21,18 +21,18 @@ from app.shared.logging import LOGGER, auto_context
 
 async def _glossary_csv_import(
     request: CSVImportRequest,
-    ctx: Optional[Context] = None,
+    ctx: Optional[Context] = None,  # noqa: UP045 # Baseline # NOSONAR
 ) -> CSVImportResult:
     """
     Import glossary artifacts from CSV content.
-    
+
     Args:
         request: CSV import request with content and options
         ctx: Optional MCP context
-        
+
     Returns:
         CSVImportResult with import/validation results
-        
+
     Raises:
         ServiceError: If import fails unexpectedly
     """
@@ -40,25 +40,27 @@ async def _glossary_csv_import(
         f"import_glossary_from_csv called with validate_only={request.validate_only}, "
         f"csv_length={len(request.csv_content)}"
     )
-    
+
     try:
         if request.validate_only:
             LOGGER.info("Performing validation only")
             result = validate_csv_content(request.csv_content)
         else:
             LOGGER.info(f"Performing import with merge_option={request.merge_option}")
-            result = await import_csv_content(request.csv_content, merge_option=request.merge_option)
-        
+            result = await import_csv_content(
+                request.csv_content, merge_option=request.merge_option
+            )
+
         LOGGER.info(
             f"Import completed: success={result.success}, "
             f"total_rows={result.total_rows}, "
             f"errors={len(result.errors)}"
         )
-        
+
         return result
-        
+
     except Exception as e:
-        LOGGER.error(f"Unexpected error during CSV import: {str(e)}", exc_info=True)
+        LOGGER.error(f"Unexpected error during CSV import: {e!s}", exc_info=True)
         return CSVImportResult(
             success=False,
             total_rows=0,
@@ -66,16 +68,17 @@ async def _glossary_csv_import(
             terms_created=0,
             categories_updated=0,
             terms_updated=0,
-            errors=[CSVRowError(
-                row_number=0,
-                column=None,
-                error_message=f"Unexpected error: {str(e)}",
-                value=None
-            )],
+            errors=[
+                CSVRowError(
+                    row_number=0,
+                    column=None,
+                    error_message=f"Unexpected error: {e!s}",
+                    value=None,
+                )
+            ],
             process_id=None,
-            import_status=None
+            import_status=None,
         )
-
 
 
 @service_registry.tool(
@@ -173,21 +176,36 @@ Returns: Import/validation status, counts of created and updated categories and 
 This enables LLMs to generate properly formatted CSVs and validate user-provided CSVs before import.""",
     annotations={
         "title": "Import and Create Glossary Terms and Categories from CSV Content",
-        "destructiveHint": True
+        "destructiveHint": True,
     },
-    tags={"metadata_management_and_governance"}
+    tags={"metadata_management_and_governance"},
 )
 @auto_context
 async def import_glossary_from_csv(
-    csv_content: Annotated[str, Field(description="CSV content as a string. Must follow IBM watsonx.data intelligence format (https://dataplatform.cloud.ibm.com/docs/content/wsj/governance/csv-import.html)")],
-    validate_only: Annotated[bool, Field(description="If true, only validate the CSV without importing. Returns validation errors if any.")] = False,
-    merge_option: Annotated[str, Field(description="""Import merge option for handling existing artifacts: 
+    csv_content: Annotated[
+        str,
+        Field(
+            description="CSV content as a string. Must follow IBM watsonx.data intelligence format (https://dataplatform.cloud.ibm.com/docs/content/wsj/governance/csv-import.html)"
+        ),
+    ],
+    validate_only: Annotated[
+        bool,
+        Field(
+            description="If true, only validate the CSV without importing. Returns validation errors if any."
+        ),
+    ] = False,
+    merge_option: Annotated[
+        str,
+        Field(
+            description="""Import merge option for handling existing artifacts: 
                                        - 'all': Imported values will replace all existing values in catalog (default) 
                                        - 'specified': Only non-empty imported values replace existing values 
-                                       - 'empty': Imported values replace only empty values in catalog""")] = "all",
-    ctx: Optional[Context] = None,
+                                       - 'empty': Imported values replace only empty values in catalog"""  # noqa: W291 # Baseline
+        ),
+    ] = "all",
+    ctx: Optional[Context] = None,  # noqa: UP045 # Baseline
 ) -> CSVImportResult:
-    """ 
+    """
     Wrapper for import_glossary_from_csv.
 
     Args:
@@ -195,13 +213,11 @@ async def import_glossary_from_csv(
         validate_only: If true, only validate without importing
         merge_option: Import merge option (all, specified, empty)
         ctx: Optional MCP context
-        
+
     Returns:
         CSVImportResult with import/validation results
     """
     request = CSVImportRequest(
-        csv_content=csv_content,
-        validate_only=validate_only,
-        merge_option=merge_option
+        csv_content=csv_content, validate_only=validate_only, merge_option=merge_option
     )
     return await _glossary_csv_import(request, ctx=ctx)

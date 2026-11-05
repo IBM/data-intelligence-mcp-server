@@ -4,11 +4,11 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-import json
+import json  # noqa: I001 # Baseline
 import re
 
 from difflib import get_close_matches
-from typing import Callable, List, Optional, Union
+from typing import Callable, List, Optional, Union  # noqa: UP035 # Baseline
 from urllib.parse import urlparse, parse_qs
 from uuid import UUID
 
@@ -29,7 +29,7 @@ def is_none(value: object) -> bool:
     return value is None or value == "None"
 
 
-def is_uuid(id: str):
+def is_uuid(id: str):  # noqa: A002, ANN201 # Baseline
     """
     This function takes a single string and checks if it is a valid UUID
 
@@ -45,16 +45,16 @@ def is_uuid(id: str):
     try:
         UUID(id, version=4)
     except ValueError:
-        raise ServiceError(f"'{id}' is not valid UUID")
+        raise ServiceError(f"'{id}' is not valid UUID")  # noqa: B904 # Baseline
 
 
-def is_uuid_bool(id: str) -> bool:
+def is_uuid_bool(id: str) -> bool:  # noqa: A002 # Baseline
     """
     Check if a string is a valid UUID.
-    
+
     Args:
         id: String to check
-        
+
     Returns:
         bool: True if valid UUID, False otherwise
     """
@@ -90,24 +90,26 @@ def _is_valid_lineage_id(lineage_id: str) -> bool:
     lid = lineage_id.lower()
     return bool(
         re.match(r"^[0-9a-f]{64}$", lid)  # 64-char hex lineage ID (CPD)
-        or re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", lid)  # UUID / UUIDv7 (SaaS)
+        or re.match(
+            r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", lid
+        )  # UUID / UUIDv7 (SaaS)
     )
 
 
-def _try_parse_json(json_str: str) -> Optional[List[str]]:
+def _try_parse_json(json_str: str) -> Optional[List[str]]:  # noqa: UP006, UP045 # Baseline
     """
     Attempts to parse a string as JSON and validate it's a list.
-    
+
     This function safely tries to convert a JSON string to a Python list.
     If parsing fails or the result is not a list, it returns None.
-    
+
     Args:
         json_str (str): The JSON-formatted string to parse
-        
+
     Returns:
         Optional[List[str]]: A list of strings if parsing succeeds and the result
                             is a list, None if parsing fails or result is not a list
-                            
+
     Raises:
         No exceptions are raised as errors are caught internally
     """
@@ -120,22 +122,25 @@ def _try_parse_json(json_str: str) -> Optional[List[str]]:
     return None
 
 
-def _parse_json_response(response_data):
+def _parse_json_response(response_data):  # noqa: ANN001, ANN202 # Baseline
     """Helper function to parse JSON response from bytes or dict."""
     if isinstance(response_data, bytes):
         import json
+
         try:
-            return json.loads(response_data.decode('utf-8'))
+            return json.loads(response_data.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
-            raise ServiceError(f"Failed to parse response: {str(e)}")
-    
+            raise ServiceError(f"Failed to parse response: {e!s}")  # noqa: B904 # Baseline
+
     if not isinstance(response_data, (list, dict)):
-        raise ServiceError(f"Invalid response type: expected list or dict, got {type(response_data).__name__}")
-    
+        raise ServiceError(
+            f"Invalid response type: expected list or dict, got {type(response_data).__name__}"
+        )
+
     return response_data
 
 
-def _try_parse_with_normalization(json_str: str) -> Optional[List[str]]:
+def _try_parse_with_normalization(json_str: str) -> Optional[List[str]]:  # noqa: UP006, UP045 # Baseline
     """
     Try to parse a string as JSON after normalizing quotes.
 
@@ -153,7 +158,7 @@ def _try_parse_with_normalization(json_str: str) -> Optional[List[str]]:
         return None
 
 
-def _get_values_to_check(value) -> List[str]:
+def _get_values_to_check(value) -> List[str]:  # noqa: ANN001, UP006 # Baseline
     """
     Convert a value to a list of strings to check.
 
@@ -176,15 +181,14 @@ def _get_values_to_check(value) -> List[str]:
             if parsed_list:
                 return parsed_list
         return [value]
-    elif isinstance(value, list):
+    if isinstance(value, list):
         return value
-    else:
-        raise ServiceError(
-            f"Argument '{value}' must be a string or list of strings, got {type(value).__name__}"
-        )
+    raise ServiceError(
+        f"Argument '{value}' must be a string or list of strings, got {type(value).__name__}"
+    )
 
 
-def are_lineage_ids(values: Union[str, List[str]]):
+def are_lineage_ids(values: Union[str, List[str]]):  # noqa: ANN201, UP006, UP007 # Baseline
     """
     Check if all values are valid lineage IDs.
 
@@ -205,7 +209,9 @@ def are_lineage_ids(values: Union[str, List[str]]):
 
         if not _is_valid_lineage_id(lineage_id):
             raise ServiceError(
-                f"'{lineage_id}' is not a valid lineage ID. Expected a 64-character hexadecimal string."
+                f"'{lineage_id}' is not a valid lineage ID. "
+                "Expected either a 64-character hexadecimal string (e.g. 'aaaa...bbbb') "
+                "or a UUID in the format 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'."
             )
 
 
@@ -236,19 +242,30 @@ def get_closest_match(word_list_with_id: list, search_word: str) -> str | None:
     return None
 
 
-def find_exact_matches(candidates: List[dict], search_fields: List[str], search_lower: str) -> List[dict]:
+def find_exact_matches(
+    candidates: List[dict],  # noqa: UP006 # Baseline
+    search_fields: List[str],  # noqa: UP006 # Baseline
+    search_lower: str,  # noqa: UP006 # Baseline
+) -> List[dict]:  # noqa: UP006 # Baseline
     """Find candidates with exact field matches (case-insensitive)."""
     return [
-        candidate for candidate in candidates
-        if any(candidate.get(field) and str(candidate.get(field)).lower() == search_lower
-               for field in search_fields)
+        candidate
+        for candidate in candidates
+        if any(
+            candidate.get(field) and str(candidate.get(field)).lower() == search_lower
+            for field in search_fields
+        )
     ]
 
 
-def calculate_best_token_score(search_tokens: List[str], candidate_tokens: List[str], cutoff: float) -> float:
+def calculate_best_token_score(
+    search_tokens: List[str],  # noqa: UP006 # Baseline
+    candidate_tokens: List[str],  # noqa: UP006 # Baseline
+    cutoff: float,  # noqa: UP006 # Baseline
+) -> float:
     """
     Calculate the best match score between search tokens and candidate tokens.
-    
+
     Scoring hierarchy:
     - Exact match: 1.0
     - Starts with: 0.95
@@ -270,90 +287,99 @@ def calculate_best_token_score(search_tokens: List[str], candidate_tokens: List[
 
 
 def perform_token_based_matching(
-    candidates: List[dict],
-    search_tokens: List[str],
-    search_fields: List[str],
+    candidates: List[dict],  # noqa: UP006 # Baseline
+    search_tokens: List[str],  # noqa: UP006 # Baseline
+    search_fields: List[str],  # noqa: UP006 # Baseline
     cutoff: float,
-    max_results: int
-) -> List[dict]:
+    max_results: int,
+) -> List[dict]:  # noqa: UP006 # Baseline
     """Score candidates based on token matching and return top matches."""
     candidate_scores = []
-    
+
     for candidate in candidates:
         # Combine search fields into searchable text
-        text_parts = [str(candidate.get(field)) for field in search_fields if candidate.get(field)]
+        text_parts = [
+            str(candidate.get(field)) for field in search_fields if candidate.get(field)
+        ]
         if not text_parts:
             continue
-        
+
         search_text = " ".join(text_parts).lower()
-        candidate_tokens = [t for t in re.split(r'[._+\-@\s]+', search_text) if t]
-        
+        candidate_tokens = [t for t in re.split(r"[._+\-@\s]+", search_text) if t]
+
         # Calculate best match score using helper function
         max_score = calculate_best_token_score(search_tokens, candidate_tokens, cutoff)
-        
+
         if max_score >= cutoff:
             candidate_scores.append((candidate, max_score))
-    
+
     # Sort by score and return top matches
     candidate_scores.sort(key=lambda x: x[1], reverse=True)
     return [candidate for candidate, _ in candidate_scores[:max_results]]
 
+
 def get_exact_or_fuzzy_matches(
     search_word: str,
-    candidates: List[dict],
-    search_fields: Optional[List[str]] = None,
+    candidates: List[dict],  # noqa: UP006 # Baseline
+    search_fields: Optional[List[str]] = None,  # noqa: UP006, UP045 # Baseline
     max_results: int = 10,
-    cutoff: float = 0.6
-) -> List[dict]:
+    cutoff: float = 0.6,
+) -> List[dict]:  # noqa: UP006 # Baseline
     """
     Perform exact match first, then fall back to token-based fuzzy matching.
     Returns multiple matches to allow caller to handle ambiguity.
-    
+
     This function extracts tokens from email addresses and names to perform
     intelligent matching
-    
+
     Args:
         search_word: The word to search for
         candidates: List of candidate dictionaries to search through
         search_fields: List of field names to search in (defaults to ["name"])
         max_results: Maximum number of fuzzy matches to return (default 10)
         cutoff: Minimum similarity score for fuzzy matching (0.0-1.0, default 0.6)
-        
+
     Returns:
         List[dict]: List of matching candidate dictionaries
     """
     if not search_word or not candidates:
         return []
-    
+
     search_fields = search_fields or ["name"]
     search_lower = search_word.lower().strip()
-    
+
     # Try exact match first
     exact_matches = find_exact_matches(candidates, search_fields, search_lower)
     if exact_matches:
         return exact_matches
-    
+
     # Extract and validate search tokens
-    search_tokens = [t for t in re.split(r'[._+\-@\s]+', search_lower) if t and len(t) > 1]
+    search_tokens = [
+        t for t in re.split(r"[._+\-@\s]+", search_lower) if t and len(t) > 1
+    ]
     if not search_tokens:
         return []
-    
+
     # Perform token-based fuzzy matching
-    return perform_token_based_matching(candidates, search_tokens, search_fields, cutoff, max_results)
+    return perform_token_based_matching(
+        candidates, search_tokens, search_fields, cutoff, max_results
+    )
+
 
 def get_project_or_space_type_based_on_context() -> str | None:
     """
     Returns the project or space type based on the current context.
-    
+
     Returns:
         str | None: The project/space type ('cpd' or 'wx') or None
     """
     context = settings.di_context
     if context in ["cpdaas", "cpd"]:
         return "cpd"
-    elif context == "df":
+    if context == "df":
         return "wx"
     return None
+
 
 def append_context_to_url(url: str, context: str | None = None) -> str:
     """
@@ -362,7 +388,7 @@ def append_context_to_url(url: str, context: str | None = None) -> str:
 
     Args:
         url (str): The URL to append the context parameter to.
-        context (str | None, optional): The context value to append. 
+        context (str | None, optional): The context value to append.
             If None, uses settings.di_context. Defaults to None.
 
     Returns:
@@ -373,7 +399,7 @@ def append_context_to_url(url: str, context: str | None = None) -> str:
     """
     # Use provided context or fall back to settings.di_context
     context_value = context if context is not None else settings.di_context
-    
+
     # Validate that the context is valid for the environment mode
     if context_value not in settings.valid_contexts:
         valid_contexts = ", ".join(settings.valid_contexts)
@@ -400,9 +426,9 @@ def append_context_to_url(url: str, context: str | None = None) -> str:
 def is_valid_iso_date(date: str) -> bool:
     """
     Check if a given date string complies with ISO-8601 format.
-    
+
     Uses datetime.fromisoformat() for common formats with regex fallback for special cases.
-    
+
     Supports various ISO-8601 formats including:
     - Complete date-time: YYYY-MM-DDTHH:MM:SSZ, YYYY-MM-DDTHH:MM:SS+00:00
     - Date only: YYYY-MM-DD
@@ -412,68 +438,70 @@ def is_valid_iso_date(date: str) -> bool:
     - Ordinal date with timezone: YYYY-DDDZ (e.g., 2025-123Z)
     - With timezone offsets: +HH:MM, -HH:MM, Z (required for special formats)
     - With fractional seconds: .SSS, .SSSSSS
-    
+
     Args:
         date (str): The date string to validate
-        
+
     Returns:
         bool: True if the string is a valid ISO-8601 date, False otherwise
     """
     if not isinstance(date, str) or not date:
         return False
-    
+
     date = date.strip()
-    
+
     # Reject space-separated datetime format (e.g., "2025-10-23 08:54:02")
     # ISO-8601 requires 'T' as the separator between date and time
-    if ' ' in date and 'T' not in date:
+    if " " in date and "T" not in date:
         return False
-    
+
     # Try datetime.fromisoformat() first for common formats
     # This handles most standard ISO-8601 datetime and date formats
     try:
         from datetime import datetime
-        datetime.fromisoformat(date.replace('Z', '+00:00'))
+
+        datetime.fromisoformat(date.replace("Z", "+00:00"))
         return True
     except (ValueError, AttributeError):
         pass
-    
+
     # Fallback to regex for special ISO-8601 formats not supported by fromisoformat but supported by backend
     # These include: week dates, ordinal dates, year-month, and year-only formats
     special_patterns = [
         # Week date format with day (YYYY-Www-D)
-        r'^\d{4}-W\d{2}-[1-7](?:Z|[+-]\d{2}:\d{2})$',
+        r"^\d{4}-W\d{2}-[1-7](?:Z|[+-]\d{2}:\d{2})$",
         # Week date format without day (YYYY-Www)
-        r'^\d{4}-W\d{2}(?:Z|[+-]\d{2}:\d{2})$',
+        r"^\d{4}-W\d{2}(?:Z|[+-]\d{2}:\d{2})$",
         # Ordinal date (YYYY-DDD)
-        r'^\d{4}-\d{3}(?:Z|[+-]\d{2}:\d{2})$',
+        r"^\d{4}-\d{3}(?:Z|[+-]\d{2}:\d{2})$",
         # Year and month (YYYY-MM)
-        r'^\d{4}-\d{2}(?:Z|[+-]\d{2}:\d{2})$',
+        r"^\d{4}-\d{2}(?:Z|[+-]\d{2}:\d{2})$",
         # Year only with timezone (YYYYZ or YYYY+/-HH:MM)
-        r'^\d{4}(?:Z|[+-]\d{2}:\d{2})$',
+        r"^\d{4}(?:Z|[+-]\d{2}:\d{2})$",
     ]
-    
+
     # Check if the date matches any of the special patterns
-    for pattern in special_patterns:
+    for pattern in special_patterns:  # noqa: SIM110 # Baseline
         if re.match(pattern, date):
             return True
-    
+
     return False
 
-def verify_dates(dates=None):
+
+def verify_dates(dates=None):  # noqa: ANN001, ANN201 # Baseline
     """
     Verify and parse dates parameter into a list of two ISO 8601 dates.
-    
+
     Args:
         dates: Can be None, a JSON string, or a list of two dates
-        
+
     Returns:
         List of two ISO 8601 date strings, or None if dates is None
     """
     if dates:
         if isinstance(dates, str):
             dates_verified = parse_string_date(dates)
-        elif isinstance(dates, list) and len(dates) == 2:
+        elif isinstance(dates, list) and len(dates) == 2:  # noqa: PLR2004 # Baseline
             if is_valid_iso_date(dates[0]) and is_valid_iso_date(dates[1]):
                 dates_verified = dates
             else:
@@ -483,40 +511,43 @@ def verify_dates(dates=None):
         return dates_verified
     return None
 
-def parse_string_date(dates):
+
+def parse_string_date(dates):  # noqa: ANN001, ANN201 # Baseline
     """
     Parse a string containing dates into a list of two ISO 8601 dates.
-    
+
     Handles multiple formats:
     - JSON array: '["2025-10-23T08:54:02.17Z","2025-10-14T06:09:58.423Z"]'
     - Space-separated: "2025-10-23T08:54:02.17Z 2025-10-14T06:09:58.423Z"
     - Comma-separated: "2025-10-23T08:54:02.17Z,2025-10-14T06:09:58.423Z"
-    
+
     Args:
         dates: String containing two dates
-        
+
     Returns:
         List of two ISO 8601 date strings
-        
+
     Raises:
         ServiceError: If dates cannot be parsed or don't contain exactly 2 valid dates
     """
     # First try JSON parsing
     try:
         parsed_dates = json.loads(dates)
-        if isinstance(parsed_dates, list) and len(parsed_dates) == 2:
-            if is_valid_iso_date(parsed_dates[0]) and is_valid_iso_date(parsed_dates[1]):
+        if isinstance(parsed_dates, list) and len(parsed_dates) == 2:  # noqa: PLR2004, SIM102 # Baseline
+            if is_valid_iso_date(parsed_dates[0]) and is_valid_iso_date(
+                parsed_dates[1]
+            ):
                 return parsed_dates
     except json.JSONDecodeError:
         pass  # Not JSON, try other formats
-    
+
     # Try splitting by common separators
-    for separator in [',', ' ', ';', '|']:
+    for separator in [",", " ", ";", "|"]:
         parts = [p.strip() for p in dates.split(separator) if p.strip()]
-        if len(parts) == 2:
+        if len(parts) == 2:  # noqa: PLR2004, SIM102 # Baseline
             if is_valid_iso_date(parts[0]) and is_valid_iso_date(parts[1]):
                 return parts
-    
+
     # If we get here, we couldn't parse the dates
     raise ServiceError(
         f"dates parameter must contain exactly 2 ISO 8601 dates. "
@@ -524,11 +555,12 @@ def parse_string_date(dates):
         f"Received: {dates}"
     )
 
-def parse_list_of_ids(ids):
+
+def parse_list_of_ids(ids):  # noqa: ANN001, ANN201 # Baseline
     if isinstance(ids, str):
-        req_ids = "".join(
-            char for char in ids if char.isalnum() or char == ","
-        )
+        # Keep alphanumeric characters, commas, and dashes to preserve both
+        # 64-char hex IDs and UUID-format IDs (e.g. 'ffffffff-bbbb-dddd-cccc-aaaaaaaaaaaa').
+        req_ids = "".join(char for char in ids if char.isalnum() or char in ",-")
         try:
             req_ids = json.loads(req_ids)
         except Exception:
@@ -538,31 +570,31 @@ def parse_list_of_ids(ids):
     return req_ids
 
 
-def calculate_cosine_similarity(x, y):
+def calculate_cosine_similarity(x, y):  # noqa: ANN001, ANN201 # Baseline
     """
     Compute cosine similarity between two sets of vectors.
-    
+
     Args:
         x: Array of shape (n_samples_X, n_features)
         y: Array of shape (n_samples_Y, n_features)
-    
+
     Returns:
         Array of shape (n_samples_X, n_samples_Y) containing similarity scores
     """
     import numpy as np
-    
+
     # Normalize the vectors (compute L2 norm for each row)
     x_norm = np.linalg.norm(x, axis=1, keepdims=True)
     y_norm = np.linalg.norm(y, axis=1, keepdims=True)
-    
+
     # Avoid division by zero
     x_norm = np.where(x_norm == 0, 1, x_norm)
     y_norm = np.where(y_norm == 0, 1, y_norm)
-    
+
     # Normalize vectors
     x_normalized = x / x_norm
     y_normalized = y / y_norm
-    
+
     # Compute dot product (which equals cosine similarity for normalized vectors)
     return np.dot(x_normalized, y_normalized.T)
 
@@ -570,60 +602,80 @@ def calculate_cosine_similarity(x, y):
 def construct_glossary_category_url(category_id: str) -> str:
     """
     Construct a URL to a glossary category in the governance catalog.
-    
+
     Args:
         category_id: The category artifact ID
-        
+
     Returns:
         The constructed URL to the category
     """
     from app.core.settings import ENV_MODE_SAAS
     from app.shared.utils.tool_helper_service import tool_helper_service
-    
-    base_url = str(tool_helper_service.ui_base_url)
-    
-    if settings.di_env_mode.upper() != ENV_MODE_SAAS:
-        return f"{base_url}/gov/categories/{category_id}"
-    else:
-        return f"{base_url}/governance/categories/{category_id}"
 
-def convert_iso8601_to_human_readable(iso_timestamp: str) -> Optional[str]:
+    base_url = str(tool_helper_service.ui_base_url)
+
+    if settings.di_env_mode.upper() != ENV_MODE_SAAS:
+        return append_context_to_url(f"{base_url}/gov/categories/{category_id}")
+    return append_context_to_url(f"{base_url}/governance/categories/{category_id}")
+
+
+def convert_iso8601_to_human_readable(iso_timestamp: str) -> Optional[str]:  # noqa: UP045 # Baseline
     """
     Convert ISO 8601 timestamp to human-readable format.
-    
+
     Args:
         iso_timestamp: ISO 8601 formatted timestamp string (e.g., "2026-05-27T10:30:00Z")
-    
+
     Returns:
         Optional[str]: Human-readable timestamp (e.g., "May 27, 2026 at 10:30 AM UTC") or None if conversion fails
-    
+
     """
     try:
         from datetime import datetime
-        dt = datetime.fromisoformat(iso_timestamp.replace('Z', '+00:00'))
+
+        dt = datetime.fromisoformat(iso_timestamp.replace("Z", "+00:00"))
         return dt.strftime("%B %d, %Y at %I:%M %p UTC")
     except (ValueError, AttributeError) as e:
         from app.shared.logging.utils import get_logger
+
         logger = get_logger(__name__)
         logger.warning("Failed to convert timestamp '%s': %s", iso_timestamp, str(e))
         return None
 
+
 def construct_task_url(task_id: str) -> str:
     """
     Construct a URL to a task in the workflow/task UI
-    
+
     Args:
         task_id: The task Id
-        
+
     Returns:
         The constructed URL to the task
     """
     from app.core.settings import ENV_MODE_SAAS
     from app.shared.utils.tool_helper_service import tool_helper_service
-    
+
     base_url = str(tool_helper_service.ui_base_url)
 
     if settings.di_env_mode.upper() != ENV_MODE_SAAS:
-        return f"{base_url}/gov/workflow/tasks?taskId={task_id}&context=df"
-    else:
-        return f"{base_url}/governance/workflow/tasks?taskId={task_id}&context=df"
+        return append_context_to_url(f"{base_url}/gov/workflow/tasks?taskId={task_id}")
+    return append_context_to_url(
+        f"{base_url}/governance/workflow/tasks?taskId={task_id}"
+    )
+
+
+def construct_project_url(project_id: str) -> str:
+    """
+    Construct a URL to a project.
+
+    Args:
+        project_id: The project ID
+
+    Returns:
+        The constructed URL to the project
+    """
+    from app.shared.utils.tool_helper_service import tool_helper_service
+
+    base_url = str(tool_helper_service.ui_base_url)
+    return append_context_to_url(f"{base_url}/projects/{project_id}/assets")

@@ -8,44 +8,44 @@
 Utility functions for formatting workflow user tasks into human-readable output.
 """
 
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import datetime, timezone  # noqa: F401, I001 # Baseline
+from typing import List, Optional  # noqa: UP035 # Baseline
 
-from app.services.workflow.models.list_user_tasks_approval_data_for_artifact import UserTask
-from app.services.workflow.tools.get_workflow_tasks_from_my_inbox import transform_base_url_to_ui_url
-from app.services.workflow.utils.task_formatters import calculate_task_age
+from app.services.workflow.models.list_user_tasks_approval_data_for_artifact import (
+    UserTask,
+)
+from app.services.workflow.tools.get_workflow_tasks_from_my_inbox import (
+    transform_base_url_to_ui_url,
+)
+from app.services.workflow.utils.task_formatters import calculate_task_age  # noqa: F401 # Baseline
 from app.shared.logging import LOGGER
 
 
-def get_user_task_state_display(state: Optional[str]) -> str:
+def get_user_task_state_display(state: Optional[str]) -> str:  # noqa: UP045 # Baseline
     """
     Convert user task state code to human-readable display string.
-    
+
     Args:
         state: User task state code (0 - created, 1 - assigned, 2 - completed)
-        
+
     Returns:
         Human-readable state string
     """
     if state is None:
         return "Unknown"
-    
-    state_map = {
-        "0": "Created",
-        "1": "Assigned",
-        "2": "Completed"
-    }
-    
+
+    state_map = {"0": "Created", "1": "Assigned", "2": "Completed"}
+
     return state_map.get(str(state), "Unknown")
 
 
-def is_user_task_completed(state: Optional[str]) -> bool:
+def is_user_task_completed(state: Optional[str]) -> bool:  # noqa: UP045 # Baseline
     """
     Check if user task is completed.
-    
+
     Args:
         state: User task state code
-        
+
     Returns:
         True if completed, False otherwise
     """
@@ -54,13 +54,13 @@ def is_user_task_completed(state: Optional[str]) -> bool:
     return str(state) == "2"
 
 
-def is_user_task_assigned(state: Optional[str]) -> bool:
+def is_user_task_assigned(state: Optional[str]) -> bool:  # noqa: UP045 # Baseline
     """
     Check if user task is assigned.
-    
+
     Args:
         state: User task state code
-        
+
     Returns:
         True if assigned, False otherwise
     """
@@ -69,13 +69,13 @@ def is_user_task_assigned(state: Optional[str]) -> bool:
     return str(state) == "1"
 
 
-def format_user_task_state(state: Optional[str]) -> str:
+def format_user_task_state(state: Optional[str]) -> str:  # noqa: UP045 # Baseline
     """
     Format user task state with appropriate icon.
-    
+
     Args:
         state: User task state code
-        
+
     Returns:
         Formatted state string with icon:
         - "✅ Completed" for completed
@@ -85,27 +85,26 @@ def format_user_task_state(state: Optional[str]) -> str:
     """
     if is_user_task_completed(state):
         return "✅ Completed"
-    elif is_user_task_assigned(state):
+    if is_user_task_assigned(state):
         return "👤 Assigned"
-    elif state == "0":
+    if state == "0":
         return "📝 Created"
-    else:
-        return "❓ Unclaimed"
+    return "❓ Unclaimed"
 
 
-def format_completed_at(completed_at: Optional[str]) -> str:
+def format_completed_at(completed_at: Optional[str]) -> str:  # noqa: UP045 # Baseline
     """
     Format completed_at timestamp to human-readable string.
-    
+
     Args:
         completed_at: Completed timestamp string
-        
+
     Returns:
         Formatted date string or "Not completed" if None
     """
     if completed_at is None:
         return "Not completed"
-    
+
     try:
         # Handle both ISO format and other formats
         if completed_at.endswith("Z"):
@@ -116,30 +115,30 @@ def format_completed_at(completed_at: Optional[str]) -> str:
         return completed_at
 
 
-def format_candidate_users(candidate_users: Optional[List[str]]) -> str:
+def format_candidate_users(candidate_users: Optional[List[str]]) -> str:  # noqa: UP006, UP045 # Baseline
     """
     Format list of candidate users into a readable string.
-    
+
     Args:
         candidate_users: List of user names
-        
+
     Returns:
         Comma-separated string of user names or "No candidates" if empty
     """
     if not candidate_users or len(candidate_users) == 0:
         return "No candidates"
-    
+
     return ", ".join(candidate_users)
 
 
-def build_user_task_url(base_url: str, task_id: Optional[str]) -> str:
+def build_user_task_url(base_url: str, task_id: Optional[str]) -> str:  # noqa: UP045 # Baseline
     """
     Build the URL to access a user task instance in Workflow UI.
-    
+
     Args:
         base_url: Base URL of the Data Intelligence service
         task_id: Task ID
-        
+
     Returns:
         Complete URL to the task
     """
@@ -151,26 +150,27 @@ def build_user_task_url(base_url: str, task_id: Optional[str]) -> str:
     return task_link
 
 
-def sort_user_tasks_by_state(user_tasks: List[UserTask]) -> List[UserTask]:
+def sort_user_tasks_by_state(user_tasks: List[UserTask]) -> List[UserTask]:  # noqa: UP006 # Baseline
     """
     Sort user tasks by state: Completed > Assigned > Created.
-    
+
     Within each category, tasks are sorted by:
     - Name (alphabetically)
-    
+
     Args:
         user_tasks: List of UserTask objects to sort
-        
+
     Returns:
         Sorted list of UserTask objects with the following priority order:
         1. Completed tasks
         2. Assigned tasks
         3. Created tasks
     """
+
     def sort_key(user_task: UserTask) -> tuple:
         """
         Generate a sort key tuple for a user task.
-        
+
         Returns tuple: (state_priority, name)
         - state_priority: 0=completed, 1=assigned, 2=created
         - name: task name (alphabetically)
@@ -182,23 +182,23 @@ def sort_user_tasks_by_state(user_tasks: List[UserTask]) -> List[UserTask]:
             state_priority = 1
         else:  # created or unknown
             state_priority = 2
-        
+
         # Use name for secondary sort
         name = user_task.name or ""
-        
+
         return (state_priority, name)
-    
+
     return sorted(user_tasks, key=sort_key)
 
 
-def format_user_tasks_as_table(user_tasks: List[UserTask], base_url: str) -> str:
+def format_user_tasks_as_table(user_tasks: List[UserTask], base_url: str) -> str:  # noqa: UP006 # Baseline
     """
     Convert user task list to markdown table with formatted columns.
-    
+
     Args:
         user_tasks: List of UserTask objects
         base_url: Base URL for constructing task links
-        
+
     Returns:
         Markdown table string with columns:
         - Task Name (hyperlinked)
@@ -209,57 +209,61 @@ def format_user_tasks_as_table(user_tasks: List[UserTask], base_url: str) -> str
     """
     if not user_tasks:
         return ""
-    
+
     # Build table header
     table = "| Task Title | Claimed at | Claimed | Candidate Users |\n"
     table += "|------------|------------|---------|-----------------|\n"
-    
+
     # Build table rows
     for user_task in user_tasks:
         task_title = user_task.task_title or user_task.name
         task_url = build_user_task_url(base_url, user_task.task_id)
         title_link = f"[{task_title}]({task_url})" if task_url else task_title
-        claimed_at = format_completed_at(user_task.claimed_at) if user_task.claimed_at else "--"
+        claimed_at = (
+            format_completed_at(user_task.claimed_at) if user_task.claimed_at else "--"
+        )
         claimed = user_task.assignee or "--"
         candidates = format_candidate_users(user_task.candidate_users)
-        
+
         table += f"| {title_link} | {claimed_at} | {claimed} | {candidates} |\n"
-    
+
     return table
 
 
-def format_user_tasks_as_list(user_tasks: List[UserTask], base_url: str) -> str:
+def format_user_tasks_as_list(user_tasks: List[UserTask], base_url: str) -> str:  # noqa: UP006 # Baseline
     """
     Convert user task list to formatted list with details.
-    
+
     Args:
         user_tasks: List of UserTask objects
         base_url: Base URL for constructing task links
-        
+
     Returns:
         Formatted string with task details
     """
     if not user_tasks:
         return ""
-    
+
     output = []
     for user_task in user_tasks:
         task_title = user_task.task_title or user_task.name
         task_url = build_user_task_url(base_url, user_task.task_id)
-        claimed_at = format_completed_at(user_task.claimed_at) if user_task.claimed_at else "--"
+        claimed_at = (
+            format_completed_at(user_task.claimed_at) if user_task.claimed_at else "--"
+        )
         claimed = user_task.assignee or "--"
         candidates = format_candidate_users(user_task.candidate_users)
-        
+
         output.append(f"**{task_title}**")
         output.append(f"  - Claimed at: {claimed_at}")
         output.append(f"  - Claimed: {claimed}")
         output.append(f"  - Candidate Users: {candidates}")
-        
+
         if user_task.task_instruction:
             output.append(f"  - Instruction: {user_task.task_instruction}")
-        
+
         if task_url:
             output.append(f"  - [View Task]({task_url})")
         output.append("")
-    
+
     return "\n".join(output)

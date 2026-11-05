@@ -1,7 +1,7 @@
 # Copyright [2025] [IBM]
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
-from typing import Optional, Annotated
+from typing import Optional, Annotated  # noqa: I001 # Baseline
 from pydantic import Field
 from app.shared.logging import LOGGER, auto_context
 from app.core.registry import service_registry
@@ -16,9 +16,11 @@ from app.services.metadata_import.models.list_connection_paths import (
 async def _list_connection_paths(
     request: ListConnectionPathsRequest,
 ) -> ListConnectionPathsResponse:
-    
+
     project_id = await find_project_id(request.project_name)
-    connection_id = await find_connection_id(request.connection_name, project_id, "project")
+    connection_id = await find_connection_id(
+        request.connection_name, project_id, "project"
+    )
 
     LOGGER.info(
         "Calling tool 'list_connection_paths' to get connection schemas for connection %s in project %s",
@@ -33,7 +35,12 @@ async def _list_connection_paths(
     if request.filter_text is not None and str(request.filter_text).strip() != "":
         limit = -1
 
-    params = {"project_id": project_id, "path": "/", "limit": limit, "offset": request.offset}
+    params = {
+        "project_id": project_id,
+        "path": "/",
+        "limit": limit,
+        "offset": request.offset,
+    }
 
     response = await tool_helper_service.execute_get_request(
         url=url, params=params, tool_name="list_connection_paths"
@@ -47,7 +54,11 @@ async def _list_connection_paths(
 
     LOGGER.info("Found schemas (first 10): %s", paths[:10])
     # Return up to `limit` items to respect pagination (limit may be -1 meaning all)
-    final_paths = paths[:10] if (request.limit is None or request.limit == -1) else paths[: request.limit]
+    final_paths = (
+        paths[:10]
+        if (request.limit is None or request.limit == -1)
+        else paths[: request.limit]
+    )
     return ListConnectionPathsResponse(paths=final_paths, count=len(final_paths))
 
 
@@ -55,7 +66,7 @@ async def _list_connection_paths(
     name="list_connection_paths",
     annotations={
         "readOnlyHint": True,
-        "title": "List Available Schema and Table Paths from Data Connection"
+        "title": "List Available Schema and Table Paths from Data Connection",
     },
     description="""Use this tool when you need to list available schema/table paths for a connection.
     
@@ -73,17 +84,28 @@ async def _list_connection_paths(
     when calling create_or_update_metadata_import.
     
     Returns: Response containing list of schema/table paths and count.
-    """,
-    tags={"list_connection", "metadata-import","metadata_management_and_governance"},
+    """,  # noqa: W293 # Baseline
+    tags={"list_connection", "metadata-import", "metadata_management_and_governance"},
     meta={"version": "1.0", "service": "metadata-import"},
 )
 @auto_context
 async def list_connection_paths(
-    project_name: Annotated[str, Field(description="Project name where the connection resides")],
-    connection_name: Annotated[str, Field(description="The name of the connection to list paths for")],
-    offset: Annotated[Optional[int], Field(description="Pagination offset (starts at 1)")] = 1,
-    limit: Annotated[Optional[int], Field(description="Maximum number of items to return, -1 for all")] = 10,
-    filter_text: Annotated[Optional[str], Field(description="Optional substring to filter path names")] = None
+    project_name: Annotated[
+        str, Field(description="Project name where the connection resides")
+    ],
+    connection_name: Annotated[
+        str, Field(description="The name of the connection to list paths for")
+    ],
+    offset: Annotated[
+        Optional[int], Field(description="Pagination offset (starts at 1)")  # noqa: UP045 # Baseline
+    ] = 1,
+    limit: Annotated[
+        Optional[int],  # noqa: UP045 # Baseline
+        Field(description="Maximum number of items to return, -1 for all"),
+    ] = 10,
+    filter_text: Annotated[
+        Optional[str], Field(description="Optional substring to filter path names")  # noqa: UP045 # Baseline
+    ] = None,
 ) -> ListConnectionPathsResponse:
     """Wrapper that expands params into a `ListConnectionPathsRequest` and calls the tool."""
 

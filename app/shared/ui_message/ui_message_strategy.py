@@ -1,24 +1,36 @@
-# Copyright [2026] [IBM]
+# Copyright [2026] [IBM]  # noqa: INP001 # Baseline
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from abc import ABC, abstractmethod
-from typing import List, Dict, Optional
+from abc import ABC, abstractmethod  # noqa: I001 # Baseline
+from typing import List, Dict, Optional  # noqa: UP035 # Baseline
 
 from app.shared.ui_message.ui_agentic_utils import CardComponent
+
 
 # Strategy interface
 class UIMessageStrategy(ABC):
     @abstractmethod
-    def add_table_ui_message(self, tool_name: str, formatted_data: List[Dict], title: str) -> None:
+    def add_table_ui_message(
+        self,
+        tool_name: str,
+        formatted_data: List[Dict],  # noqa: UP006 # Baseline
+        title: str,  # noqa: UP006 # Baseline
+    ) -> None:
         pass
-    
+
     @abstractmethod
-    def add_card_ui_message(self, tool_name: str, card_component: 'CardComponent') -> None:
+    def add_card_ui_message(
+        self, tool_name: str, card_component: "CardComponent"
+    ) -> None:
         pass
-    
+
     @abstractmethod
-    def add_carousel_ui_message(self, tool_name: str, card_components: List['CardComponent']) -> None:
+    def add_carousel_ui_message(
+        self,
+        tool_name: str,
+        card_components: List["CardComponent"],  # noqa: UP006 # Baseline
+    ) -> None:
         pass
 
     @abstractmethod
@@ -38,7 +50,7 @@ class UIMessageStrategy(ABC):
         pass
 
     @abstractmethod
-    def create_markdown_link(self, url: str, text: Optional[str] = None) -> str:
+    def create_markdown_link(self, url: str, text: Optional[str] = None) -> str:  # noqa: UP045 # Baseline
         pass
 
     @abstractmethod
@@ -46,5 +58,13 @@ class UIMessageStrategy(ABC):
         pass
 
     @abstractmethod
-    def send_table_selector_msg(self, tool_name: str, data: list, formatted_data: list, title: str, description: str | None = None, unique_keys=None) -> list | None:
+    def send_table_selector_msg(  # noqa: PLR0913 # Baseline
+        self,
+        tool_name: str,
+        data: list,
+        formatted_data: list,
+        title: str,
+        description: str | None = None,
+        unique_keys=None,  # noqa: ANN001 # Baseline
+    ) -> list | None:
         pass

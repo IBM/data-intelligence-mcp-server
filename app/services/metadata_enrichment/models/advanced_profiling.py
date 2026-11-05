@@ -19,9 +19,9 @@ from pydantic import BaseModel, Field
 from app.shared.models import BaseResponseModel
 
 
-class SamplingPreset(str, Enum):
+class SamplingPreset(str, Enum):  # noqa: UP042 # Baseline
     """Predefined sampling presets for advanced profiling."""
-    
+
     BASIC = "basic"
     MODERATE = "moderate"
     COMPREHENSIVE = "comprehensive"
@@ -30,138 +30,116 @@ class SamplingPreset(str, Enum):
 
 class UniqueValueTableLocation(BaseModel):
     """Location information for the unique value table."""
-    
+
     connection_name: str = Field(
         ...,
-        description="The connection name for the database where profiling results will be stored."
+        description="The connection name for the database where profiling results will be stored.",
     )
-    catalog_name: Optional[str] = Field(
-        default=None,
-        description="The catalog name in the database."
+    catalog_name: Optional[str] = Field(  # noqa: UP045 # Baseline
+        default=None, description="The catalog name in the database."
     )
     schema_name: str = Field(
-        ...,
-        description="The schema name in the database (mandatory)."
+        ..., description="The schema name in the database (mandatory)."
     )
     table_name: str = Field(
         ...,
-        description="The table name where results will be stored. Can be an existing table or a new table to be created."
+        description="The table name where results will be stored. Can be an existing table or a new table to be created.",
     )
 
 
 class UniqueValueTableInfo(BaseModel):
     """Information about the unique value table for profiling results."""
-    
+
     location: UniqueValueTableLocation = Field(
-        ...,
-        description="Location details for the unique value table."
+        ..., description="Location details for the unique value table."
     )
-    count: int = Field(
-        100,
-        description="The count parameter for unique values."
-    )
+    count: int = Field(100, description="The count parameter for unique values.")
 
 
 class SampleSizeOptions(BaseModel):
     """Sample size options for structured data profiling."""
-    
-    row_number: int = Field(
-        ...,
-        description="The number of rows to analyze per table."
-    )
+
+    row_number: int = Field(..., description="The number of rows to analyze per table.")
     classify_value_number: int = Field(
         100,
-        description="The number of most frequent values per column to use for classification."
+        description="The number of most frequent values per column to use for classification.",
     )
 
 
 class SampleSizePercentageOptions(BaseModel):
     """Percentage-based sample size options for structured data profiling."""
-    
+
     decimal_value: float = Field(
         ...,
-        description="The sample percentage expressed as decimal value (e.g., 0.1 for 10%)."
+        description="The sample percentage expressed as decimal value (e.g., 0.1 for 10%).",
     )
     row_number_min: int = Field(
-        ...,
-        description="The minimum number of rows to profile."
+        ..., description="The minimum number of rows to profile."
     )
     row_number_max: int = Field(
-        ...,
-        description="The maximum number of rows to profile."
+        ..., description="The maximum number of rows to profile."
     )
     classify_value_number: int = Field(
         100,
-        description="The number of most frequent values per column to use for classification."
+        description="The number of most frequent values per column to use for classification.",
     )
 
 
 class SampleSize(BaseModel):
     """Sample size configuration for profiling."""
-    
-    name: Optional[str] = Field(
-        default=None,
-        description="An optional name for the sample size configuration."
+
+    name: Optional[str] = Field(  # noqa: UP045 # Baseline
+        default=None, description="An optional name for the sample size configuration."
     )
-    options: Optional[SampleSizeOptions] = Field(
-        default=None,
-        description="Sample size options for fixed sampling method."
+    options: Optional[SampleSizeOptions] = Field(  # noqa: UP045 # Baseline
+        default=None, description="Sample size options for fixed sampling method."
     )
-    percentage_options: Optional[SampleSizePercentageOptions] = Field(
+    percentage_options: Optional[SampleSizePercentageOptions] = Field(  # noqa: UP045 # Baseline
         default=None,
-        description="Sample size percentage options for percentage-based sampling method."
+        description="Sample size percentage options for percentage-based sampling method.",
     )
 
 
 class StructuredSampling(BaseModel):
     """Structured data sampling configuration."""
-    
-    method: str = Field(
-        "random",
-        description="The sampling method (e.g., 'random')."
-    )
+
+    method: str = Field("random", description="The sampling method (e.g., 'random').")
     analysis_method: str = Field(
-        "percentage",
-        description="The analysis method (e.g., 'percentage' or 'fixed')."
+        "percentage", description="The analysis method (e.g., 'percentage' or 'fixed')."
     )
     sample_size: SampleSize = Field(
-        ...,
-        description="Sample size configuration for the profiling job."
+        ..., description="Sample size configuration for the profiling job."
     )
 
 
 class Sampling(BaseModel):
     """Sampling configuration for advanced profiling."""
-    
+
     structured: StructuredSampling = Field(
-        ...,
-        description="Structured data sampling configuration."
+        ..., description="Structured data sampling configuration."
     )
 
 
 class DataAssetSelection(BaseModel):
     """Selection of data assets for profiling."""
-    
-    ids: list[str] = Field(
-        ...,
-        description="List of data asset IDs to profile."
-    )
+
+    ids: list[str] = Field(..., description="List of data asset IDs to profile.")
 
 
 class AdvancedProfilingRequest(BaseModel):
     """Request model for executing advanced profiling on metadata enrichment assets."""
-    
+
     project_name: str = Field(
         ...,
-        description="The name of the project containing the metadata enrichment asset."
+        description="The name of the project containing the metadata enrichment asset.",
     )
     metadata_enrichment_name: str = Field(
         ...,
-        description="The name of the metadata enrichment asset to run advanced profiling on."
+        description="The name of the metadata enrichment asset to run advanced profiling on.",
     )
     dataset_names: list[str] | str = Field(
         ...,
-        description="Dataset names to be profiled. Can be a single string or list of strings."
+        description="Dataset names to be profiled. Can be a single string or list of strings.",
     )
     sampling_preset: SamplingPreset = Field(
         default=SamplingPreset.BASIC,
@@ -169,39 +147,33 @@ class AdvancedProfilingRequest(BaseModel):
         - basic: Minimum sample size (1,000 rows, 100 values for classification)
         - moderate: Balanced approach (10,000 rows, 100 values for classification)
         - comprehensive: Large sample size (100,000 rows, all values for classification)
-        - custom: User-defined sampling configuration"""
+        - custom: User-defined sampling configuration""",
     )
-    unique_value_table_info: Optional[UniqueValueTableInfo] = Field(
+    unique_value_table_info: Optional[UniqueValueTableInfo] = Field(  # noqa: UP045 # Baseline
         default=None,
-        description="Optional configuration for storing unique value profiling results in a database table."
+        description="Optional configuration for storing unique value profiling results in a database table.",
     )
-    custom_sampling: Optional[Sampling] = Field(
+    custom_sampling: Optional[Sampling] = Field(  # noqa: UP045 # Baseline
         default=None,
-        description="Custom sampling configuration. Required only when sampling_preset is 'custom'."
+        description="Custom sampling configuration. Required only when sampling_preset is 'custom'.",
     )
-    job_name: Optional[str] = Field(None, description="The name of the job to execute the metadata enrichment asset.")
+    job_name: Optional[str] = Field(  # noqa: UP045 # Baseline
+        None,
+        description="The name of the job to execute the metadata enrichment asset.",
+    )
 
 
 class AdvancedProfilingResponse(BaseResponseModel):
     """Response model for advanced profiling execution."""
-    
+
     metadata_enrichment_id: str = Field(
-        ...,
-        description="The unique identifier of the metadata enrichment asset."
+        ..., description="The unique identifier of the metadata enrichment asset."
     )
     job_run_id: str = Field(
-        ...,
-        description="The unique identifier of the advanced profiling job run."
+        ..., description="The unique identifier of the advanced profiling job run."
     )
-    project_id: str = Field(
-        ...,
-        description="The unique identifier of the project."
-    )
+    project_id: str = Field(..., description="The unique identifier of the project.")
     metadata_enrichment_ui_url: str = Field(
-        ...,
-        description="The URL to monitor the advanced profiling job in the UI."
+        ..., description="The URL to monitor the advanced profiling job in the UI."
     )
-    href: str = Field(
-        ...,
-        description="The location URL to retrieve the job run."
-    )
+    href: str = Field(..., description="The location URL to retrieve the job run.")

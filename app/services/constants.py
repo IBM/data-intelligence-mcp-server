@@ -22,7 +22,9 @@ DATA_QUALITY_BASE_ENDPOINT_V3 = "/data_quality/v3"
 LINEAGE_BASE_ENDPOINT = "/gov_lineage/v2"
 LINEAGE_UI_BASE_ENDPOINT = "/lineage"
 TEXT_TO_SQL_BASE_ENDPOINT = "/semantic_automation/v1/text_to_sql"
-SEMANTIC_AUTOMATION_COMPUTE_EMBEDDINGS_ENDPOINT = "/semantic_automation/v1/compute_embeddings"
+SEMANTIC_AUTOMATION_COMPUTE_EMBEDDINGS_ENDPOINT = (
+    "/semantic_automation/v1/compute_embeddings"
+)
 GET_SEMANTIC_MODEL = "/semantic_automation/v1/get_semantic_model"
 TEXT_TO_QUERY_BASE_ENDPOINT = "/semantic_automation/v1/generate_queries"
 GEN_AI_ONBOARD_API = "/semantic_automation/v1/gen_ai/onboard"

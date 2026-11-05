@@ -2,11 +2,11 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from email import message
+from email import message  # noqa: F401, I001 # Baseline
 import json
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union, Annotated
+from typing import Any, Dict, List, Optional, Union, Annotated  # noqa: UP035 # Baseline
 from urllib.parse import urlencode
 from pydantic import Field
 
@@ -24,7 +24,11 @@ from app.services.lineage.models.get_lineage_graph import (
 from app.services.lineage.tools.search_lineage_assets import _transform_lineage_assets
 from app.shared.exceptions.base import ExternalAPIError, ServiceError, ValidationError
 from app.shared.logging import LOGGER, auto_context
-from app.shared.utils.helpers import append_context_to_url, are_lineage_ids, verify_dates
+from app.shared.utils.helpers import (
+    append_context_to_url,
+    are_lineage_ids,
+    verify_dates,
+)
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.ui_message.ui_agentic_utils import (
@@ -50,7 +54,7 @@ class ExpansionType(Enum):
     BOTH = "sources_and_targets"
 
 
-def _calculate_starting_asset_direction(hop_up, hop_down, ultimate) -> StreamDirection:
+def _calculate_starting_asset_direction(hop_up, hop_down, ultimate) -> StreamDirection:  # noqa: ANN001 # Baseline
     """
     Calculate asset direction based on hops and ultimate data. Used for lineage url generation
 
@@ -67,13 +71,12 @@ def _calculate_starting_asset_direction(hop_up, hop_down, ultimate) -> StreamDir
     hop_down_int = int(hop_down) if hop_down is not None else 0
     if (hop_up_int > 0 and hop_down_int == 0) or ultimate == "source":
         return StreamDirection.UPSTREAM
-    elif (hop_up_int == 0 and hop_down_int > 0) or ultimate == "target":
+    if (hop_up_int == 0 and hop_down_int > 0) or ultimate == "target":
         return StreamDirection.DOWNSTREAM
-    else:
-        return StreamDirection.BOTH
+    return StreamDirection.BOTH
 
 
-def _calculate_number_of_hops(hop_up, hop_down) -> str:
+def _calculate_number_of_hops(hop_up, hop_down) -> str:  # noqa: ANN001 # Baseline
     """
     calculate the number of steps to be present in url
 
@@ -93,7 +96,7 @@ def _map_lineage_to_card(title: str, asset_names: list[str], url: str) -> CardCo
     body = ", ".join(name for name in asset_names if name)
     if body:
         body = f"Lineage for asset(s): {body}"
-    
+
     return CardComponent(
         title=title,
         body=[CardBodyTextComponent(text=body)],
@@ -101,12 +104,12 @@ def _map_lineage_to_card(title: str, asset_names: list[str], url: str) -> CardCo
     )
 
 
-def _construct_get_lineage_graph_response(
-    lineage_ids: List[str],
-    lineage_graph_response: Dict[str, Any],
+def _construct_get_lineage_graph_response(  # noqa: ANN202 # Baseline
+    lineage_ids: List[str],  # noqa: UP006 # Baseline
+    lineage_graph_response: Dict[str, Any],  # noqa: UP006 # Baseline
     hop_up: str,
     hop_down: str,
-    ultimate: Optional[str],
+    ultimate: Optional[str],  # noqa: UP045 # Baseline
 ):
     """
     Create an url and GetLineageGraphResponse object to be returned in the lineage process
@@ -124,9 +127,9 @@ def _construct_get_lineage_graph_response(
     """
     lineage_assets = lineage_graph_response.get("assets_in_view", [])
     lineage_assets_model = _transform_lineage_assets(lineage_assets=lineage_assets)
-    
+
     id_to_name = {asset["id"]: asset["name"] for asset in lineage_assets}
-    
+
     edges = lineage_graph_response.get("edges_in_view", [])
     connections = [
         f"edge from: {id_to_name.get(edge.get('source'), 'None')}, "
@@ -155,7 +158,7 @@ def _construct_get_lineage_graph_response(
     url = append_context_to_url(
         f"{tool_helper_service.ui_base_url}{LINEAGE_UI_BASE_ENDPOINT}?{urlencode(query_params)}"
     )
-    
+
     id_to_name_with_parent = {
         asset.id: (
             f"{asset.name} : {asset.parent_name}" if asset.parent_name else asset.name
@@ -163,23 +166,23 @@ def _construct_get_lineage_graph_response(
         for asset in lineage_assets_model
     }
     asset_names = [id_to_name_with_parent.get(lineage_id) for lineage_id in lineage_ids]
-    
+
     ui_message_context.add_card_ui_message(
         tool_name="get_lineage_graph",
         card_component=_map_lineage_to_card("View the lineage graph", asset_names, url),
     )
-    
+
     return GetLineageGraphResponse(
         lineage_assets=lineage_assets_model, edges_in_view=connections, url=url
     )
 
 
 def _get_expansion_settings(
-    lineage_ids: List[str],
-    hop_up: Optional[str] = "3",
-    hop_down: Optional[str] = "3",
-    ultimate: Optional[str] = None,
-) -> Dict[str, Any]:
+    lineage_ids: List[str],  # noqa: UP006 # Baseline
+    hop_up: Optional[str] = "3",  # noqa: UP045 # Baseline
+    hop_down: Optional[str] = "3",  # noqa: UP045 # Baseline
+    ultimate: Optional[str] = None,  # noqa: UP045 # Baseline
+) -> Dict[str, Any]:  # noqa: UP006 # Baseline
     """
     Generate expansion settings for lineage graph queries.
 
@@ -205,7 +208,7 @@ def _get_expansion_settings(
                 "outgoing_steps": hop_down,
             }
         )
-    else:
+    else:  # noqa: PLR5501 # Baseline
         if ultimate == "target":
             exp_settings["expansion_type"] = ExpansionType.TARGETS.value
         elif ultimate == "source":
@@ -217,13 +220,18 @@ def _get_expansion_settings(
 
 
 async def _call_get_lineage_graph(
-    lineage_ids: List[str], hop_up: str, hop_down: str, ultimate: Optional[str], dates: Optional[List[str]]
+    lineage_ids: List[str],  # noqa: UP006 # Baseline
+    hop_up: str,
+    hop_down: str,
+    ultimate: Optional[str],  # noqa: UP045 # Baseline
+    dates: Optional[List[str]],  # noqa: UP006, UP045 # Baseline
 ) -> dict[str, Any]:
-    """Retrieves upstream and downstream lineage graph using 64-character hexadecimal lineage IDs.
+    """Retrieves upstream and downstream lineage graph using lineage IDs.
     Call this tool to get graph information and/or related assets.
-    
+
     Args:
-        lineage_ids (Union[str, List[str]]): One or more 64-character hexadecimal lineage IDs
+        lineage_ids (Union[str, List[str]]): One or more lineage IDs — either a 64-character
+            hexadecimal string or a UUID (e.g. 'ffffffff-bbbb-dddd-cccc-aaaaaaaaaaaa').
             (MUST be obtained from search_lineage_assets results or get_lineage_id results)
         hop_up (Optional[str]): Number of upstream levels to traverse ("0", "1", "3", or "50").
             Use "50" when user mentions "between", "ultimate source", or provides multiple lineage_ids. If only hop_down is specified use "0".
@@ -234,17 +242,17 @@ async def _call_get_lineage_graph(
         dates (Optional[List[str]]): List of exactly 2 ISO 8601 dates for version comparison.
             When provided, retrieves lineage graph as it existed at those two points in time.
             Used for comparing how lineage changed between versions. If None, returns current lineage.
-    
+
     Returns:
         UpstreamDownstreamLineage: Lineage graph containing:
             - lineage_assets: Complete list of assets in the lineage graph with metadata
             - edges_in_view: Connections between assets showing data flow in format - edge from: AssetA, to: AssetB, relation: RelationType
             - url: Direct link to visualize the lineage graph in the UI
-    
+
     Raises:
         ExternalServiceError: When the API request fails (non-200 status code)
         ToolProcessFailedError: When the response is missing expected graph data
-        ValidationError: When lineage_ids are not valid 64-character hexadecimal strings
+        ValidationError: When lineage_ids are not valid lineage ID strings (neither 64-char hex nor UUID format)
     """
 
     payload = {
@@ -255,7 +263,7 @@ async def _call_get_lineage_graph(
             lineage_ids=lineage_ids, hop_up=hop_up, hop_down=hop_down, ultimate=ultimate
         ),
     }
-    
+
     # Only add lineage_version_datetimes if dates are provided
     # Note: Parameter is named 'dates' in the function signature for clarity,
     # but the API expects 'lineage_version_datetimes'
@@ -270,30 +278,31 @@ async def _call_get_lineage_graph(
         )
         return response
     except ExternalAPIError as e:
-        return handle_500_error(
-            e,
-            lambda: {SERVICE_UNAVAILABLE_FLAG: True}
-        )
+        return handle_500_error(e, lambda: {SERVICE_UNAVAILABLE_FLAG: True})
 
 
-async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraphResponse:
+async def _get_lineage_graph(
+    request: GetLineageGraphRequest,
+) -> GetLineageGraphResponse:
     if len(request.lineage_ids) < 1:
-        raise ValidationError(message="No assets were passed to the tool.",
-        remediation_steps="Call search_lineage_assets tool or pass lineage ids")
+        raise ValidationError(
+            message="No assets were passed to the tool.",
+            remediation_steps="Call search_lineage_assets tool or pass lineage ids",
+        )
 
     are_lineage_ids(request.lineage_ids)
 
-    ultimate_verified: Optional[str] = None
+    ultimate_verified: Optional[str] = None  # noqa: UP045 # Baseline
     if request.ultimate != "between":
         ultimate_verified = request.ultimate
 
-    dates_verified: Optional[List[str]] = None
+    dates_verified: Optional[List[str]] = None  # noqa: UP006, UP045 # Baseline
     if request.dates:
         dates_verified = verify_dates(dates=request.dates)
-        if dates_verified and len(dates_verified) != 2:
+        if dates_verified and len(dates_verified) != 2:  # noqa: PLR2004 # Baseline
             raise ValidationError(
                 f"dates parameter must contain exactly 2 ISO 8601 dates, got {len(dates_verified)} dates",
-                remediation_steps="Pass exactly two dates in ISO 8601 format"
+                remediation_steps="Pass exactly two dates in ISO 8601 format",
             )
 
     LOGGER.info(
@@ -302,7 +311,9 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
 
     if isinstance(request.lineage_ids, str):
         lineage_ids = "".join(
-            char for char in request.lineage_ids if char.isalnum() or char in ",-"  # local patch: keep UUID dashes
+            char
+            for char in request.lineage_ids
+            if char.isalnum() or char in ",-"  # local patch: keep UUID dashes
         )
         try:
             lineage_ids = json.loads(lineage_ids)
@@ -314,7 +325,7 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
     lineage_graph_response = await _call_get_lineage_graph(
         lineage_ids, request.hop_up, request.hop_down, ultimate_verified, dates_verified
     )
-    
+
     if lineage_graph_response.get(SERVICE_UNAVAILABLE_FLAG):
         return GetLineageGraphResponse(
             success=False,
@@ -323,11 +334,11 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
             edges_in_view=[],
             url="",
         )
-    
+
     if not (lineage_graph_response.get("assets_in_view")):
         raise ServiceError(
             "call_get_lineage_graph finished successfully but no assets_in_view or/and edges_in_view were found.",
-            remediation_steps="Try calling this tool again. If no assets are returned - return empty result."
+            remediation_steps="Try calling this tool again. If no assets are returned - return empty result.",
         )
     return _construct_get_lineage_graph_response(
         lineage_ids,
@@ -337,14 +348,15 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
         ultimate_verified,
     )
 
+
 @service_registry.tool(
     name="get_lineage_graph",
     annotations={
         "readOnlyHint": True,
-        "title": "Get Upstream and Downstream Lineage Graph"
+        "title": "Get Upstream and Downstream Lineage Graph",
     },
     tags={"lineage"},
-    description="""Use this tool when you need to retrieve upstream and downstream lineage graph using 64-character hexadecimal lineage IDs.
+    description="""Use this tool when you need to retrieve upstream and downstream lineage graph using lineage IDs.
     
     This tool generates a data lineage graph showing data flow relationships both upstream
     (data sources) and downstream (data consumers) from the specified assets. The graph depth
@@ -355,21 +367,23 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
 
     Call this tool to get graph information and/or related assets.
     
-    **CRITICAL REQUIREMENT**: This tool ONLY accepts 64-character hexadecimal lineage IDs.
+    **CRITICAL REQUIREMENT**: This tool ONLY accepts valid lineage IDs. Two formats are supported:
+    - 64-character hexadecimal string (legacy CPD format), e.g. "aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeee11111111112222"
+    - UUID format (SaaS format), e.g. "ffffffff-bbbb-dddd-cccc-aaaaaaaaaaaa"
     
     **DO NOT CALL THIS TOOL IF**:
     - You have asset names (e.g., "customer_table") → Call search_lineage_assets first
-    - You have short IDs or UUIDs → Call get_lineage_id first
-    - The identifier is not exactly 64 hexadecimal characters → Call search_lineage_assets first
+    - You have short or non-hexadecimal identifiers → Call search_lineage_assets first
     
     **ONLY CALL THIS TOOL IF**:
-    - You have 64-character hexadecimal strings like for example "aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeee11111111112222"
+    - You have a 64-character hexadecimal string like "aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeee11111111112222"
+    - You have a UUID-format lineage ID like "ffffffff-bbbb-dddd-cccc-aaaaaaaaaaaa"
     - You obtained the lineage ID from search_lineage_assets results
-    - You obtained the loneage ID from get_lineage_id results
+    - You obtained the lineage ID from get_lineage_id results
     
-    Validation: Before calling this tool, verify each lineage_id:
-    - Length is exactly 64 characters
-    - Contains only hexadecimal characters (0-9, a-f)
+    Validation: Before calling this tool, verify each lineage_id matches one of:
+    - Either an exactly 64 hexadecimal characters (0-9, a-f)
+    - or UUID format: 8-4-4-4-12 hexadecimal characters separated by dashes
     - If validation fails, call search_lineage_assets instead
     
     Returns: Lineage graph containing:
@@ -380,7 +394,7 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
     Raises:
         ExternalServiceError: When the API request fails (non-200 status code)
         ToolProcessFailedError: When the response is missing expected graph data
-        ValidationError: When lineage_ids are not valid 64-character hexadecimal strings
+        ValidationError: When lineage_ids are not valid lineage ID strings (neither 64-char hex nor UUID format)
     
     Notes:
         - Always provide both hop_up and hop_down parameters. If user provides one of them, the other should be "0"
@@ -423,20 +437,49 @@ async def _get_lineage_graph(request: GetLineageGraphRequest) -> GetLineageGraph
         3. Call search_lineage_assets(name_query="LOAD_ACCOUNT_TYPES")
         4. Extract lineage ID from results: "75a06535eb329a6b..."
         5. Call get_lineage_graph(lineage_ids=["75a06535eb329a6b..."], hop_up=50, hop_down=50, ultimate=None, dates=["2025-10-23T08:54:02.17Z","2025-09-12T06:35:27.115Z"])
-    """,
+    """,  # noqa: W293 # Baseline
 )
 @auto_context
 async def get_lineage_graph(
-    lineage_ids: Annotated[Union[str, List[str]], Field(description="One or more 64-character hexadecimal lineage IDs (MUST be obtained from search_lineage_assets results or get_lineage_id results)")],
-    hop_up: Annotated[str, Field(description="Number of upstream levels to traverse ('0', '1', '3', or '50'). Use '50' when user mentions 'between', 'ultimate source', or provides multiple lineage_ids. If only hop_down is specified use '0'")] = "3",
-    hop_down: Annotated[str, Field(description="Number of downstream levels to traverse ('0', '1', '3', or '50'). Use '50' when user mentions 'between', 'ultimate target', or provides multiple lineage_ids. If only hop_up is specified use '0'")] = "3",
-    ultimate: Annotated[Optional[str], Field(description="Specifies ultimate endpoint search mode ('source', 'target', 'both', '', or None)")] = None,
-    dates: Annotated[Optional[str], Field(description="Two ISO 8601 dates used when user wants to compare two versions of graph. Either valid ISO 8601 dates or None")] = None
+    lineage_ids: Annotated[
+        Union[str, List[str]],  # noqa: UP006, UP007 # Baseline
+        Field(
+            description="One or more lineage IDs — either 64-character hexadecimal strings or UUID-format strings (e.g. 'ffffffff-bbbb-dddd-cccc-aaaaaaaaaaaa'). MUST be obtained from search_lineage_assets results or get_lineage_id results"
+        ),
+    ],
+    hop_up: Annotated[
+        str,
+        Field(
+            description="Number of upstream levels to traverse ('0', '1', '3', or '50'). Use '50' when user mentions 'between', 'ultimate source', or provides multiple lineage_ids. If only hop_down is specified use '0'"
+        ),
+    ] = "3",
+    hop_down: Annotated[
+        str,
+        Field(
+            description="Number of downstream levels to traverse ('0', '1', '3', or '50'). Use '50' when user mentions 'between', 'ultimate target', or provides multiple lineage_ids. If only hop_up is specified use '0'"
+        ),
+    ] = "3",
+    ultimate: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Specifies ultimate endpoint search mode ('source', 'target', 'both', '', or None)"
+        ),
+    ] = None,
+    dates: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Two ISO 8601 dates used when user wants to compare two versions of graph. Either valid ISO 8601 dates or None"
+        ),
+    ] = None,
 ) -> GetLineageGraphResponse:
     """Wrapper for get_lineage_graph."""
 
     request = GetLineageGraphRequest(
-        lineage_ids=lineage_ids, hop_up=hop_up, hop_down=hop_down, ultimate=ultimate, dates=dates
+        lineage_ids=lineage_ids,
+        hop_up=hop_up,
+        hop_down=hop_down,
+        ultimate=ultimate,
+        dates=dates,
     )
 
     # Call the original get_lineage_graph function

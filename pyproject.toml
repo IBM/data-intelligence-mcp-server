@@ -1,6 +1,6 @@
 [project]
 name = "ibm-watsonx-data-intelligence-mcp-server"
-version = "1.6.0"
+version = "1.7.0"
 description = "MCP Server implementation for IBM Data Intelligence"
 readme = "readme_guides/README_PYPI.md"
 license = "Apache-2.0"
@@ -13,7 +13,6 @@ authors = [
     { name = "Robin Jose", email = "robincjose@in.ibm.com" },
     { name = "Austin Joyal", email = "austin.joyal@ibm.com" },
     { name = "Megha Varshney", email = "Megha.Varshney@ibm.com" },
-
 ]
 keywords = [
     "mcp",
@@ -38,32 +37,36 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "fastmcp>=4.0.3",
-    "pydantic>=2",
-    "pyyaml>=6",
-    "PyJWT>=2.15.1",
     "aiocache>=0.12.3",
-    "tenacity>=9.0.0",
-    "sqlglot>=27.20.0",
-    "pandas>=2.2.3",
-    "tabulate>=0.9.0",
-    "pypdfium2>=4.30.0",
-    "requests>=2.33.0",
-    "cryptography>=50.0.0",
-    "authlib>=1.8.0",
-    "python-multipart>=0.0.32",
-    "pygments>=2.20.0",
     "aioboto3>=12.0.0",
-    "python-dotenv>=1.2.2",
-    "urllib3>=2.8.0",
-    "starlette>=1.3.1",
-    "idna>=3.15",
-    "click>=8.3.3",
-    "joserfc>=1.7.2",
-    "pydantic-settings>=2.14.2",
-    "httpx>=0.24.0",
+    "aiohttp>=3.14.5",
     "anyio>=4.14.2",
+    "authlib>=1.9.1",
+    "click>=8.3.3",
+    "cryptography>=50.0.0",
+    "dnspython>=2.9.0",
+    "fastmcp>=4.1.2",
+    "httpx>=0.28.1",
+    "idna>=3.15",
+    "joserfc>=1.7.6",
     "multidict>=6.9.1",
+    "opentelemetry-api>=1.45.1",
+    "pandas>=2.2.3",
+    "pydantic>=2",
+    "pydantic-settings>=2.14.2",
+    "pygments>=2.20.0",
+    "PyJWT>=2.15.1",
+    "pypdfium2>=4.30.0",
+    "python-dotenv>=1.2.2",
+    "python-multipart>=0.0.32",
+    "pyyaml>=6",
+    "redis[asyncio]>=8.0",
+    "requests>=2.33.0",
+    "sqlglot>=27.20.0",
+    "starlette>=1.3.1",
+    "tabulate>=0.9.0",
+    "tenacity>=9.0.0",
+    "urllib3>=2.8.0",
 ]
 
 [project.urls]
@@ -76,8 +79,35 @@ dependencies = [
 ibm-watsonx-data-intelligence-mcp-server = "app.main:main"
 wxdi-setup-skills = "app.post_install:main"
 
-[tool.setuptools]
-package-dir = { "" = "." }
+# Dev-only dependencies (PEP 735). Not installed by default.
+[dependency-groups]
+internal = [
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.0.0",
+    "pytest-xdist>=3.8.0",
+    "respx>=0.23.1",
+    "openpyxl>=3.1.0",
+    "pymilvus>=2.4.0",
+    "ibm-watsonx-ai>=1.1.0",
+    "torch>=2.0.0",
+]
+lint = ["ruff>=0.12.10"]
+release = [
+    "build>=1.3.0",
+    "twine>=6.2.0",
+]
+dev = [
+    { include-group = "internal" },
+    { include-group = "lint" },
+    { include-group = "release" },
+]
+
+[tool.uv]
+# Opt out of auto-installing dev dependency groups so production installs
+# (`uv sync`) stay lean. Use `uv sync --dev` or `uv sync --group internal`
+# explicitly when dev/test tools are needed.
+default-groups = []
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -88,15 +118,91 @@ exclude = ["tests*", "client*", "scripts*"]
 "skills" = ["**/*"]
 "*" = ["*.md"]
 
-[project.optional-dependencies]
-dev = ["ruff>=0.12.10"]
-
 [tool.ruff]
-line-length = 88
 target-version = "py311"
+indent-width = 4
+line-length = 88
 
-[dependency-groups]
-dev = ["build>=1.3.0", "twine>=6.2.0"]
+lint.select = [
+    "E",    # pycodestyle errors — enforce baseline PEP 8 style (indentation, whitespace, line length); prevents inconsistent indentation that can cause misread block scope, and lines too long to review properly in PRs
+    "W",    # pycodestyle warnings — softer style issues (trailing whitespace, blank line rules); prevents noisy diffs from stray whitespace and inconsistent spacing that make code reviews harder
+    "F",    # pyflakes — catches unused imports, undefined names, unused variables; prevents NameError crashes at runtime from typos/undefined names, and catches dead code/imports left behind after refactors
+    "I",    # isort — keeps imports sorted and grouped consistently; prevents merge conflicts from imports being added in random order and makes it obvious when a duplicate import exists
+    "C",    # flake8-comprehensions — simplifies unnecessary/inefficient list/dict/set comprehensions; prevents wasteful patterns like `list([x for x in y])` or `set([x for x in y])` that build unnecessary intermediate objects
+    "B",    # flake8-bugbear — flags likely bugs and bad design patterns; prevents classic Python traps like mutable default arguments (`def f(x=[])`) that leak state across calls, and misuse of `except` that silently swallows exceptions
+    "UP",   # pyupgrade — modernizes syntax to match your target Python version; new code only — existing uses of Optional/Dict/List are grandfathered via per-file-ignores
+    "A",    # flake8-builtins — prevents shadowing Python builtins like list, str, id; prevents subtle bugs where `list = [1,2,3]` shadows the builtin and breaks later code that calls `list(...)` in the same scope
+    "ISC",  # flake8-implicit-str-concat — flags accidental implicit string concatenation; prevents bugs like `["a" "b", "c"]` silently becoming `["ab", "c"]` instead of the intended three-element list, from a missing comma
+    "G",    # flake8-logging-format — enforces lazy %-style formatting in logging calls; G004 (f-strings in logging) is ignored globally as f-strings fail at call-site not silently
+    "FAST", # flake8-fastapi — catches FastAPI-specific issues like redundant Depends() calls; prevents duplicate dependency injection/execution (e.g. a DB session or auth check running twice per request) that wastes resources or causes inconsistent state
 
-[tool.uv.workspace]
-members = ["internal"]
+
+    "ASYNC",  # flake8-async — flags blocking calls inside async functions; prevents accidentally calling blocking I/O (e.g. `requests.get`, `time.sleep`, sync file reads) inside `async def`, which freezes the entire event loop and stalls every other concurrent request — critical given fastapi, langgraph, aiohttp, aioboto3, and anyio in your stack
+    "S",      # flake8-bandit — flags security issues like hardcoded secrets, weak hashing, disabled TLS verification; prevents leaking AWS/API credentials in code, using MD5/SHA1 for security-sensitive hashing, or disabling SSL verification (`verify=False`) that opens the door to MITM attacks — relevant given cryptography, PyJWT, boto3/aioboto3, and requests usage
+    "DTZ",    # flake8-datetimez — flags naive datetime usage without timezone info; prevents bugs where `datetime.now()` silently uses server-local time, causing scheduled jobs to fire at the wrong time or timestamps to mismatch across services — relevant given pytz, tzlocal, and APScheduler
+    "PD",     # pandas-vet — flags pandas anti-patterns; prevents chained indexing (`df[df.x > 1]['y'] = ...`) that raises `SettingWithCopyWarning` and can silently fail to update the dataframe, plus other pandas foot-guns — relevant since pandas is a direct dependency
+    "PTH",    # flake8-use-pathlib — enforces pathlib over os.path for file handling; prevents cross-platform path bugs from manual string concatenation (e.g. `dir + "/" + file` breaking on Windows) and encourages safer path existence checks — relevant given aiofiles, openpyxl, and xlsxwriter
+    "TID",    # flake8-tidy-imports — bans messy relative/deep imports; prevents fragile imports (e.g. `from ...package.module import x`) that break easily when files are moved during refactors — useful for keeping a large multi-package repo consistent
+    "ANN",    # flake8-annotations — requires type annotations on function args/returns; enforced on new src code; ANN401 (Any) ignored globally as it is legitimate in generic/adapter code
+    "PL",     # Pylint rules — broad rule family covering design issues (too many args, too many branches, comparison bugs like `type(x) == type(y)` instead of isinstance); catches bugs beyond what pyflakes/bugbear cover
+    "INP",    # flake8-no-pep420 — requires __init__.py in packages; prevents accidentally creating "implicit namespace packages" that break imports in subtle ways or get skipped by tooling
+    "N",      # pep8-naming — enforces PEP 8 naming (ClassName vs snake_case function); prevents inconsistent naming that makes classes/functions hard to distinguish at a glance
+    "RET",    # flake8-return — consistency of return statements; catches inconsistent returns (some branches return a value, others implicitly return None) that cause confusing bugs downstream
+    "RUF",    # Ruff's own rules — catches things like mutable class attributes as dataclass defaults, unused noqa comments, f-string issues
+    "LOG",    # flake8-logging — correct stdlib logging usage; catches mistakes like `logging.warn` (deprecated) or passing exceptions incorrectly to `logger.error`
+    "SIM",    # flake8-simplify — suggests simpler constructs (e.g. `if x: return True else: return False` → `return x`); reduces bug surface from overly verbose conditionals
+]
+
+lint.ignore = [
+    "E501",    # line too long
+    "B008",    # allow function calls in default arguments (e.g. FastAPI's Depends)
+    "C901",    # ignore McCabe complexity — no hard limit on function complexity
+    "RET504",  # allow intermediate assignment before return (readability preference)
+    "G004",    # f-strings in logging are fine — they fail at call-site, not silently; enforcing %-style is cosmetic noise
+    "ANN401",  # typing.Any is legitimate in generic/adapter/protocol code; overly strict for a service with LangChain/FastAPI integration
+    "PLC0415", # non-top-level imports are intentional (circular import avoidance, optional deps, lazy loading)
+    "RUF100",  # unused noqa directives — baseline suppressions kept for future rule enablement
+
+]
+lint.preview = true
+lint.explicit-preview-rules = true
+
+[tool.ruff.lint.per-file-ignores]
+"{tests,integration-test}/**" = [
+    "ANN",       # no type annotations required in tests
+    "INP",       # no __init__.py needed in test dirs
+    "N",         # allow test_my_FUNCTION style names
+    "E501",      # line length not enforced in tests
+    "S101",      # assert is the foundation of test assertions
+    "S105",      # hardcoded "secrets" in tests are dummy fixture values
+    "S106",      # same as S105
+    "S113",      # missing timeout on requests — tests use mocked HTTP
+    "S110",      # try/except/pass acceptable in teardown/helpers
+    "PLR2004",   # magic values encode the expected contract
+    "PLC0415",   # non-top-level imports are common in fixtures
+    "SIM117",    # nested with-statements are standard mock.patch stacking
+    "G004",      # f-strings in logging are fine
+    "LOG015",    # root logger acceptable in tests
+    "DTZ",       # naive datetimes in tests are fixtures
+    "RET505",    # redundant else after return — less strict in tests
+    "PERF401",   # readability over micro-perf in tests
+    "ASYNC210",  # blocking http in async — tests use mocked clients
+    "B017",      # pytest.raises(Exception) sometimes intentional
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+exclude = ["**/*.md"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = [
+    "unit: Unit tests",
+]
+
+[tool.coverage.run]
+source = ["app"]
+
+[tool.coverage.report]
+omit = ["tests/*", "integration-test/*"]

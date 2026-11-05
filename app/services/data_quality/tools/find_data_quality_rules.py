@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Annotated, Optional
+from typing import Annotated, Optional  # noqa: I001 # Baseline
 
 from pydantic import Field
 from app.core.registry import service_registry
@@ -19,14 +19,16 @@ from app.services.data_quality.models.find_data_quality_rules import (
 )
 
 
-async def _find_data_quality_rules(request: FindDataQualityRulesRequest) -> FindDataQualityRulesResponse:
+async def _find_data_quality_rules(
+    request: FindDataQualityRulesRequest,
+) -> FindDataQualityRulesResponse:
     """
     Find data quality rules in the given project.
     """
     LOGGER.info(
         "Finding data quality rules: project_id_or_name=%s data_quality_rule_name=%s",
         request.project_id_or_name,
-        request.data_quality_rule_name
+        request.data_quality_rule_name,
     )
 
     result = await list_data_quality_rules_util(
@@ -46,20 +48,13 @@ async def _find_data_quality_rules(request: FindDataQualityRulesRequest) -> Find
             for rule in result
         ]
         return FindDataQualityRulesResponse(rules=rules, message=None)
-    else:
-        # Empty list - no rules found
-        return FindDataQualityRulesResponse(
-            rules=[],
-            message="No data quality rules found"
-        )
+    # Empty list - no rules found
+    return FindDataQualityRulesResponse(rules=[], message="No data quality rules found")
 
 
 @service_registry.tool(
     name="list_data_quality_rules",
-    annotations={
-        "readOnlyHint": True,
-        "title": "List Data Quality Rules in Project"
-    },
+    annotations={"readOnlyHint": True, "title": "List Data Quality Rules in Project"},
     description="""Use this tool when you need to find data quality rules in the given project. If data quality rule name is not provided, then return all the data quality rules from this project.
 
 Do NOT use for running/executing rules (use run_data_quality_rule instead).
@@ -75,8 +70,18 @@ Raises:
 )
 @auto_context
 async def list_data_quality_rules(
-    project_id_or_name: Annotated[str, Field(description="The ID or name of the project. Examples: 'customer_analytics_project', 'financial_reporting_2023', 'supply_chain_optimization'")],
-    data_quality_rule_name: Annotated[Optional[str], Field(description="The name of the data quality rule to find. If this is not provided, return all the data quality rules. This parameter is optional. Examples: 'validate_customer_email_format', 'check_sales_transaction_completeness', 'verify_inventory_data_consistency'")] = None,
+    project_id_or_name: Annotated[
+        str,
+        Field(
+            description="The ID or name of the project. Examples: 'customer_analytics_project', 'financial_reporting_2023', 'supply_chain_optimization'"
+        ),
+    ],
+    data_quality_rule_name: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="The name of the data quality rule to find. If this is not provided, return all the data quality rules. This parameter is optional. Examples: 'validate_customer_email_format', 'check_sales_transaction_completeness', 'verify_inventory_data_consistency'"
+        ),
+    ] = None,
 ) -> FindDataQualityRulesResponse:
     """
     Wrapper that builds request model and delegates to main tool.

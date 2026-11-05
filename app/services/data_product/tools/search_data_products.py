@@ -4,7 +4,7 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC  # noqa: F401, I001 # Baseline
 from typing import Optional, Union, Literal, Annotated
 from pydantic import Field
 
@@ -14,12 +14,18 @@ from app.services.data_product.models.search_data_products import (
     SearchDataProductsResponse,
     DataProduct,
 )
-from app.services.data_product.utils.common_utils import get_data_product_url, calculate_date_one_year_before, validate_date_range
+from app.services.data_product.utils.common_utils import (
+    get_data_product_url,
+    calculate_date_one_year_before,
+    validate_date_range,
+)
 from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.logging import LOGGER, auto_context
 from app.shared.ui_message.ui_message_context import ui_message_context
+
 TABLE_TITLE_DATA_PRODUCTS = "Data products"
+
 
 def _format_data_products_for_table(data_products: list[dict]) -> list:
     data_products_table = []
@@ -31,13 +37,17 @@ def _format_data_products_for_table(data_products: list[dict]) -> list:
         item_row = {
             "Name": ui_message_context.create_markdown_link(
                 get_data_product_url(item.get("artifact_id", ""), "available"),
-                metadata.get("name", "")
+                metadata.get("name", ""),
             ),
             "Description": metadata.get("description", ""),
             "Created On": metadata.get("created_on", ""),
             "Version": data_product_version.get("version", ""),
-            "Contract Test Status": data_product_version.get("contract_test_status", ""),
-            "Contract Test Last Run": data_product_version.get("contract_test_last_run_at", ""),
+            "Contract Test Status": data_product_version.get(
+                "contract_test_status", ""
+            ),
+            "Contract Test Last Run": data_product_version.get(
+                "contract_test_last_run_at", ""
+            ),
         }
         data_products_table.append(item_row)
     return data_products_table
@@ -50,7 +60,7 @@ async def _search_data_products(
         f"In the search_data_products tool, Searching data products with query '{request.product_search_query}', domain='{request.domain}', "
         f"state_filter='{request.state_filter}', created_date_after='{request.created_date_after}', created_date_before='{request.created_date_before}'"
     )
-    DPH_CATALOG_ID = await get_dph_catalog_id_for_user(await get_access_token())
+    DPH_CATALOG_ID = await get_dph_catalog_id_for_user(await get_access_token())  # noqa: N806 # Baseline
 
     payload = get_dph_search_payload(
         product_search_query=request.product_search_query,
@@ -69,17 +79,15 @@ async def _search_data_products(
 
     number_of_responses = response.get("size", len(response.get("rows", [])))
     if number_of_responses == 0:
-        LOGGER.info(
-            "In the search_data_products tool, no data products found."
-        )
+        LOGGER.info("In the search_data_products tool, no data products found.")
         return SearchDataProductsResponse(count=0, data_products=[])
-    
+
     LOGGER.info(f"Found {number_of_responses} data products.")
-    
+
     ui_message_context.add_table_ui_message(
         tool_name="search_data_products",
         formatted_data=_format_data_products_for_table(response.get("rows", [])),
-        title=TABLE_TITLE_DATA_PRODUCTS
+        title=TABLE_TITLE_DATA_PRODUCTS,
     )
 
     products = [_extract_product_info(row) for row in response.get("rows", [])]
@@ -90,34 +98,33 @@ async def _search_data_products(
 def _extract_product_info(row: dict) -> DataProduct:
     """
     Extract and structure data product information from a search result row.
-    
+
     Args:
         row: A single row from the search results containing product metadata and entity data
-        
+
     Returns:
         DataProduct: Structured product information including ID, URL, metadata, and assets
     """
     metadata = row.get("metadata", {})
     entity = row.get("entity", {})
     data_product_version = entity.get("data_product_version", {})
-    
+
     # Determine product state and construct appropriate URL
     state = data_product_version.get("state", "available")
     artifact_id = row.get("artifact_id", "")
     url = get_data_product_url(artifact_id, state)
-    
+
     # Extract asset information with proper handling of missing data
     parts_out = data_product_version.get("parts_out", [])
     data_asset_items = [
-        {
-            "name": asset.get("name", ""),
-            "description": asset.get("description", "")
-        }
+        {"name": asset.get("name", ""), "description": asset.get("description", "")}
         for asset in parts_out
     ]
-    
+
     return DataProduct(
-        data_product_group_id=data_product_version.get("product_id", ""),  # The grouping identifier (was data_product_id)
+        data_product_group_id=data_product_version.get(
+            "product_id", ""
+        ),  # The grouping identifier (was data_product_id)
         data_product_version_id=artifact_id,  # The primary identifier for this specific version
         url=url,
         name=metadata.get("name", ""),
@@ -129,18 +136,22 @@ def _extract_product_info(row: dict) -> DataProduct:
         data_asset_items=data_asset_items,
         tags=metadata.get("tags", []),
         contract_test_status=data_product_version.get("contract_test_status", ""),
-        contract_test_last_run_at=data_product_version.get("contract_test_last_run_at", ""),
+        contract_test_last_run_at=data_product_version.get(
+            "contract_test_last_run_at", ""
+        ),
     )
 
-def get_dph_search_payload(product_search_query: str,
+
+def get_dph_search_payload(  # noqa: PLR0913 # Baseline
+    product_search_query: str,
     dph_catalog_id: str,
-    domain: Optional[str] = None,
-    created_date_after: Optional[str] = None,
-    created_date_before: Optional[str] = None,
-    state_filter: Optional[str] = None,
+    domain: Optional[str] = None,  # noqa: UP045 # Baseline
+    created_date_after: Optional[str] = None,  # noqa: UP045 # Baseline
+    created_date_before: Optional[str] = None,  # noqa: UP045 # Baseline
+    state_filter: Optional[str] = None,  # noqa: UP045 # Baseline
 ) -> dict:
     should_query = []
-    
+
     # Add name search query if not searching all products
     if product_search_query != "*":
         search_fields = [
@@ -149,30 +160,34 @@ def get_dph_search_payload(product_search_query: str,
             "entity.data_product_version.contract_test_status",  # NOSONAR
             "entity.data_product_version.contract_test_last_run_at",  # NOSONAR
         ]
-        should_query.append({
-            "gs_user_query": {
-                "search_string": product_search_query,
-                "search_fields": search_fields,
-                "semantic_search_enabled": True,
-                "nlq_analyzer_enabled": True,
-                "keyword_search_enabled": True
-            }
-        })
-    
-    # Add domain filter if provided
-    if domain:
-        should_query.append({
-            "match": {
-                "entity.data_product_version.domain_name": {
-                    "query": domain,
-                    "operator": "and",
-                    "fuzziness": "AUTO",
-                    "prefix_length": 1,
-                    "max_expansions": 50,
+        should_query.append(
+            {
+                "gs_user_query": {
+                    "search_string": product_search_query,
+                    "search_fields": search_fields,
+                    "semantic_search_enabled": True,
+                    "nlq_analyzer_enabled": True,
+                    "keyword_search_enabled": True,
                 }
             }
-        })
-    
+        )
+
+    # Add domain filter if provided
+    if domain:
+        should_query.append(
+            {
+                "match": {
+                    "entity.data_product_version.domain_name": {
+                        "query": domain,
+                        "operator": "and",
+                        "fuzziness": "AUTO",
+                        "prefix_length": 1,
+                        "max_expansions": 50,
+                    }
+                }
+            }
+        )
+
     # If no specific queries, search all products
     if not should_query:
         search_fields = [
@@ -271,71 +286,67 @@ def get_dph_search_payload(product_search_query: str,
             "state": {"terms": {"field": "entity.data_product_version.state"}},
         },
     }
-    
+
     # Add date range filter if date parameters provided
     _add_date_range_filter(payload, created_date_after, created_date_before)
-    
+
     return payload
 
 
-def _get_state_filter_values(state_filter: Optional[str]) -> list[str]:
+def _get_state_filter_values(state_filter: Optional[str]) -> list[str]:  # noqa: UP045 # Baseline
     """
     Determine which state values to filter by based on the state_filter parameter.
-    
+
     Args:
         state_filter: The state filter value ("draft", "published", or None)
-        
+
     Returns:
         list[str]: List of state values to include in the search filter
     """
     if state_filter is None:
         # Default: search both draft and published products
         return ["available", "draft"]
-    elif state_filter == "draft":
+    if state_filter == "draft":
         return ["draft"]
-    elif state_filter == "published":
+    if state_filter == "published":
         # "published" maps to "available" state in the backend
         return ["available"]
-    else:
-        # Fallback to default if invalid value provided
-        LOGGER.warning(f"Invalid state_filter value '{state_filter}', defaulting to all states")
-        return ["available", "draft"]
+    # Fallback to default if invalid value provided
+    LOGGER.warning(
+        f"Invalid state_filter value '{state_filter}', defaulting to all states"
+    )
+    return ["available", "draft"]
 
-  
+
 def _add_date_range_filter(
     payload: dict,
-    created_date_after: Optional[str] = None,
-    created_date_before: Optional[str] = None
+    created_date_after: Optional[str] = None,  # noqa: UP045 # Baseline
+    created_date_before: Optional[str] = None,  # noqa: UP045 # Baseline
 ) -> None:
     """Add date range filter to payload based on provided date parameters."""
     if not created_date_after and not created_date_before:
         return
-    
+
     # Determine actual start and end dates
     if created_date_after and created_date_before:
         start_date = created_date_after
         end_date = created_date_before
     elif created_date_after:
         start_date = created_date_after
-        end_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        end_date = datetime.now(UTC).strftime("%Y-%m-%d")
     else:
         # Only end date - start is one year before
-        assert created_date_before is not None
+        assert created_date_before is not None  # noqa: S101 # Baseline
         end_date = created_date_before
         start_date = calculate_date_one_year_before(end_date)
-    
+
     # Validate and convert to ISO format
     start_iso, end_iso = validate_date_range(start_date, end_date)
-    
+
     # Add range filter to payload
-    payload["query"]["bool"]["filter"].append({
-        "range": {
-            "metadata.created_on": {
-                "gte": start_iso,
-                "lte": end_iso
-            }
-        }
-    })
+    payload["query"]["bool"]["filter"].append(
+        {"range": {"metadata.created_on": {"gte": start_iso, "lte": end_iso}}}
+    )
 
 
 @service_registry.tool(
@@ -411,21 +422,46 @@ def _add_date_range_filter(
         # Combined filters
         search_data_products(product_search_query="Sales", domain="Finance", created_date_after="2026-01-01", state_filter="published")
     Returns: A comprehensive list of data products matching the search criteria, with detailed information about each product including its versioning, state, domain, and associated assets.
-""",
+""",  # noqa: W293 # Baseline
     tags={"search", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
     annotations={
         "title": "Data Product Discovery and Search with Domain and Date Filtering",
-        "readOnlyHint": True
-    }
+        "readOnlyHint": True,
+    },
 )
 @auto_context
 async def search_data_products(
-    product_search_query: Annotated[Union[Literal["*"], str], Field(description='The search query to search for data products and data product drafts. If the user wants to search for data products or drafts with a specific name, this is the name to search for. If user wants to search for all data products or drafts, this value should be "*".')],
-    domain: Annotated[Optional[str], Field(description="Filter by business domain name (e.g., 'Finance', 'Business Management').")] = None,
-    state_filter: Annotated[Optional[Union[Literal["draft"], Literal["published"]]], Field(description='Filter by data product state. Options: "draft" (unpublished products), "published" (published products). If None, searches both draft and published products.')] = None,
-    created_date_after: Annotated[Optional[str], Field(description="Filter products created on or after this date. Format: YYYY-MM-DD (e.g., '2026-01-15').")] = None,
-    created_date_before: Annotated[Optional[str], Field(description="Filter products created on or before this date. Format: YYYY-MM-DD (e.g., '2026-01-31').")] = None
+    product_search_query: Annotated[
+        Union[Literal["*"], str],  # noqa: UP007 # Baseline
+        Field(
+            description='The search query to search for data products and data product drafts. If the user wants to search for data products or drafts with a specific name, this is the name to search for. If user wants to search for all data products or drafts, this value should be "*".'
+        ),
+    ],
+    domain: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Filter by business domain name (e.g., 'Finance', 'Business Management')."
+        ),
+    ] = None,
+    state_filter: Annotated[
+        Optional[Union[Literal["draft"], Literal["published"]]],  # noqa: UP007, UP045 # Baseline
+        Field(
+            description='Filter by data product state. Options: "draft" (unpublished products), "published" (published products). If None, searches both draft and published products.'
+        ),
+    ] = None,
+    created_date_after: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Filter products created on or after this date. Format: YYYY-MM-DD (e.g., '2026-01-15')."
+        ),
+    ] = None,
+    created_date_before: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Filter products created on or before this date. Format: YYYY-MM-DD (e.g., '2026-01-31')."
+        ),
+    ] = None,
 ) -> SearchDataProductsResponse:
     """Wrapper version that expands SearchDataProductsRequest object into individual parameters."""
 
@@ -434,7 +470,7 @@ async def search_data_products(
         domain=domain,
         state_filter=state_filter,
         created_date_after=created_date_after,
-        created_date_before=created_date_before
+        created_date_before=created_date_before,
     )
 
     # Call the original search_data_products function

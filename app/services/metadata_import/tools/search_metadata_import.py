@@ -2,20 +2,22 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import List, Optional, Annotated
+from typing import List, Optional, Annotated  # noqa: I001, UP035 # Baseline
 from pydantic import Field
 
 from app.core.registry import service_registry
-from app.services.metadata_enrichment.models.metadata_enrichment import MetadataImportResponse
+from app.services.metadata_enrichment.models.metadata_enrichment import (
+    MetadataImportResponse,
+)
 from app.services.tool_utils import find_project_id, find_all_available_metadata_import
 from app.shared.logging import auto_context, LOGGER
 from app.shared.utils.helpers import confirm_uuid
 
 
 async def _search_metadata_import(
-        project: str,
-        metadata_import_name: Optional[str] = None,
-) -> List[MetadataImportResponse]:
+    project: str,
+    metadata_import_name: Optional[str] = None,  # noqa: UP045 # Baseline
+) -> List[MetadataImportResponse]:  # noqa: UP006 # Baseline
     LOGGER.info(
         f"search_medata_import called with project: {project}, "
         f"metadata_import_name: {metadata_import_name}"
@@ -30,7 +32,7 @@ async def _search_metadata_import(
     name="search_metadata_import",
     annotations={
         "readOnlyHint": True,
-        "title": "Search and List Existing Metadata Import Configurations"
+        "title": "Search and List Existing Metadata Import Configurations",
     },
     tags={"metadata_management_and_governance"},
     description="""Use this tool when you need to search for the available metadata import.
@@ -47,7 +49,13 @@ async def _search_metadata_import(
 )
 @auto_context
 async def search_metadata_import(
-        project: Annotated[str, Field(description="Name or ID of the project to search for metadata imports")],
-        metadata_import_name: Annotated[Optional[str], Field(description="The name of the metadata import asset to execute.")] = None,
-) -> List[MetadataImportResponse]:
+    project: Annotated[
+        str,
+        Field(description="Name or ID of the project to search for metadata imports"),
+    ],
+    metadata_import_name: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(description="The name of the metadata import asset to execute."),
+    ] = None,
+) -> List[MetadataImportResponse]:  # noqa: UP006 # Baseline
     return await _search_metadata_import(project, metadata_import_name)

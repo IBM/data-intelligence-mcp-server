@@ -43,3 +43,14 @@ system_instructions: |
     - User has no specific IDs
     - User wants to search by query
     - User doesn't have lineage ID (use get_lineage_id first)
+
+  4. get_lineage_source_code: Use when:
+    - User asks what a stored procedure, view, or function actually does
+    - User asks how a column value is derived or what the transformation logic is
+    - User wants to see the SQL behind a lineage asset
+    - User asks about the transformation expression of a column flow
+    Returns all attributes of the asset (including TRANSFORMATION_DESC for column flows) and every source code snippet attached to it (snippet first, full source as fallback).
+    Procedures, functions and the <name>_BODY assets of views carry the code; a View asset itself can be empty, so look up its _BODY asset. The code is not narrowed to a single column.
+    Don't use when:
+    - User only wants the lineage graph shape (use get_lineage_graph instead)
+    - User has no lineage ID (call search_lineage_assets first)

@@ -4,7 +4,7 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-from typing import Any, List, Annotated
+from typing import Any, List, Annotated  # noqa: I001, UP035 # Baseline
 from pydantic import Field
 
 from app.core.registry import service_registry
@@ -18,7 +18,9 @@ from app.services.search.utils.container_name_enrichment import (
     enrich_with_container_names,
 )
 from app.services.text_to_query_search.utils.entity_resolver import find_container_id
-from app.services.text_to_query_search.utils.query_generator import inject_must_not_exclusions
+from app.services.text_to_query_search.utils.query_generator import (
+    inject_must_not_exclusions,
+)
 from app.shared.utils.helpers import is_none, append_context_to_url
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
@@ -26,7 +28,11 @@ from app.shared.exceptions.base import ServiceError
 from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.utils.utils_tools import format_search_results_for_table
 
-def _add_ui_message_if_results(results: List[SearchAssetResponse], show_table_selection: bool = False) ->List[SearchAssetResponse]:
+
+def _add_ui_message_if_results(
+    results: List[SearchAssetResponse],  # noqa: UP006 # Baseline
+    show_table_selection: bool = False,  # noqa: UP006 # Baseline
+) -> List[SearchAssetResponse]:  # noqa: UP006 # Baseline
     """Add UI message if search results exist."""
     if results:
         formatted_results = format_search_results_for_table(results)
@@ -44,10 +50,11 @@ def _add_ui_message_if_results(results: List[SearchAssetResponse], show_table_se
         ui_message_context.add_table_ui_message(
             tool_name="search_asset",
             formatted_data=formatted_results,
-            title="Search Results"
+            title="Search Results",
         )
 
     return results
+
 
 def _validate_search_prompt(search_prompt: str) -> None:
     """Validate that search prompt is not empty."""
@@ -55,6 +62,7 @@ def _validate_search_prompt(search_prompt: str) -> None:
         error_msg = "Search prompt cannot be empty. Please provide a valid search term."
         LOGGER.error(error_msg)
         raise ServiceError(error_msg)
+
 
 def _get_auth_scope(container_type: str | None) -> str:
     """Validate and convert container_type to auth_scope."""
@@ -68,49 +76,65 @@ def _get_auth_scope(container_type: str | None) -> str:
         LOGGER.error(error_msg)
         raise ServiceError(error_msg)
 
-    return "project,catalog" if container_type == "project_and_catalog" else container_type
+    return (
+        "project,catalog" if container_type == "project_and_catalog" else container_type
+    )
+
 
 def _normalize_search_string(search_prompt: str) -> str:
     """Convert 'list all' patterns to wildcard search."""
     normalized_prompt = search_prompt.strip().lower()
     list_all_patterns = [
-        "list all", "show all", "get all", "find all", "return all",
-        "all assets", "every asset", "all the assets", "give me all"
+        "list all",
+        "show all",
+        "get all",
+        "find all",
+        "return all",
+        "all assets",
+        "every asset",
+        "all the assets",
+        "give me all",
     ]
 
     if any(pattern in normalized_prompt for pattern in list_all_patterns):
-        LOGGER.info("Detected 'list all' pattern in search prompt - using wildcard search")
+        LOGGER.info(
+            "Detected 'list all' pattern in search prompt - using wildcard search"
+        )
         return "*"
 
     return search_prompt
+
 
 def _build_container_filter(container_id: str, container_type: str) -> dict:
     """Build the container filter clause based on type."""
     if container_type == "project":
         return {"term": {"entity.assets.project_id": container_id}}
-    elif container_type == "catalog":
+    if container_type == "catalog":
         return {"term": {"entity.assets.catalog_id": container_id}}
-    else:  # project_and_catalog
-        return {
-            "bool": {
-                "should": [
-                    {"term": {"entity.assets.project_id": container_id}},
-                    {"term": {"entity.assets.catalog_id": container_id}}
-                ],
-                "minimum_should_match": 1
-            }
+    # project_and_catalog
+    return {
+        "bool": {
+            "should": [
+                {"term": {"entity.assets.project_id": container_id}},
+                {"term": {"entity.assets.catalog_id": container_id}},
+            ],
+            "minimum_should_match": 1,
         }
+    }
+
 
 async def _search_asset(
     request: SearchAssetRequest, show_table_selection: bool = False
-) -> List[SearchAssetResponse]:
+) -> List[SearchAssetResponse]:  # noqa: UP006 # Baseline
     _validate_search_prompt(request.search_prompt)
     auth_scope = _get_auth_scope(request.container_type)
 
     # Resolve container_name to container_id if provided
     container_id = None
     if request.container_name and request.container_type:
-        container_id = await find_container_id(request.container_name, request.container_type)
+        container_id = await find_container_id(
+            request.container_name, request.container_type
+        )
         LOGGER.info(
             "Resolved container '%s' (type: %s) to ID: %s",
             request.container_name,
@@ -139,7 +163,9 @@ async def _search_asset(
 
     # Add container filter if container_id is resolved
     if container_id and request.container_type:
-        must_clauses.append(_build_container_filter(container_id, request.container_type))
+        must_clauses.append(
+            _build_container_filter(container_id, request.container_type)
+        )
 
     payload = {
         "query": {
@@ -147,7 +173,7 @@ async def _search_asset(
                 "must": must_clauses,
             }
         },
-        "_source": ["metadata", "entity.assets", "artifact_id"]
+        "_source": ["metadata", "entity.assets", "artifact_id"],
     }
     inject_must_not_exclusions(payload)
 
@@ -160,7 +186,9 @@ async def _search_asset(
     )
 
     search_response = response.get("rows", [])
-    results = list(map(_construct_search_asset, search_response)) if search_response else []
+    results = (
+        list(map(_construct_search_asset, search_response)) if search_response else []
+    )
 
     if results:
         try:
@@ -177,7 +205,7 @@ async def _search_asset(
     name="search_asset",
     annotations={
         "readOnlyHint": True,
-        "title": "Semantic Search for Data Assets Across Catalogs and Projects"
+        "title": "Semantic Search for Data Assets Across Catalogs and Projects",
     },
     tags={"metadata_management_and_governance"},
     description="""Use this tool when you need to find data assets by name, description, or semantic search across catalogs and projects.
@@ -190,21 +218,41 @@ async def _search_asset(
                        - container_type must be one of: "catalog", "project"
                        - Invalid values will result in errors
                        PRESENTATION RULES: When displaying results, render a compact table with exactly three columns: asset name (as a hyperlink, do NOT create a separate link column), workspace name, and description. Never surface asset IDs, workspace IDs, asset_type, or any additional_metadata fields unless the user explicitly asks for them. Only add extra columns when the user's request specifically calls for that data (e.g. "show me assets modified last week" → add a modified_on column). If a column value is the same for every row in the result set (e.g. all assets are from the same project), omit that column entirely to avoid redundant output.
-                       Return: A list of objects, each containing the asset name (linked to the asset URL), workspace name, and description.""",
+                       Return: A list of objects, each containing the asset name (linked to the asset URL), workspace name, and description.""",  # noqa: W293 # Baseline
 )
 @auto_context
 async def search_asset(
-    search_prompt: Annotated[str, Field(description="The search prompt from the user about data assets potentially with additional searching details")],
-    container_type: Annotated[str, Field(description="The container type in which to search assets, defaults to catalog")] = "catalog",
-    container_name: Annotated[str | None, Field(description="Optional container name to resolve to ID and filter results")] = None,
-    show_table_selection: Annotated[bool, Field(description="If True, shows a selection table UI and returns selected assets. If False, shows display-only table UI and returns search results.")] = False,
-) -> List[SearchAssetResponse]:
+    search_prompt: Annotated[
+        str,
+        Field(
+            description="The search prompt from the user about data assets potentially with additional searching details"
+        ),
+    ],
+    container_type: Annotated[
+        str,
+        Field(
+            description="The container type in which to search assets, defaults to catalog"
+        ),
+    ] = "catalog",
+    container_name: Annotated[
+        str | None,
+        Field(
+            description="Optional container name to resolve to ID and filter results"
+        ),
+    ] = None,
+    show_table_selection: Annotated[
+        bool,
+        Field(
+            description="If True, shows a selection table UI and returns selected assets. If False, shows display-only table UI and returns search results."
+        ),
+    ] = False,
+) -> List[SearchAssetResponse]:  # noqa: UP006 # Baseline
     """Wrapper that expands SearchAssetRequest object into individual parameters."""
-    
+
     request = SearchAssetRequest(
         search_prompt=search_prompt,
         container_type=container_type,
-        container_name=container_name
+        container_name=container_name,
     )
 
     # Call the original search_asset function
@@ -218,7 +266,7 @@ def _extract_str(value: Any) -> str | None:
     return value
 
 
-def _construct_search_asset(row: Any):
+def _construct_search_asset(row: Any):  # noqa: ANN202 # Baseline
     asset_id = row["artifact_id"]
     entity = row.get("entity", {})
     assets = entity.get("assets", {})
@@ -238,9 +286,11 @@ def _construct_search_asset(row: Any):
     asset_name = metadata.get("name", "")
     description = metadata.get("description", None)
 
-    _EXCLUDED_METADATA_KEYS = {"name", "description", "artifact_id"}
+    _EXCLUDED_METADATA_KEYS = {"name", "description", "artifact_id"}  # noqa: N806 # Baseline
     additional_metadata = {
-        k: v for k, v in metadata.items() if k not in _EXCLUDED_METADATA_KEYS and v is not None
+        k: v
+        for k, v in metadata.items()
+        if k not in _EXCLUDED_METADATA_KEYS and v is not None
     } or None
 
     return SearchAssetResponse(

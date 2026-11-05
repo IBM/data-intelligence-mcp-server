@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import List
+from typing import List  # noqa: I001, UP035 # Baseline
 from pydantic import BaseModel
 from pydantic import Field
 from app.shared.models import BaseResponseModel
@@ -20,8 +20,7 @@ class GetLineageVersionsRequest(BaseModel):
 
 
 class GetLineageVersionsResponse(BaseResponseModel):
-    dates: List[str] = Field(
+    dates: List[str] = Field(  # noqa: UP006 # Baseline
         ...,
         description="List of ISO-8601 based timestamps indicating the available version",
-
     )

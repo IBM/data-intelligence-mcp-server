@@ -15,10 +15,8 @@
 Prompt templates for Data Protection Rules service.
 """
 
-from app.services.data_protection_rules.prompts.create_rule_guide import create_rule_guide_prompt
+from app.services.data_protection_rules.prompts.create_rule_guide import (
+    create_rule_guide_prompt,
+)
 
-__all__ = [
-    "create_rule_guide_prompt"
-]
-
-
+__all__ = ["create_rule_guide_prompt"]

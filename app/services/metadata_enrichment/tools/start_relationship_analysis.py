@@ -8,7 +8,7 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-from functools import partial
+from functools import partial  # noqa: I001 # Baseline
 from typing import Annotated, Optional
 
 from pydantic import Field
@@ -38,22 +38,27 @@ from app.shared.utils.tool_helper_service import tool_helper_service
 TOOL_NAME = "run_metadata_relationship_analysis"
 
 
-def _create_config(request: StartRelationshipAnalysisRequest, config_dict: dict) -> dict:
+def _create_config(
+    request: StartRelationshipAnalysisRequest, config_dict: dict
+) -> dict:
     """
     Create the config dictionary for the relationship analysis.
     """
     if request.max_number_of_multiple_columns is not None:
-        config_dict['max_number_of_multiple_columns'] = request.max_number_of_multiple_columns
+        config_dict["max_number_of_multiple_columns"] = (
+            request.max_number_of_multiple_columns
+        )
     if request.min_confidence is not None:
-        config_dict['min_confidence'] = float(request.min_confidence)
+        config_dict["min_confidence"] = float(request.min_confidence)
     if request.auto_selection is not None:
-        config_dict['auto_selection'] = request.auto_selection
+        config_dict["auto_selection"] = request.auto_selection
     if request.auto_selection_threshold is not None:
-        config_dict['auto_selection_threshold'] = request.auto_selection_threshold
+        config_dict["auto_selection_threshold"] = request.auto_selection_threshold
     if request.pk_min_confidence is not None:
-        config_dict['pk_min_confidence'] = request.pk_min_confidence
-    
+        config_dict["pk_min_confidence"] = request.pk_min_confidence
+
     return config_dict
+
 
 async def _start_relationship_analysis(
     request: StartRelationshipAnalysisRequest,
@@ -84,11 +89,11 @@ async def _start_relationship_analysis(
     # Find metadata enrichment area ID
     mde_area_id = await confirm_uuid(
         request.mde_area_name,
-        partial(find_metadata_enrichment_id, project_id=project_id)
+        partial(find_metadata_enrichment_id, project_id=project_id),
     )
 
     # Prepare dataset IDs if specific datasets are provided
-    dataset_ids: Optional[list[str]] = None
+    dataset_ids: Optional[list[str]] = None  # noqa: UP045 # Baseline
     if not request.is_all_dataset:
         if not request.dataset_names:
             raise ValidationError(
@@ -99,7 +104,7 @@ async def _start_relationship_analysis(
         dataset_ids = [
             await confirm_uuid(
                 dataset_name,
-                partial(find_asset_id_exact_match, container_id=project_id)
+                partial(find_asset_id_exact_match, container_id=project_id),
             )
             for dataset_name in dataset_names
         ]
@@ -109,25 +114,26 @@ async def _start_relationship_analysis(
     overwritten_config = None
 
     # Check if any config field is provided
-    has_any_config = any([
-        request.max_number_of_multiple_columns is not None,
-        request.min_confidence is not None,
-        request.auto_selection is not None,
-        request.auto_selection_threshold is not None,
-        request.pk_min_confidence is not None,
-        ])
+    has_any_config = any(
+        [
+            request.max_number_of_multiple_columns is not None,
+            request.min_confidence is not None,
+            request.auto_selection is not None,
+            request.auto_selection_threshold is not None,
+            request.pk_min_confidence is not None,
+        ]
+    )
 
     # Build config dict - API requires ALL common fields when ANY config is provided
     # Start with defaults for all common fields
     config_dict = {
-        'max_number_of_multiple_columns': 3,
-        'min_confidence': 0.8,
-        'auto_selection': True,
-        'auto_selection_threshold': 0.9,
-        'pk_min_confidence': 0.9,
+        "max_number_of_multiple_columns": 3,
+        "min_confidence": 0.8,
+        "auto_selection": True,
+        "auto_selection_threshold": 0.9,
+        "pk_min_confidence": 0.9,
     }
     if has_any_config:
-
         # Override with explicitly provided values
         _create_config(request, config_dict)
 
@@ -165,20 +171,23 @@ async def _start_relationship_analysis(
             tool_name=TOOL_NAME,
         )
         LOGGER.info(f"Successfully started relationship analysis. Response: {response}")
-        return StartRelationshipAnalysisResponse(relationship_analysis=response) if isinstance(response, dict) else StartRelationshipAnalysisResponse(relationship_analysis={})
+        return (
+            StartRelationshipAnalysisResponse(relationship_analysis=response)
+            if isinstance(response, dict)
+            else StartRelationshipAnalysisResponse(relationship_analysis={})
+        )
     except Exception as e:
         LOGGER.error(
-            f"Failed to start relationship analysis for MDE area {mde_area_id}: {str(e)}"
+            f"Failed to start relationship analysis for MDE area {mde_area_id}: {e!s}"
         )
-        raise ServiceError(
-            f"Failed to start relationship analysis: {str(e)}"
-        )
+        raise ServiceError(f"Failed to start relationship analysis: {e!s}")  # noqa: B904 # Baseline
+
 
 @service_registry.tool(
     name="run_metadata_relationship_analysis",
     annotations={
         "title": "Start Metadata Relationship Analysis",
-        "destructiveHint": True
+        "destructiveHint": True,
     },
     tags={"metadata_management_and_governance"},
     description="""Use this tool when you need to start a relationship analysis for a metadata enrichment area (MDE).
@@ -207,18 +216,56 @@ async def _start_relationship_analysis(
     """,
 )
 @auto_context
-async def start_relationship_analysis(
-    project_name: Annotated[str, Field(description="The name of the project containing the metadata enrichment area.")],
-    mde_area_name: Annotated[str, Field(description="The name of the metadata enrichment area (MDE) to analyze.")],
-    analysis_type: Annotated[str, Field(description="The type of relationship analysis to execute.")],
-    is_all_dataset: Annotated[bool, Field(description="Whether to analyze all datasets in the MDE area. If False, dataset_names must be provided.")] = True,
-    dataset_names: Annotated[Optional[list[str] | str], Field(description="Dataset names to analyze. Required if is_all_dataset is False.")] = None,
-    sampling_percent: Annotated[int, Field(description="Sampling percentage for the analysis (0-100). 0 means no sampling.")] = 0,
-    max_number_of_multiple_columns: Annotated[Optional[int], Field(description="Maximum number of multiple columns to analyze.")] = None,
-    min_confidence: Annotated[Optional[float], Field(description="Minimum confidence threshold for analysis.")] = None,
-    auto_selection: Annotated[Optional[bool], Field(description="Enable automatic selection of relationships.")] = None,
-    auto_selection_threshold: Annotated[Optional[float], Field(description="Threshold for automatic selection.")] = None,
-    pk_min_confidence: Annotated[Optional[float], Field(description="Minimum confidence threshold for primary key analysis.")] = None,
+async def start_relationship_analysis(  # noqa: PLR0913 # Baseline
+    project_name: Annotated[
+        str,
+        Field(
+            description="The name of the project containing the metadata enrichment area."
+        ),
+    ],
+    mde_area_name: Annotated[
+        str,
+        Field(description="The name of the metadata enrichment area (MDE) to analyze."),
+    ],
+    analysis_type: Annotated[
+        str, Field(description="The type of relationship analysis to execute.")
+    ],
+    is_all_dataset: Annotated[
+        bool,
+        Field(
+            description="Whether to analyze all datasets in the MDE area. If False, dataset_names must be provided."
+        ),
+    ] = True,
+    dataset_names: Annotated[
+        Optional[list[str] | str],  # noqa: UP045 # Baseline
+        Field(
+            description="Dataset names to analyze. Required if is_all_dataset is False."
+        ),
+    ] = None,
+    sampling_percent: Annotated[
+        int,
+        Field(
+            description="Sampling percentage for the analysis (0-100). 0 means no sampling."
+        ),
+    ] = 0,
+    max_number_of_multiple_columns: Annotated[
+        Optional[int],  # noqa: UP045 # Baseline
+        Field(description="Maximum number of multiple columns to analyze."),
+    ] = None,
+    min_confidence: Annotated[
+        Optional[float], Field(description="Minimum confidence threshold for analysis.")  # noqa: UP045 # Baseline
+    ] = None,
+    auto_selection: Annotated[
+        Optional[bool],  # noqa: UP045 # Baseline
+        Field(description="Enable automatic selection of relationships."),
+    ] = None,
+    auto_selection_threshold: Annotated[
+        Optional[float], Field(description="Threshold for automatic selection.")  # noqa: UP045 # Baseline
+    ] = None,
+    pk_min_confidence: Annotated[
+        Optional[float],  # noqa: UP045 # Baseline
+        Field(description="Minimum confidence threshold for primary key analysis."),
+    ] = None,
 ) -> StartRelationshipAnalysisResponse:
     """Wrapper that expands StartRelationshipAnalysisRequest into individual parameters."""
 

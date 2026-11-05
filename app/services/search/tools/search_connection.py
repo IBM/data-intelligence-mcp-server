@@ -2,10 +2,15 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from app.core.registry import service_registry
-from app.services.search.models.search_connection import SearchConnectionRequest, SearchConnectionResponse, ContainerType
+from app.core.registry import service_registry  # noqa: I001 # Baseline
+from app.services.search.models.search_connection import (
+    ContainerType,
+    SearchConnectionRequest,
+    SearchConnectionResponse,
+)
+from app.services.search.tools.find_container import find_container
 
-from typing import List, Optional, Annotated
+from typing import List, Optional, Annotated  # noqa: UP035 # Baseline
 from pydantic import Field
 from urllib.parse import urlencode
 
@@ -17,26 +22,33 @@ from app.shared.utils.helpers import append_context_to_url, is_uuid_bool
 from app.shared.utils.utils_tools import format_connections_or_dsds_for_table
 
 from app.services.constants import (
-    AUTH_SCOPE_ALL_STR, 
-    SEARCH_PATH, 
-    JSON_PLUS_UTF8_ACCEPT_TYPE, 
+    AUTH_SCOPE_ALL_STR,
+    SEARCH_PATH,
+    JSON_PLUS_UTF8_ACCEPT_TYPE,
     CONNECTIONS_BASE_ENDPOINT,
 )
 from app.services.tool_utils import (
     get_datasource_type_name,
     retrieve_container_id,
     find_datasource_type_asset_id,
-    check_and_convert_creator_id
+    check_and_convert_creator_id,
 )
 
 PROJ_CONNECTION_URL_PREFIX = str(tool_helper_service.ui_base_url) + "/connections/"
 CAT_CONNECTION_URL_PREFIX = str(tool_helper_service.ui_base_url) + "/data/catalogs/"
 
 
+async def _resolve_datasource_asset_id(datasource_type: str) -> str:
+    """Return the asset ID for a datasource type, resolving by name if needed."""
+    if is_uuid_bool(datasource_type):
+        return datasource_type
+    return await find_datasource_type_asset_id(datasource_type)
+
+
 async def _search_connection(
-    request: SearchConnectionRequest
-) -> List[SearchConnectionResponse]:
-    
+    request: SearchConnectionRequest,
+) -> List[SearchConnectionResponse]:  # noqa: UP006 # Baseline
+
     # Validate the request
     _validate_connection_request(request)
 
@@ -46,76 +58,94 @@ async def _search_connection(
         request.container_type,
         request.connection_name,
         request.datasource_type,
-        request.creator
+        request.creator,
     )
 
     if request.container_type == ContainerType.ALL:
         output = await search_connection_global_search()
         if not output:
-            raise ServiceError(
-            "Could not find any connections."
-        )
+            raise ServiceError("Could not find any connections.")
         return output
 
     container = request.container if request.container else ""
     container_id = await retrieve_container_id(container, request.container_type)
 
-    headers = {
-        "accept": JSON_PLUS_UTF8_ACCEPT_TYPE,
-        "Inject-Token" : "false"
+    headers = {"accept": JSON_PLUS_UTF8_ACCEPT_TYPE, "Inject-Token": "false"}
+    params = {
+        "limit": 100,
+        "decrypt_secrets": True,
+        "include_properties": True,
+        "userfs": False,
     }
-    params = {"limit":100, "decrypt_secrets":True, "include_properties":True, "userfs":False}
 
     if request.creator:
         params["metadata.creator"] = await check_and_convert_creator_id(request.creator)
     if request.connection_name:
         params["entity.name"] = request.connection_name
     if request.datasource_type:
-        if is_uuid_bool(request.datasource_type):
-            datasource_asset_id = request.datasource_type
-        else:
-            datasource_asset_id = await find_datasource_type_asset_id(request.datasource_type)
-        params["entity.datasource_type"] = datasource_asset_id
-    params[request.container_type + "_id"] =  container_id
+        params["entity.datasource_type"] = await _resolve_datasource_asset_id(
+            request.datasource_type
+        )
+    params[request.container_type + "_id"] = container_id
 
     response = await tool_helper_service.execute_get_request(
-        url=str(tool_helper_service.base_url) + CONNECTIONS_BASE_ENDPOINT, 
-        headers=headers, 
-        params=params, 
-        tool_name="search_connection"
+        url=str(tool_helper_service.base_url) + CONNECTIONS_BASE_ENDPOINT,
+        headers=headers,
+        params=params,
+        tool_name="search_connection",
     )
 
     output = []
-    for resource in response.get('resources', []):
-        if resource['metadata']['asset_category'] != "SYSTEM":
-            datasource_type_id = resource['entity']['datasource_type']
+    container = None
+    for resource in response.get("resources", []):
+        if resource["metadata"]["asset_category"] != "SYSTEM":
+            if container is None:
+                container = await find_container(
+                    container_id_or_name=container_id,
+                    container_type=request.container_type,
+                )
+            datasource_type_id = resource["entity"]["datasource_type"]
             datasource_type_name = await get_datasource_type_name(datasource_type_id)
+            data_source_definition_asset_id = resource["entity"].get(
+                "data_source_definition_asset_id"
+            )
+
             connection = SearchConnectionResponse(
-                id=resource['metadata']['asset_id'],
-                name=resource['entity']['name'],
-                url=append_context_to_url(_create_connection_url(resource['metadata']['asset_id'], container_id, request.container_type)),
-                create_time=resource['metadata']['create_time'],
-                creator_id=resource['metadata']['creator_id'],
+                id=resource["metadata"]["asset_id"],
+                name=resource["entity"]["name"],
+                url=append_context_to_url(
+                    _create_connection_url(
+                        resource["metadata"]["asset_id"],
+                        container_id,
+                        request.container_type,
+                    )
+                ),
+                create_time=resource["metadata"]["create_time"],
+                creator_id=resource["metadata"]["creator_id"],
                 datasource_type_id=datasource_type_id,
                 datasource_type_name=datasource_type_name,
+                data_source_definition_asset_id=data_source_definition_asset_id,
                 container_id=container_id,
-                container_type=request.container_type
+                container_type=request.container_type,
+                container_name=container.container.name,
             )
             output.append(connection)
-    
+
     if output:
-        ui_message_context.add_table_ui_message(tool_name="search_connection", formatted_data=format_connections_or_dsds_for_table(output), title="Connections")
-        return output
-    else:
-        raise ServiceError(
-            "Could not find any connections."
+        ui_message_context.add_table_ui_message(
+            tool_name="search_connection",
+            formatted_data=format_connections_or_dsds_for_table(output),
+            title="Connections",
         )
+        return output
+    raise ServiceError("Could not find any connections.")
+
 
 @service_registry.tool(
     name="search_connection",
     annotations={
         "readOnlyHint": True,
-        "title": "Search and Filter Database Connections Across Containers"
+        "title": "Search and Filter Database Connections Across Containers",
     },
     description="""Use this tool when you need to find database connections across containers, with optional filtering by name, type, or creator.
                     Understand user's request about searching connections and return a list of
@@ -139,17 +169,35 @@ async def _search_connection(
                     - container and container_type must be provided if one or more of connection_name, datasource_type, or creator is provided
                     - Invalid values will result in errors
                     Return: A list of objects, each containing connection details including ID, name, URL, creation time, creator ID, datasource type information, and container details.""",
-    tags={"search", "connection","metadata_management_and_governance"},
-    meta={"version": "1.0", "service": "search"}
+    tags={"search", "connection", "metadata_management_and_governance"},
+    meta={"version": "1.0", "service": "search"},
 )
 @auto_context
 async def search_connection(
-    container: Annotated[Optional[str], Field(description="Name or UUID of the project or catalog to search the connection within.")] = None,
-    connection_name: Annotated[Optional[str], Field(description="Name of the connection to filter the connections by.")] = None,
-    datasource_type: Annotated[Optional[str], Field(description="Datasource type name or UUID to filter connections by.")] = None,
-    creator: Annotated[Optional[str], Field(description="Name, username, or ID of the creator of connection to filter connections by.")] = None,
-    container_type: Annotated[str, Field(description="The container type in which to search connections")] = "all",
-) -> List[SearchConnectionResponse]:
+    container: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Name or UUID of the project or catalog to search the connection within."
+        ),
+    ] = None,
+    connection_name: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(description="Name of the connection to filter the connections by."),
+    ] = None,
+    datasource_type: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(description="Datasource type name or UUID to filter connections by."),
+    ] = None,
+    creator: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Name, username, or ID of the creator of connection to filter connections by."
+        ),
+    ] = None,
+    container_type: Annotated[
+        str, Field(description="The container type in which to search connections")
+    ] = "all",
+) -> List[SearchConnectionResponse]:  # noqa: UP006 # Baseline
     """Wrapper that expands SearchConnectionRequest object into individual parameters."""
 
     container_type_enum = ContainerType(container_type)
@@ -158,13 +206,14 @@ async def search_connection(
         container_type=container_type_enum,
         connection_name=connection_name,
         datasource_type=datasource_type,
-        creator=creator
+        creator=creator,
     )
 
     # Call the original search_data_source_definition function
     return await _search_connection(request)
 
-async def search_connection_global_search() -> List[SearchConnectionResponse]:
+
+async def search_connection_global_search() -> List[SearchConnectionResponse]:  # noqa: UP006 # Baseline
     """
     Executes a global search query to search for connections
     across all container types.
@@ -175,23 +224,15 @@ async def search_connection_global_search() -> List[SearchConnectionResponse]:
     params = {
         "auth_scope": AUTH_SCOPE_ALL_STR,
         "auth_cache": True,
-        "tenant_scope": True
+        "tenant_scope": True,
     }
 
     payload = {
         "query": {
             "bool": {
                 "must": [
-                    {
-                        "term": {
-                            "metadata.artifact_type": "connection"
-                        }
-                    },
-                    {
-                        "gs_user_query": {
-                            "search_string": "*"
-                        }
-                    }
+                    {"term": {"metadata.artifact_type": "connection"}},
+                    {"gs_user_query": {"search_string": "*"}},
                 ]
             }
         }
@@ -201,38 +242,59 @@ async def search_connection_global_search() -> List[SearchConnectionResponse]:
         url=str(tool_helper_service.base_url) + SEARCH_PATH,
         params=params,
         json=payload,
-        tool_name="search_connection"
+        tool_name="search_connection",
     )
 
     output = []
     container_keys = ["project_id", "catalog_id"]
-    for connection_info in response.get('rows', []):
-        container_key = next((k for k in container_keys if k in connection_info['entity']['assets']), None)
+    for connection_info in response.get("rows", []):
+        container_key = next(
+            (k for k in container_keys if k in connection_info["entity"]["assets"]),
+            None,
+        )
         if not container_key:
             continue
-        container_id = connection_info['entity']['assets'][container_key]
+        container_id = connection_info["entity"]["assets"][container_key]
         container_type = container_key.replace("_id", "")
+        container = await find_container(container_id_or_name=container_id, container_type=container_type)
+
+        data_source_definition_asset_id = None
         datasource_type_id = ""
         datasource_type_name = ""
-        for attribute in connection_info.get('custom_attributes', []):
-            if attribute['attribute_name'] == 'connection.datasource_type':
-                datasource_type_id = attribute['attribute_value']
-                datasource_type_name = await get_datasource_type_name(datasource_type_id)
+        for attribute in connection_info.get("custom_attributes", []):
+            if attribute["attribute_name"] == "connection.datasource_type":
+                datasource_type_id = attribute["attribute_value"]
+                datasource_type_name = await get_datasource_type_name(
+                    datasource_type_id
+                )
+
+            if attribute["attribute_name"] == "connection.data_source_definition_asset_id":
+                data_source_definition_asset_id = attribute["attribute_value"]
+
+            if data_source_definition_asset_id and datasource_type_id and datasource_type_name:
                 break
+
         connection = SearchConnectionResponse(
-            id=connection_info['artifact_id'],
-            name=connection_info['metadata']['name'],
-            url=append_context_to_url(_create_connection_url(connection_info['artifact_id'], container_id, container_type)),
-            create_time=connection_info['metadata']['created_on'],
-            creator_id=connection_info['entity']['assets']['rov']['owners'][0],
+            id=connection_info["artifact_id"],
+            name=connection_info["metadata"]["name"],
+            url=append_context_to_url(
+                _create_connection_url(
+                    connection_info["artifact_id"], container_id, container_type
+                )
+            ),
+            create_time=connection_info["metadata"]["created_on"],
+            creator_id=connection_info["entity"]["assets"]["rov"]["owners"][0],
             datasource_type_id=datasource_type_id,
             datasource_type_name=datasource_type_name,
+            data_source_definition_asset_id=data_source_definition_asset_id,
             container_id=container_id,
-            container_type=container_type
+            container_type=container_type,
+            container_name=container.container.name,
         )
         output.append(connection)
-    
+
     return output
+
 
 def _validate_connection_request(request: SearchConnectionRequest) -> None:
     remediation_step = "Invoke the list_containers tool with container type 'all' to list possible containers for connection search"
@@ -241,25 +303,21 @@ def _validate_connection_request(request: SearchConnectionRequest) -> None:
         LOGGER.error(error_msg)
         raise ValidationError(error_msg, remediation_steps=remediation_step)
 
-    if (request.connection_name or request.datasource_type or request.creator) and not (request.container and request.container_type != ContainerType.ALL):
+    if (request.connection_name or request.datasource_type or request.creator) and not (
+        request.container and request.container_type != ContainerType.ALL
+    ):
         error_msg = "Cannot filter by name, data source type or creator without container information. Please provide container name and type."
         LOGGER.error(error_msg)
         raise ValidationError(error_msg, remediation_steps=remediation_step)
 
+
 def _create_connection_url(conn_id: str, container_id: str, container_type: str) -> str:
     if container_type == "project":
-        query_params = {
-            "project_id": container_id
-        }
+        query_params = {"project_id": container_id}
         url = PROJ_CONNECTION_URL_PREFIX + conn_id
     elif container_type == "catalog":
         url = CAT_CONNECTION_URL_PREFIX + container_id + "/asset/" + conn_id
-        query_params = {
-            "udi_edit": "true",
-            "ds_gov_summary": "true"
-        }
+        query_params = {"udi_edit": "true", "ds_gov_summary": "true"}
     else:
         return ""
     return f"{url}?{urlencode(query_params)}"
-
-

@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Any, List, Optional, Annotated
+from typing import Any, List, Optional, Annotated  # noqa: I001, UP035 # Baseline
 from pydantic import Field
 
 from app.core.registry import service_registry
@@ -15,7 +15,7 @@ from app.services.search.tools.search_asset import search_asset
 from app.services.text_to_query_search.constants import (
     MAX_SEARCH_RESULTS,
     TOOL_DESCRIPTION,
-    CONTAINER_TYPE_PROJECT_AND_CATALOG
+    CONTAINER_TYPE_PROJECT_AND_CATALOG,
 )
 
 from app.services.text_to_query_search.models.text2query_search_asset import (
@@ -43,21 +43,24 @@ from app.services.text_to_query_search.utils.request_validator import (
 )
 from app.shared.utils.helpers import append_context_to_url
 from app.shared.logging import LOGGER, auto_context
-from app.shared.utils.tool_helper_service import tool_helper_service
-from app.shared.exceptions.base import ExternalAPIError, ServiceError
+from app.shared.utils.tool_helper_service import tool_helper_service  # noqa: F401 # Baseline
+from app.shared.exceptions.base import ExternalAPIError, ServiceError  # noqa: F401 # Baseline
 from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.utils.utils_tools import format_search_results_for_table
 
+
 def _create_response_with_ui(
-    results: List[GlobalSearchAssetResponse],
+    results: List[GlobalSearchAssetResponse],  # noqa: UP006 # Baseline
     query_data: dict,
     response: dict,
-    show_table_selection: bool
+    show_table_selection: bool,
 ) -> TextToQuerySearchAssetResponse:
     """Create response with appropriate UI based on selection mode."""
-    message = response.get("message", "") if response.get("too_many_results", False) else None
+    message = (
+        response.get("message", "") if response.get("too_many_results", False) else None
+    )
     formatted_results = format_search_results_for_table(results)
-    
+
     if show_table_selection:
         selected_assets = ui_message_context.send_table_selector_msg(
             tool_name="dynamic_query_search",
@@ -65,18 +68,18 @@ def _create_response_with_ui(
             formatted_data=formatted_results,
             title="Assets",
             description="Please select the asset(s) you'd like to use.",
-            unique_keys=["Name", "Artifact Type"]
+            unique_keys=["Name", "Artifact Type"],
         )
         return TextToQuerySearchAssetResponse(
             generated_query=query_data,
             response=selected_assets or [],
             message=None if selected_assets else "No assets were selected.",
         )
-    
+
     ui_message_context.add_table_ui_message(
         tool_name="dynamic_query_search",
         formatted_data=formatted_results,
-        title="Search Results"
+        title="Search Results",
     )
     return TextToQuerySearchAssetResponse(
         generated_query=query_data, response=results, message=message
@@ -84,12 +87,11 @@ def _create_response_with_ui(
 
 
 async def _search(
-    request: TextToQuerySearchAssetRequest,
-    show_table_selection: bool = False
+    request: TextToQuerySearchAssetRequest, show_table_selection: bool = False
 ) -> TextToQuerySearchAssetResponse:
     """
     Internal search function that supports both display-only and selection modes for agentic UI contexts.
-    
+
     Args:
         request: The search request
         show_table_selection: If True, shows a selection table UI and returns selected assets.
@@ -110,14 +112,16 @@ async def _search(
                 id=container_id,
                 name=request.container_name,
             )
-    
+
     # Resolve names_mapping to IDs if provided
     resolved_names_mapping = await resolve_names_mapping_to_ids(
         request.names_mapping,
         container_id if container_id else None,
-        request.container_type if request.container_type != CONTAINER_TYPE_PROJECT_AND_CATALOG else None,
+        request.container_type
+        if request.container_type != CONTAINER_TYPE_PROJECT_AND_CATALOG
+        else None,
     )
-    
+
     LOGGER.info(
         "Starting dynamic query search with prompt: '%s' and container_type: '%s' and container_id: '%s' and artifact_types: '%s' and resolved_names_mapping: '%s'",
         request.search_prompt,
@@ -129,15 +133,22 @@ async def _search(
 
     try:
         query_data, validation_response = await generate_gs_query(
-            request.search_prompt, request.artifact_types, container_details, resolved_names_mapping
+            request.search_prompt,
+            request.artifact_types,
+            container_details,
+            resolved_names_mapping,
         )
         LOGGER.info("Generated query from text2query: '%s'", query_data)
     except ExternalAPIError as e:
         LOGGER.error("External API failure calling text-to-query API: %s", e)
-        return await _fallback_response(request, show_table_selection=show_table_selection)
+        return await _fallback_response(
+            request, show_table_selection=show_table_selection
+        )
     except Exception as e:
         LOGGER.error("Error calling text-to-query API: %s", e)
-        return await _fallback_response(request, show_table_selection=show_table_selection)
+        return await _fallback_response(
+            request, show_table_selection=show_table_selection
+        )
 
     try:
         response = await _execute_search_with_query(query_data, validation_response)
@@ -147,24 +158,33 @@ async def _search(
 
         if results:
             ui_message_context.create_markdown_code_snippet(
-                code=str(query_data),
-                language="json"
+                code=str(query_data), language="json"
             )
-            return _create_response_with_ui(results, query_data, response, show_table_selection)
-        return await _fallback_response(request, query_data, show_table_selection=show_table_selection)
+            return _create_response_with_ui(
+                results, query_data, response, show_table_selection
+            )
+        return await _fallback_response(
+            request, query_data, show_table_selection=show_table_selection
+        )
     except ExternalAPIError as e:
-        LOGGER.error("External API failure executing search with generated query: %s", e)
-        return await _fallback_response(request, query_data, show_table_selection=show_table_selection)
+        LOGGER.error(
+            "External API failure executing search with generated query: %s", e
+        )
+        return await _fallback_response(
+            request, query_data, show_table_selection=show_table_selection
+        )
     except Exception as e:
         # Check for GraphInterrupt by name to avoid dependency on langgraph
-        # Re‑raise GraphInterrupt so the agent pauses for user asset selection
+        # Re‑raise GraphInterrupt so the agent pauses for user asset selection  # noqa: RUF003 # Baseline
         if type(e).__name__ == "GraphInterrupt":
             raise
         LOGGER.error("Error executing search with generated query: %s", e)
-        return await _fallback_response(request, query_data, show_table_selection=show_table_selection)
+        return await _fallback_response(
+            request, query_data, show_table_selection=show_table_selection
+        )
 
 
-def _construct_search_asset(row: Any, source_fields: Optional[List[str]] = None):
+def _construct_search_asset(row: Any, source_fields: Optional[List[str]] = None):  # noqa: ANN202, UP006, UP045 # Baseline
     asset_id = row["artifact_id"]
 
     metadata = row.get("metadata", {})
@@ -179,7 +199,15 @@ def _construct_search_asset(row: Any, source_fields: Optional[List[str]] = None)
     artifact_type = (
         "glossary_term" if artifact_type == "business_term" else artifact_type
     )
-    if artifact_type not in ["category", "glossary_term", "reference_data", "classification", "data_class", "policy", "rule"]:
+    if artifact_type not in [
+        "category",
+        "glossary_term",
+        "reference_data",
+        "classification",
+        "data_class",
+        "policy",
+        "rule",
+    ]:
         entity = row.get("entity", {})
         assets = entity.get("assets", {})
         catalog_id = assets.get("catalog_id", None)
@@ -197,9 +225,11 @@ def _construct_search_asset(row: Any, source_fields: Optional[List[str]] = None)
     # Extract source data based on requested _source fields
     source_data = extract_source_data(row, source_fields) if source_fields else None
 
-    _EXCLUDED_METADATA_KEYS = {"name", "description", "artifact_type", "artifact_id"}
+    _EXCLUDED_METADATA_KEYS = {"name", "description", "artifact_type", "artifact_id"}  # noqa: N806 # Baseline
     additional_metadata = {
-        k: v for k, v in metadata.items() if k not in _EXCLUDED_METADATA_KEYS and v is not None
+        k: v
+        for k, v in metadata.items()
+        if k not in _EXCLUDED_METADATA_KEYS and v is not None
     } or None
 
     return GlobalSearchAssetResponse(
@@ -216,13 +246,15 @@ def _construct_search_asset(row: Any, source_fields: Optional[List[str]] = None)
         additional_metadata=additional_metadata,
     )
 
+
 async def _fallback_response(
     request: TextToQuerySearchAssetRequest,
     query: dict | None = None,
     show_table_selection: bool = False,
 ) -> TextToQuerySearchAssetResponse:
     """Return a fallback response using the basic search_asset function."""
-    response = await search_asset(search_prompt=request.search_prompt,
+    response = await search_asset(
+        search_prompt=request.search_prompt,
         container_type=request.container_type or "catalog",
         container_name=request.container_name,
         show_table_selection=show_table_selection,
@@ -259,9 +291,11 @@ def _annotate_and_cap_results(
     return all_rows
 
 
-async def _execute_search_with_query(query_data: dict, validation_response: dict | None = None) -> dict:
+async def _execute_search_with_query(
+    query_data: dict, validation_response: dict | None = None
+) -> dict:
     """Execute search with generated query and handle pagination.
-    
+
     Args:
         query_data: The query to execute
         validation_response: Optional response from validation call to reuse
@@ -275,7 +309,7 @@ async def _execute_search_with_query(query_data: dict, validation_response: dict
         response = validation_response
     else:
         response = await fetch_search_page(query=query_data)
-    
+
     total_count = response.get("size", 0)
     all_rows = response.get("rows", [])
     returned_rows_count = len(all_rows)
@@ -327,9 +361,13 @@ async def _execute_search_with_query(query_data: dict, validation_response: dict
 
     return response
 
-async def _process_search_results(response: dict, source_fields: Optional[List[str]] = None) -> List[GlobalSearchAssetResponse]:
+
+async def _process_search_results(
+    response: dict,
+    source_fields: Optional[List[str]] = None,  # noqa: UP006, UP045 # Baseline
+) -> List[GlobalSearchAssetResponse]:  # noqa: UP006 # Baseline
     """Process search response and construct asset list.
-    
+
     Args:
         response: The search API response
         source_fields: Optional list of field paths requested in the query's _source parameter.
@@ -370,18 +408,48 @@ async def _process_search_results(response: dict, source_fields: Optional[List[s
     description=TOOL_DESCRIPTION,
     annotations={
         "readOnlyHint": True,
-        "title": "Natural Language Asset Search with Query Generation"
+        "title": "Natural Language Asset Search with Query Generation",
     },
     tags={"metadata_management_and_governance"},
 )
 @auto_context
-async def search(
-    search_prompt: Annotated[str, Field(description="The search prompt from the user about data potentially with additional searching details")],
-    container_type: Annotated[Optional[str], Field(description="The container type in which to search assets, defaults to project_and_catalog")],
-    container_name: Annotated[Optional[str], Field(description="Name of the container in which the asset resides. It can be either project or catalog. It allows the tool for searching assets in a specific container")],
-    artifact_types: Annotated[Optional[list[str]], Field(description="The type of artifacts to search for, defaults to data_asset")],
-    names_mapping: Annotated[Optional[list[dict]], Field(description="List of named entities with their types to be resolved to IDs. Each dict should contain 'name' and 'type' keys. Supported types: 'connection', 'metadata_import'. Example: [{'name': 'testConnName', 'type': 'connection'}, {'name': 'testMDIName', 'type': 'metadata_import'}]")] = None,
-    show_table_selection: Annotated[bool, Field(description="If True, shows a selection table UI and returns selected assets. If False, shows display-only table UI and returns search results.")] = False,
+async def search(  # noqa: PLR0913 # Baseline
+    search_prompt: Annotated[
+        str,
+        Field(
+            description="The search prompt from the user about data potentially with additional searching details"
+        ),
+    ],
+    container_type: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="The container type in which to search assets, defaults to project_and_catalog"
+        ),
+    ],
+    container_name: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Name of the container in which the asset resides. It can be either project or catalog. It allows the tool for searching assets in a specific container"
+        ),
+    ],
+    artifact_types: Annotated[
+        Optional[list[str]],  # noqa: UP045 # Baseline
+        Field(
+            description="The type of artifacts to search for, defaults to data_asset"
+        ),
+    ],
+    names_mapping: Annotated[
+        Optional[list[dict]],  # noqa: UP045 # Baseline
+        Field(
+            description="List of named entities with their types to be resolved to IDs. Each dict should contain 'name' and 'type' keys. Supported types: 'connection', 'metadata_import'. Example: [{'name': 'testConnName', 'type': 'connection'}, {'name': 'testMDIName', 'type': 'metadata_import'}]"
+        ),
+    ] = None,
+    show_table_selection: Annotated[
+        bool,
+        Field(
+            description="If True, shows a selection table UI and returns selected assets. If False, shows display-only table UI and returns search results."
+        ),
+    ] = False,
 ) -> TextToQuerySearchAssetResponse:
     """Wrapper version of dynamic_query_search."""
 
@@ -396,4 +464,5 @@ async def search(
     # Call the original search function
     return await _search(request, show_table_selection=show_table_selection)
 
-#Made with Bob
+
+# Made with Bob

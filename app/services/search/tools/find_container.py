@@ -5,36 +5,37 @@
 # This file has been modified with the assistance of IBM Bob AI tool
 
 
-from typing import Annotated
+from typing import Annotated  # noqa: I001 # Baseline
 from pydantic import Field
 
 from app.core.registry import service_registry
 from app.services.search.models.container import (
     FindContainerRequest,
     FindContainerResponse,
-    Container,
+    Container,  # noqa: F401 # Baseline
     ContainerType,
 )
 from app.shared.logging import LOGGER, auto_context
 from app.shared.ui_message.ui_message_context import ui_message_context
 from app.shared.utils.helpers import is_uuid_bool
 from app.shared.exceptions.base import ServiceError
-from app.services.tool_utils import find_asset_container_by_id, find_asset_container_by_name
+from app.services.tool_utils import (
+    find_asset_container_by_id,
+    find_asset_container_by_name,
+)
 from app.shared.utils.utils_tools import format_containers_for_table
 
 
-async def _find_container(
-    request: FindContainerRequest
-) -> FindContainerResponse:
+async def _find_container(request: FindContainerRequest) -> FindContainerResponse:
     """
     Find a container by ID or name.
-    
+
     Args:
         request: FindContainerRequest containing container_id_or_name and container_type
-        
+
     Returns:
         FindContainerResponse with the found container or None if not found
-        
+
     Raises:
         ServiceError: If invalid parameters provided
     """
@@ -69,16 +70,20 @@ async def _find_container(
             container.type,
         )
 
-        ui_message_context.add_table_ui_message("get_container", format_containers_for_table([container]), title="Containers")
+        ui_message_context.add_table_ui_message(
+            "get_container",
+            format_containers_for_table([container]),
+            title="Containers",
+        )
         return FindContainerResponse(container=container)
-    
+
     except ServiceError as e:
         # If container not found, return response with None container instead of raising error
         if "Couldn't find any" in str(e):
             LOGGER.info(
                 "No %s found with identifier '%s'",
                 request.container_type.value,
-                request.container_id_or_name
+                request.container_id_or_name,
             )
             return FindContainerResponse(container=None)
         # Re-raise other ServiceErrors
@@ -89,7 +94,7 @@ async def _find_container(
     name="get_container",
     annotations={
         "readOnlyHint": True,
-        "title": "Find Specific Container (Catalog, Project, or Space) by ID or name"
+        "title": "Find Specific Container (Catalog, Project, or Space) by ID or name",
     },
     tags={"metadata_management_and_governance"},
     description="""Use this tool when you need to find a specific container (catalog, project or space) by ID or name.
@@ -102,21 +107,27 @@ async def _find_container(
     - For UUID: performs direct lookup
     - For name: uses fuzzy matching to find closest match
     - container_type must be one of: "catalog", "project", "space"
-    Returns: Container details including ID, name, type, and URL""",
+    Returns: Container details including ID, name, type, and URL""",  # noqa: W293 # Baseline
 )
 @auto_context
 async def find_container(
-    container_id_or_name: Annotated[str, Field(description="The ID or name of the container to find")],
-    container_type: Annotated[str, Field(description="The type of the container - 'project', 'catalog', or 'space'. Defaults to 'catalog'")] = "catalog"
+    container_id_or_name: Annotated[
+        str, Field(description="The ID or name of the container to find")
+    ],
+    container_type: Annotated[
+        str,
+        Field(
+            description="The type of the container - 'project', 'catalog', or 'space'. Defaults to 'catalog'"
+        ),
+    ] = "catalog",
 ) -> FindContainerResponse:
     """Wrapper that expands FindContainerRequest object into individual parameters."""
-    
+
     # Convert string to ContainerType enum
     container_type_enum = ContainerType(container_type)
     request = FindContainerRequest(
-        container_id_or_name=container_id_or_name,
-        container_type=container_type_enum
+        container_id_or_name=container_id_or_name, container_type=container_type_enum
     )
-    
+
     # Call the original find_container function
     return await _find_container(request)

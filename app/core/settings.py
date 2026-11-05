@@ -4,7 +4,7 @@
 
 # This file has been modified with the assistance of IBM Bob AI Tool
 
-from pydantic import AnyHttpUrl, field_validator, AliasChoices, Field, SecretStr
+from pydantic import AnyHttpUrl, field_validator, AliasChoices, Field, SecretStr  # noqa: I001 # Baseline
 from pydantic_settings import (
     BaseSettings,
     SettingsConfigDict,
@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         validate_by_name=True,
     )
 
-    @field_validator("di_service_url", mode="before")
+    @field_validator("di_service_url", mode="before")  # noqa: RET503 # Baseline
     @classmethod
     def strip_slashes(cls, v: str) -> str:
         if isinstance(v, str):
@@ -38,22 +38,34 @@ class Settings(BaseSettings):
     # HTTP Client Settings
     request_timeout_s: int = 60
     di_service_url: AnyHttpUrl | str | None = None
-    
+
     # HTTP Client Connection Pool Settings
-    http_max_connections: int = 150  # Max concurrent outgoing connections to external APIs
-    http_max_keepalive_connections: int = 50  # Max idle connections kept in pool for reuse
+    http_max_connections: int = (
+        150  # Max concurrent outgoing connections to external APIs
+    )
+    http_max_keepalive_connections: int = (
+        50  # Max idle connections kept in pool for reuse
+    )
     http_keepalive_expiry: float = 60.0  # Seconds to keep idle connections alive
-    
+
     # Semaphore Settings (Application-level concurrency control)
-    ibm_api_max_concurrent_calls: int = 50  # Max concurrent IBM API calls (protects downstream services)
-    
+    ibm_api_max_concurrent_calls: int = (
+        50  # Max concurrent IBM API calls (protects downstream services)
+    )
+
     # Retry Settings for Rate Limiting (HTTP 429)
-    retry_max_attempts: int = 3  # Maximum number of retry attempts for rate-limited requests
-    retry_backoff_base: float = 2.0  # Base for exponential backoff (2^0=1s, 2^1=2s, 2^2=4s, 2^3=8s...)
-    
+    retry_max_attempts: int = (
+        3  # Maximum number of retry attempts for rate-limited requests
+    )
+    retry_backoff_base: float = (
+        2.0  # Base for exponential backoff (2^0=1s, 2^1=2s, 2^2=4s, 2^3=8s...)
+    )
+
     # Server-side Connection Settings (for HTTP transport mode)
     server_limit_concurrency: int = 300  # Max concurrent incoming client connections
-    server_timeout_keep_alive: int = 60  # Keep-alive timeout for client connections (seconds)
+    server_timeout_keep_alive: int = (
+        60  # Keep-alive timeout for client connections (seconds)
+    )
     server_backlog: int = 2048  # Connection queue size for pending connections
 
     # Context for UI URLs (df, cpdaas for SaaS; df, cpd for CPD)
@@ -68,8 +80,8 @@ class Settings(BaseSettings):
         """
         if self.di_env_mode.upper() == ENV_MODE_CPD:
             return ["df", "cpd", "wx", "icp4data"]
-        else:  # SaaS
-            return ["df", "cpdaas","wx"]
+        # SaaS
+        return ["df", "cpdaas", "wx"]
 
     @property
     def ui_url(self) -> AnyHttpUrl | str | None:
@@ -87,26 +99,24 @@ class Settings(BaseSettings):
         # For SaaS or any other mode, remove 'api.' prefix if present
         service_url_str = str(self.di_service_url)
         return service_url_str.replace("api.", "", 1)
-    
+
     @property
     def resource_controller_url(self) -> AnyHttpUrl | str | None:
         if not self.di_service_url:
             return "https://resource-controller.cloud.ibm.com"
-        
+
         if DEV_CLOUD_DOMAIN in self.di_service_url:
             return "https://resource-controller.test.cloud.ibm.com"
-        else:
-            return "https://resource-controller.cloud.ibm.com"
-        
+        return "https://resource-controller.cloud.ibm.com"
+
     @property
     def user_management_url(self) -> AnyHttpUrl | str | None:
         if not self.di_service_url:
             return "https://user-management.cloud.ibm.com"
-                
+
         if DEV_CLOUD_DOMAIN in self.di_service_url:
             return "https://user-management.test.cloud.ibm.com"
-        else:
-            return "https://user-management.cloud.ibm.com"
+        return "https://user-management.cloud.ibm.com"
 
     @property
     def accounts_url(self) -> str:
@@ -129,7 +139,7 @@ class Settings(BaseSettings):
     ssl_config_client_key_password: SecretStr | None = None
     ssl_config_check_hostname: bool = True
 
-    def model_post_init(self, __context) -> None:
+    def model_post_init(self, __context) -> None:  # noqa: ANN001 # Baseline
         """Post-initialization to handle SSL configuration from pydantic-loaded fields."""
         ssl_mode = self.ssl_config_mode.lower()
         if ssl_mode == "disabled":
@@ -156,11 +166,15 @@ class Settings(BaseSettings):
     ssl_verify: bool = True  # Set to False for self-signed certificates
 
     # MCP Server Settings
-    server_host: str = "0.0.0.0"
+    server_host: str = "0.0.0.0"  # noqa: S104 # Baseline
     server_port: int = 3000
     server_transport: str = "http"  # "http" or "stdio"
-    ssl_cert_path: str | None = None  # Path to SSL certificate file (mapped from SSL_CERT_PATH)
-    ssl_key_path: str | None = None   # Path to SSL private key file (mapped from SSL_KEY_PATH)
+    ssl_cert_path: str | None = (
+        None  # Path to SSL certificate file (mapped from SSL_CERT_PATH)
+    )
+    ssl_key_path: str | None = (
+        None  # Path to SSL private key file (mapped from SSL_KEY_PATH)
+    )
     use_https: bool = Field(
         default=True,
         validation_alias=AliasChoices("SERVER_HTTPS", "USE_HTTPS"),
@@ -183,6 +197,12 @@ class Settings(BaseSettings):
     oauth_upstream_client_id: str = ""
     oauth_upstream_client_secret: str = ""
     oauth_base_url: str = ""
+    redis_url: str = ""
+    redis_crt: str = ""
+
+    # Explicit BSS account ID override. When set, get_bss_account_id()
+    # returns this value directly instead of deriving it from the JWT.
+    account_id: str = ""
 
     # Auth token for stdio mode (optional)
     di_auth_token: str | None = None
@@ -192,7 +212,7 @@ class Settings(BaseSettings):
     # username for CPD
     di_username: str | None = None
 
-    #CPD, SaaS
+    # CPD, SaaS
     di_env_mode: str = "SaaS"
 
     # Log file path
@@ -211,5 +231,6 @@ class Settings(BaseSettings):
     # Valid groups: data_product, metadata_management_and_governance, data_quality,
     #               lineage, generative_ai
     tool_groups: str = ""
+
 
 settings = Settings()

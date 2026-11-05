@@ -5,7 +5,7 @@
 # Note: This tool integrates with Metadata Enrichment Asset APIs that are actively maintained
 # and subject to change. While we strive to keep this tool synchronized with the latest API versions,
 # temporary discrepancies in behavior may occur between API updates and tool updates.
-from functools import partial
+from functools import partial  # noqa: I001 # Baseline
 from string import Template
 from typing import Annotated, Optional
 
@@ -20,7 +20,11 @@ from app.services.metadata_enrichment.utils.metadata_enrichment_common_utils imp
     MDE_UI_URL_TEMPLATE,
     execute_metadata_enrichment_job,
 )
-from app.services.tool_utils import find_metadata_enrichment_id, find_project_id, find_asset_id_exact_match
+from app.services.tool_utils import (
+    find_metadata_enrichment_id,
+    find_project_id,
+    find_asset_id_exact_match,
+)
 from app.shared.exceptions.base import ServiceError
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.helpers import append_context_to_url, confirm_uuid
@@ -39,7 +43,15 @@ async def _execute_metadata_enrichment_asset(
         request.metadata_enrichment_name, project_id
     )
 
-    job_id = await confirm_uuid(request.job_name, partial(find_asset_id_exact_match, container_id=project_id, artifact_type="job", raise_errors=False))
+    job_id = await confirm_uuid(
+        request.job_name,
+        partial(
+            find_asset_id_exact_match,
+            container_id=project_id,
+            artifact_type="job",
+            raise_errors=False,
+        ),
+    )
     if not job_id:
         raise ServiceError(
             message=f"No job found with the name {request.job_name} in the MDE {request.metadata_enrichment_name}",
@@ -65,7 +77,7 @@ async def _execute_metadata_enrichment_asset(
     name="run_metadata_enrichment_job",
     annotations={
         "title": "Execute Metadata Enrichment Asset Job within a Specified Project and specified MDE",
-        "destructiveHint": True
+        "destructiveHint": True,
     },
     tags={"metadata_management_and_governance"},
     description="""Use this tool when you need to execute a metadata enrichment asset job within a specified project for a specified metadata enrichment asset (MDE).
@@ -85,13 +97,26 @@ async def _execute_metadata_enrichment_asset(
 
     The function assumes the metadata enrichment asset is already defined and valid within the project.
     It does not handle asset creation.
-    Return: Job execution details including metadata enrichment ID, job ID, job run ID, project ID, and a UI URL to monitor the enrichment progress for all configured datasets.""",
+    Return: Job execution details including metadata enrichment ID, job ID, job run ID, project ID, and a UI URL to monitor the enrichment progress for all configured datasets.""",  # noqa: W293 # Baseline
 )
 @auto_context
 async def execute_metadata_enrichment_asset(
-    project_name: Annotated[str, Field(description="The name of the project you want to execute a metadata enrichment.")],
-    metadata_enrichment_name: Annotated[str, Field(description="The name of the metadata enrichment you want to execute.")],
-    job_name: Annotated[Optional[str], Field(description="The name of the job to execute the metadata enrichment asset.")],
+    project_name: Annotated[
+        str,
+        Field(
+            description="The name of the project you want to execute a metadata enrichment."
+        ),
+    ],
+    metadata_enrichment_name: Annotated[
+        str,
+        Field(description="The name of the metadata enrichment you want to execute."),
+    ],
+    job_name: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="The name of the job to execute the metadata enrichment asset."
+        ),
+    ],
 ) -> MetadataEnrichmentRun:
     """Wrapper that MetadataEnrichmentExecutionRequest expands object into individual parameters."""
 

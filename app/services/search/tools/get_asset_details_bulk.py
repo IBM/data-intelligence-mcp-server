@@ -99,9 +99,7 @@ async def _bulk_fetch_user_info(
         try:
             name, email = await _get_user_info(iam_id)
         except Exception as e:  # noqa: BLE001
-            LOGGER.warning(
-                "Failed to fetch user info for IAM ID %s: %s", iam_id, e
-            )
+            LOGGER.warning("Failed to fetch user info for IAM ID %s: %s", iam_id, e)
             return (iam_id, ("", ""))
         else:
             return (iam_id, (name, email))
@@ -223,9 +221,7 @@ def _parse_resource(
         details = _build_asset_metadata_from_cache(metadata, user_info_cache)
         details.entity = asset_data.get("entity", {})
     except Exception as exc:  # noqa: BLE001
-        LOGGER.warning(
-            "Failed to parse metadata for asset %s: %s", asset_name, exc
-        )
+        LOGGER.warning("Failed to parse metadata for asset %s: %s", asset_name, exc)
         return None, f"Failed to parse metadata: {exc!s}"
     else:
         return details, None
@@ -339,20 +335,14 @@ async def _resolve_all_asset_ids(
         try:
             asset_id = asset_id_or_name.strip()
             if not is_uuid_bool(asset_id):
-                asset_id = await find_asset_id(
-                    asset_id, container_id, container_type
-                )
+                asset_id = await find_asset_id(asset_id, container_id, container_type)
         except Exception as e:  # noqa: BLE001
-            LOGGER.warning(
-                "Failed to resolve asset %s: %s", asset_id_or_name, e
-            )
+            LOGGER.warning("Failed to resolve asset %s: %s", asset_id_or_name, e)
             return (asset_id_or_name, None)
         else:
             return (asset_id_or_name, asset_id)
 
-    results = await asyncio.gather(
-        *[_resolve_one(name) for name in asset_ids_or_names]
-    )
+    results = await asyncio.gather(*[_resolve_one(name) for name in asset_ids_or_names])
     return dict(results)
 
 
@@ -458,9 +448,9 @@ async def _get_asset_details_for_assets(
         "larger lists. More efficient than calling get_asset_details repeatedly.\n"
         "You can pass either IDs or names for both assets and container.\n\n"
         "REQUIRED: ALL THREE parameters are mandatory. Ask for any missing information:\n"
-        "- If asset names are missing: Ask \"Which assets would you like to get details for?\"\n"
-        "- If container is missing: Ask \"Which project or catalog contains these assets?\"\n"
-        "- If container type is missing: Ask \"Are these assets in a project or catalog?\""
+        '- If asset names are missing: Ask "Which assets would you like to get details for?"\n'
+        '- If container is missing: Ask "Which project or catalog contains these assets?"\n'
+        '- If container type is missing: Ask "Are these assets in a project or catalog?"'
     ),
     tags={"search", "asset_metadata", "metadata_management_and_governance"},
     meta={"version": "1.0", "service": "search"},

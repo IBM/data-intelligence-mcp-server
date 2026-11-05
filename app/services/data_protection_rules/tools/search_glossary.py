@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal  # noqa: I001 # Baseline
 from pydantic import Field
 from app.core.registry import service_registry
 from app.services.data_protection_rules.models.search_glossary import (
@@ -11,9 +11,9 @@ from app.services.data_protection_rules.models.search_glossary import (
     GovernanceArtifact,
 )
 from app.shared.exceptions.base import ExternalAPIError, ServiceError
-from app.core.auth import get_access_token
-from app.shared.utils.http_client import get_http_client
-from app.services.constants import JSON_CONTENT_TYPE
+from app.core.auth import get_access_token  # noqa: F401 # Baseline
+from app.shared.utils.http_client import get_http_client  # noqa: F401 # Baseline
+from app.services.constants import JSON_CONTENT_TYPE  # noqa: F401 # Baseline
 from app.shared.logging import LOGGER, auto_context
 from app.services.constants import SEARCH_PATH
 from app.shared.utils.tool_helper_service import tool_helper_service
@@ -31,29 +31,34 @@ async def _search_governance_artifacts(
     )
 
     # Validate rhs_type
-    if request.rhs_type not in ["classification", "data_class", "glossary_term", "policy", "rule", "reference_data"]:
+    if request.rhs_type not in [
+        "classification",
+        "data_class",
+        "glossary_term",
+        "policy",
+        "rule",
+        "reference_data",
+    ]:
         LOGGER.error(
             f"Invalid rhs_type: {request.rhs_type}. Must be one of: classification, data_class, glossary_term, policy, rule, reference_data."
         )
         return SearchGovernanceArtifactResponse(
             count=0,
             artifacts=[],
-            message=f"Invalid rhs_type '{request.rhs_type}'. Must be one of: 'classification', 'data_class', 'glossary_term', 'policy', 'rule', 'reference_data'."
+            message=f"Invalid rhs_type '{request.rhs_type}'. Must be one of: 'classification', 'data_class', 'glossary_term', 'policy', 'rule', 'reference_data'.",
         )
 
     # Validate query_value
     if not request.query_value or request.query_value.strip() == "":
         LOGGER.error("query_value cannot be empty.")
         return SearchGovernanceArtifactResponse(
-            count=0,
-            artifacts=[],
-            message="query_value cannot be empty."
+            count=0, artifacts=[], message="query_value cannot be empty."
         )
 
     try:
         # Execute search
         results = await get_rhs_terms_by_query(request.rhs_type, request.query_value)
-        
+
         if not results:
             LOGGER.info(
                 f"No {request.rhs_type} found matching query '{request.query_value}'."
@@ -61,60 +66,57 @@ async def _search_governance_artifacts(
             return SearchGovernanceArtifactResponse(
                 count=0,
                 artifacts=[],
-                message=f"Cannot find '{request.query_value}' in {request.rhs_type}. Please use correct query or artifact type and try again."
+                message=f"Cannot find '{request.query_value}' in {request.rhs_type}. Please use correct query or artifact type and try again.",
             )
-        
+
         # Convert results to GovernanceArtifact objects
         artifacts: list[GovernanceArtifact] = [
             GovernanceArtifact(name=result["name"], global_id=result["global_id"])
             for result in results
         ]
-        
+
         LOGGER.info(f"Found {len(artifacts)} {request.rhs_type} artifacts.")
-        
+
         format_response = format_artifacts_for_table(artifacts)
-        ui_message_context.add_table_ui_message(tool_name="search_governance_artifacts",
-                         formatted_data=format_response, title=TABLE_TITLE_SEARCH_GOVERNANCE_ARTIFACTS)
-        
+        ui_message_context.add_table_ui_message(
+            tool_name="search_governance_artifacts",
+            formatted_data=format_response,
+            title=TABLE_TITLE_SEARCH_GOVERNANCE_ARTIFACTS,
+        )
+
         artifact_names = "\n".join([artifact.name for artifact in artifacts])
         return SearchGovernanceArtifactResponse(
             count=len(artifacts),
             artifacts=artifacts,
-            message=f"Found {len(artifacts)} {request.rhs_type} artifact(s):\n{artifact_names}"
+            message=f"Found {len(artifacts)} {request.rhs_type} artifact(s):\n{artifact_names}",
         )
 
     except ExternalAPIError as e:
         LOGGER.error(
-            f"Failed to run search_governance_artifacts tool. External API error: {str(e)}"
+            f"Failed to run search_governance_artifacts tool. External API error: {e!s}"
         )
-        raise ExternalAPIError(
-            f"Failed to search governance artifacts. External API error: {str(e)}"
+        raise ExternalAPIError(  # noqa: B904 # Baseline
+            f"Failed to search governance artifacts. External API error: {e!s}"
         )
     except Exception as e:
         LOGGER.error(
-            f"Failed to run search_governance_artifacts tool. Unexpected error: {str(e)}"
+            f"Failed to run search_governance_artifacts tool. Unexpected error: {e!s}"
         )
-        raise ServiceError(
-            f"Failed to search governance artifacts. Unexpected error: {str(e)}"
+        raise ServiceError(  # noqa: B904 # Baseline
+            f"Failed to search governance artifacts. Unexpected error: {e!s}"
         )
 
 
 def format_artifacts_for_table(artifacts: list[GovernanceArtifact]) -> list:
     """Format artifacts list by changing keys to Title Case for table display."""
     return [
-        {
-            "Name": result.name,
-            "global_id": result.global_id
-        }
-        for result in artifacts
+        {"Name": result.name, "global_id": result.global_id} for result in artifacts
     ]
-    
+
+
 @service_registry.tool(
     name="search_governance_artifacts",
-    annotations={
-        "readOnlyHint": True,
-        "title": "Search Governance Artifacts"
-    },
+    annotations={"readOnlyHint": True, "title": "Search Governance Artifacts"},
     description="""Use this tool when you need to search for existing governance artifacts by correct names in IBM Knowledge Catalog.
     This tool searches for all 6 governance artifact types: classifications, data classes, glossary terms, policies, governance rules, and reference data.
     
@@ -128,27 +130,48 @@ def format_artifacts_for_table(artifacts: list[GovernanceArtifact]) -> list:
         - "Look up governance rules about access control"
         - "Search for reference data about country codes"
     Returns: List of matching governance artifacts with count and status message.
-    """,
-    tags={"search", "data_protection_rules", "governance", "metadata_management_and_governance"},
+    """,  # noqa: W293 # Baseline
+    tags={
+        "search",
+        "data_protection_rules",
+        "governance",
+        "metadata_management_and_governance",
+    },
     meta={"version": "1.0", "service": "data_protection_rules"},
 )
 @auto_context
 async def search_governance_artifacts(
-    rhs_type: Annotated[Literal["classification", "data_class", "glossary_term", "policy", "rule", "reference_data"], Field(description="Governance artifacts type name. Must be one of: 'classification', 'data_class', 'glossary_term'(another name is business term), 'policy', 'rule', or 'reference_data'.")],
-    query_value: Annotated[str, Field(description="The search query string to find matching governance artifacts.Cannot be empty.")]
+    rhs_type: Annotated[
+        Literal[
+            "classification",
+            "data_class",
+            "glossary_term",
+            "policy",
+            "rule",
+            "reference_data",
+        ],
+        Field(
+            description="Governance artifacts type name. Must be one of: 'classification', 'data_class', 'glossary_term'(another name is business term), 'policy', 'rule', or 'reference_data'."
+        ),
+    ],
+    query_value: Annotated[
+        str,
+        Field(
+            description="The search query string to find matching governance artifacts.Cannot be empty."
+        ),
+    ],
 ) -> SearchGovernanceArtifactResponse:
     """Wrapper version that expands SearchGovernanceArtifactRequest object into individual parameters."""
-    
+
     request = SearchGovernanceArtifactRequest(
-        rhs_type=rhs_type,
-        query_value=query_value
+        rhs_type=rhs_type, query_value=query_value
     )
-    
+
     # Call the original search_governance_artifacts function
     return await _search_governance_artifacts(request)
 
 
-async def get_rhs_terms_by_query(rhs_type: str, query: str):
+async def get_rhs_terms_by_query(rhs_type: str, query: str):  # noqa: ANN201 # Baseline
     """
     Search for RHS terms by query and return a list of terms with name and global_id.
     Returns None if no results found.
@@ -165,19 +188,16 @@ async def get_rhs_terms_by_query(rhs_type: str, query: str):
     response = await search_rhs_terms(rhs_type, query)
 
     # Check if we got any results
-    if response.get('size', 0) == 0:
+    if response.get("size", 0) == 0:
         return None
 
     # Extract name and global_id from each item
     results = []
-    for item in response.get('rows', []):
+    for item in response.get("rows", []):
         try:
-            name = item['metadata']['name']
-            global_id = item['entity']['artifacts']['global_id']
-            results.append({
-                'name': name,
-                'global_id': global_id
-            })
+            name = item["metadata"]["name"]
+            global_id = item["entity"]["artifacts"]["global_id"]
+            results.append({"name": name, "global_id": global_id})
         except (KeyError, TypeError):
             # Skip items with missing data
             continue
@@ -185,14 +205,14 @@ async def get_rhs_terms_by_query(rhs_type: str, query: str):
     return results if results else None
 
 
-async def search_rhs_terms(rhs_type: str, query: str):
+async def search_rhs_terms(rhs_type: str, query: str):  # noqa: ANN201 # Baseline
     """
     Search for RHS terms using the search API.
-    
+
     Args:
         rhs_type: classification | data_class | glossary_term
         query: The search query string
-        
+
     Returns:
         dict: Search response from the API
     """
@@ -205,28 +225,29 @@ async def search_rhs_terms(rhs_type: str, query: str):
             "metadata.artifact_type",
             "categories.primary_category_name",
             "entity.artifacts.version_id",
-            "entity.artifacts.global_id"
+            "entity.artifacts.global_id",
         ],
         "query": {
             "bool": {
                 "must": [
                     {"match": {"provider_type_id": "glossary"}},
                     {"match": {"metadata.artifact_type": rhs_type}},
-                    {"match": {"metadata.name": query}}
+                    {"match": {"metadata.name": query}},
                 ]
             }
-        }
+        },
     }
-    
+
     try:
         response = await tool_helper_service.execute_post_request(
             url=f"{tool_helper_service.base_url}{SEARCH_PATH}?role=viewer&auth_scope=all&auth_cache=true&tenant_scope=true",
             json=json_body,
-            tool_name="search_governance_artifacts"
+            tool_name="search_governance_artifacts",
         )
         return response
     except Exception as e:
-        LOGGER.error(f"Error searching RHS terms: {str(e)}")
-        raise ExternalAPIError(f"Failed to search RHS terms: {str(e)}")
+        LOGGER.error(f"Error searching RHS terms: {e!s}")
+        raise ExternalAPIError(f"Failed to search RHS terms: {e!s}")  # noqa: B904 # Baseline
+
 
 # Made with Bob

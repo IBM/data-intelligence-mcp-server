@@ -21,7 +21,7 @@ class MCPServiceError(Exception):
         message: str,
         service: str = "",
         tool: str = "",
-        remediation_steps: str = ""
+        remediation_steps: str = "",
     ) -> None:
         """Initialize MCPServiceError with message and optional context."""
         super().__init__(message)
@@ -45,6 +45,7 @@ class ValidationError(MCPServiceError):
 
 class ExternalAPIError(MCPServiceError):
     """External API communication errors like timeouts or HTTP failures."""
+
 
 class HostedMcpError(MCPServiceError):
     """Hosted MCP failures."""

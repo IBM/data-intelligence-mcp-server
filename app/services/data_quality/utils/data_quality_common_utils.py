@@ -1,12 +1,12 @@
-# Copyright [2026] [IBM]
+# Copyright [2026] [IBM]  # noqa: INP001 # Baseline
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-import asyncio
-from functools import partial
-from typing import Any, Callable, Dict, List, Literal, Optional
+import asyncio  # noqa: I001 # Baseline
+from functools import partial  # noqa: F401 # Baseline
+from typing import Any, Callable, Dict, List, Literal, Optional  # noqa: UP035 # Baseline
 
 from app.shared.utils.helpers import convert_iso8601_to_human_readable
 
@@ -17,7 +17,11 @@ from app.services.constants import (
     DATA_QUALITY_BASE_ENDPOINT_V3,
     GS_BASE_ENDPOINT,
 )
-from app.services.data_quality.models.data_quality import DataQuality, DataQualityRule, SlaAssessmentSummary
+from app.services.data_quality.models.data_quality import (
+    DataQuality,
+    DataQualityRule,
+    SlaAssessmentSummary,
+)
 
 from app.services.tool_utils import (
     ENTITY_ASSETS_PROJECT_ID,
@@ -32,19 +36,23 @@ from app.shared.logging import LOGGER
 from app.shared.utils.helpers import append_context_to_url, is_uuid_bool
 from app.shared.utils.tool_helper_service import tool_helper_service
 
-DATA_QUALITY_V3_BASE_URL = str(tool_helper_service.base_url) + DATA_QUALITY_BASE_ENDPOINT_V3
-DATA_QUALITY_V4_BASE_URL = str(tool_helper_service.base_url) + DATA_QUALITY_BASE_ENDPOINT
+DATA_QUALITY_V3_BASE_URL = (
+    str(tool_helper_service.base_url) + DATA_QUALITY_BASE_ENDPOINT_V3
+)
+DATA_QUALITY_V4_BASE_URL = (
+    str(tool_helper_service.base_url) + DATA_QUALITY_BASE_ENDPOINT
+)
 
 
-async def resolve_id_or_name(identifier: str, finder_func: Callable, **kwargs) -> str:
+async def resolve_id_or_name(identifier: str, finder_func: Callable, **kwargs) -> str:  # noqa: ANN003 # Baseline
     """
     Resolves an identifier to its UUID. If the identifier is already a UUID, returns it as-is.
-    
+
     Args:
         identifier: The ID or name to resolve
         finder_func: Async function to call if identifier is not a UUID
         **kwargs: Keyword arguments to pass to finder_func
-    
+
     Returns:
         str: The resolved UUID
     """
@@ -56,16 +64,17 @@ async def resolve_id_or_name(identifier: str, finder_func: Callable, **kwargs) -
 def get_data_quality_rule_ui_url(project_id: str, data_quality_rule_id: str) -> str:
     """
     Constructs the UI URL for a data quality rule.
-    
+
     Args:
         project_id (str): The ID of the project containing the data quality rule.
         data_quality_rule_id (str): The ID of the data quality rule.
-    
+
     Returns:
         str: The UI URL for the data quality rule with context appended.
     """
     base_url = f"{tool_helper_service.ui_base_url}/data-quality/data-quality-rule/display/{data_quality_rule_id}?project_id={project_id}"
     return append_context_to_url(base_url)
+
 
 GET_RELATIONSHIPS_URL = (
     str(tool_helper_service.base_url) + CAMS_ASSETS_BASE_ENDPOINT + "/get_relationships"
@@ -77,9 +86,9 @@ SET_RELATIONSHIPS_URL = (
 
 async def _find_data_quality_rules(
     project_id: str,
-    data_quality_rule_name: Optional[str] = None,
-    exact_match: Optional[bool] = False,
-) -> List[DataQualityRule]:
+    data_quality_rule_name: Optional[str] = None,  # noqa: UP045 # Baseline
+    exact_match: Optional[bool] = False,  # noqa: UP045 # Baseline
+) -> List[DataQualityRule]:  # noqa: UP006 # Baseline
     """
     Finds and returns the data quality rules within a project. The response is filtered by name if it is provided.
 
@@ -149,12 +158,9 @@ async def _find_data_quality_rules(
             "An unexpected exception occurs during finding data quality rules. (Cause=%s)",
             str(ese),
         )
-        raise ServiceError(
-            f"Finding data quality rules failed due to: {str(ese)}"
-        )
+        raise ServiceError(f"Finding data quality rules failed due to: {ese!s}")  # noqa: B904 # Baseline
 
-
-    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}
+    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}  # noqa: UP006 # Baseline
     rows = response_dict.get("rows", [])
     data_quality_rules = []
 
@@ -174,7 +180,9 @@ async def _find_data_quality_rules(
     return data_quality_rules
 
 
-async def _find_data_quality_rule_id(data_quality_rule_name: str, project_id: str) -> str:
+async def _find_data_quality_rule_id(
+    data_quality_rule_name: str, project_id: str
+) -> str:
     """
     Finds and returns the UUID of a data quality rule by searching for its name within a project.
 
@@ -190,7 +198,9 @@ async def _find_data_quality_rule_id(data_quality_rule_name: str, project_id: st
         ExternalServiceError: If the search service request fails.
     """
 
-    data_quality_rules = await _find_data_quality_rules(project_id, data_quality_rule_name)
+    data_quality_rules = await _find_data_quality_rules(
+        project_id, data_quality_rule_name
+    )
     if not data_quality_rules:
         raise ServiceError(
             f"Couldn't find any data quality rules with the name '{data_quality_rule_name}' in project with id '{project_id}'."
@@ -230,24 +240,23 @@ async def _retrieve_data_quality_id_for_asset(
             params=params,
         )
     except ExternalAPIError:
-        raise ServiceError(
+        raise ServiceError(  # noqa: B904 # Baseline
             f"Tool get_data_quality_for_asset call finishes unsuccessfully. Asset {asset_id} from {container_type} {container_id} has no data quality information."
         )
 
-    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}
+    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}  # noqa: UP006 # Baseline
     dq_id = response_dict.get("id")
     if dq_id:
         return dq_id
-    else:
-        raise ServiceError(
-            f"Tool get_data_quality_for_asset call finishes unsuccessfully. Invalid data: '{response}'"
-        )
+    raise ServiceError(
+        f"Tool get_data_quality_for_asset call finishes unsuccessfully. Invalid data: '{response}'"
+    )
 
 
-def _ratio_to_percentage(ratio_str):
+def _ratio_to_percentage(ratio_str):  # noqa: ANN001, ANN202 # Baseline
     """
     Convert a ratio (0.0-1.0) to a percentage string with smart decimal formatting.
-    
+
     Shows 1 decimal place if the hundredths place is 0 (e.g., 95.0, 98.5),
     otherwise shows 2 decimal places (e.g., 95.84, 83.38).
     This provides cleaner output while maintaining precision when needed.
@@ -258,17 +267,16 @@ def _ratio_to_percentage(ratio_str):
     rounded_percentage = round(percentage, 2)
     # Check if the value has a non-zero hundredths place
     # by checking if multiplying by 100 and taking modulo 10 gives a non-zero result
-    if abs(rounded_percentage * 10 % 10) < 0.01:
+    if abs(rounded_percentage * 10 % 10) < 0.01:  # noqa: PLR2004 # Baseline
         return f"{rounded_percentage:.1f}"  # show up to 1 decimal
-    else:
-        return f"{rounded_percentage:.2f}"  # show up to 2 decimals
+    return f"{rounded_percentage:.2f}"  # show up to 2 decimals
 
 
 async def _retrieve_sla_from_cams(
     asset_id: str,
     container_id: str,
     container_type: Literal["project", "catalog"],
-) -> Optional[SlaAssessmentSummary]:
+) -> Optional[SlaAssessmentSummary]:  # noqa: UP045 # Baseline
     """
     Extract SLA assessment information from CAMS asset response.
 
@@ -282,26 +290,30 @@ async def _retrieve_sla_from_cams(
     """
     try:
         cams_params = {f"{container_type.lower()}_id": container_id}
-        
+
         cams_response = await tool_helper_service.execute_get_request(
-            str(tool_helper_service.base_url) + CAMS_ASSETS_BASE_ENDPOINT + f"/{asset_id}",
+            str(tool_helper_service.base_url)
+            + CAMS_ASSETS_BASE_ENDPOINT
+            + f"/{asset_id}",
             params=cams_params,
         )
-        
-        cams_dict: Dict[str, Any] = cams_response if isinstance(cams_response, dict) else {}
-        
+
+        cams_dict: Dict[str, Any] = (  # noqa: UP006 # Baseline
+            cams_response if isinstance(cams_response, dict) else {}
+        )
+
         # Extract SLA data from entity.data_profile.attribute_quality
         entity = cams_dict.get("entity", {})
         data_profile = entity.get("data_profile", {})
         attribute_quality = data_profile.get("attribute_quality", {})
-        
+
         # Extract SLA fields from attribute_quality
         slas_not_violated = attribute_quality.get("slas_not_violated", [])
         slas_violated = attribute_quality.get("slas_violated", [])
         total_slas = len(slas_not_violated) + len(slas_violated)
         total_violations = attribute_quality.get("total_dq_sla_violations", 0)
         last_assessment_date = attribute_quality.get("last_dq_sla_assessment_date")
-        
+
         if total_slas > 0:
             LOGGER.info(
                 "[DQ] Extracted SLA summary from CAMS: %d SLAs, %d violations",
@@ -311,17 +323,18 @@ async def _retrieve_sla_from_cams(
             # Convert ISO 8601 timestamp to human-readable format
             human_readable_time = None
             if last_assessment_date:
-                human_readable_time = convert_iso8601_to_human_readable(last_assessment_date)
-            
+                human_readable_time = convert_iso8601_to_human_readable(
+                    last_assessment_date
+                )
+
             return SlaAssessmentSummary(
                 matching_data_quality_slas=total_slas,
                 total_data_quality_sla_violations=total_violations,
                 last_assessment_time=human_readable_time,
             )
-        else:
-            LOGGER.info("[DQ] No SLA assessment data found in CAMS asset")
-            return None
-    
+        LOGGER.info("[DQ] No SLA assessment data found in CAMS asset")
+        return None
+
     except (KeyError, TypeError, AttributeError) as e:
         LOGGER.warning(
             "[DQ] Failed to extract SLA data from CAMS response structure: %s",
@@ -354,14 +367,14 @@ async def _retrieve_data_quality(
     Returns:
         DataQuality: Data quality asset object
     """
-    
+
     params = {"asset_id": data_quality_id, f"{container_type.lower()}_id": container_id}
     response = await tool_helper_service.execute_get_request(
         str(tool_helper_service.base_url) + DATA_QUALITY_BASE_ENDPOINT + "/scores",
         params=params,
     )
 
-    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}
+    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}  # noqa: UP006 # Baseline
     scores = [
         score
         for score in response_dict.get("scores", [])
@@ -375,13 +388,14 @@ async def _retrieve_data_quality(
 
     dimension_scores = score.get("dimension_scores", [])
 
-
     # Build scores_by_dimension dictionary dynamically from all available dimension scores
     scores_by_dimension = {}
     for dimension in dimension_scores:
         dimension_name = dimension["dimension"].get("name", "").lower()
         if dimension_name:
-            scores_by_dimension[dimension_name] = _ratio_to_percentage(dimension["score"])
+            scores_by_dimension[dimension_name] = _ratio_to_percentage(
+                dimension["score"]
+            )
 
     report_url = (
         f"{tool_helper_service.ui_base_url}/data/catalogs/{container_id}/asset/{asset_id}/data-quality"
@@ -396,11 +410,12 @@ async def _retrieve_data_quality(
         sla_assessment_summary=None,
     )
 
+
 async def get_data_quality_for_asset(
     asset_id_or_name: str,
     container_id_or_name: str,
     container_type: Literal["catalog", "project"],
-    dimensions: Optional[List[str]] = None,
+    dimensions: Optional[List[str]] = None,  # noqa: UP006, UP045 # Baseline
 ) -> DataQuality:
     """
     Retrieve data quality metrics and information for a specific asset.
@@ -439,15 +454,15 @@ async def get_data_quality_for_asset(
     # Resolve container ID
     container_id = await resolve_id_or_name(
         container_id_or_name,
-        find_project_id if container_type == "project" else find_catalog_id
+        find_project_id if container_type == "project" else find_catalog_id,
     )
-    
+
     # Resolve data asset ID
     asset_id = await resolve_id_or_name(
         asset_id_or_name,
         find_asset_id,
         container_id=container_id,
-        container_type=container_type
+        container_type=container_type,
     )
 
     LOGGER.info("[DQ] Fetching data_quality_id for asset_id=%s", asset_id)
@@ -474,25 +489,25 @@ async def get_data_quality_for_asset(
 
     # Add SLA assessment summary after retrieving data quality
     data_quality.sla_assessment_summary = sla_assessment_summary
-    
+
     data_quality_model = DataQuality.model_validate(data_quality)
-    
+
     return data_quality_model
 
 
 async def _retrieve_data_quality_ids_for_assets_bulk(
-    asset_ids: List[str],
+    asset_ids: List[str],  # noqa: UP006 # Baseline
     container_id: str,
     container_type: Literal["project", "catalog"],
-) -> Dict[str, Optional[str]]:
+) -> Dict[str, Optional[str]]:  # noqa: UP006, UP045 # Baseline
     """
     Find data quality IDs for multiple data assets in bulk
-    
+
     Args:
         asset_ids: List[str]: List of asset IDs to retrieve data quality IDs for
         container_id: str: Container id
         container_type: str: Container type ("project" or "catalog")
-    
+
     Returns:
         Dict[str, Optional[str]]: Dictionary mapping each asset_id to its corresponding
             data_quality_id. Returns None as the value for assets that don't have
@@ -502,14 +517,14 @@ async def _retrieve_data_quality_ids_for_assets_bulk(
         "wkc_asset_ids": ",".join(asset_ids),
         f"{container_type.lower()}_id": container_id,
     }
-    
+
     LOGGER.info(
         "[DQ] Searching DQ assets for %d assets in container_id=%s, type=%s",
         len(asset_ids),
         container_id,
         container_type,
     )
-    
+
     try:
         response = await tool_helper_service.execute_post_request(
             str(tool_helper_service.base_url)
@@ -518,22 +533,20 @@ async def _retrieve_data_quality_ids_for_assets_bulk(
             params=params,
         )
     except ExternalAPIError:
-        raise ServiceError(
-            "[DQ] Failed to retrieve data quality IDs for assets.",
-            remediation_steps=(
-                "Call `get_data_quality_for_asset` individually for each asset."
-            ),
+        LOGGER.info(
+            "[DQ] No DQ assets found for the provided asset IDs (API returned error)"
         )
-    
+        return dict.fromkeys(asset_ids)
+
     items: list = response if isinstance(response, list) else []
 
-    asset_dq_ids: Dict[str, Optional[str]] = {}
+    asset_dq_ids: Dict[str, Optional[str]] = {}  # noqa: UP006, UP045 # Baseline
     for item in items:
         asset_id = item.get("wkc_asset_id")
         dq_id = item.get("id")
         if asset_id:
             asset_dq_ids[asset_id] = dq_id
-    
+
     for asset_id in asset_ids:
         if asset_id not in asset_dq_ids:
             asset_dq_ids[asset_id] = None
@@ -541,17 +554,17 @@ async def _retrieve_data_quality_ids_for_assets_bulk(
                 "[DQ] No data quality ID found for asset %s",
                 asset_id,
             )
-    
+
     return asset_dq_ids
 
 
 def _build_data_quality_entry(
     asset_id: str,
     dq_id: str,
-    scores_by_dq_id: Dict[str, Any],
+    scores_by_dq_id: Dict[str, Any],  # noqa: UP006 # Baseline
     container_id: str,
     container_type: str,
-) -> Optional[DataQuality]:
+) -> Optional[DataQuality]:  # noqa: UP045 # Baseline
     """Build a DataQuality object for one asset from the bulk-scores response."""
     score_entry = scores_by_dq_id.get(dq_id)
     if not score_entry:
@@ -565,8 +578,10 @@ def _build_data_quality_entry(
         return None
 
     score = actual_scores[0]
-    scores_by_dimension: Dict[str, str] = {
-        dimension["dimension"].get("name", "").lower(): _ratio_to_percentage(dimension["score"])
+    scores_by_dimension: Dict[str, str] = {  # noqa: UP006 # Baseline
+        dimension["dimension"].get("name", "").lower(): _ratio_to_percentage(
+            dimension["score"]
+        )
         for dimension in score.get("dimension_scores", [])
         if dimension["dimension"].get("name", "").lower()
     }
@@ -585,10 +600,10 @@ def _build_data_quality_entry(
 
 
 async def _retrieve_data_quality_bulk(
-    asset_dq_ids: Dict[str, Optional[str]],
+    asset_dq_ids: Dict[str, Optional[str]],  # noqa: UP006, UP045 # Baseline
     container_id: str,
     container_type: Literal["project", "catalog"],
-) -> Dict[str, Optional[DataQuality]]:
+) -> Dict[str, Optional[DataQuality]]:  # noqa: UP006, UP045 # Baseline
     """
     Retrieve data quality scores for multiple assets in parallel.
 
@@ -604,9 +619,7 @@ async def _retrieve_data_quality_bulk(
             or None if no data quality data exists or retrieval fails.
     """
     dq_ids_with_records = {
-        asset_id: dq_id
-        for asset_id, dq_id in asset_dq_ids.items()
-        if dq_id is not None
+        asset_id: dq_id for asset_id, dq_id in asset_dq_ids.items() if dq_id is not None
     }
 
     if not dq_ids_with_records:
@@ -621,11 +634,13 @@ async def _retrieve_data_quality_bulk(
     LOGGER.info("[DQ] Fetching bulk scores for %d assets", len(dq_ids_with_records))
     try:
         response = await tool_helper_service.execute_get_request(
-            str(tool_helper_service.base_url) + DATA_QUALITY_BASE_ENDPOINT + "/bulk_scores",
+            str(tool_helper_service.base_url)
+            + DATA_QUALITY_BASE_ENDPOINT
+            + "/bulk_scores",
             params=params,
         )
     except ExternalAPIError:
-        raise ServiceError(
+        raise ServiceError(  # noqa: B904 # Baseline
             "[DQ] Failed to retrieve bulk data quality scores.",
             remediation_steps=(
                 "Fall back to calling `get_data_quality_for_asset` individually for each asset."
@@ -633,14 +648,16 @@ async def _retrieve_data_quality_bulk(
         )
 
     items: list = response if isinstance(response, list) else []
-    scores_by_dq_id: Dict[str, Any] = {
+    scores_by_dq_id: Dict[str, Any] = {  # noqa: UP006 # Baseline
         entry["asset"]["id"]: entry.get("scores", [])
         for entry in items
         if entry.get("asset", {}).get("id")
     }
 
-    data_quality_map: Dict[str, Optional[DataQuality]] = {
-        asset_id: _build_data_quality_entry(asset_id, dq_id, scores_by_dq_id, container_id, container_type)
+    data_quality_map: Dict[str, Optional[DataQuality]] = {  # noqa: UP006, UP045 # Baseline
+        asset_id: _build_data_quality_entry(
+            asset_id, dq_id, scores_by_dq_id, container_id, container_type
+        )
         for asset_id, dq_id in dq_ids_with_records.items()
     }
 
@@ -659,10 +676,10 @@ async def _retrieve_data_quality_bulk(
 
 
 async def get_data_quality_for_assets(
-    asset_ids_or_names: List[str],
+    asset_ids_or_names: List[str],  # noqa: UP006 # Baseline
     container_id_or_name: str,
     container_type: Literal["catalog", "project"],
-) -> Dict[str, Optional[DataQuality]]:
+) -> Dict[str, Optional[DataQuality]]:  # noqa: UP006, UP045 # Baseline
     """
     Retrieve data quality metrics for multiple assets in bulk.
 
@@ -681,26 +698,26 @@ async def get_data_quality_for_assets(
         asset_ids_or_names: List[str]: List of asset UUIDs or names to retrieve quality metrics for
         container_id_or_name: str: Project or catalog UUID or name where the assets are located
         container_type: str: Container type ("project" or "catalog")
-    
+
     Returns:
         Dict[str, Optional[DataQuality]]: Dictionary mapping each original asset name/ID to its
             DataQuality object (overall score, dimension scores, report URL), or None if the asset
             could not be resolved or has no quality data.
     """
-    
+
     LOGGER.info(
         "[DQ] Calling get_data_quality_for_assets with %d assets, container_id_or_name=%s, container_type=%s",
         len(asset_ids_or_names),
         container_id_or_name,
         container_type,
     )
-    
+
     container_id = await resolve_id_or_name(
         container_id_or_name,
         find_project_id if container_type == "project" else find_catalog_id,
     )
 
-    async def _resolve_asset_id(asset_id_or_name: str) -> tuple[str, Optional[str]]:
+    async def _resolve_asset_id(asset_id_or_name: str) -> tuple[str, Optional[str]]:  # noqa: UP045 # Baseline
         """Helper to resolve a single asset ID."""
         try:
             asset_id = await resolve_id_or_name(
@@ -725,7 +742,9 @@ async def get_data_quality_for_assets(
         LOGGER.error("[DQ] No assets could be resolved")
         return dict.fromkeys(asset_ids_or_names)
 
-    asset_dq_ids: Dict[str, str | None] = await _retrieve_data_quality_ids_for_assets_bulk(
+    asset_dq_ids: Dict[  # noqa: UP006 # Baseline
+        str, str | None
+    ] = await _retrieve_data_quality_ids_for_assets_bulk(
         asset_ids=resolved_ids,
         container_id=container_id,
         container_type=container_type,
@@ -737,7 +756,7 @@ async def get_data_quality_for_assets(
         container_type=container_type,
     )
 
-    result: Dict[str, Optional[DataQuality]] = {}
+    result: Dict[str, Optional[DataQuality]] = {}  # noqa: UP006, UP045 # Baseline
     for original_name in asset_ids_or_names:
         resolved_id = name_to_id_map.get(original_name)
         result[original_name] = quality_map.get(resolved_id) if resolved_id else None
@@ -746,8 +765,9 @@ async def get_data_quality_for_assets(
 
 
 async def list_data_quality_rules(
-    project_id_or_name: str, data_quality_rule_name: Optional[str] = None
-) -> List[DataQualityRule]:
+    project_id_or_name: str,
+    data_quality_rule_name: Optional[str] = None,  # noqa: UP045 # Baseline
+) -> List[DataQualityRule]:  # noqa: UP006 # Baseline
     """
     Find data quality rules in the given project id or name. If data quality rule name is not provided,
     then return all the data quality rules from this project. This is typically used when the user asks to view, describe, inspect, or reference
@@ -785,24 +805,24 @@ async def run_data_quality_rule(
     project_id_or_name: str, data_quality_rule_id_or_name: str
 ) -> DataQualityRule:
     """
-       Executes a specific data quality rule and returns details about the execution. Use when the user wants to re-run a rule.
-       Do NOT use when the user only wants to view rule. Do NOT use for creating, updating, or deleting rules. Do NOT call this tool for descibe data quality rules.
-       Do NOT use when required parameters (project_id, rule_id) are missing.
+    Executes a specific data quality rule and returns details about the execution. Use when the user wants to re-run a rule.
+    Do NOT use when the user only wants to view rule. Do NOT use for creating, updating, or deleting rules. Do NOT call this tool for descibe data quality rules.
+    Do NOT use when required parameters (project_id, rule_id) are missing.
 
-       Args:
-           project_id_or_name (str): The ID or name of the project containing the data quality rule.
-           data_quality_rule_id_or_name (str): The ID or name of the data quality rule to execute.
+    Args:
+        project_id_or_name (str): The ID or name of the project containing the data quality rule.
+        data_quality_rule_id_or_name (str): The ID or name of the data quality rule to execute.
 
-       Returns:
-           DataQualityRule: An object containing complete information about the data quality rule:
-               - data_quality_rule_id: The ID of the data quality rule
-               - project_id: The ID of the project
-               - data_quality_rule_ui_url: URL to view the data quality rule in the UI
-               - data_quality_rule_name: The name of the data quality rule
+    Returns:
+        DataQualityRule: An object containing complete information about the data quality rule:
+            - data_quality_rule_id: The ID of the data quality rule
+            - project_id: The ID of the project
+            - data_quality_rule_ui_url: URL to view the data quality rule in the UI
+            - data_quality_rule_name: The name of the data quality rule
 
-       Raises:
-           ToolProcessFailedError: If the data quality rule run fails.
-           ExternalServiceError: If the data quality rule service request fails.
+    Raises:
+        ToolProcessFailedError: If the data quality rule run fails.
+        ExternalServiceError: If the data quality rule service request fails.
     """
 
     LOGGER.info(
@@ -812,11 +832,9 @@ async def run_data_quality_rule(
     )
 
     project_id = await resolve_id_or_name(project_id_or_name, find_project_id)
-    
+
     data_quality_rule_id = await resolve_id_or_name(
-        data_quality_rule_id_or_name,
-        _find_data_quality_rule_id,
-        project_id=project_id
+        data_quality_rule_id_or_name, _find_data_quality_rule_id, project_id=project_id
     )
 
     url = f"{DATA_QUALITY_V3_BASE_URL}/projects/{project_id}/rules/{data_quality_rule_id}/execute"
@@ -831,15 +849,15 @@ async def run_data_quality_rule(
             "An unexpected exception occurs during running data quality rule. (Cause=%s)",
             str(ese),
         )
-        raise ServiceError(
-            f"The execution of data quality rule '{data_quality_rule_id}' failed due to: {str(ese)}"
+        raise ServiceError(  # noqa: B904 # Baseline
+            f"The execution of data quality rule '{data_quality_rule_id}' failed due to: {ese!s}"
         )
-    
+
     # Get the rule name if it was provided as a name (not UUID)
     rule_name = None
     if data_quality_rule_id_or_name != data_quality_rule_id:
         rule_name = data_quality_rule_id_or_name
-    
+
     return DataQualityRule(
         data_quality_rule_id=data_quality_rule_id,
         project_id=project_id,
@@ -887,23 +905,23 @@ async def set_validates_data_quality_of_relation(
     )
 
     project_id = await resolve_id_or_name(project_id_or_name, find_project_id)
-    
+
     data_quality_rule_name = None
     data_quality_rule_id = await resolve_id_or_name(
-        data_quality_rule_id_or_name,
-        _find_data_quality_rule_id,
-        project_id=project_id
+        data_quality_rule_id_or_name, _find_data_quality_rule_id, project_id=project_id
     )
     if not is_uuid_bool(data_quality_rule_id_or_name):
         data_quality_rule_name = data_quality_rule_id_or_name
-    
+
     data_asset_id = await resolve_id_or_name(
         data_asset_id_or_name,
         find_asset_id,
         container_id=project_id,
-        container_type="project"
+        container_type="project",
     )
-    found_column_name = await find_dataset_column(column_name, data_asset_id, project_id)
+    found_column_name = await find_dataset_column(
+        column_name, data_asset_id, project_id
+    )
 
     url = GET_RELATIONSHIPS_URL
     query_params = {
@@ -920,10 +938,10 @@ async def set_validates_data_quality_of_relation(
             tool_name="set_validates_data_quality_of_relation",
         )
     except ExternalAPIError as ese:
-        raise ServiceError(
-            f"setting validates_data_quality_of relation failed due to {str(ese)}."
+        raise ServiceError(  # noqa: B904 # Baseline
+            f"setting validates_data_quality_of relation failed due to {ese!s}."
         )
-    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}
+    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}  # noqa: UP006 # Baseline
     existing_relationship_found = False
     target_asset_id = data_asset_id + "#COLUMN#" + found_column_name
     for resource in response_dict.get("resources", []):
@@ -967,7 +985,6 @@ async def set_validates_data_quality_of_relation(
     )
 
 
-
 async def find_data_quality_dimension_id(data_quality_dimension_name: str) -> str:
     """
     Find id of data quality dimension based on data quality dimension name.
@@ -979,11 +996,11 @@ async def find_data_quality_dimension_id(data_quality_dimension_name: str) -> st
         str: Unique identifier of the data quality dimension.
     """
     from app.shared.utils.helpers import get_closest_match
-    
+
     response = await tool_helper_service.execute_get_request(
         str(tool_helper_service.base_url) + DATA_QUALITY_BASE_ENDPOINT + "/dimensions"
     )
-    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}
+    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}  # noqa: UP006 # Baseline
     dimensions = [
         {"name": dimension["name"], "id": dimension["id"]}
         for dimension in response_dict.get("dimensions", [])
@@ -991,13 +1008,14 @@ async def find_data_quality_dimension_id(data_quality_dimension_name: str) -> st
     result_id = get_closest_match(dimensions, data_quality_dimension_name)
     if result_id:
         return result_id
-    else:
-        raise ServiceError(
-            f"Couldn't find any data quality dimension with the name '{data_quality_dimension_name}'"
-        )
+    raise ServiceError(
+        f"Couldn't find any data quality dimension with the name '{data_quality_dimension_name}'"
+    )
 
 
-async def find_dataset_column(column_name: str, dataset_id: str, project_id: str) -> str:
+async def find_dataset_column(
+    column_name: str, dataset_id: str, project_id: str
+) -> str:
     """
     Find closest matching column name from dataset in specified project.
 
@@ -1010,7 +1028,7 @@ async def find_dataset_column(column_name: str, dataset_id: str, project_id: str
         str: The matching column name
     """
     from app.shared.utils.helpers import get_closest_match
-    
+
     params = {"auth_scope": "project", "auth_cache": True, "tenant_scope": True}
     payload = {
         "query": {
@@ -1027,10 +1045,10 @@ async def find_dataset_column(column_name: str, dataset_id: str, project_id: str
     response = await tool_helper_service.execute_post_request(
         url=str(tool_helper_service.base_url) + GS_BASE_ENDPOINT,
         json=payload,
-        params=params
+        params=params,
     )
 
-    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}
+    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}  # noqa: UP006 # Baseline
     columns = []
     for row in response_dict.get("rows", []):
         columns = [
@@ -1040,19 +1058,18 @@ async def find_dataset_column(column_name: str, dataset_id: str, project_id: str
     result_id = get_closest_match(columns, column_name)
     if result_id:
         return result_id
-    else:
-        raise ServiceError(
-            f"Couldn't find any matching column with the name '{column_name}' in data asset '{dataset_id}' in project '{project_id}'"
-        )
+    raise ServiceError(
+        f"Couldn't find any matching column with the name '{column_name}' in data asset '{dataset_id}' in project '{project_id}'"
+    )
 
 
 def unescape_sql_quotes(input_str: str) -> str:
     """
     Unescape SQL quotes in the input string.
-    
+
     Args:
         input_str (str): The input string with escaped quotes.
-        
+
     Returns:
         str: The string with unescaped quotes.
     """
@@ -1063,17 +1080,17 @@ def get_data_quality_rule_payload(
     rule_name: str,
     connection_id: str,
     sql_query: str,
-    dimension_id: Optional[str] = None
-) -> Dict:
+    dimension_id: Optional[str] = None,  # noqa: UP045 # Baseline
+) -> Dict:  # noqa: UP006 # Baseline
     """
     Build the payload for creating a data quality rule.
-    
+
     Args:
         rule_name (str): The name of the data quality rule.
         connection_id (str): The ID of the connection.
         sql_query (str): The SQL query for the rule.
         dimension_id (Optional[str]): The ID of the data quality dimension.
-        
+
     Returns:
         Dict: The payload for creating the rule.
     """
@@ -1081,30 +1098,21 @@ def get_data_quality_rule_payload(
     if dimension_id:
         return {
             "name": rule_name,
-            "dimension": {
-                "id": dimension_id
-            },
+            "dimension": {"id": dimension_id},
             "input": {
                 "sql": {
-                    "connection": {
-                        "id": connection_id
-                    },
-                    "select_statement": sql_query
+                    "connection": {"id": connection_id},
+                    "select_statement": sql_query,
                 }
             },
-            "apply_all_present_dimensions": False
+            "apply_all_present_dimensions": False,
         }
-    
+
     return {
         "name": rule_name,
         "input": {
-            "sql": {
-                "connection": {
-                    "id": connection_id
-                },
-                "select_statement": sql_query
-            }
-        }
+            "sql": {"connection": {"id": connection_id}, "select_statement": sql_query}
+        },
     }
 
 
@@ -1113,7 +1121,7 @@ async def create_data_quality_rule_from_sql_query(
     connection_id_or_name: str,
     sql_query: str,
     data_quality_rule_name: str,
-    data_quality_dimension_name: Optional[str] = None,
+    data_quality_dimension_name: Optional[str] = None,  # noqa: UP045 # Baseline
 ) -> DataQualityRule:
     """
     Create a new data quality rule in a project using the provided SQL.
@@ -1151,12 +1159,12 @@ async def create_data_quality_rule_from_sql_query(
     )
 
     project_id = await resolve_id_or_name(project_id_or_name, find_project_id)
-    
+
     connection_id = await resolve_id_or_name(
         connection_id_or_name,
         find_connection_id,
         container_id=project_id,
-        container_type="project"
+        container_type="project",
     )
 
     if await _find_data_quality_rules(project_id, data_quality_rule_name, True):
@@ -1187,15 +1195,16 @@ async def create_data_quality_rule_from_sql_query(
             "An unexpected exception occurs during creating data quality rule. (Cause=%s)",
             str(ese),
         )
-        raise ServiceError(
-            f"Creation of data quality rule: '{data_quality_rule_name}' failed due to {str(ese)}."
+        raise ServiceError(  # noqa: B904 # Baseline
+            f"Creation of data quality rule: '{data_quality_rule_name}' failed due to {ese!s}."
         )
 
-
-    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}
+    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}  # noqa: UP006 # Baseline
     data_quality_rule_id = response_dict.get("id")
     if not data_quality_rule_id:
-        raise ServiceError(f"Failed to create data quality rule: '{data_quality_rule_name}'. No rule ID returned.")
+        raise ServiceError(
+            f"Failed to create data quality rule: '{data_quality_rule_name}'. No rule ID returned."
+        )
 
     return DataQualityRule(
         data_quality_rule_id=data_quality_rule_id,

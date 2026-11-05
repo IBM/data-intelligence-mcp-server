@@ -18,23 +18,23 @@ from app.core.registry import prompt_registry
 
 @prompt_registry.prompt(
     name="Lineage Impact Analysis",
-    description="Perform impact analysis using data lineage to understand downstream and upstream dependencies"
+    description="Perform impact analysis using data lineage to understand downstream and upstream dependencies",
 )
-def lineage_impact_analysis_prompt(
+def lineage_impact_analysis_prompt(  # noqa: PLR0913 # Baseline
     change: str,
     assets: str,
     technology: str,
     datasources: str,
     direction: str = "downstream",
     depth: str = "3 levels deep",
-    target_type: str = ""
+    target_type: str = "",
 ) -> str:
     """
     Provides guidance on performing impact analysis using data lineage.
-    
+
     This prompt helps users understand the impact of changes to data assets by analyzing
     lineage relationships and identifying affected downstream or upstream dependencies.
-    
+
     Args:
         change: Describe the change you are about to make (e.g., "Merge columns First Name and Last Name into a column Full Name")
         assets: List affected assets (e.g., "db1.schemaA.myTable.first_name, db1.schemaA.myTable.last_name")

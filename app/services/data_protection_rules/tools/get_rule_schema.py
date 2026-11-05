@@ -13,7 +13,7 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-from typing import Annotated
+from typing import Annotated  # noqa: F401, I001 # Baseline
 from app.core.registry import service_registry
 from app.shared.logging.generate_context import auto_context
 from app.shared.logging import LOGGER
@@ -235,28 +235,34 @@ END OF SCHEMA GUIDE
     name="get_data_protection_rule_schema",
     annotations={
         "readOnlyHint": True,
-        "title": "Get JSON Schema for Data Protection Rule Creation"
+        "title": "Get JSON Schema for Data Protection Rule Creation",
     },
     description="""Use this tool when you need to understand the JSON schema and format requirements before creating a data protection rule.
     Returns: The complete JSON schema, valid terms, examples, and formatting rules for creating data protection rules.""",
-    tags={"data_protection_rules", "schema", "reference", "metadata_management_and_governance"},
+    tags={
+        "data_protection_rules",
+        "schema",
+        "reference",
+        "metadata_management_and_governance",
+    },
     meta={"version": "1.0", "service": "data_protection_rules"},
 )
 @auto_context
 async def get_data_protection_rule_schema() -> str:
     """
     Returns the full JSON schema and examples for data protection rules.
-    
+
     This tool provides:
     - Complete list of valid terms and operators
     - JSON structure requirements
     - Multiple examples covering different rule types
     - Common pitfalls and how to avoid them
-    
+
     Returns:
         str: Complete schema guide with examples
     """
     LOGGER.info("Fetching data protection rule schema guide")
     return FULL_RULE_SCHEMA_GUIDE
+
 
 # Made with Bob

@@ -4,7 +4,7 @@
 
 """Unified tool for MDI job run control operations (pause, resume, cancel)."""
 
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Literal, Optional  # noqa: I001 # Baseline
 
 from pydantic import Field
 
@@ -33,7 +33,7 @@ from app.services.metadata_import.utils.job_control_utils import (
     validate_job_state_for_cancel,
     JOB_STATE_RUNNING,
     JOB_STATE_PAUSED,
-    JOB_STATE_QUEUED,
+    JOB_STATE_QUEUED,  # noqa: F401 # Baseline
     ACTIVE_JOB_STATES,
 )
 from app.shared.utils.tool_helper_service import tool_helper_service
@@ -66,7 +66,9 @@ _ACTION_CONFIG = {
 }
 
 
-async def _pause_resume_or_cancel_mdi_job_run(input: PauseResumeOrCancelMdiJobRunRequest) -> PauseResumeOrCancelMdiJobRunResponse:
+async def _pause_resume_or_cancel_mdi_job_run(
+    input: PauseResumeOrCancelMdiJobRunRequest,  # noqa: A002 # Baseline
+) -> PauseResumeOrCancelMdiJobRunResponse:
     """Execute a pause, resume, or cancel operation on an MDI job run."""
     LOGGER.info(
         "Calling tool 'pause_resume_or_cancel_mdi_job_run' - action=%s, projectName=%s, metadata_import_name=%s, job_run_id=%s",
@@ -78,7 +80,13 @@ async def _pause_resume_or_cancel_mdi_job_run(input: PauseResumeOrCancelMdiJobRu
 
     config = _ACTION_CONFIG[input.action]
 
-    project_id, metadata_import_id, job_id, job_run_id, current_state = await resolve_job_run_ids(
+    (
+        project_id,
+        metadata_import_id,
+        job_id,
+        job_run_id,
+        current_state,
+    ) = await resolve_job_run_ids(
         input.project_name,
         input.metadata_import_name,
         input.job_run_id,
@@ -92,7 +100,12 @@ async def _pause_resume_or_cancel_mdi_job_run(input: PauseResumeOrCancelMdiJobRu
     query_params = {"jobrun_id": job_run_id, "project_id": project_id}
     request_body = {"entity": {"job_run": {"job_ref": job_id}}}
 
-    LOGGER.debug("POST request URL: %s, params: %s, body: %s", post_url, query_params, request_body)
+    LOGGER.debug(
+        "POST request URL: %s, params: %s, body: %s",
+        post_url,
+        query_params,
+        request_body,
+    )
 
     try:
         await tool_helper_service.execute_post_request(
@@ -105,7 +118,9 @@ async def _pause_resume_or_cancel_mdi_job_run(input: PauseResumeOrCancelMdiJobRu
         # NOTE: The state returned here is a best-effort read immediately after the operation.
         # There is an eventual-consistency window where the API may still show the prior state
         # transiently. The UI URL in the response provides the authoritative live state.
-        _, new_state, mdi_job_run_url = await fetch_job_run_details(job_id, job_run_id, project_id)
+        _, new_state, mdi_job_run_url = await fetch_job_run_details(
+            job_id, job_run_id, project_id
+        )
 
         message = (
             f"The metadata import job run has been successfully {config['past_tense']}. "
@@ -114,7 +129,9 @@ async def _pause_resume_or_cancel_mdi_job_run(input: PauseResumeOrCancelMdiJobRu
             f"{config['next_hint']}"
         )
 
-        LOGGER.info("Job run %s successfully: job_run_id=%s", config['past_tense'], job_run_id)
+        LOGGER.info(
+            "Job run %s successfully: job_run_id=%s", config["past_tense"], job_run_id
+        )
 
         return PauseResumeOrCancelMdiJobRunResponse(
             message=message,
@@ -131,10 +148,12 @@ async def _pause_resume_or_cancel_mdi_job_run(input: PauseResumeOrCancelMdiJobRu
     except Exception as e:
         LOGGER.error(
             "Failed to %s job run: job_run_id=%s, error=%s",
-            input.action, job_run_id, str(e),
+            input.action,
+            job_run_id,
+            str(e),
         )
-        raise ServiceError(
-            f"Failed to {input.action} job run '{job_run_id}': {str(e)}",
+        raise ServiceError(  # noqa: B904 # Baseline
+            f"Failed to {input.action} job run '{job_run_id}': {e!s}",
             remediation_steps=(
                 "Check that the metadata import and project are accessible. "
                 "Use 'search_metadata_import' to verify the MDI exists in the project."
@@ -174,22 +193,27 @@ async def _pause_resume_or_cancel_mdi_job_run(input: PauseResumeOrCancelMdiJobRu
     - If job is in wrong state for the action: Check current state and choose the correct action
 
     Returns: Confirmation message, job details, resulting state, and UI URL.""",
-    tags={"metadata-import", "job-control","metadata_management_and_governance"},
+    tags={"metadata-import", "job-control", "metadata_management_and_governance"},
     meta={"version": "1.0", "service": "metadata-import"},
 )
 @auto_context
 async def pause_resume_or_cancel_mdi_job_run(
     project_name: Annotated[str, Field(description=DESC_PROJECT_NAME)],
     metadata_import_name: Annotated[str, Field(description=DESC_METADATA_IMPORT_NAME)],
-    action: Annotated[Literal["pause", "resume", "cancel"], Field(description=DESC_ACTION)],
-    job_run_id: Annotated[Optional[str], Field(description=DESC_JOB_RUN_ID)] = None,
+    action: Annotated[
+        Literal["pause", "resume", "cancel"], Field(description=DESC_ACTION)
+    ],
+    job_run_id: Annotated[Optional[str], Field(description=DESC_JOB_RUN_ID)] = None,  # noqa: UP045 # Baseline
 ) -> PauseResumeOrCancelMdiJobRunResponse:
     """Pause, resume, or cancel a metadata import job run."""
-    return await _pause_resume_or_cancel_mdi_job_run(PauseResumeOrCancelMdiJobRunRequest(
-        project_name=project_name,
-        metadata_import_name=metadata_import_name,
-        action=action,
-        job_run_id=job_run_id,
-    ))
+    return await _pause_resume_or_cancel_mdi_job_run(
+        PauseResumeOrCancelMdiJobRunRequest(
+            project_name=project_name,
+            metadata_import_name=metadata_import_name,
+            action=action,
+            job_run_id=job_run_id,
+        )
+    )
+
 
 # Made with Bob

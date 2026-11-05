@@ -38,7 +38,7 @@ def _skill_file_path(skill_name: str) -> Path:
         return Path(path)
 
 
-def load_skill_text(skill_name: str) -> Optional[str]:
+def load_skill_text(skill_name: str) -> Optional[str]:  # noqa: UP045 # Baseline
     """Load a skill's SKILL.md text from the installed ``skills`` package.
 
     Args:
@@ -91,5 +91,5 @@ def log_skill_injected(skill_name: str) -> None:
 # disk I/O on every request.
 # ---------------------------------------------------------------------------
 
-BUSINESS_TERM_SKILL_TEXT: Optional[str] = load_skill_text("business-term-evaluation")
-DATA_CLASS_SKILL_TEXT: Optional[str] = load_skill_text("data-class-evaluation")
+BUSINESS_TERM_SKILL_TEXT: Optional[str] = load_skill_text("business-term-evaluation")  # noqa: UP045 # Baseline
+DATA_CLASS_SKILL_TEXT: Optional[str] = load_skill_text("data-class-evaluation")  # noqa: UP045 # Baseline

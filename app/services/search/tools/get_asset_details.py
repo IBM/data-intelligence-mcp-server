@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-import asyncio
+import asyncio  # noqa: I001 # Baseline
 import re
 from typing import Optional, Annotated
 from pydantic import Field
@@ -27,12 +27,15 @@ from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.helpers import is_uuid_bool
 from app.services.constants import CAMS_ASSETS_BASE_ENDPOINT
 
+
 async def _get_asset_details(
-    request: GetAssetDetailsRequest
+    request: GetAssetDetailsRequest,
 ) -> GetAssetDetailsResponse:
-    #Validate the request
+    # Validate the request
     if not request.asset:
-        error_msg = "Asset identifier cannot be empty. Please provide a valid asset id or name."
+        error_msg = (
+            "Asset identifier cannot be empty. Please provide a valid asset id or name."
+        )
         LOGGER.error(error_msg)
         raise ServiceError(error_msg)
     if not request.catalog and not request.project:
@@ -48,7 +51,7 @@ async def _get_asset_details(
         "Starting get asset details search with asset: '%s', catalog id: '%s' and project id: '%s'",
         request.asset,
         request.catalog,
-        request.project
+        request.project,
     )
 
     container_type = "catalog" if request.catalog else "project"
@@ -61,13 +64,13 @@ async def _get_asset_details(
 
     params = {
         container_type + "_id": container_id,
-        "hide_deprecated_response_fields": False
+        "hide_deprecated_response_fields": False,
     }
 
     response = await tool_helper_service.execute_get_request(
-        url=f"{str(tool_helper_service.base_url)}{CAMS_ASSETS_BASE_ENDPOINT}/{asset_id}",
+        url=f"{tool_helper_service.base_url!s}{CAMS_ASSETS_BASE_ENDPOINT}/{asset_id}",
         params=params,
-        tool_name="get_asset_details"
+        tool_name="get_asset_details",
     )
 
     output = None
@@ -76,17 +79,16 @@ async def _get_asset_details(
         output = await retrieve_asset_metadata(metadata)
         output.entity = response.get("entity", {})
     else:
-        raise ServiceError(
-            f"Could not find metadata for asset {request.asset}"
-        )
+        raise ServiceError(f"Could not find metadata for asset {request.asset}")
 
     return output
+
 
 @service_registry.tool(
     name="get_asset_details",
     annotations={
         "readOnlyHint": True,
-        "title": "Get Comprehensive Metadata and Details for a Specific Asset"
+        "title": "Get Comprehensive Metadata and Details for a Specific Asset",
     },
     description="""Use this tool when you need comprehensive metadata and details for a specific asset identified by name or UUID.
                     Understand user's request about getting an asset's details / metadata and return the retrieved metadata.
@@ -108,24 +110,35 @@ async def _get_asset_details(
                     - Asset parameter is required, either name or UUID
                     - One of catalog or project parameters is required to be not null, both cannot be null, both cannot be not null
                     - Invalid values will result in errors
-                    Return: Comprehensive asset metadata including usage information, ROV details, asset properties (name, description, tags, type), ownership details, creation/update timestamps, ratings, container information, and entity details.""",
+                    Return: Comprehensive asset metadata including usage information, ROV details, asset properties (name, description, tags, type), ownership details, creation/update timestamps, ratings, container information, and entity details.""",  # noqa: W293 # Baseline
     tags={"search", "asset_metadata", "metadata_management_and_governance"},
-    meta={"version": "1.0", "service": "search"}
+    meta={"version": "1.0", "service": "search"},
 )
 @auto_context
 async def get_asset_details(
-    asset: Annotated[str, Field(description="UUID or name of the asset to retrieve the metadata for")],
-    catalog: Annotated[Optional[str], Field(description="Catalog identifier (UUID or name) in which the asset resides")],
-    project: Annotated[Optional[str], Field(description="Project identifier (UUID or name) in which the asset resides")]
+    asset: Annotated[
+        str, Field(description="UUID or name of the asset to retrieve the metadata for")
+    ],
+    catalog: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Catalog identifier (UUID or name) in which the asset resides"
+        ),
+    ],
+    project: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Project identifier (UUID or name) in which the asset resides"
+        ),
+    ],
 ) -> GetAssetDetailsResponse:
     """Wrapper that expands GetAssetDetailsRequest object into individual parameters."""
 
-    request = GetAssetDetailsRequest(
-        asset=asset, catalog=catalog, project=project
-    )
+    request = GetAssetDetailsRequest(asset=asset, catalog=catalog, project=project)
 
     # Call the original get_asset_details function
     return await _get_asset_details(request)
+
 
 async def _get_user_info(iam_id: str) -> tuple[str, str]:
     """
@@ -134,10 +147,10 @@ async def _get_user_info(iam_id: str) -> tuple[str, str]:
     Returns empty strings if IAM ID is None, empty string, or whitespace.
     Skips processing for ServiceId patterns (e.g. iam-ServiceId-*, iam-Service_Id-*).
     Optimized to make concurrent API calls for name and email.
-    
+
     Args:
         iam_id (str): IAM ID of the user
-        
+
     Returns:
         tuple[str, str]: A tuple containing (name, email)
     """
@@ -148,14 +161,14 @@ async def _get_user_info(iam_id: str) -> tuple[str, str]:
     # skip traversing from user_profiles.
     # ServiceId pattern matches any occurrence of "service" followed by optional separator and "id" (case-insensitive)
     # Examples: icp4d-dev, serviceid, ServiceId, Service_Id, service-id etc.
-    service_id_pattern = re.compile(r'service[-_]?id', re.IGNORECASE)
+    service_id_pattern = re.compile(r"service[-_]?id", re.IGNORECASE)
     if iam_id == "icp4d-dev" or service_id_pattern.search(iam_id):
         return iam_id, iam_id
-    
+
     # Make both calls concurrently to optimize performance
     name, email = await asyncio.gather(
         get_user_info_from_iam_id(iam_id, "name"),
-        get_user_info_from_iam_id(iam_id, "email")
+        get_user_info_from_iam_id(iam_id, "email"),
     )
     return name, email
 
@@ -171,36 +184,35 @@ async def retrieve_asset_metadata(metadata: dict[str, any]) -> GetAssetDetailsRe
     Returns:
         GetAssetDetailsResponse: An object of GetAssetDetailsResponse class with populated attributes
     """
-    
+
     # Retrieve user information concurrently for better performance
     # Use .get() with default values to handle missing fields gracefully
-    owner_id = metadata.get("owner_id", None)
+    owner_id = metadata.get("owner_id")
     creator_id = metadata.get("creator_id", "")
-    
+
     (owner_name, owner_email), (creator_name, creator_email) = await asyncio.gather(
-        _get_user_info(owner_id or ""),
-        _get_user_info(creator_id)
+        _get_user_info(owner_id or ""), _get_user_info(creator_id)
     )
 
     return GetAssetDetailsResponse(
         usage=await retrieve_asset_usage(metadata.get("usage", {})),
         rov=retrieve_rov(metadata.get("rov", {})),
-        sub_container_id=metadata.get("sub_container_id", None),
+        sub_container_id=metadata.get("sub_container_id"),
         is_linked_with_sub_container=metadata["is_linked_with_sub_container"],
         name=metadata["name"],
-        description=metadata.get("description", None),
-        tags=metadata.get("tags", None),
+        description=metadata.get("description"),
+        tags=metadata.get("tags"),
         asset_type=metadata["asset_type"],
-        origin_country=metadata.get("origin_country", None),
-        resource_key=metadata["resource_key"],
-        identity_key=metadata.get("identity_key", None),
-        delete_processing_state=metadata.get("delete_processing_state", None),
-        delete_reason=metadata.get("delete_reason", None),
+        origin_country=metadata.get("origin_country"),
+        resource_key=metadata.get("resource_key"),
+        identity_key=metadata.get("identity_key"),
+        delete_processing_state=metadata.get("delete_processing_state"),
+        delete_reason=metadata.get("delete_reason"),
         rating=metadata["rating"],
         total_ratings=metadata["total_ratings"],
-        catalog_id=metadata.get("catalog_id", None),
-        project_id=metadata.get("project_id", None),
-        space_id=metadata.get("space_id", None),
+        catalog_id=metadata.get("catalog_id"),
+        project_id=metadata.get("project_id"),
+        space_id=metadata.get("space_id"),
         created=metadata["created"],
         created_at=metadata["created_at"],
         owner_id=owner_id,
@@ -209,22 +221,23 @@ async def retrieve_asset_metadata(metadata: dict[str, any]) -> GetAssetDetailsRe
         size=metadata["size"],
         version=metadata["version"],
         asset_state=metadata.get("asset_state", "available"),
-        asset_attributes=metadata.get("asset_attributes", None),
+        asset_attributes=metadata.get("asset_attributes"),
         asset_id=metadata["asset_id"],
         source_asset=retrieve_source_asset(metadata.get("source_asset", {})),
         asset_category=metadata.get("asset_category", "USER"),
-        revision_id=metadata.get("revision_id", None),
-        number_of_shards=metadata.get("number_of_shards", None),
+        revision_id=metadata.get("revision_id"),
+        number_of_shards=metadata.get("number_of_shards"),
         creator_id=creator_id,
         creator_name=creator_name,
         creator_email=creator_email,
-        is_branched=metadata.get("is_branched", None),
-        set_id=metadata.get("set_id", None),
+        is_branched=metadata.get("is_branched"),
+        set_id=metadata.get("set_id"),
         is_managed_asset=metadata.get("is_managed_asset", False),
-        entity={}
+        entity={},
     )
 
-def retrieve_source_asset(source_asset_info: dict[str, any]) -> Optional[SourceAsset]:
+
+def retrieve_source_asset(source_asset_info: dict[str, any]) -> Optional[SourceAsset]:  # noqa: UP045 # Baseline
     """
     Extracts the source asset information from asset metadata response
     and returns it.
@@ -239,18 +252,19 @@ def retrieve_source_asset(source_asset_info: dict[str, any]) -> Optional[SourceA
         return None
 
     return SourceAsset(
-        action=source_asset_info.get("action", None),
-        catalog_id=source_asset_info.get("catalog_id", None),
-        project_id=source_asset_info.get("project_id", None),
-        space_id=source_asset_info.get("space_id", None),
-        asset_id=source_asset_info.get("asset_id", None),
-        revision_id=source_asset_info.get("revision_id", None),
-        bss_account_id=source_asset_info.get("bss_account_id", None),
+        action=source_asset_info.get("action"),
+        catalog_id=source_asset_info.get("catalog_id"),
+        project_id=source_asset_info.get("project_id"),
+        space_id=source_asset_info.get("space_id"),
+        asset_id=source_asset_info.get("asset_id"),
+        revision_id=source_asset_info.get("revision_id"),
+        bss_account_id=source_asset_info.get("bss_account_id"),
         asset_name=source_asset_info["asset_name"],
-        source_url=source_asset_info.get("source_url", None),
-        resource_key=source_asset_info.get("resource_key", None),
-        identity_key=source_asset_info.get("identity_key", None)
+        source_url=source_asset_info.get("source_url"),
+        resource_key=source_asset_info.get("resource_key"),
+        identity_key=source_asset_info.get("identity_key"),
     )
+
 
 def retrieve_rov(rov_info: dict[str, any]) -> Rov:
     """
@@ -267,8 +281,7 @@ def retrieve_rov(rov_info: dict[str, any]) -> Rov:
     member_roles = []
     for member in rov_info.get("member_roles", {}).values():
         member_role = MemberRoles(
-            user_iam_id=member.get("user_iam_id", None),
-            roles=member.get("roles", None)
+            user_iam_id=member.get("user_iam_id", None), roles=member.get("roles", None)
         )
         member_roles.append(member_role)
 
@@ -277,8 +290,9 @@ def retrieve_rov(rov_info: dict[str, any]) -> Rov:
     return Rov(
         mode=rov_info["mode"],
         collaborator_ids=collaborator_ids,
-        member_roles=member_roles
+        member_roles=member_roles,
     )
+
 
 async def retrieve_asset_usage(usage_info: dict[str, any]) -> AssetUsage:
     """
@@ -291,15 +305,17 @@ async def retrieve_asset_usage(usage_info: dict[str, any]) -> AssetUsage:
     Returns:
         AssetUsage: An object of AssetUsage class with populated attributes
     """
-    
+
     # Retrieve user information concurrently for better performance
     # Use .get() with default values to handle missing fields gracefully
     last_updater_id = usage_info.get("last_updater_id", "")
     last_accessor_id = usage_info.get("last_accessor_id", "")
-    
-    (last_updater_name, last_updater_email), (last_accessor_name, last_accessor_email) = await asyncio.gather(
-        _get_user_info(last_updater_id),
-        _get_user_info(last_accessor_id)
+
+    (
+        (last_updater_name, last_updater_email),
+        (last_accessor_name, last_accessor_email),
+    ) = await asyncio.gather(
+        _get_user_info(last_updater_id), _get_user_info(last_accessor_id)
     )
 
     return AssetUsage(
@@ -313,5 +329,5 @@ async def retrieve_asset_usage(usage_info: dict[str, any]) -> AssetUsage:
         last_accessor_id=last_accessor_id,
         last_accessor_name=last_accessor_name,
         last_accessor_email=last_accessor_email,
-        access_count=usage_info["access_count"]
+        access_count=usage_info["access_count"],
     )

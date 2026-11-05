@@ -2,8 +2,11 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from app.core.registry import service_registry
-from app.services.connections.models.copy_connection import CopyConnectionRequest, CopyConnectionResponse
+from app.core.registry import service_registry  # noqa: I001 # Baseline
+from app.services.connections.models.copy_connection import (
+    CopyConnectionRequest,
+    CopyConnectionResponse,
+)
 
 from typing import Optional, Literal, Annotated
 from pydantic import Field
@@ -21,9 +24,8 @@ from app.services.tool_utils import (
     find_connection_id,
 )
 
-async def _copy_connection(
-    request: CopyConnectionRequest
-) -> CopyConnectionResponse:
+
+async def _copy_connection(request: CopyConnectionRequest) -> CopyConnectionResponse:
 
     # Analyze and fix the request parameters
     source_catalog = request.source_catalog or ""
@@ -33,36 +35,37 @@ async def _copy_connection(
         request.connection_name,
         source_catalog,
         request.target_container,
-        request.target_container_type
+        request.target_container_type,
     )
 
     source_catalog_id = await retrieve_container_id(source_catalog, "catalog")
-    target_container_id = await retrieve_container_id(request.target_container, request.target_container_type)
+    target_container_id = await retrieve_container_id(
+        request.target_container, request.target_container_type
+    )
 
-    connection_id = await find_connection_id(request.connection_name, source_catalog_id, "catalog")
+    connection_id = await find_connection_id(
+        request.connection_name, source_catalog_id, "catalog"
+    )
 
     headers = {
         "accept": JSON_PLUS_UTF8_ACCEPT_TYPE,
-        "Skip-Enforcement" : "false",
-        "Content-Type": JSON_PLUS_UTF8_ACCEPT_TYPE
+        "Skip-Enforcement": "false",
+        "Content-Type": JSON_PLUS_UTF8_ACCEPT_TYPE,
     }
     params = {
         "test": True,
         "persist": True,
         request.target_container_type + "_id": target_container_id,
-        "userfs": False
+        "userfs": False,
     }
-    payload = {
-        "ref_catalog_id": source_catalog_id,
-        "ref_asset_id": connection_id
-    }
+    payload = {"ref_catalog_id": source_catalog_id, "ref_asset_id": connection_id}
 
     response = await tool_helper_service.execute_post_request(
         url=f"{tool_helper_service.base_url}{CONNECTIONS_BASE_ENDPOINT}",
         headers=headers,
         params=params,
         json=payload,
-        tool_name="copy_connection"
+        tool_name="copy_connection",
     )
 
     output = None
@@ -73,7 +76,7 @@ async def _copy_connection(
             id=metadata["asset_id"],
             name=connection_name,
             create_time=metadata["create_time"],
-            creator_id=metadata["creator_id"]
+            creator_id=metadata["creator_id"],
         )
     else:
         raise ServiceError(
@@ -82,11 +85,12 @@ async def _copy_connection(
 
     return output
 
+
 @service_registry.tool(
     name="copy_connection",
     annotations={
         "title": "Create Connection Copy in Target Container",
-        "destructiveHint": True
+        "destructiveHint": True,
     },
     description="""Use this tool when you need to create a new connection from an existing connection,
                     in other words, copying a connection, or using an existing connection in a different
@@ -113,16 +117,31 @@ async def _copy_connection(
                     - target_container_type if not provided defaults to "project"
                     - connection to be copied can only exist in a catalog
                     Return: * id: Unique identifier of the newly created connection * name: Name of the newly created connection * create_time: Timestamp when the connection was created or copied * creator_id: Identifier of the user who copied the connection. 
-                    """,
+                    """,  # noqa: W291 # Baseline
     tags={"copy", "connection", "metadata_management_and_governance"},
-    meta={"version": "1.0", "service": "connections"}
+    meta={"version": "1.0", "service": "connections"},
 )
 @auto_context
 async def copy_connection(
-    connection_name: Annotated[str, Field(description="Name of the existing connection to copy.")],
-    target_container: Annotated[str, Field(description="Name or UUID of the project or catalog to copy the connection to.")],
-    source_catalog: Annotated[Optional[str], Field(description="Name or UUID of the catalog that contains the connection to copy.")] = None,
-    target_container_type: Annotated[Literal["catalog", "project"], Field(description="The container type of the target container.")] = "project",
+    connection_name: Annotated[
+        str, Field(description="Name of the existing connection to copy.")
+    ],
+    target_container: Annotated[
+        str,
+        Field(
+            description="Name or UUID of the project or catalog to copy the connection to."
+        ),
+    ],
+    source_catalog: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Name or UUID of the catalog that contains the connection to copy."
+        ),
+    ] = None,
+    target_container_type: Annotated[
+        Literal["catalog", "project"],
+        Field(description="The container type of the target container."),
+    ] = "project",
 ) -> CopyConnectionResponse:
     """Wrapper version that expands CopyConnectionRequest object into individual parameters."""
 

@@ -20,7 +20,7 @@ from app.services.glossary.tools.import_glossary_status import (
     import_glossary_status,
 )
 
-__all__ = [
+__all__ = [  # noqa: RUF022 # Baseline
     "explain_glossary_artifact",
     "get_asset_glossary_artifacts",
     "import_glossary_from_csv",

@@ -2,15 +2,15 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field  # noqa: I001 # Baseline
 from app.shared.models import BaseResponseModel
-from typing import Dict, List, Literal
+from typing import Dict, List, Literal  # noqa: UP035 # Baseline
 
 
 class GetDataQualityForAssetsRequest(BaseModel):
     """Request model for bulk data quality retrieval."""
 
-    asset_ids_or_names: List[str] = Field(
+    asset_ids_or_names: List[str] = Field(  # noqa: UP006 # Baseline
         ...,
         description="List of asset UUIDs or names. "
         "Example: ['customer_data_2023', 'sales_records_q2', 'inventory_management']",
@@ -32,7 +32,7 @@ class AssetDataQuality(BaseModel):
         ..., description="Asset UUID or name as provided in the request"
     )
     overall: str = Field(..., description="Overall quality score (percentage)")
-    scores_by_dimension: Dict[str, str] = Field(
+    scores_by_dimension: Dict[str, str] = Field(  # noqa: UP006 # Baseline
         default_factory=dict,
         description="Quality scores by dimension (e.g., consistency: '96.0', validity: '95.0'). "
         "Common dimensions: consistency, validity, completeness, timeliness, accuracy",
@@ -45,7 +45,7 @@ class AssetDataQuality(BaseModel):
 class GetDataQualityForAssetsResponse(BaseResponseModel):
     """Response model for bulk data quality retrieval."""
 
-    assets: List[AssetDataQuality] = Field(
+    assets: List[AssetDataQuality] = Field(  # noqa: UP006 # Baseline
         default_factory=list,
         description="List of asset quality metrics. Only includes assets with available quality data.",
     )

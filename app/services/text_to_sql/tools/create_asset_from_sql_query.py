@@ -4,10 +4,10 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-from functools import partial
+from functools import partial  # noqa: I001 # Baseline
 import re
 import time
-from typing import Dict, Any, Annotated, Optional
+from typing import Dict, Any, Annotated, Optional  # noqa: UP035 # Baseline
 from pydantic import Field
 
 from app.core.registry import service_registry
@@ -29,87 +29,101 @@ from app.shared.ui_message.ui_agentic_utils import (
     CardComponent,
 )
 
-REMEDIATION_STEPS_MESSAGE= "Provide correct SQL query. Only Single SELECT queries without comments will be accepted. "
+REMEDIATION_STEPS_MESSAGE = "Provide correct SQL query. Only Single SELECT queries without comments will be accepted. "
+
 
 def _validate_sql_query(sql_query: str) -> None:
     """
     Validate SQL query to prevent SQL injection and dangerous operations.
-    
+
     This function checks for:
     1. Multiple statements (semicolon-separated)
     2. Dangerous SQL keywords (DROP, DELETE, UPDATE, INSERT, ALTER, TRUNCATE, etc.)
     3. SQL comments that could hide malicious code
-    
+
     Args:
         sql_query: The SQL query to validate
-        
+
     Raises:
         ServiceError: If the query contains dangerous patterns
     """
     if not sql_query or not sql_query.strip():
-        raise ServiceError("SQL query cannot be empty",
-        remediation_steps = REMEDIATION_STEPS_MESSAGE,
-        tool = "create_asset_from_sql_query")
-    
+        raise ServiceError(
+            "SQL query cannot be empty",
+            remediation_steps=REMEDIATION_STEPS_MESSAGE,
+            tool="create_asset_from_sql_query",
+        )
+
     # Remove leading/trailing whitespace
     query = sql_query.strip()
-    
+
     # Check for multiple statements (SQL injection attempt)
     # Split by semicolon but ignore semicolons in strings
     statements = re.split(r';(?=(?:[^\'"]|[\'"][^\'"]*[\'"])*$)', query)
     # Filter out empty statements (trailing semicolons are ok)
     non_empty_statements = [s.strip() for s in statements if s.strip()]
-    
+
     if len(non_empty_statements) > 1:
         raise ServiceError(
             "SQL injection attempt detected: Multiple SQL statements are not allowed. "
             "Only single SELECT queries are permitted.",
-        remediation_steps = REMEDIATION_STEPS_MESSAGE,
-        tool="create_asset_from_sql_query"
+            remediation_steps=REMEDIATION_STEPS_MESSAGE,
+            tool="create_asset_from_sql_query",
         )
-    
+
     # Check for dangerous SQL keywords (case-insensitive)
     # These operations should not be allowed in a query asset
     dangerous_keywords = [
-        r'\bDROP\b', r'\bDELETE\b', r'\bUPDATE\b', r'\bINSERT\b',
-        r'\bALTER\b', r'\bTRUNCATE\b', r'\bCREATE\b', r'\bREPLACE\b',
-        r'\bEXEC\b', r'\bEXECUTE\b', r'\bGRANT\b', r'\bREVOKE\b',
-        r'\bMERGE\b', r'\bCALL\b', r'\bRENAME\b'
+        r"\bDROP\b",
+        r"\bDELETE\b",
+        r"\bUPDATE\b",
+        r"\bINSERT\b",
+        r"\bALTER\b",
+        r"\bTRUNCATE\b",
+        r"\bCREATE\b",
+        r"\bREPLACE\b",
+        r"\bEXEC\b",
+        r"\bEXECUTE\b",
+        r"\bGRANT\b",
+        r"\bREVOKE\b",
+        r"\bMERGE\b",
+        r"\bCALL\b",
+        r"\bRENAME\b",
     ]
-    
+
     query_upper = query.upper()
     for keyword_pattern in dangerous_keywords:
         if re.search(keyword_pattern, query_upper):
-            keyword = keyword_pattern.replace(r'\b', '').replace('\\', '')
+            keyword = keyword_pattern.replace(r"\b", "").replace("\\", "")
             raise ServiceError(
                 f"Dangerous SQL operation detected: {keyword} statements are not allowed. "
                 f"Only SELECT queries are permitted for creating query assets.",
-                remediation_steps = REMEDIATION_STEPS_MESSAGE,
-                tool = "create_asset_from_sql_query"
+                remediation_steps=REMEDIATION_STEPS_MESSAGE,
+                tool="create_asset_from_sql_query",
             )
-    
+
     # Check for SQL comments that could hide malicious code
     comment_patterns = [
-        r'--',  # Single-line comment
-        r'/\*',  # Multi-line comment start
-        r'\*/',  # Multi-line comment end
+        r"--",  # Single-line comment
+        r"/\*",  # Multi-line comment start
+        r"\*/",  # Multi-line comment end
     ]
-    
+
     for pattern in comment_patterns:
         if re.search(pattern, query):
             raise ServiceError(
                 "SQL comments are not allowed in query assets as they could hide malicious code.",
-                remediation_steps = REMEDIATION_STEPS_MESSAGE,
-                tool = "create_asset_from_sql_query"
+                remediation_steps=REMEDIATION_STEPS_MESSAGE,
+                tool="create_asset_from_sql_query",
             )
-    
+
     # Ensure the query starts with SELECT (case-insensitive)
-    if not re.match(r'^\s*SELECT\b', query, re.IGNORECASE):
+    if not re.match(r"^\s*SELECT\b", query, re.IGNORECASE):
         raise ServiceError(
             "Only SELECT queries are allowed for creating query assets. "
             "The query must start with SELECT.",
-            remediation_steps = REMEDIATION_STEPS_MESSAGE,
-            tool="create_asset_from_sql_query"
+            remediation_steps=REMEDIATION_STEPS_MESSAGE,
+            tool="create_asset_from_sql_query",
         )
 
 
@@ -126,11 +140,15 @@ def _map_created_asset_to_card(name: str, sql_query: str, url: str) -> CardCompo
 
 
 def _build_asset_payload(
-    container_id, container_type, connection_id, sql_query, asset_name=None
-) -> Dict[str, Any]:
+    container_id,  # noqa: ANN001 # Baseline
+    container_type,  # noqa: ANN001 # Baseline
+    connection_id,  # noqa: ANN001 # Baseline
+    sql_query,  # noqa: ANN001 # Baseline
+    asset_name=None,  # noqa: ANN001 # Baseline
+) -> Dict[str, Any]:  # noqa: UP006 # Baseline
     """
     Build the complete asset payload from the request.
-    
+
     Note: SQL query validation should be done before calling this function.
     """
     asset_name = (
@@ -198,7 +216,7 @@ async def _create_asset_from_sql_query(
         request.connection_id_or_name,
         request.asset_name,
     )
-    
+
     # Validate SQL query for security before processing
     _validate_sql_query(request.sql_query)
 
@@ -240,7 +258,9 @@ async def _create_asset_from_sql_query(
 
     ui_message_context.add_card_ui_message(
         "create_asset_from_sql_query",
-        _map_created_asset_to_card(payload["metadata"]["name"], request.sql_query, asset_url),
+        _map_created_asset_to_card(
+            payload["metadata"]["name"], request.sql_query, asset_url
+        ),
     )
 
     return CreateAssetFromSqlQueryResponse(asset_url=asset_url)
@@ -254,16 +274,35 @@ async def _create_asset_from_sql_query(
   Returns: The URL of the newly created data asset in the specified catalog or project.""",
     annotations={
         "title": "Create an Asset from a SQL SELECT Query",
-        "destructiveHint": True
-    }
+        "destructiveHint": True,
+    },
 )
 @auto_context
 async def create_asset_from_sql_query(
-    sql_query: Annotated[str, Field(description="The SQL query generated by the 'generate_sql' agent.")],
-    container_id_or_name: Annotated[str, Field(description="UUID or name of the container where the asset will be created.")],
-    container_type: Annotated[str, Field(description="Type of the container, either 'catalog' or 'project'.")],
-    connection_id_or_name: Annotated[str, Field(description="UUID or name of the connection to associate with the SQL query.")],
-    asset_name: Annotated[Optional[str], Field(description="Optional custom name for the created asset. If not provided, a timestamp-based name will be generated.")] = None,
+    sql_query: Annotated[
+        str, Field(description="The SQL query generated by the 'generate_sql' agent.")
+    ],
+    container_id_or_name: Annotated[
+        str,
+        Field(
+            description="UUID or name of the container where the asset will be created."
+        ),
+    ],
+    container_type: Annotated[
+        str, Field(description="Type of the container, either 'catalog' or 'project'.")
+    ],
+    connection_id_or_name: Annotated[
+        str,
+        Field(
+            description="UUID or name of the connection to associate with the SQL query."
+        ),
+    ],
+    asset_name: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Optional custom name for the created asset. If not provided, a timestamp-based name will be generated."
+        ),
+    ] = None,
 ) -> CreateAssetFromSqlQueryResponse:
     """Wrapper version that expands CreateAssetFromSqlQueryRequest object into individual parameters."""
 

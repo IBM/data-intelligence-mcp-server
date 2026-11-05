@@ -4,7 +4,7 @@
 
 """Tool for checking the status of a glossary CSV import process."""
 
-from fastmcp import Context
+from fastmcp import Context  # noqa: I001 # Baseline
 
 from app.core.registry import service_registry
 from app.core.settings import settings
@@ -21,9 +21,7 @@ from app.shared.utils.glossary_import_utils import (
     log_children_statuses,
 )
 from app.shared.utils.tool_helper_service import tool_helper_service
-from app.services.glossary.constants import (
-    GLOSSARY_IMPORT_STATUS_ENDPOINT
-)
+from app.services.glossary.constants import GLOSSARY_IMPORT_STATUS_ENDPOINT
 from typing import Annotated
 from pydantic import Field
 
@@ -46,13 +44,15 @@ Status values:
 - IN_PROGRESS: Import still running""",
     annotations={
         "readOnlyHint": True,
-        "title": "Check the Status of a Glossary Import Process"
+        "title": "Check the Status of a Glossary Import Process",
     },
-    tags={"metadata_management_and_governance"}
+    tags={"metadata_management_and_governance"},
 )
 @auto_context
 async def import_glossary_status(
-    process_id: Annotated[str, Field(description="process_id for on going glossary import")],
+    process_id: Annotated[
+        str, Field(description="process_id for on going glossary import")
+    ],
     ctx: Context | None = None,
 ) -> ImportGlossaryStatusResult:
     LOGGER.info(f"import_glossary_status called for process_id={process_id}")
@@ -74,7 +74,9 @@ async def import_glossary_status(
 
         operations_by_type: dict[str, dict[str, int]] = {}
         if status_response.operations_count:
-            operations_by_type = count_operations(status_response.operations_count, "glossary")
+            operations_by_type = count_operations(
+                status_response.operations_count, "glossary"
+            )
 
         # Handle completion statuses
         if status_response.status == "SUCCEEDED":
@@ -111,4 +113,4 @@ async def import_glossary_status(
     except ServiceError:
         raise
     except Exception as e:
-        raise ServiceError(f"Failed to get import_glossary_status: {e!s}")
+        raise ServiceError(f"Failed to get import_glossary_status: {e!s}")  # noqa: B904 # Baseline

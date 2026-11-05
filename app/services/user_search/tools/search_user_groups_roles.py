@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Optional, Literal, Union, List, Annotated
+from typing import Optional, Literal, Union, List, Annotated  # noqa: I001, UP035 # Baseline
 from pydantic import Field
 from app.core.registry import service_registry
 from app.services.user_search.models.search_user_groups_roles import (
@@ -26,29 +26,32 @@ TABLE_TITLE_SEARCH_USERS = "Search Users"
 TABLE_TITLE_SEARCH_USER_GROUPS = "Search User Groups"
 TABLE_TITLE_SEARCH_USER_ROLES = "Search User roles"
 
+
 def format_artifacts_for_table(
-    results: Union[List[UserSearchResult], List[GroupSearchResult], List[RoleSearchResult]]
-) -> List[dict]:
+    results: Union[  # noqa: UP007 # Baseline
+        List[UserSearchResult], List[GroupSearchResult], List[RoleSearchResult]  # noqa: UP006 # Baseline
+    ],
+) -> List[dict]:  # noqa: UP006 # Baseline
     """
     Format search results by changing keys to Title Case for table display.
-    
+
     Handles three types of results:
     - UserSearchResult: Formats user_id, username, display_name, email, state
     - GroupSearchResult: Formats group_id, group_name, description, state
     - RoleSearchResult: Formats role_key, role_name, description
-    
+
     Args:
         results: List of search results (users, groups, or roles)
-        
+
     Returns:
         List of dictionaries with Title Case keys for table display
     """
     if not results:
         return []
-    
+
     # Determine result type by checking first item
     first_result = results[0]
-    
+
     if isinstance(first_result, UserSearchResult):
         # Type narrowing for users
         user_results = [r for r in results if isinstance(r, UserSearchResult)]
@@ -62,7 +65,7 @@ def format_artifacts_for_table(
             }
             for result in user_results
         ]
-    elif isinstance(first_result, GroupSearchResult):
+    if isinstance(first_result, GroupSearchResult):
         # Type narrowing for groups
         group_results = [r for r in results if isinstance(r, GroupSearchResult)]
         return [
@@ -74,7 +77,7 @@ def format_artifacts_for_table(
             }
             for result in group_results
         ]
-    elif isinstance(first_result, RoleSearchResult):
+    if isinstance(first_result, RoleSearchResult):
         # Type narrowing for roles
         role_results = [r for r in results if isinstance(r, RoleSearchResult)]
         return [
@@ -85,47 +88,59 @@ def format_artifacts_for_table(
             }
             for result in role_results
         ]
-    else:
-        # Fallback: return empty list if unknown type
-        LOGGER.warning(f"Unknown result type: {type(first_result)}")
-        return []
+    # Fallback: return empty list if unknown type
+    LOGGER.warning(f"Unknown result type: {type(first_result)}")
+    return []
 
 
-async def _execute_search_by_type(request: UnifiedSearchRequest):
+async def _execute_search_by_type(request: UnifiedSearchRequest):  # noqa: ANN202 # Baseline
     """
     Execute search based on search_type and return results with metadata.
-    
+
     Returns:
         Tuple of (results, total_count, entity_name, id_field)
     """
     if request.search_type == "user":
         results, total_count = await search_users_by_query(query=request.query)
         format_response = format_artifacts_for_table(results)
-        ui_message_context.add_table_ui_message(tool_name="search_user_groups_roles",
-                         formatted_data=format_response, title=TABLE_TITLE_SEARCH_USERS)
+        ui_message_context.add_table_ui_message(
+            tool_name="search_user_groups_roles",
+            formatted_data=format_response,
+            title=TABLE_TITLE_SEARCH_USERS,
+        )
         return results, total_count, "user", "user_id"
-    
+
     if request.search_type == "group":
         results, total_count = await search_groups_by_query(query=request.query)
         format_response = format_artifacts_for_table(results)
-        ui_message_context.add_table_ui_message(tool_name="search_user_groups_roles",
-                         formatted_data=format_response, title=TABLE_TITLE_SEARCH_USER_GROUPS)
+        ui_message_context.add_table_ui_message(
+            tool_name="search_user_groups_roles",
+            formatted_data=format_response,
+            title=TABLE_TITLE_SEARCH_USER_GROUPS,
+        )
         return results, total_count, "group", "group_id"
-    
+
     if request.search_type == "role":
         # Check if CP4D mode for roles
         if settings.di_env_mode.upper() == ENV_MODE_SAAS:
             return None, 0, "role", "role_key"  # Signal SaaS mode
         results, total_count = await search_roles_by_query(query=request.query)
         format_response = format_artifacts_for_table(results)
-        ui_message_context.add_table_ui_message(tool_name="search_user_groups_roles",
-                         formatted_data=format_response, title=TABLE_TITLE_SEARCH_USER_ROLES)
+        ui_message_context.add_table_ui_message(
+            tool_name="search_user_groups_roles",
+            formatted_data=format_response,
+            title=TABLE_TITLE_SEARCH_USER_ROLES,
+        )
         return results, total_count, "role", "role_key"
-    
-    raise ValidationError(f"Invalid search_type: {request.search_type}. Must be 'user', 'group', or 'role'.")
+
+    raise ValidationError(
+        f"Invalid search_type: {request.search_type}. Must be 'user', 'group', or 'role'."
+    )
 
 
-def _build_empty_response(request: UnifiedSearchRequest, entity_name: str) -> UnifiedSearchResponse:
+def _build_empty_response(
+    request: UnifiedSearchRequest, entity_name: str
+) -> UnifiedSearchResponse:
     """Build response for empty search results."""
     if request.query:
         LOGGER.info(f"No {entity_name}s found matching query '{request.query}'")
@@ -133,18 +148,20 @@ def _build_empty_response(request: UnifiedSearchRequest, entity_name: str) -> Un
     else:
         LOGGER.info(f"No {entity_name}s found in the system")
         message = f"No {entity_name}s found in the system."
-    
+
     return UnifiedSearchResponse(
         search_type=request.search_type,
         total_count=0,
         returned_count=0,
         results=[],
         message=message,
-        query=request.query
+        query=request.query,
     )
 
 
-def _build_success_message(request: UnifiedSearchRequest, total_count: int, entity_name: str, id_field: str) -> str:
+def _build_success_message(
+    request: UnifiedSearchRequest, total_count: int, entity_name: str, id_field: str
+) -> str:
     """Build success message based on search mode."""
     if request.query:
         return (
@@ -162,12 +179,12 @@ async def _search_user_groups_roles(
 ) -> UnifiedSearchResponse:
     """
     Unified search for users, groups, or roles by partial identifier with fuzzy matching.
-    
+
     Args:
         request: UnifiedSearchRequest containing:
             - search_type: Type of identity to search ("user", "group", or "role")
             - query: Optional search term. If None, lists all items of the specified type.
-    
+
     Returns:
         UnifiedSearchResponse containing:
             - search_type: Type of identity that was searched
@@ -176,19 +193,25 @@ async def _search_user_groups_roles(
             - results: List of matching results (UserSearchResult, GroupSearchResult, or RoleSearchResult)
             - message: Human-readable status message
             - query: Original search query
-    
+
     Raises:
         ExternalAPIError: When API call fails or permission is denied
         ServiceError: When unexpected error occurs during search
         ValidationError: When search_type="role" is used in SaaS environment
     """
-    query_display = f"query='{request.query}'" if request.query else f"list all {request.search_type}s"
+    query_display = (
+        f"query='{request.query}'"
+        if request.query
+        else f"list all {request.search_type}s"
+    )
     LOGGER.info(f"Unified search: search_type='{request.search_type}', {query_display}")
-    
+
     try:
         # Execute search based on type
-        results, total_count, entity_name, id_field = await _execute_search_by_type(request)
-        
+        results, total_count, entity_name, id_field = await _execute_search_by_type(
+            request
+        )
+
         # Handle SaaS mode for roles
         if results is None and request.search_type == "role":
             return UnifiedSearchResponse(
@@ -197,40 +220,42 @@ async def _search_user_groups_roles(
                 returned_count=0,
                 results=[],
                 message="Search for user roles is only supported in CP4D mode.",
-                query=request.query
+                query=request.query,
             )
-        
+
         # Handle empty results
         if not results:
             return _build_empty_response(request, entity_name)
-        
+
         # Build success response
         returned_count = len(results)
         message = _build_success_message(request, total_count, entity_name, id_field)
-        
-        LOGGER.info(f"Successfully found {total_count} {entity_name}s, returning {returned_count} results")
-        
+
+        LOGGER.info(
+            f"Successfully found {total_count} {entity_name}s, returning {returned_count} results"
+        )
+
         return UnifiedSearchResponse(
             search_type=request.search_type,
             total_count=total_count,
             returned_count=returned_count,
             results=results,
             message=message,
-            query=request.query
+            query=request.query,
         )
-    
+
     except ValidationError as e:
-        LOGGER.error(f"Validation error during unified search: {str(e)}")
-        raise ValidationError(str(e))
+        LOGGER.error(f"Validation error during unified search: {e!s}")
+        raise ValidationError(str(e))  # noqa: B904 # Baseline
     except ExternalAPIError as e:
-        LOGGER.error(f"External API error during unified search: {str(e)}")
-        raise ExternalAPIError(
-            f"Failed to search {request.search_type}s due to API error: {str(e)}"
+        LOGGER.error(f"External API error during unified search: {e!s}")
+        raise ExternalAPIError(  # noqa: B904 # Baseline
+            f"Failed to search {request.search_type}s due to API error: {e!s}"
         )
     except Exception as e:
-        LOGGER.error(f"Unexpected error during unified search: {str(e)}")
-        raise ServiceError(
-            f"Failed to search {request.search_type}s due to unexpected error: {str(e)}"
+        LOGGER.error(f"Unexpected error during unified search: {e!s}")
+        raise ServiceError(  # noqa: B904 # Baseline
+            f"Failed to search {request.search_type}s due to unexpected error: {e!s}"
         )
 
 
@@ -238,7 +263,7 @@ async def _search_user_groups_roles(
     name="search_user_groups_roles",
     annotations={
         "readOnlyHint": True,
-        "title": "Unified Identity Search for Users, Groups, and Roles"
+        "title": "Unified Identity Search for Users, Groups, and Roles",
     },
     description="""
     Use this tool when you need to search and retrieve users, user groups, or user roles in watsonx.data intelligence.
@@ -279,30 +304,44 @@ async def _search_user_groups_roles(
         - "Apply data protection rule to jacob@ibm.com" → search_type="user", query="jacob@ibm.com"
         - "What roles can I assign?" → search_type="role", query=None (CP4D only)
     Returns: The search type, total and returned counts, list of matching results (users, groups, or roles with their IDs and metadata), a status message, and the original query.
-    """,
-    tags={"search", "user_search", "identity", "access_management", "unified","metadata_management_and_governance"},
+    """,  # noqa: W291, W293 # Baseline
+    tags={
+        "search",
+        "user_search",
+        "identity",
+        "access_management",
+        "unified",
+        "metadata_management_and_governance",
+    },
     meta={"version": "1.0", "service": "user_search"},
 )
 @auto_context
 async def search_user_groups_roles(
-    search_type: Annotated[Literal["user", "group", "role"], Field(description="Type of identity to search for: 'user' for users, 'group' for user groups, or 'role' for user roles (CP4D only)")],
-    query: Annotated[Optional[str], Field(description="Optional search term to filter results. If not provided or empty, returns all items of the specified type. For users: searches name, email, username, or user ID. For groups: searches group name or group ID. For roles: searches role name.")] = None
+    search_type: Annotated[
+        Literal["user", "group", "role"],
+        Field(
+            description="Type of identity to search for: 'user' for users, 'group' for user groups, or 'role' for user roles (CP4D only)"
+        ),
+    ],
+    query: Annotated[
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description="Optional search term to filter results. If not provided or empty, returns all items of the specified type. For users: searches name, email, username, or user ID. For groups: searches group name or group ID. For roles: searches role name."
+        ),
+    ] = None,
 ) -> UnifiedSearchResponse:
     """
     Wrapper version that expands UnifiedSearchRequest into individual parameters.
-    
+
     Args:
         search_type: Type of identity to search ("user", "group", or "role")
         query: Optional search term. If None, lists all items of the specified type.
-    
+
     Returns:
         UnifiedSearchResponse with matching results and metadata
     """
-    request = UnifiedSearchRequest(
-        search_type=search_type,
-        query=query
-    )
-    
+    request = UnifiedSearchRequest(search_type=search_type, query=query)
+
     return await _search_user_groups_roles(request)
 
 

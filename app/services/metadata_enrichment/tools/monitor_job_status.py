@@ -1,9 +1,11 @@
-from typing import Annotated
+from typing import Annotated  # noqa: I001 # Baseline
 
 from pydantic import Field
 from app.core.registry import service_registry
 from app.services.metadata_enrichment.models.metadata_enrichment import JobRunStatus
-from app.services.metadata_enrichment.utils.metadata_enrichment_common_utils import call_get_job_status
+from app.services.metadata_enrichment.utils.metadata_enrichment_common_utils import (
+    call_get_job_status,
+)
 from app.services.tool_utils import find_project_id
 from app.shared.logging import auto_context
 from app.shared.utils.helpers import confirm_uuid
@@ -19,7 +21,7 @@ async def _monitor_job_status(job_id: str, project: str) -> JobRunStatus:
     name="get_metadata_enrichment_job_status",
     annotations={
         "readOnlyHint": True,
-        "title": "Get Metadata Enrichment Job Execution Status"
+        "title": "Get Metadata Enrichment Job Execution Status",
     },
     tags={"metadata_management_and_governance"},
     description="""Use this tool when you need to monitor a given job's status in a given project.
@@ -32,8 +34,12 @@ async def _monitor_job_status(job_id: str, project: str) -> JobRunStatus:
 )
 @auto_context
 async def get_metadata_enrichment_job_status(
-    job_id: Annotated[str, Field(description="The unique identifier of the metadata enrichment job.")],
-    project: Annotated[str, Field(description="The name or ID of the project containing the job")],
+    job_id: Annotated[
+        str, Field(description="The unique identifier of the metadata enrichment job.")
+    ],
+    project: Annotated[
+        str, Field(description="The name or ID of the project containing the job")
+    ],
 ) -> JobRunStatus:
 
     return await _monitor_job_status(job_id, project)

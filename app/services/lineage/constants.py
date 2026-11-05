@@ -11,4 +11,6 @@ HTTP_STATUS_500_INTERNAL_SERVER_ERROR = "500"
 SERVICE_UNAVAILABLE_FLAG = "service_unavailable"
 
 # Error messages
-SERVICE_UNAVAILABLE_MESSAGE = "The lineage service is temporarily unavailable. Please try again later."
+SERVICE_UNAVAILABLE_MESSAGE = (
+    "The lineage service is temporarily unavailable. Please try again later."
+)

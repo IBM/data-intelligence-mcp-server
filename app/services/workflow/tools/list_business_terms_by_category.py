@@ -11,13 +11,15 @@ This module provides functionality to query the glossary API for business terms
 filtered by a parent category, resolving the category name to its UUID first.
 """
 
-from datetime import datetime
-from typing import Annotated, List, Dict, Optional
+from datetime import datetime  # noqa: I001 # Baseline
+from typing import Annotated, List, Dict, Optional  # noqa: UP035 # Baseline
 from pydantic import Field
 
 from app.core.registry import service_registry
 from app.services.constants import SEARCH_PATH
-from app.services.metadata_enrichment.utils.term_generation_utils import validate_category_exists
+from app.services.metadata_enrichment.utils.term_generation_utils import (
+    validate_category_exists,
+)
 from app.services.workflow.models.artifact import BusinessTerm
 from app.services.workflow.models.list_business_terms_by_category import (
     ListBusinessTermsByCategoryRequest,
@@ -51,7 +53,9 @@ async def _resolve_category_id(category_name: str) -> tuple[str, str]:
     Raises:
         ValidationError: If the category name is ambiguous or not found.
     """
-    exists, category_id, resolved_name, duplicates = await validate_category_exists(category_name)
+    exists, category_id, resolved_name, duplicates = await validate_category_exists(
+        category_name
+    )
 
     if exists and category_id and resolved_name:
         return resolved_name, category_id
@@ -63,18 +67,18 @@ async def _resolve_category_id(category_name: str) -> tuple[str, str]:
             "Please provide the full category path or a more specific name.",
             service="workflow",
             tool="list_business_terms_by_category",
-            remediation_steps="Use list_glossary_categories to see all available categories and their exact names."
+            remediation_steps="Use list_glossary_categories to see all available categories and their exact names.",
         )
 
     raise ValidationError(
         f"Category '{category_name}' not found. Use list_glossary_categories to see all available categories.",
         service="workflow",
         tool="list_business_terms_by_category",
-        remediation_steps="Call list_glossary_categories to get the full list of available category names."
+        remediation_steps="Call list_glossary_categories to get the full list of available category names.",
     )
 
 
-def _format_iso_date(iso_str: Optional[str]) -> Optional[str]:
+def _format_iso_date(iso_str: Optional[str]) -> Optional[str]:  # noqa: UP045 # Baseline
     """Convert an ISO 8601 timestamp to a human-readable 'DD Mon YYYY' string."""
     if not iso_str:
         return None
@@ -85,7 +89,7 @@ def _format_iso_date(iso_str: Optional[str]) -> Optional[str]:
         return iso_str
 
 
-async def _resolve_steward_display(item: dict, metadata: dict) -> Optional[str]:
+async def _resolve_steward_display(item: dict, metadata: dict) -> Optional[str]:  # noqa: UP045 # Baseline
     """
     Return a human-readable steward string for a single resource item.
 
@@ -97,41 +101,62 @@ async def _resolve_steward_display(item: dict, metadata: dict) -> Optional[str]:
        (e.g. ``IBMid-697001DGQN``).  Any value that looks like an IAM ID is
        resolved through ``get_user_info_from_iam_id`` before being returned.
     """
-    steward_ids: List[str] = metadata.get("steward_ids") or item.get("steward_ids") or []
+    steward_ids: List[str] = (  # noqa: UP006 # Baseline
+        metadata.get("steward_ids") or item.get("steward_ids") or []
+    )
     if steward_ids:
         steward_names = await fetch_steward_names(steward_ids)
         return ", ".join(steward_names) if steward_names else None
 
-    raw_id = item.get("modified_by") or metadata.get("modified_by") or item.get("created_by")
+    raw_id = (
+        item.get("modified_by") or metadata.get("modified_by") or item.get("created_by")
+    )
     if not raw_id:
         return None
     # Resolve the raw IAM / IBMid value to a display name
     try:
         return await get_user_info_from_iam_id(raw_id, "name")
     except Exception:
-        LOGGER.warning(f"Could not resolve display name for steward '{raw_id}'; using raw value")
+        LOGGER.warning(
+            f"Could not resolve display name for steward '{raw_id}'; using raw value"
+        )
         return raw_id
 
 
-def _build_business_term(item: dict, metadata: dict, modified_by: Optional[str]) -> BusinessTerm:
+def _build_business_term(
+    item: dict,
+    metadata: dict,
+    modified_by: Optional[str],  # noqa: UP045 # Baseline
+) -> BusinessTerm:
     """Build a BusinessTerm from a raw API resource dict and its pre-extracted metadata envelope."""
     entity: dict = item.get("entity", item)
     # The flat endpoint uses "modified_at"; enveloped responses use "updated_at"
-    raw_updated = item.get("updated_at") or item.get("modified_at") or metadata.get("updated_at") or metadata.get("modified_at")
+    raw_updated = (
+        item.get("updated_at")
+        or item.get("modified_at")
+        or metadata.get("updated_at")
+        or metadata.get("modified_at")
+    )
     return BusinessTerm(
         name=item.get("name") or metadata.get("name"),
-        description=item.get("long_description") or item.get("description") or metadata.get("description"),
+        description=item.get("long_description")
+        or item.get("description")
+        or metadata.get("description"),
         artifact_id=item.get("artifact_id") or metadata.get("artifact_id"),
         modified_by=modified_by,
         state=item.get("state") or entity.get("state"),
-        created_at=_format_iso_date(item.get("created_at") or metadata.get("created_at")),
+        created_at=_format_iso_date(
+            item.get("created_at") or metadata.get("created_at")
+        ),
         updated_at=_format_iso_date(raw_updated),
         workflow_id=item.get("workflow_id"),
         version_id=item.get("version_id"),
     )
 
 
-async def _fetch_terms_by_category(category_name: str, max_results: int) -> List[BusinessTerm]:
+async def _fetch_terms_by_category(
+    category_name: str, max_results: int
+) -> List[BusinessTerm]:  # noqa: UP006 # Baseline
     """
     Fetch published business terms for a given category via the global search index.
 
@@ -157,7 +182,11 @@ async def _fetch_terms_by_category(category_name: str, max_results: int) -> List
             "bool": {
                 "must": [
                     {"match": {"metadata.artifact_type": "glossary_term"}},
-                    {"match_phrase": {"categories.primary_category_name": category_name}},
+                    {
+                        "match_phrase": {
+                            "categories.primary_category_name": category_name
+                        }
+                    },
                 ]
             }
         },
@@ -169,14 +198,16 @@ async def _fetch_terms_by_category(category_name: str, max_results: int) -> List
     )
 
     if not isinstance(raw_response, dict):
-        LOGGER.warning(f"Received unexpected response type for category_name={category_name!r}")
+        LOGGER.warning(
+            f"Received unexpected response type for category_name={category_name!r}"
+        )
         return []
 
     rows = raw_response.get("rows", [])
     if not rows:
         return []
 
-    terms: List[BusinessTerm] = []
+    terms: List[BusinessTerm] = []  # noqa: UP006 # Baseline
     for row in rows:
         metadata: dict = row.get("metadata", {})
         entity: dict = row.get("entity", {})
@@ -201,10 +232,10 @@ async def _fetch_terms_by_category(category_name: str, max_results: int) -> List
 
 
 def _rank_by_similarity(
-    terms: List[BusinessTerm],
+    terms: List[BusinessTerm],  # noqa: UP006 # Baseline
     description: str,
     top_n: int,
-) -> List[BusinessTerm]:
+) -> List[BusinessTerm]:  # noqa: UP006 # Baseline
     """
     Rank terms by BM25 similarity of their description against the user-supplied
     description, returning the top_n most similar terms.
@@ -219,24 +250,26 @@ def _rank_by_similarity(
         LOGGER.warning("No terms with descriptions found — cannot rank by similarity")
         return terms[:top_n]
 
-    corpus: List[str] = [t.description for t in candidates if t.description]
+    corpus: List[str] = [t.description for t in candidates if t.description]  # noqa: UP006 # Baseline
     svc = BM25SimilarityService()
     svc.index(corpus)
     scores = svc.score(description)
 
-    ranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)
+    ranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)  # noqa: B905 # Baseline
     top = [t for t, _ in ranked[:top_n]]
 
     LOGGER.info(
         "BM25 similarity ranking: top %d of %d candidates for description %r",
-        len(top), len(candidates), description[:60]
+        len(top),
+        len(candidates),
+        description[:60],
     )
     return top
 
 
 async def _list_business_terms_by_category(
     request: ListBusinessTermsByCategoryRequest,
-    ctx: Optional[Context],
+    ctx: Optional[Context],  # noqa: UP045 # Baseline
 ) -> ListBusinessTermsByCategoryResponse:
     """
     Core implementation for listing business terms by category.
@@ -255,8 +288,14 @@ async def _list_business_terms_by_category(
     )
 
     # Downgrade table format for clients that cannot render markdown
-    if ctx is not None and not supports_rich_text_format(ctx) and request.format == "table":
-        LOGGER.info("Client without rich text support detected: switching format from 'table' to 'json'")
+    if (
+        ctx is not None
+        and not supports_rich_text_format(ctx)
+        and request.format == "table"
+    ):
+        LOGGER.info(
+            "Client without rich text support detected: switching format from 'table' to 'json'"
+        )
         request.format = "json"
 
     # Step 1: resolve category name → UUID
@@ -265,14 +304,18 @@ async def _list_business_terms_by_category(
 
     # Step 2: fetch all published business terms for that category
     business_terms = await _fetch_terms_by_category(category_name, request.max_results)
-    LOGGER.info(f"Fetched {len(business_terms)} business terms for category '{category_name}'")
+    LOGGER.info(
+        f"Fetched {len(business_terms)} business terms for category '{category_name}'"
+    )
 
     # Step 3: if a description was provided, rank by BM25 similarity and return top_n
     if request.description:
-        business_terms = _rank_by_similarity(business_terms, request.description, request.top_n)
+        business_terms = _rank_by_similarity(
+            business_terms, request.description, request.top_n
+        )
 
     # Step 4: build name → artifact_id map
-    name_to_artifact_id_map: Dict[str, str] = {
+    name_to_artifact_id_map: Dict[str, str] = {  # noqa: UP006 # Baseline
         bt.name: bt.artifact_id for bt in business_terms if bt.artifact_id
     }
 
@@ -330,34 +373,44 @@ and optionally a formatted markdown table.
     meta={"version": "1.0", "service": "glossary"},
 )
 @auto_context
-async def list_business_terms_by_category(
+async def list_business_terms_by_category(  # noqa: PLR0913 # Baseline
     primary_category: Annotated[
         str,
-        Field(description="Human-readable name of the category to filter business terms by. "
-                           "If the name matches multiple categories, the tool will raise an error "
-                           "and suggest using list_glossary_categories.")
+        Field(
+            description="Human-readable name of the category to filter business terms by. "
+            "If the name matches multiple categories, the tool will raise an error "
+            "and suggest using list_glossary_categories."
+        ),
     ],
     description: Annotated[
-        Optional[str],
-        Field(description=(
-            "Optional description text to find similar terms for. When provided, terms are "
-            "ranked by BM25 similarity against this text and the top_n most similar are "
-            "returned. When omitted, all terms in the category are returned."
-        ))
+        Optional[str],  # noqa: UP045 # Baseline
+        Field(
+            description=(
+                "Optional description text to find similar terms for. When provided, terms are "
+                "ranked by BM25 similarity against this text and the top_n most similar are "
+                "returned. When omitted, all terms in the category are returned."
+            )
+        ),
     ] = None,
     top_n: Annotated[
         int,
-        Field(description="Number of top similar terms to return when description is provided (default 5)")
+        Field(
+            description="Number of top similar terms to return when description is provided (default 5)"
+        ),
     ] = 5,
     max_results: Annotated[
         int,
-        Field(description="Maximum number of business terms to fetch from the category (1–200, default 200)")
+        Field(
+            description="Maximum number of business terms to fetch from the category (1–200, default 200)"  # noqa: RUF001 # Baseline
+        ),
     ] = 200,
-    format: Annotated[
+    format: Annotated[  # noqa: A002 # Baseline
         str,
-        Field(description="Output format: 'table' for formatted markdown table, 'json' for raw data")
+        Field(
+            description="Output format: 'table' for formatted markdown table, 'json' for raw data"
+        ),
     ] = "table",
-    ctx: Optional[Context] = None,
+    ctx: Optional[Context] = None,  # noqa: UP045 # Baseline
 ) -> ListBusinessTermsByCategoryResponse:
     """List business terms in a category; rank by description similarity when description is given."""
 

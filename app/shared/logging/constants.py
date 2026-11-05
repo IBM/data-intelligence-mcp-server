@@ -9,17 +9,11 @@ This module defines constants used throughout the logging system,
 including log levels, formats, and parameter names.
 """
 
-import os
-from typing import Dict, Any
+import os  # noqa: I001 # Baseline
+from typing import Dict, Any  # noqa: UP035 # Baseline
 
 # Logging levels mapping
-LOGGING_LEVELS = {
-    "CRITICAL": 50,
-    "ERROR": 40,
-    "WARNING": 30,
-    "INFO": 20,
-    "DEBUG": 10
-}
+LOGGING_LEVELS = {"CRITICAL": 50, "ERROR": 40, "WARNING": 30, "INFO": 20, "DEBUG": 10}
 
 # Logging format types
 JSON_LOGGING = "json_logging"
@@ -39,12 +33,13 @@ DEFAULT_PARAMETERS = {
     LOGGING_FORMAT: [JSON_LOGGING, False, str],
     CONTAINER_NAME: ["data-intelligence-mcp-server", False, str],
     ENVIRONMENT: ["development", False, str],
-    BUILD_VERSION: ["1.6.0", False, str],
+    BUILD_VERSION: ["1.7.0", False, str],
     LOG_FILE_PATH: [None, False, str],
 }
 
 # Global parameter storage
-parameter_values: Dict[str, Any] = {}
+parameter_values: Dict[str, Any] = {}  # noqa: UP006 # Baseline
+
 
 def _get_environment_value(parameter_name: str) -> str:
     """
@@ -63,6 +58,7 @@ def _get_environment_value(parameter_name: str) -> str:
     if env_value is None:
         try:
             from app.core.settings import settings
+
             if hasattr(settings, parameter_name):
                 env_value = getattr(settings, parameter_name)
         except ImportError:
@@ -83,11 +79,10 @@ def _convert_value_to_type(value: str, param_type: type) -> Any:
         Any: The converted value
     """
     if param_type is bool:
-        return value.lower() in ('true', '1', 'yes', 'on')
-    elif param_type is int:
+        return value.lower() in ("true", "1", "yes", "on")
+    if param_type is int:
         return int(value)
-    else:
-        return value
+    return value
 
 
 def _validate_parameter_exists(parameter_name: str) -> None:
@@ -104,7 +99,9 @@ def _validate_parameter_exists(parameter_name: str) -> None:
         raise ValueError(f"Unknown parameter: {parameter_name}")
 
 
-def _handle_missing_parameter(parameter_name: str, is_mandatory: bool, default_value: Any) -> None:
+def _handle_missing_parameter(
+    parameter_name: str, is_mandatory: bool, default_value: Any
+) -> None:
     """
     Handle the case when parameter value is not found in environment.
 
@@ -117,7 +114,9 @@ def _handle_missing_parameter(parameter_name: str, is_mandatory: bool, default_v
         ValueError: If parameter is mandatory but not found
     """
     if is_mandatory:
-        raise ValueError(f"Required parameter {parameter_name} not found in environment")
+        raise ValueError(
+            f"Required parameter {parameter_name} not found in environment"
+        )
     parameter_values[parameter_name] = default_value
 
 

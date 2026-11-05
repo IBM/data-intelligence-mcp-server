@@ -1,18 +1,19 @@
-# Copyright [2026] [IBM]
+# Copyright [2026] [IBM]  # noqa: INP001 # Baseline
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Any, Dict, Optional
-from urllib.parse import parse_qs, quote, urlencode, urlparse
+from typing import Any, Dict, Optional  # noqa: I001, UP035 # Baseline
+from urllib.parse import parse_qs, quote, urlencode, urlparse  # noqa: F401 # Baseline
 
 from pydantic import BaseModel
 
-from app.shared.agent_constants import MARKDOWN_CODE_TEMPLATE
-from app.shared.constants import AGENT_ERROR_MSG_TYPE, AGENT_UI_MSG_TYPE
-import app.shared.ui_message.utils as ui_message_utils
+from app.shared.agent_constants import MARKDOWN_CODE_TEMPLATE  # noqa: F401 # Baseline
+from app.shared.constants import AGENT_ERROR_MSG_TYPE, AGENT_UI_MSG_TYPE  # noqa: F401 # Baseline
+import app.shared.ui_message.utils as ui_message_utils  # noqa: F401 # Baseline
 
 
 BULK_SELECTION_DESCRIPTION = "You can ask me to perform bulk actions on a subset of these results using the row numbers.  You can use a range (1-3) or a list (1, 3, 5)"
+
 
 class UIMetadata(BaseModel):
     """
@@ -85,11 +86,12 @@ class MessageResponseComponent(BaseModel):
     """
 
     version: str = "1.0"
-    message_response: Dict[str, Any]
+    message_response: Dict[str, Any]  # noqa: UP006 # Baseline
 
     @classmethod
     def create_text_response(
-        cls, text: Optional[str] = None
+        cls,
+        text: Optional[str] = None,  # noqa: UP045 # Baseline
     ) -> "MessageResponseComponent":
         """
         Create a text response component.
@@ -105,7 +107,7 @@ class MessageResponseComponent(BaseModel):
     @classmethod
     def create_option_response(
         cls,
-        options: list[Dict[str, Any]],
+        options: list[Dict[str, Any]],  # noqa: UP006 # Baseline
         title: str,
         description: str,
         preference: str = "button",
@@ -202,7 +204,7 @@ class UIContent(BaseModel):
         return cls(components=components)
 
     @classmethod
-    def create_with_text(cls, text: Optional[str] = None) -> "UIContent":
+    def create_with_text(cls, text: Optional[str] = None) -> "UIContent":  # noqa: UP045 # Baseline
         """
         Create a UI content with a single text component.
 
@@ -215,38 +217,36 @@ class UIContent(BaseModel):
         component = MessageResponseComponent.create_text_response(text)
         return cls(components=[component])
 
+
 def escape_markdown_table_cell(value: Any) -> str:
     """
     Escape special characters in markdown table cells.
-    
+
     Args:
         value: The cell value to escape
-        
+
     Returns:
         str: The escaped string value
     """
     if value is None:
         return ""
-    
+
     # Convert to string
     text = str(value)
-    
+
     # Escape special characters that can break markdown tables
     # Order matters: backslash first, then others
     replacements = {
-        '\\': '\\\\',      # Backslash
-        '|': '\\|',        # Pipe (table delimiter)
-        '\n': '<br>',      # Newline
-        '\r': '',          # Carriage return (remove)
-        '\t': '    ',      # Tab (replace with spaces)
-        '\b': '',          # Backspace (remove)
-        '\0': '',          # Null character (remove)
+        "\\": "\\\\",  # Backslash
+        "|": "\\|",  # Pipe (table delimiter)
+        "\n": "<br>",  # Newline
+        "\r": "",  # Carriage return (remove)
+        "\t": "    ",  # Tab (replace with spaces)
+        "\b": "",  # Backspace (remove)
+        "\0": "",  # Null character (remove)
     }
-    
+
     for char, replacement in replacements.items():
         text = text.replace(char, replacement)
-    
+
     return text
-
-
-

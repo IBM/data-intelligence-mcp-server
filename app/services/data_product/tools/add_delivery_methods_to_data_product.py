@@ -4,19 +4,22 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-from app.core.registry import service_registry
+from app.core.registry import service_registry  # noqa: I001 # Baseline
 from app.services.data_product.models.add_delivery_methods_to_data_product import (
     AddDeliveryMethodsToDataProductRequest,
     AddDeliveryMethodsToDataProductResponse,
 )
-from app.services.data_product.utils.common_utils import add_catalog_id_suffix, validate_inputs
+from app.services.data_product.utils.common_utils import (
+    add_catalog_id_suffix,
+    validate_inputs,
+)
 from app.core.auth import get_dph_catalog_id_for_user, get_access_token
 from app.shared.exceptions.base import ServiceError
 from app.shared.utils.tool_helper_service import tool_helper_service
-from app.services.constants import JSON_CONTENT_TYPE, JSON_PATCH_CONTENT_TYPE
+from app.services.constants import JSON_CONTENT_TYPE, JSON_PATCH_CONTENT_TYPE  # noqa: F401 # Baseline
 from app.shared.logging import LOGGER, auto_context
 
-from typing import List, Annotated
+from typing import List, Annotated  # noqa: UP035 # Baseline
 from pydantic import Field
 
 
@@ -38,7 +41,7 @@ async def _add_delivery_methods_to_data_product(
     query_params = {
         "catalog_id": dph_catalog_id,
         "exclude": "columns",
-        "hide_deprecated_response_fields": False
+        "hide_deprecated_response_fields": False,
     }
     parts_out_list = response.get("parts_out", [])
     index_list = []
@@ -50,10 +53,15 @@ async def _add_delivery_methods_to_data_product(
                 params=query_params,
                 tool_name="add_delivery_methods_to_data_product",
             )
-            if asset_response.get("metadata", {}).get("name", "").lower() == request.data_asset_name.lower():
+            if (
+                asset_response.get("metadata", {}).get("name", "").lower()
+                == request.data_asset_name.lower()
+            ):
                 index_list.append(index)
     if not index_list:
-        LOGGER.error(f"Asset {request.data_asset_name} is not found in data product draft.")
+        LOGGER.error(
+            f"Asset {request.data_asset_name} is not found in data product draft."
+        )
         raise ServiceError(
             f"Asset {request.data_asset_name} is not found in data product draft.",
             remediation_steps=(
@@ -61,12 +69,14 @@ async def _add_delivery_methods_to_data_product(
                 f"data product draft with ID '{request.data_product_draft_id}'. "
             ),
         )
-  
+
     # step 2: add delivery methods to the asset
     json = []
     for index in index_list:
         for delivery_method_id in request.delivery_method_ids:
-            LOGGER.info(f"Adding delivery method id: {delivery_method_id} to data asset {index}")
+            LOGGER.info(
+                f"Adding delivery method id: {delivery_method_id} to data asset {index}"
+            )
             json.append(
                 {
                     "op": "add",
@@ -92,10 +102,9 @@ async def _add_delivery_methods_to_data_product(
         return AddDeliveryMethodsToDataProductResponse(
             message=f"Delivery methods {request.delivery_method_ids} added to {request.data_asset_name} asset item of the data product draft {request.data_product_draft_id} successfully."
         )
-    else:
-        return AddDeliveryMethodsToDataProductResponse(
-            message=f"There were multiple assets with the same name as {request.data_asset_name} in the data product draft. The given delivery methods {request.delivery_method_ids} are added to all those assets of the draft {request.data_product_draft_id}."
-        )
+    return AddDeliveryMethodsToDataProductResponse(
+        message=f"There were multiple assets with the same name as {request.data_asset_name} in the data product draft. The given delivery methods {request.delivery_method_ids} are added to all those assets of the draft {request.data_product_draft_id}."
+    )
 
 
 @service_registry.tool(
@@ -110,14 +119,24 @@ async def _add_delivery_methods_to_data_product(
     meta={"version": "1.0", "service": "data_product"},
     annotations={
         "title": "Add Delivery Methods to Data Product Draft",
-        "destructiveHint": True
-    }
+        "destructiveHint": True,
+    },
 )
 @auto_context
 async def add_delivery_methods_to_data_product(
-    data_product_draft_id: Annotated[str, Field(description="The ID of the data product draft.")],
-    data_asset_name: Annotated[str, Field(description="The name of the data asset in the data product draft for which we need to add delivery methods.")],
-    delivery_method_ids: Annotated[List[str], Field(description="The list of IDs of delivery methods selected by the user.")],
+    data_product_draft_id: Annotated[
+        str, Field(description="The ID of the data product draft.")
+    ],
+    data_asset_name: Annotated[
+        str,
+        Field(
+            description="The name of the data asset in the data product draft for which we need to add delivery methods."
+        ),
+    ],
+    delivery_method_ids: Annotated[
+        List[str],  # noqa: UP006 # Baseline
+        Field(description="The list of IDs of delivery methods selected by the user."),
+    ],
 ) -> AddDeliveryMethodsToDataProductResponse:
     """Wrapper version that expands AddDeliveryMethodsToDataProductRequest object into individual parameters."""
 
@@ -129,4 +148,3 @@ async def add_delivery_methods_to_data_product(
 
     # Call the original add_delivery_methods_to_data_product function
     return await _add_delivery_methods_to_data_product(request)
-    

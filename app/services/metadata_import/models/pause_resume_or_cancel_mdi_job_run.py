@@ -4,7 +4,7 @@
 
 """Models for the unified MDI job operations tool (pause, resume, cancel)."""
 
-from typing import Literal, Optional
+from typing import Literal, Optional  # noqa: I001 # Baseline
 from pydantic import BaseModel, Field
 from app.shared.models import BaseResponseModel
 
@@ -27,7 +27,7 @@ class PauseResumeOrCancelMdiJobRunRequest(BaseModel):
     project_name: str = Field(..., description=DESC_PROJECT_NAME)
     metadata_import_name: str = Field(..., description=DESC_METADATA_IMPORT_NAME)
     action: Literal["pause", "resume", "cancel"] = Field(..., description=DESC_ACTION)
-    job_run_id: Optional[str] = Field(None, description=DESC_JOB_RUN_ID)
+    job_run_id: Optional[str] = Field(None, description=DESC_JOB_RUN_ID)  # noqa: UP045 # Baseline
 
 
 class PauseResumeOrCancelMdiJobRunResponse(BaseResponseModel):
@@ -35,16 +35,20 @@ class PauseResumeOrCancelMdiJobRunResponse(BaseResponseModel):
 
     message: str = Field(
         ...,
-        description="A descriptive confirmation message about the operation performed."
+        description="A descriptive confirmation message about the operation performed.",
     )
     metadata_import_id: str = Field(..., description=DESC_METADATA_IMPORT_ID)
-    metadata_import_name: str = Field(..., description=DESC_METADATA_IMPORT_NAME_RESPONSE)
+    metadata_import_name: str = Field(
+        ..., description=DESC_METADATA_IMPORT_NAME_RESPONSE
+    )
     job_id: str = Field(..., description=DESC_JOB_ID)
     job_run_id: str = Field(..., description=DESC_JOB_RUN_ID_RESPONSE)
     job_state: str = Field(
-        ...,
-        description="The current state of the job run after the operation."
+        ..., description="The current state of the job run after the operation."
     )
-    metadata_import_job_run_ui_url: str = Field(..., description=DESC_METADATA_IMPORT_JOB_RUN_UI_URL)
+    metadata_import_job_run_ui_url: str = Field(
+        ..., description=DESC_METADATA_IMPORT_JOB_RUN_UI_URL
+    )
+
 
 # Made with Bob

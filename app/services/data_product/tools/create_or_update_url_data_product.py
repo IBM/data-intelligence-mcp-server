@@ -4,7 +4,7 @@
 
 # This file has been modified with the assistance of IBM Bob AI tool
 
-from typing import Annotated
+from typing import Annotated  # noqa: I001 # Baseline
 from pydantic import Field
 
 from app.core.registry import service_registry
@@ -23,30 +23,31 @@ from app.services.data_product.utils.data_product_creation_utils import (
 )
 from app.services.data_product.utils.common_utils import get_data_product_url
 from app.core.auth import get_dph_catalog_id_for_user, get_access_token
-from app.services.data_product.utils.url_validation_utils import validate_url_not_in_existing_data_products
+from app.services.data_product.utils.url_validation_utils import (
+    validate_url_not_in_existing_data_products,
+)
 from app.services.tool_utils import validate_url
 from app.shared.logging import LOGGER, auto_context
 
 
 async def _validate_duplicate_url(
-    request: CreateOrUpdateUrlDataProductRequest,
-    is_create: bool
+    request: CreateOrUpdateUrlDataProductRequest, is_create: bool
 ) -> None:
     """
     Validate that the URL doesn't already exist in other data products.
-    
+
     This function checks if the URL already exists in any data product's parts_out.
     If duplicates are found and force=False, raises ServiceError with details.
     If duplicates are found and force=True, logs warning and proceeds.
     If no duplicates found, proceeds normally.
-    
+
     Args:
         request: The request object containing URL and force flag
         is_create: Whether this is a create operation (True) or update (False)
-        
+
     Raises:
         ServiceError: If duplicates found and force=False
-        
+
     Note:
         - Only validates on CREATE operations
         - Skips validation on UPDATE operations (adding to existing draft)
@@ -55,24 +56,25 @@ async def _validate_duplicate_url(
     if not is_create:
         LOGGER.info("Skipping duplicate URL validation for UPDATE operation")
         return
-        
+
     # Skip validation entirely when force=True
     if request.force:
         LOGGER.info("Skipping URL validation (force=True)")
         return
-    
+
     LOGGER.info(f"Validating URL for duplicates (force={request.force})")
     duplicates = await validate_url_not_in_existing_data_products(
-        request.url_value,
-        request.force
+        request.url_value, request.force
     )
-    
+
     # If duplicates found and force=False, raise error
     if duplicates and not request.force:
-        duplicate_list = "\n".join([
-            f"  - {dp['name']} (ID: {dp['data_product_id']}, State: {dp['state']})"
-            for dp in duplicates
-        ])
+        duplicate_list = "\n".join(
+            [
+                f"  - {dp['name']} (ID: {dp['data_product_id']}, State: {dp['state']})"
+                for dp in duplicates
+            ]
+        )
         error_msg = (
             f"URL '{request.url_value}' already exists in {len(duplicates)} data product(s):\n"
             f"{duplicate_list}\n\n"
@@ -94,34 +96,34 @@ async def _create_or_update_url_data_product(
         f"Creating URL data product - Name: {request.name}, "
         f"URL Name: {request.url_name}, URL: {request.url_value}"
     )
-    
+
     # Step 1: Validate URL format
     validate_url(request.url_value)
-    
+
     # Step 2: Determine operation type and validate inputs
     is_create = is_data_product_draft_create(request)
     if is_create:
         LOGGER.info("Operation type: CREATE new data product draft")
         await validate_inputs_for_draft_create(request, "url_value", "url_name")
     else:
-        LOGGER.info(f"Operation type: UPDATE existing draft {request.existing_data_product_draft_id}")
+        LOGGER.info(
+            f"Operation type: UPDATE existing draft {request.existing_data_product_draft_id}"
+        )
 
     # Step 3: Validate for duplicate URLs (if applicable)
     await _validate_duplicate_url(request, is_create)
-    
+
     # Step 4: Get catalog ID for asset creation
     dph_catalog_id = await get_dph_catalog_id_for_user(await get_access_token())
 
     # step 1: create a URL asset in cams
     url_asset_id = await create_url_asset_in_cams(request, dph_catalog_id)
-    
+
     # step 2: get the delivery method id for Open URL
     delivery_method_id = await get_delivery_method_id_for_open_url(dph_catalog_id)
 
     # step 3: create ibm_data_product_part asset and set relationship between URL asset and ibm_data_product_part asset
-    await create_part_asset_and_set_relationship(
-        request.url_name, url_asset_id
-    )
+    await create_part_asset_and_set_relationship(request.url_name, url_asset_id)
 
     # step 4: create a data product draft with the URL asset and delivery method
     # Note: The data product created here is a draft, user should attach business domain and contract to the draft
@@ -136,7 +138,7 @@ async def _create_or_update_url_data_product(
         response = await tool_helper_service.execute_post_request(
             url=f"{tool_helper_service.base_url}/data_product_exchange/v1/data_products",
             json=payload,
-            tool_name="create_or_update_url_data_product"
+            tool_name="create_or_update_url_data_product",
         )
         LOGGER.info(
             "In the create_or_update_url_data_product tool, created URL data product draft"
@@ -157,24 +159,34 @@ async def _create_or_update_url_data_product(
         LOGGER.info(
             "In the create_or_update_url_data_product tool, patched data product draft with the provided URL asset."
         )
-        message = "Updated data product draft with the provided URL asset item successfully."
+        message = (
+            "Updated data product draft with the provided URL asset item successfully."
+        )
         draft = response
 
-    data_product_draft_id = request.existing_data_product_draft_id if request.existing_data_product_draft_id else draft["id"]
+    data_product_draft_id = (
+        request.existing_data_product_draft_id
+        if request.existing_data_product_draft_id
+        else draft["id"]
+    )
 
     if request.is_restricted:
-        await apply_restricted_patch(data_product_draft_id, "create_or_update_url_data_product")
+        await apply_restricted_patch(
+            data_product_draft_id, "create_or_update_url_data_product"
+        )
     contract_terms_id = draft["contract_terms"][0]["id"]
 
     return CreateOrUpdateUrlDataProductResponse(
         message=message,
         data_product_draft_id=data_product_draft_id,
         contract_terms_id=contract_terms_id,
-        url=get_data_product_url(data_product_draft_id, "draft")
+        url=get_data_product_url(data_product_draft_id, "draft"),
     )
 
 
-async def create_url_asset_in_cams(request: CreateOrUpdateUrlDataProductRequest, dph_catalog_id: str) -> str:
+async def create_url_asset_in_cams(
+    request: CreateOrUpdateUrlDataProductRequest, dph_catalog_id: str
+) -> str:
     """
     This function creates an asset in the catalog.
     """
@@ -193,10 +205,12 @@ async def create_url_asset_in_cams(request: CreateOrUpdateUrlDataProductRequest,
     response = await tool_helper_service.execute_post_request(
         url=f"{tool_helper_service.base_url}/v2/assets?catalog_id={dph_catalog_id}&hide_deprecated_response_fields=false",
         json=payload,
-        tool_name="create_or_update_url_data_product"
+        tool_name="create_or_update_url_data_product",
     )
     url_asset_id = response["asset_id"]
-    LOGGER.info(f"In the create_or_update_url_data_product tool, created URL Asset. {url_asset_id}")
+    LOGGER.info(
+        f"In the create_or_update_url_data_product tool, created URL Asset. {url_asset_id}"
+    )
     return url_asset_id
 
 
@@ -209,7 +223,7 @@ async def get_delivery_method_id_for_open_url(dph_catalog_id: str) -> str:
     response = await tool_helper_service.execute_post_request(
         url=f"{tool_helper_service.base_url}/v2/asset_types/ibm_data_product_delivery_method/search?catalog_id={dph_catalog_id}&hide_deprecated_response_fields=false",
         json=payload,
-        tool_name="create_or_update_url_data_product"
+        tool_name="create_or_update_url_data_product",
     )
 
     delivery_method_id = ""
@@ -218,7 +232,9 @@ async def get_delivery_method_id_for_open_url(dph_catalog_id: str) -> str:
             delivery_method_id = result["metadata"]["asset_id"]
 
     if not delivery_method_id:
-        LOGGER.error('Failed to run create_or_update_url_data_product tool. Delivery method "Open URL" is not found.')
+        LOGGER.error(
+            'Failed to run create_or_update_url_data_product tool. Delivery method "Open URL" is not found.'
+        )
         raise ServiceError(
             'Failed to run create_or_update_url_data_product tool. Delivery method "Open URL" is not found',
             remediation_steps=(
@@ -227,12 +243,17 @@ async def get_delivery_method_id_for_open_url(dph_catalog_id: str) -> str:
             ),
         )
 
-    LOGGER.info(f"In the create_or_update_url_data_product tool tool, Got delivery method id - {delivery_method_id}.")
+    LOGGER.info(
+        f"In the create_or_update_url_data_product tool tool, Got delivery method id - {delivery_method_id}."
+    )
     return delivery_method_id
 
 
 def get_data_product_draft_with_delivery_method_creation_payload(
-    dph_catalog_id: str, request: CreateOrUpdateUrlDataProductRequest, url_asset_id: str, delivery_method_id: str
+    dph_catalog_id: str,
+    request: CreateOrUpdateUrlDataProductRequest,
+    url_asset_id: str,
+    delivery_method_id: str,
 ) -> dict:
     return {
         "drafts": [
@@ -272,19 +293,16 @@ def get_patch_data_asset_items_with_delivery_method_to_draft_payload(
             "value": {
                 "asset": {
                     "id": data_asset_id,
-                    "container": {
-                        "id": dph_catalog_id,
-                        "type": "catalog"
-                    },
-                    "type": "ibm_url_definition"
+                    "container": {"id": dph_catalog_id, "type": "catalog"},
+                    "type": "ibm_url_definition",
                 },
                 "delivery_methods": [
                     {
                         "id": delivery_method_id,
                         "container": {"id": dph_catalog_id},
                     }
-                ]
-            }
+                ],
+            },
         }
     ]
 
@@ -305,29 +323,64 @@ def get_patch_data_asset_items_with_delivery_method_to_draft_payload(
         Identifies the data product draft by request.existing_data_product_draft_id and adds the URL asset to the data product draft.
         'Add a URL asset to data product draft <url>,.....'
     Returns: This tool returns detailed information about the created or updated URL-based data product draft, including its unique identifier, associated contract terms ID, and a direct URL to access the draft.
-    """,
+    """,  # noqa: W293 # Baseline
     tags={"create", "data_product"},
     meta={"version": "1.0", "service": "data_product"},
     annotations={
         "title": "Create or Update Data Product Draft with URL Asset",
-        "destructiveHint": True
-    }
+        "destructiveHint": True,
+    },
 )
 @auto_context
-async def create_or_update_url_data_product(
-    name: Annotated[str, Field(description="The name of the data product. Read the value from user.")],
-    description: Annotated[str, Field(description="The description of the data product. Read the value from user.")],
-    url_name: Annotated[str, Field(description="The URL name of the data product. Read the value from user.")],
-    url_value: Annotated[str, Field(description="The URL value of the data product. Read the value from user.")],
-    existing_data_product_draft_id: Annotated[str | None, Field(description="The ID of the existing data product draft. This field is populated only if we are adding a URL asset item to an existing draft, otherwise this field value is None.")] = None,
-    force: Annotated[bool, Field(description="If True, creates a new draft even if a data product with the same URL already exists. If False (default), stops creation and returns error with existing data products that use the specified URL.")] = False,
-    is_restricted: Annotated[bool, Field(description="If True, the data product draft is marked as restricted. Access requires approval and the current user is set as the approver. Applies to both CREATE and UPDATE operations.")] = False
+async def create_or_update_url_data_product(  # noqa: PLR0913 # Baseline
+    name: Annotated[
+        str,
+        Field(description="The name of the data product. Read the value from user."),
+    ],
+    description: Annotated[
+        str,
+        Field(
+            description="The description of the data product. Read the value from user."
+        ),
+    ],
+    url_name: Annotated[
+        str,
+        Field(
+            description="The URL name of the data product. Read the value from user."
+        ),
+    ],
+    url_value: Annotated[
+        str,
+        Field(
+            description="The URL value of the data product. Read the value from user."
+        ),
+    ],
+    existing_data_product_draft_id: Annotated[
+        str | None,
+        Field(
+            description="The ID of the existing data product draft. This field is populated only if we are adding a URL asset item to an existing draft, otherwise this field value is None."
+        ),
+    ] = None,
+    force: Annotated[
+        bool,
+        Field(
+            description="If True, creates a new draft even if a data product with the same URL already exists. If False (default), stops creation and returns error with existing data products that use the specified URL."
+        ),
+    ] = False,
+    is_restricted: Annotated[
+        bool,
+        Field(
+            description="If True, the data product draft is marked as restricted. Access requires approval and the current user is set as the approver. Applies to both CREATE and UPDATE operations."
+        ),
+    ] = False,
 ) -> CreateOrUpdateUrlDataProductResponse:
     """Wrapper version that expands CreateOrUpdateUrlDataProductRequest object into individual parameters."""
 
     # Convert empty string to None for proper handling
     # Wrapper requires string type, but empty string should be treated as None
-    draft_id = existing_data_product_draft_id if existing_data_product_draft_id else None
+    draft_id = (
+        existing_data_product_draft_id if existing_data_product_draft_id else None
+    )
 
     request = CreateOrUpdateUrlDataProductRequest(
         name=name,

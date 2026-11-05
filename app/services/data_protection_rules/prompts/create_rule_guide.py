@@ -18,17 +18,15 @@ from app.core.registry import prompt_registry
 
 @prompt_registry.prompt(
     name="Data Protection Rule Creation Guide",
-    description="Guide users through creating data protection rules to enforce data governance policies with configurable actions (deny/redact/filter row/anonymize/pseudonymize)"
+    description="Guide users through creating data protection rules to enforce data governance policies with configurable actions (deny/redact/filter row/anonymize/pseudonymize)",
 )
-def create_rule_guide_prompt(
-    rule_description: str
-) -> str:
+def create_rule_guide_prompt(rule_description: str) -> str:
     """
     Provides guidance on creating data protection rules to enforce data governance policies.
-    
+
     This prompt helps users create rules based on trigger conditions including user groups,
     governance artifacts, data assets name or schema, and tags with configurable actions to control data access and usage.
-    
+
     Args:
         rule_description: Natural language description of the rule including the action and trigger conditions
                          (e.g., "Redact SSN data class for external user group",

@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Annotated
+from typing import Annotated  # noqa: I001 # Baseline
 
 from pydantic import Field
 from app.core.registry import service_registry
@@ -29,7 +29,7 @@ async def _set_validates_data_quality_of_relation(
         request.project_id_or_name,
         request.data_quality_rule_id_or_name,
         request.data_asset_id_or_name,
-        request.column_name
+        request.column_name,
     )
 
     result = await set_validates_data_quality_of_relation_util(
@@ -60,15 +60,35 @@ Raises:
     meta={"version": "1.0", "service": "data_quality"},
     annotations={
         "title": "Establish Relationship Between Data Quality Rule and Data Asset Column",
-        "destructiveHint": True
-    }
+        "destructiveHint": True,
+    },
 )
 @auto_context
 async def set_validates_data_quality_of_relation(
-    project_id_or_name: Annotated[str, Field(description="The ID or name of the project containing the data quality rule. Examples: 'customer_analytics_project', 'financial_reporting_2023', 'supply_chain_optimization'")],
-    data_quality_rule_id_or_name: Annotated[str, Field(description="The ID or name of the data quality rule to execute. Examples: 'validate_customer_email_format', 'check_sales_transaction_completeness', 'verify_inventory_data_consistency'")],
-    data_asset_id_or_name: Annotated[str, Field(description="The ID or name of the data asset. Examples: 'customer_data_2023', 'sales_records_q2', 'inventory_management'")],
-    column_name: Annotated[str, Field(description="The name of column. Examples: 'customer_id', 'transaction_date', 'product_category'")],
+    project_id_or_name: Annotated[
+        str,
+        Field(
+            description="The ID or name of the project containing the data quality rule. Examples: 'customer_analytics_project', 'financial_reporting_2023', 'supply_chain_optimization'"
+        ),
+    ],
+    data_quality_rule_id_or_name: Annotated[
+        str,
+        Field(
+            description="The ID or name of the data quality rule to execute. Examples: 'validate_customer_email_format', 'check_sales_transaction_completeness', 'verify_inventory_data_consistency'"
+        ),
+    ],
+    data_asset_id_or_name: Annotated[
+        str,
+        Field(
+            description="The ID or name of the data asset. Examples: 'customer_data_2023', 'sales_records_q2', 'inventory_management'"
+        ),
+    ],
+    column_name: Annotated[
+        str,
+        Field(
+            description="The name of column. Examples: 'customer_id', 'transaction_date', 'product_category'"
+        ),
+    ],
 ) -> SetValidatesDataQualityOfRelationResponse:
     """
     Wrapper that builds request model and delegates to main tool.

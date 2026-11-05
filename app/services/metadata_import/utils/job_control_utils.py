@@ -4,8 +4,8 @@
 
 """Shared utilities for MDI job control operations (pause, resume, cancel)."""
 
-from string import Template
-from typing import Any, Dict, Optional, Tuple
+from string import Template  # noqa: I001 # Baseline
+from typing import Any, Dict, Optional, Tuple  # noqa: UP035 # Baseline
 from app.shared.logging import LOGGER
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.utils.helpers import confirm_uuid, append_context_to_url
@@ -29,7 +29,7 @@ async def find_latest_job_run_id(
     job_id: str,
     project_id: str,
     target_states: list[str] | None = None,
-) -> Tuple[str, str]:
+) -> Tuple[str, str]:  # noqa: UP006 # Baseline
     """
     Find the latest job run for a metadata import job that matches the target states.
 
@@ -105,8 +105,8 @@ async def find_latest_job_run_id(
             job_id,
             str(e),
         )
-        raise ServiceError(
-            f"Failed to retrieve job runs for job '{job_id}': {str(e)}",
+        raise ServiceError(  # noqa: B904 # Baseline
+            f"Failed to retrieve job runs for job '{job_id}': {e!s}",
             remediation_steps=(
                 "Verify the project_name and metadata_import_name are correct. "
                 "Use 'search_metadata_import' to list available MDIs in the project."
@@ -114,23 +114,21 @@ async def find_latest_job_run_id(
         )
 
 
-async def get_job_run_state(
-    job_id: str, job_run_id: str, project_id: str
-) -> str:
+async def get_job_run_state(job_id: str, job_run_id: str, project_id: str) -> str:
     """
     Get the current state of a specific job run.
-    
+
     Args:
         job_id: The ID of the metadata import job
         job_run_id: The ID of the specific job run
         project_id: The ID of the project containing the job
-        
+
     Returns:
         str: The current state of the job run
-        
+
     Raises:
         ServiceError: If the job run is not found or if the API call fails
-        
+
     Example:
         >>> state = await get_job_run_state("job-123", "run-456", "proj-789")
         >>> print(f"Job run state: {state}")
@@ -141,31 +139,30 @@ async def get_job_run_state(
         job_run_id,
         project_id,
     )
-    
+
     get_url = f"{tool_helper_service.base_url}/v2/jobs/{job_id}/runs/{job_run_id}"
     query_params = {
         "project_id": project_id,
     }
-    
+
     try:
         response = await tool_helper_service.execute_get_request(
             url=get_url,
             params=query_params,
         )
-        
+
         state = response.get("entity", {}).get("job_run", {}).get("state")
 
         if state:
             LOGGER.info("Job run state: %s", state)
             return state
-        else:
-            raise ServiceError(
-                f"Could not determine state for job run '{job_run_id}'.",
-                remediation_steps=(
-                    "Verify the job_run_id is valid. "
-                    "Use 'search_metadata_import' to find the MDI and confirm job details."
-                ),
-            )
+        raise ServiceError(
+            f"Could not determine state for job run '{job_run_id}'.",
+            remediation_steps=(
+                "Verify the job_run_id is valid. "
+                "Use 'search_metadata_import' to find the MDI and confirm job details."
+            ),
+        )
 
     except ServiceError:
         raise
@@ -175,8 +172,8 @@ async def get_job_run_state(
             job_run_id,
             str(e),
         )
-        raise ServiceError(
-            f"Failed to retrieve state for job run '{job_run_id}': {str(e)}",
+        raise ServiceError(  # noqa: B904 # Baseline
+            f"Failed to retrieve state for job run '{job_run_id}': {e!s}",
             remediation_steps=(
                 "Verify the job_run_id is correct. "
                 "Use 'search_metadata_import' to find the MDI and confirm available job runs."
@@ -198,7 +195,7 @@ def validate_job_state_for_pause(current_state: str) -> None:
                 "Use 'pause_resume_or_cancel_mdi_job_run' with action='resume' to resume it."
             ),
         )
-    elif current_state in [JOB_STATE_COMPLETED, JOB_STATE_FAILED, JOB_STATE_CANCELED]:
+    if current_state in [JOB_STATE_COMPLETED, JOB_STATE_FAILED, JOB_STATE_CANCELED]:
         raise ServiceError(
             f"Cannot pause a job that is {current_state}. "
             "Only Running jobs can be paused.",
@@ -207,13 +204,12 @@ def validate_job_state_for_pause(current_state: str) -> None:
                 "Use 'execute_metadata_import' to start a new run."
             ),
         )
-    elif current_state != JOB_STATE_RUNNING:
+    if current_state != JOB_STATE_RUNNING:
         raise ServiceError(
             f"Cannot pause job in state '{current_state}'. "
             "Only Running jobs can be paused.",
             remediation_steps=(
-                "Check the current state of the job. "
-                "Only Running jobs can be paused."
+                "Check the current state of the job. Only Running jobs can be paused."
             ),
         )
 
@@ -232,7 +228,7 @@ def validate_job_state_for_resume(current_state: str) -> None:
                 "Use 'pause_resume_or_cancel_mdi_job_run' with action='pause' to pause it if needed."
             ),
         )
-    elif current_state in [JOB_STATE_COMPLETED, JOB_STATE_FAILED, JOB_STATE_CANCELED]:
+    if current_state in [JOB_STATE_COMPLETED, JOB_STATE_FAILED, JOB_STATE_CANCELED]:
         raise ServiceError(
             f"Cannot resume a job that is {current_state}. "
             "Only Paused jobs can be resumed.",
@@ -241,13 +237,12 @@ def validate_job_state_for_resume(current_state: str) -> None:
                 "Use 'execute_metadata_import' to start a new run."
             ),
         )
-    elif current_state != JOB_STATE_PAUSED:
+    if current_state != JOB_STATE_PAUSED:
         raise ServiceError(
             f"Cannot resume job in state '{current_state}'. "
             "Only Paused jobs can be resumed.",
             remediation_steps=(
-                "Check the current state of the job. "
-                "Only Paused jobs can be resumed."
+                "Check the current state of the job. Only Paused jobs can be resumed."
             ),
         )
 
@@ -266,7 +261,7 @@ def validate_job_state_for_cancel(current_state: str) -> None:
                 "Use 'execute_metadata_import' to start a new run."
             ),
         )
-    elif current_state in [JOB_STATE_COMPLETED, JOB_STATE_FAILED]:
+    if current_state in [JOB_STATE_COMPLETED, JOB_STATE_FAILED]:
         raise ServiceError(
             f"Cannot cancel a job that is {current_state}. "
             "Only Running, Paused, or Queued jobs can be canceled.",
@@ -275,7 +270,7 @@ def validate_job_state_for_cancel(current_state: str) -> None:
                 "No cancel action is needed."
             ),
         )
-    elif current_state not in ACTIVE_JOB_STATES:
+    if current_state not in ACTIVE_JOB_STATES:
         raise ServiceError(
             f"Cannot cancel job in state '{current_state}'. "
             "Only Running, Paused, or Queued jobs can be canceled.",
@@ -284,6 +279,7 @@ def validate_job_state_for_cancel(current_state: str) -> None:
                 "Only Running, Paused, or Queued jobs can be canceled."
             ),
         )
+
 
 UI_JOB_RUN_URL_TEMPLATE = (
     "/gov/metadata-imports/jobs/runs"
@@ -294,10 +290,10 @@ UI_JOB_RUN_URL_TEMPLATE = (
 async def resolve_job_run_ids(
     project_name: str,
     metadata_import_name: str,
-    job_run_id: Optional[str],
-    find_job_id_in_mdi,
+    job_run_id: Optional[str],  # noqa: UP045 # Baseline
+    find_job_id_in_mdi,  # noqa: ANN001 # Baseline
     target_states: list[str] | None = None,
-) -> Tuple[str, str, str, str, str]:
+) -> Tuple[str, str, str, str, str]:  # noqa: UP006 # Baseline
     """
     Resolve all IDs needed for a job control operation.
 
@@ -314,15 +310,23 @@ async def resolve_job_run_ids(
     """
     project_id = await confirm_uuid(project_name, find_project_id)
     metadata_import_id = await find_metadata_import_id(metadata_import_name, project_id)
-    LOGGER.info("Found metadata import: metadata_import_id=%s, project_id=%s", metadata_import_id, project_id)
+    LOGGER.info(
+        "Found metadata import: metadata_import_id=%s, project_id=%s",
+        metadata_import_id,
+        project_id,
+    )
 
     job_id = await find_job_id_in_mdi(metadata_import_id, project_id)
 
     if job_run_id:
         current_state = await get_job_run_state(job_id, job_run_id, project_id)
-        LOGGER.info("Using provided job_run_id=%s with state=%s", job_run_id, current_state)
+        LOGGER.info(
+            "Using provided job_run_id=%s with state=%s", job_run_id, current_state
+        )
     else:
-        job_run_id, current_state = await find_latest_job_run_id(job_id, project_id, target_states)
+        job_run_id, current_state = await find_latest_job_run_id(
+            job_id, project_id, target_states
+        )
         LOGGER.info("Found job run: job_run_id=%s, state=%s", job_run_id, current_state)
 
     return project_id, metadata_import_id, job_id, job_run_id, current_state
@@ -330,7 +334,7 @@ async def resolve_job_run_ids(
 
 async def fetch_job_run_details(
     job_id: str, job_run_id: str, project_id: str
-) -> Tuple[Dict[str, Any], str, str]:
+) -> Tuple[Dict[str, Any], str, str]:  # noqa: UP006 # Baseline
     """
     Fetch job run details after a control operation and build the UI URL.
 
@@ -338,13 +342,15 @@ async def fetch_job_run_details(
         Tuple of (job_run_data, new_state, ui_url)
     """
     get_url = f"{tool_helper_service.base_url}/v2/jobs/{job_id}/runs/{job_run_id}"
-    job_run_data: Dict[str, Any] = await tool_helper_service.execute_get_request(
+    job_run_data: Dict[str, Any] = await tool_helper_service.execute_get_request(  # noqa: UP006 # Baseline
         url=get_url,
         params={"project_id": project_id},
     )
     # NOTE: "Unknown" is a safe non-empty fallback; the operation itself succeeded.
     # The UI URL in the response provides the authoritative live state.
-    new_state = job_run_data.get("entity", {}).get("job_run", {}).get("state", "Unknown")
+    new_state = (
+        job_run_data.get("entity", {}).get("job_run", {}).get("state", "Unknown")
+    )
     ui_base = str(tool_helper_service.ui_base_url)
     url = Template(ui_base + UI_JOB_RUN_URL_TEMPLATE).substitute(
         job_id=job_id, jobrun_id=job_run_id, project_id=project_id

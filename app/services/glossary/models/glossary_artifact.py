@@ -4,7 +4,7 @@
 
 """Models for glossary artifacts."""
 
-from email import message
+from email import message  # noqa: F401, I001 # Baseline
 from typing import Optional
 from pydantic import BaseModel, Field
 from app.shared.models import BaseResponseModel
@@ -14,8 +14,8 @@ class GlossaryArtifact(BaseModel):
     id: str = Field(..., description="Unique identifier of the glossary artifact")
     name: str = Field(..., description="Display name of the glossary artifact")
     artifact_type: str = Field(
-        ..., 
-        description="Type of artifact (e.g., 'term', 'classification', 'data_class', 'policy', 'rule', 'category', 'reference_data_set')"
+        ...,
+        description="Type of artifact (e.g., 'term', 'classification', 'data_class', 'policy', 'rule', 'category', 'reference_data_set')",
     )
     url: str = Field(..., description="URL to access the glossary artifact in the UI")
 
@@ -23,45 +23,40 @@ class GlossaryArtifact(BaseModel):
 class ExplainGlossaryArtifactRequest(BaseModel):
     artifact_name: str = Field(
         ...,
-        description="The name of the glossary artifact to look up. Can be a glossary term, classification, data class, reference data, policy, or rule."
+        description="The name of the glossary artifact to look up. Can be a glossary term, classification, data class, reference data, policy, or rule.",
     )
 
 
 class GlossaryArtifactDescription(BaseResponseModel):
-    glossary_artifact: Optional[GlossaryArtifact] = Field(
-        None,
-        description="Details about the glossary artifact (id, name, type, url)"
+    glossary_artifact: Optional[GlossaryArtifact] = Field(  # noqa: UP045 # Baseline
+        None, description="Details about the glossary artifact (id, name, type, url)"
     )
     description: str = Field(
-        ...,
-        description="Textual explanation of the artifact and its purpose"
+        ..., description="Textual explanation of the artifact and its purpose"
     )
     ai_generated: bool = Field(
         False,
-        description="Whether the description was AI-generated or came from metadata"
+        description="Whether the description was AI-generated or came from metadata",
     )
-    generation_prompt: Optional[str] = Field(
+    generation_prompt: Optional[str] = Field(  # noqa: UP045 # Baseline
         None,
-        description="Prompt for generating a description when one is not available. The calling model should use this to generate a proper description."
+        description="Prompt for generating a description when one is not available. The calling model should use this to generate a proper description.",
     )
 
 
 class GetGlossaryArtifactsForAssetRequest(BaseModel):
     asset_id_or_name: str = Field(
-        ...,
-        description="UUID or name of the asset to retrieve glossary artifacts for"
+        ..., description="UUID or name of the asset to retrieve glossary artifacts for"
     )
     container_id_or_name: str = Field(
-        ...,
-        description="UUID or name of the project or catalog containing the asset"
+        ..., description="UUID or name of the project or catalog containing the asset"
     )
     container_type: str = Field(
-        ...,
-        description="Type of container - either 'project' or 'catalog'"
+        ..., description="Type of container - either 'project' or 'catalog'"
     )
 
+
 class GetGlossaryArtifactsForAssetResponse(BaseResponseModel):
-    message: str = Field(
-        ...,
-        description="Message indicating the response of the operation"
+    message: str = Field(  # noqa: F811 # Baseline
+        ..., description="Message indicating the response of the operation"
     )

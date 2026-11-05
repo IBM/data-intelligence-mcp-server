@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional  # noqa: I001, UP035 # Baseline
 from app.services.constants import DATA_PROFILES_BASE_ENDPOINT
 from app.services.profiling.models.create_data_profiles import (
     CreateDataProfilesResponse,
@@ -20,10 +20,10 @@ DATA_PROFILES_URL = str(tool_helper_service.base_url) + DATA_PROFILES_BASE_ENDPO
 async def resolve_catalog_id(catalog_id_or_name: str) -> str:
     """
     Resolves a catalog identifier to its UUID.
-    
+
     Args:
         catalog_id_or_name: Catalog UUID or name
-        
+
     Returns:
         str: The resolved catalog UUID
     """
@@ -32,7 +32,10 @@ async def resolve_catalog_id(catalog_id_or_name: str) -> str:
     return await find_catalog_id(catalog_id_or_name)
 
 
-async def resolve_dataset_ids(dataset_ids_or_names: List[str], catalog_id: str) -> List[str]:
+async def resolve_dataset_ids(
+    dataset_ids_or_names: List[str],  # noqa: UP006 # Baseline
+    catalog_id: str,  # noqa: UP006 # Baseline
+) -> List[str]:  # noqa: UP006 # Baseline
     """
     Resolves a list of dataset identifiers to UUIDs.
 
@@ -46,7 +49,7 @@ async def resolve_dataset_ids(dataset_ids_or_names: List[str], catalog_id: str) 
     Returns:
         List[str]: The resolved list of dataset UUIDs.
     """
-    resolved: List[str] = []
+    resolved: List[str] = []  # noqa: UP006 # Baseline
     for entry in dataset_ids_or_names:
         if is_uuid_bool(entry):
             resolved.append(entry)
@@ -83,37 +86,37 @@ def get_asset_profiling_ui_url(catalog_id: str, dataset_id: str) -> str:
 
 async def create_data_profiles(
     catalog_id_or_name: str,
-    dataset_ids: List[str],
-    options: Optional[DataProfileOptions] = None,
+    dataset_ids: List[str],  # noqa: UP006 # Baseline
+    options: Optional[DataProfileOptions] = None,  # noqa: UP045 # Baseline
 ) -> CreateDataProfilesResponse:
     """
     Create data profiles for specified datasets in a catalog.
-    
+
     Args:
         catalog_id_or_name (str): Catalog ID or name
         dataset_ids (List[str]): List of dataset UUIDs or asset names to profile.
             Names are automatically resolved to UUIDs via the catalog asset search API.
         options (Optional[DataProfileOptions]): Profiling options
-        
+
     Returns:
         CreateDataProfilesResponse: Profile information including ID, status, and UI URL
-        
+
     Raises:
         ServiceError: If profile creation fails
     """
-    
+
     LOGGER.info(
         "[PROFILING] Creating data profiles for catalog=%s, datasets=%s",
         catalog_id_or_name,
         dataset_ids,
     )
-    
+
     # Resolve catalog ID if name provided
     catalog_id = await resolve_catalog_id(catalog_id_or_name)
 
     # Resolve any dataset names to UUIDs
     dataset_ids = await resolve_dataset_ids(dataset_ids, catalog_id)
-    
+
     # Build request payload matching the API specification
     resolved_options = options or DataProfileOptions()
     payload = {
@@ -121,13 +124,9 @@ async def create_data_profiles(
             "dataset_ids": dataset_ids,
             "catalog_id": catalog_id,
         },
-        "entity": {
-            "data_profile": {
-                "options": resolved_options.model_dump()
-            }
-        }
+        "entity": {"data_profile": {"options": resolved_options.model_dump()}},
     }
-    
+
     try:
         LOGGER.info(
             "[PROFILING] Sending profile creation request to %s",
@@ -145,15 +144,15 @@ async def create_data_profiles(
             "[PROFILING] Failed to create profiles: %s",
             str(e),
         )
-        raise ServiceError(
-            f"Profile creation failed due to: {str(e)}",
+        raise ServiceError(  # noqa: B904 # Baseline
+            f"Profile creation failed due to: {e!s}",
             remediation_steps=(
                 "Verify the catalog name is correct by calling `list_containers`, "
                 "then retry with the correct catalog_id."
             ),
         )
-    
-    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}
+
+    response_dict: Dict[str, Any] = response if isinstance(response, dict) else {}  # noqa: UP006 # Baseline
 
     # The POST /v2/data_profiles response is a single resource object.
     # The profile ID lives at metadata.asset_id; execution status at
@@ -174,14 +173,16 @@ async def create_data_profiles(
             ),
         )
 
-    execution = response_dict.get("entity", {}).get("data_profile", {}).get("execution", {})
+    execution = (
+        response_dict.get("entity", {}).get("data_profile", {}).get("execution", {})
+    )
     status = execution.get("status", "pending")
 
     # For a single-asset profile, metadata.dataset_ids is [] and the real ID
     # is only in metadata.dataset_id (singular).
     # For a multi-asset (bulk) profile, metadata.dataset_ids has the full list.
     # Fall back to the locally-resolved list we submitted if the API returns nothing useful.
-    api_dataset_ids: List[str] = metadata.get("dataset_ids") or []
+    api_dataset_ids: List[str] = metadata.get("dataset_ids") or []  # noqa: UP006 # Baseline
     if not api_dataset_ids:
         single_id = metadata.get("dataset_id")
         api_dataset_ids = [single_id] if single_id else dataset_ids

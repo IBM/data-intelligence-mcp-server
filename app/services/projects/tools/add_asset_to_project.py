@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-from typing import Annotated, Optional, Dict, Any
+from typing import Annotated, Optional, Dict, Any  # noqa: I001, UP035 # Baseline
 from app.core.auth import get_bss_account_id, get_iam_url, get_user_identifier
 from app.core.registry import service_registry
 from app.services.projects.models.add_asset_to_project import (
@@ -12,19 +12,31 @@ from app.services.projects.models.add_asset_to_project import (
 from app.shared.logging import LOGGER, auto_context
 from app.shared.utils.tool_helper_service import tool_helper_service
 from app.shared.exceptions.base import ServiceError, ExternalAPIError
-from app.services.constants import CAMS_ASSETS_BASE_ENDPOINT, PROJECTS_BASE_ENDPOINT, CATALOGS_BASE_ENDPOINT, GROUPS_BASE_ENDPOINT, ASSET_TYPE_BASE_ENDPOINT
+from app.services.constants import (
+    CAMS_ASSETS_BASE_ENDPOINT,
+    PROJECTS_BASE_ENDPOINT,
+    CATALOGS_BASE_ENDPOINT,
+    GROUPS_BASE_ENDPOINT,
+    ASSET_TYPE_BASE_ENDPOINT,
+)
 from app.services.tool_utils import (
     find_project_id,
     find_catalog_id,
     is_project_exist,
 )
-from app.shared.utils.helpers import append_context_to_url, is_uuid_bool, get_closest_match
+from app.shared.utils.helpers import (
+    append_context_to_url,
+    is_uuid_bool,
+    get_closest_match,
+)
 
 
 UNEXPECTED_RESPONSE_FORMAT_ERROR = "Unexpected response format from API"
 
 
-async def _add_asset_to_project(request: AddAssetToProjectRequest) -> AddAssetToProjectResponse:
+async def _add_asset_to_project(
+    request: AddAssetToProjectRequest,
+) -> AddAssetToProjectResponse:
     """
     Add a catalog asset to a project by creating a reference.
 
@@ -45,11 +57,13 @@ async def _add_asset_to_project(request: AddAssetToProjectRequest) -> AddAssetTo
         ServiceError: If validation fails or user lacks permissions
         ExternalAPIError: If API calls fail
     """
-    
+
     # Step 1: Resolve project ID - this will raise ServiceError if project doesn't exist
     LOGGER.info("Resolving project ID and validating user permissions")
 
-    project_id, project_name, user_role = await _resolve_and_validate_project(request.project_id_or_name)
+    project_id, project_name, user_role = await _resolve_and_validate_project(
+        request.project_id_or_name
+    )
 
     # Step 2: Validate user permissions.
     # If the role is known (admin/editor/viewer), enforce it explicitly.
@@ -61,24 +75,22 @@ async def _add_asset_to_project(request: AddAssetToProjectRequest) -> AddAssetTo
     else:
         # Role is None - could be group access or other indirect access
         # Let the API call validate permissions
-        LOGGER.info(f"Could not determine direct user role for project '{project_name}'. "
-                   f"Proceeding with API call - backend will validate permissions.")
-    
+        LOGGER.info(
+            f"Could not determine direct user role for project '{project_name}'. "
+            f"Proceeding with API call - backend will validate permissions."
+        )
+
     # Step 3: Resolve asset ID if name was provided
     asset_id = await _resolve_asset_id(
-        request.asset_id_or_name,
-        request.catalog_id_or_name
+        request.asset_id_or_name, request.catalog_id_or_name
     )
-    
+
     # Step 4: Get asset details from catalog
-    asset_details = await _get_asset_details(
-        asset_id,
-        request.catalog_id_or_name
-    )
-    
+    asset_details = await _get_asset_details(asset_id, request.catalog_id_or_name)
+
     # Step 5: Check if asset already exists in project
     await _check_asset_not_in_project(project_id, asset_details["asset_name"])
-    
+
     # Step 6: Copy the catalog asset into the project
     project_asset_id = await _create_asset_reference_in_project(
         asset_id=asset_id,
@@ -104,18 +116,20 @@ async def _add_asset_to_project(request: AddAssetToProjectRequest) -> AddAssetTo
         catalog_id=asset_details["catalog_id"],
         catalog_name=asset_details["catalog_name"],
         asset_url=asset_url,
-        message=f"Asset '{asset_details['asset_name']}' successfully added to project '{project_name}'"
+        message=f"Asset '{asset_details['asset_name']}' successfully added to project '{project_name}'",
     )
 
 
-async def _resolve_and_validate_project(project_id_or_name: str) -> tuple[str, str, str]:
+async def _resolve_and_validate_project(
+    project_id_or_name: str,
+) -> tuple[str, str, str]:
     """
     Resolve project identifier to ID and validate user access.
-    
+
     Returns:
         tuple: (project_id, project_name, user_role)
     """
-    known_name: Optional[str] = None
+    known_name: Optional[str] = None  # noqa: UP045 # Baseline
 
     # Check if input is UUID or name
     if is_uuid_bool(project_id_or_name):
@@ -123,24 +137,29 @@ async def _resolve_and_validate_project(project_id_or_name: str) -> tuple[str, s
         # Validate project exists and get details
         exists, _, actual_id = await is_project_exist(project_id)
         if not exists:
-            raise ServiceError(f"Project with ID '{project_id}' not found or you don't have access to it",
-                               remediation_steps="Call the list_containers tool with container_type set to 'project' to retrieve the list of available projects. Then provide a project ID from the list.",
-                               tool="add_asset_to_project")
+            raise ServiceError(
+                f"Project with ID '{project_id}' not found or you don't have access to it",
+                remediation_steps="Call the list_containers tool with container_type set to 'project' to retrieve the list of available projects. Then provide a project ID from the list.",
+                tool="add_asset_to_project",
+            )
         project_id = actual_id
     else:
         # Resolve name to ID; the input is the authoritative project name.
         known_name = project_id_or_name
         project_id = await find_project_id(project_id_or_name)
-    
+
     # Get project details including user role
     project_details = await _get_project_details(project_id, known_name=known_name)
-    
+
     return project_id, project_details["name"], project_details["user_role"]
 
 
-async def _get_project_details(project_id: str, known_name: Optional[str] = None) -> Dict[str, Any]:
+async def _get_project_details(
+    project_id: str,
+    known_name: Optional[str] = None,  # noqa: UP045 # Baseline
+) -> Dict[str, Any]:  # noqa: UP006 # Baseline
     """Get project details including user's role.
-    
+
     Args:
         project_id: The UUID of the project.
         known_name: If already known (e.g. the caller resolved it from the project list),
@@ -153,80 +172,85 @@ async def _get_project_details(project_id: str, known_name: Optional[str] = None
             # Fetch name from the single-project endpoint
             project_response = await tool_helper_service.execute_get_request(
                 url=f"{tool_helper_service.base_url}{PROJECTS_BASE_ENDPOINT}/{project_id}",
-                tool_name="add_asset_to_project"
+                tool_name="add_asset_to_project",
             )
-            
+
             # Type assertion for response
             if isinstance(project_response, bytes):
-                raise ServiceError(UNEXPECTED_RESPONSE_FORMAT_ERROR, tool="add_asset_to_project")
-            
+                raise ServiceError(
+                    UNEXPECTED_RESPONSE_FORMAT_ERROR, tool="add_asset_to_project"
+                )
+
             project_name = project_response.get("entity", {}).get("name", "")
-        
+
         # Get current user's identifier (IAM ID or UID)
         current_user_id = await get_user_identifier()
-        
+
         LOGGER.info("=== Checking Project Access ===")
         LOGGER.info("Project: %s (ID: %s)", project_name, project_id)
         LOGGER.info("Current User ID: %s", current_user_id)
-        
+
         # Check if user is admin or editor using the same approach as enable_container_for_text_to_sql
         user_role = await _check_user_role_in_project(project_id, current_user_id)
-        
+
         LOGGER.info("=== Final user_role: %s ===", user_role)
-        
-        return {
-            "name": project_name,
-            "user_role": user_role
-        }
+
+        return {"name": project_name, "user_role": user_role}
     except Exception as e:
-        LOGGER.error(f"Failed to get project details: {str(e)}")
-        raise ServiceError(f"Failed to retrieve project details: {str(e)}", tool="add_asset_to_project")
+        LOGGER.error(f"Failed to get project details: {e!s}")
+        raise ServiceError(  # noqa: B904 # Baseline
+            f"Failed to retrieve project details: {e!s}", tool="add_asset_to_project"
+        )
 
 
-async def _check_user_role_in_project(project_id: str, current_user_id: str) -> Optional[str]:
+async def _check_user_role_in_project(
+    project_id: str, current_user_id: str
+) -> Optional[str]:  # noqa: UP045 # Baseline
     """
     Check user's role in project using the same approach as enable_container_for_text_to_sql.
     Checks for admin first, then editor, then viewer, and also handles group memberships.
-    
+
     Returns:
         Optional[str]: The user's role ("admin", "editor", "viewer", or None if not found)
     """
     # Check admin role
     if await _has_role_in_project(project_id, current_user_id, "admin"):
         return "admin"
-    
+
     # Check editor role
     if await _has_role_in_project(project_id, current_user_id, "editor"):
         return "editor"
-    
+
     # Check viewer role
     if await _has_role_in_project(project_id, current_user_id, "viewer"):
         return "viewer"
-    
+
     return None
 
 
-async def _has_role_in_project(project_id: str, current_user_id: str, role: str) -> bool:
+async def _has_role_in_project(
+    project_id: str, current_user_id: str, role: str
+) -> bool:
     """
     Check if user has a specific role in the project (directly or through groups).
     Uses the same logic as enable_container_for_text_to_sql.
     """
     # Query members with specific role filter
     params = {"roles": role}
-    
+
     try:
         response = await tool_helper_service.execute_get_request(
             url=f"{tool_helper_service.base_url}{PROJECTS_BASE_ENDPOINT}/{project_id}/members",
             params=params,
-            tool_name="add_asset_to_project"
+            tool_name="add_asset_to_project",
         )
-        
+
         if isinstance(response, bytes):
             return False
-        
+
         members = response.get("members", [])
         LOGGER.info(f"Found {len(members)} members with role '{role}'")
-        
+
         # Check if user is directly a member with this role
         for member in members:
             member_id = member.get("id", "")
@@ -234,45 +258,46 @@ async def _has_role_in_project(project_id: str, current_user_id: str, role: str)
             if member_id == current_user_id and member_state == "active":
                 LOGGER.info(f"✓ User has direct '{role}' role")
                 return True
-        
+
         # Check if user has this role through group membership
         group_members = [
             member.get("id", "")
             for member in members
             if member.get("type", "") == "group"
         ]
-        
+
         if not group_members:
             LOGGER.info(f"No group members with '{role}' role")
             return False
-        
-        LOGGER.info(f"Found {len(group_members)} group(s) with '{role}' role, checking user's group memberships")
-        
+
+        LOGGER.info(
+            f"Found {len(group_members)} group(s) with '{role}' role, checking user's group memberships"
+        )
+
         # Get user's group memberships
         groups_response = await tool_helper_service.execute_get_request(
             url=f"{get_iam_url()}{GROUPS_BASE_ENDPOINT}",
             params={"account_id": await get_bss_account_id(), "limit": 100},
-            tool_name="add_asset_to_project"
+            tool_name="add_asset_to_project",
         )
-        
+
         if isinstance(groups_response, bytes):
             return False
-        
+
         user_groups = [
             user_group.get("id", "") for user_group in groups_response.get("groups", [])
         ]
-        
+
         # Check if any of user's groups have this role in the project
         has_role_via_group = any(group_id in group_members for group_id in user_groups)
         if has_role_via_group:
             LOGGER.info(f"✓ User has '{role}' role through group membership")
-        
-        return has_role_via_group
-        
-    except Exception as e:
-        LOGGER.error(f"Error checking '{role}' role: {str(e)}")
-        return False
 
+        return has_role_via_group
+
+    except Exception as e:
+        LOGGER.error(f"Error checking '{role}' role: {e!s}")
+        return False
 
 
 async def _list_all_catalog_ids() -> list[str]:
@@ -293,8 +318,9 @@ async def _list_all_catalog_ids() -> list[str]:
         return []
 
 
-
-async def _search_asset_in_catalog(asset_id_or_name: str, catalog_id: str) -> Optional[str]:
+async def _search_asset_in_catalog(
+    asset_id_or_name: str, catalog_id: str
+) -> Optional[str]:  # noqa: UP045 # Baseline
     """Search for an asset by name in a single catalog and return its ID, or None."""
     search_response = await tool_helper_service.execute_post_request(
         url=f"{tool_helper_service.base_url}{ASSET_TYPE_BASE_ENDPOINT}/asset/search",
@@ -309,8 +335,11 @@ async def _search_asset_in_catalog(asset_id_or_name: str, catalog_id: str) -> Op
 
     # Prefer exact (case-insensitive) match first
     asset_id = next(
-        (r["metadata"]["asset_id"] for r in results
-         if r.get("metadata", {}).get("name", "").lower() == asset_id_or_name.lower()),
+        (
+            r["metadata"]["asset_id"]
+            for r in results
+            if r.get("metadata", {}).get("name", "").lower() == asset_id_or_name.lower()
+        ),
         None,
     )
 
@@ -325,7 +354,10 @@ async def _search_asset_in_catalog(asset_id_or_name: str, catalog_id: str) -> Op
     return asset_id
 
 
-async def _resolve_asset_id(asset_id_or_name: str, catalog_id_or_name: Optional[str]) -> str:
+async def _resolve_asset_id(
+    asset_id_or_name: str,
+    catalog_id_or_name: Optional[str],  # noqa: UP045 # Baseline
+) -> str:
     """
     Resolve asset identifier to ID.
 
@@ -347,7 +379,11 @@ async def _resolve_asset_id(asset_id_or_name: str, catalog_id_or_name: Optional[
 
     # Resolve the list of catalogs to search
     if catalog_id_or_name:
-        resolved_id = catalog_id_or_name if is_uuid_bool(catalog_id_or_name) else await find_catalog_id(catalog_id_or_name)
+        resolved_id = (
+            catalog_id_or_name
+            if is_uuid_bool(catalog_id_or_name)
+            else await find_catalog_id(catalog_id_or_name)
+        )
         catalog_ids = [resolved_id]
     else:
         catalog_ids = await _list_all_catalog_ids()
@@ -358,7 +394,7 @@ async def _resolve_asset_id(asset_id_or_name: str, catalog_id_or_name: Optional[
             asset_id = await _search_asset_in_catalog(asset_id_or_name, catalog_id)
         except ServiceError:
             raise
-        except Exception:
+        except Exception:  # noqa: S112 # Baseline
             continue
 
         if asset_id:
@@ -372,34 +408,39 @@ async def _resolve_asset_id(asset_id_or_name: str, catalog_id_or_name: Optional[
         f"Failed to resolve asset name '{asset_id_or_name}' in catalog. "
         f"Please verify the asset name and catalog.",
         remediation_steps="Call the search_asset tool with search_prompt set to '*' and container_type set to 'catalog' to retrieve the available assets, then provide a valid asset name from the results.",
-        tool="add_asset_to_project"
+        tool="add_asset_to_project",
     )
 
 
-def _validate_user_permissions(user_role: str, project_name: str):
+def _validate_user_permissions(user_role: str, project_name: str):  # noqa: ANN202 # Baseline
     """
     Validate user has admin or editor permissions.
-    
+
     Note: This function should only be called when user_role is not None.
     If user_role is None, the caller should skip validation and let the API validate.
     """
     LOGGER.info("=== _validate_user_permissions called ===")
-    LOGGER.info("Received user_role: %s (type: %s)", user_role, type(user_role).__name__)
+    LOGGER.info(
+        "Received user_role: %s (type: %s)", user_role, type(user_role).__name__
+    )
     LOGGER.info("Project name: %s", project_name)
-    
+
     allowed_roles = ["admin", "editor"]
     if user_role.lower() not in allowed_roles:
         raise ServiceError(
             f"Insufficient permissions. You need 'admin' or 'editor' role on project '{project_name}' "
             f"to add assets. Your current role: '{user_role}'",
-            tool="add_asset_to_project"
+            tool="add_asset_to_project",
         )
 
 
-async def _get_asset_details(asset_id: str, catalog_id_or_name: Optional[str]) -> Dict[str, Any]:
+async def _get_asset_details(
+    asset_id: str,
+    catalog_id_or_name: Optional[str],  # noqa: UP045 # Baseline
+) -> Dict[str, Any]:  # noqa: UP006 # Baseline
     """
     Get asset details from catalog.
-    
+
     Returns:
         dict with keys: asset_name, asset_type, catalog_id, catalog_name
     """
@@ -412,45 +453,53 @@ async def _get_asset_details(asset_id: str, catalog_id_or_name: Optional[str]) -
     else:
         # Search for asset across all accessible catalogs
         catalog_id = await _find_catalog_containing_asset(asset_id)
-    
+
     # Get asset details
     try:
         response = await tool_helper_service.execute_get_request(
             url=f"{tool_helper_service.base_url}{CAMS_ASSETS_BASE_ENDPOINT}/{asset_id}",
             params={"catalog_id": catalog_id},
-            tool_name="add_asset_to_project"
+            tool_name="add_asset_to_project",
         )
-        
+
         # Type assertion for response
         if isinstance(response, bytes):
-            raise ServiceError(UNEXPECTED_RESPONSE_FORMAT_ERROR, tool="add_asset_to_project")
-        
+            raise ServiceError(
+                UNEXPECTED_RESPONSE_FORMAT_ERROR, tool="add_asset_to_project"
+            )
+
         metadata = response.get("metadata", {})
         asset_name = metadata.get("name", "")
         asset_type = metadata.get("asset_type", "")
-        
+
         if not asset_name:
-            raise ServiceError(f"Asset with ID '{asset_id}' not found in catalog", tool="add_asset_to_project")
-        
+            raise ServiceError(
+                f"Asset with ID '{asset_id}' not found in catalog",
+                tool="add_asset_to_project",
+            )
+
         if not asset_type:
-            raise ServiceError(f"Asset with ID '{asset_id}' is missing asset_type in metadata", tool="add_asset_to_project")
-        
+            raise ServiceError(
+                f"Asset with ID '{asset_id}' is missing asset_type in metadata",
+                tool="add_asset_to_project",
+            )
+
         # Get catalog name
         catalog_details = await _get_catalog_details(catalog_id)
-        
+
         return {
             "asset_name": asset_name,
             "asset_type": asset_type,
             "catalog_id": catalog_id,
-            "catalog_name": catalog_details["name"]
+            "catalog_name": catalog_details["name"],
         }
     except ExternalAPIError as e:
         if "404" in str(e):
-            raise ServiceError(
+            raise ServiceError(  # noqa: B904 # Baseline
                 f"Asset with ID '{asset_id}' not found in the specified catalog. "
                 "Please verify the asset ID and catalog.",
                 remediation_steps="Call the search_asset tool with search_prompt set to '*' and container_type set to 'catalog' to retrieve the available assets, then provide a valid asset id from the results.",
-                tool="add_asset_to_project"
+                tool="add_asset_to_project",
             )
         raise
 
@@ -461,67 +510,70 @@ async def _find_catalog_containing_asset(asset_id: str) -> str:
     try:
         response = await tool_helper_service.execute_get_request(
             url=f"{tool_helper_service.base_url}{CATALOGS_BASE_ENDPOINT}",
-            tool_name="add_asset_to_project"
+            tool_name="add_asset_to_project",
         )
-        
+
         # Type assertion for response
         if isinstance(response, bytes):
-            raise ServiceError(UNEXPECTED_RESPONSE_FORMAT_ERROR, tool="add_asset_to_project")
-        
+            raise ServiceError(
+                UNEXPECTED_RESPONSE_FORMAT_ERROR, tool="add_asset_to_project"
+            )
+
         catalogs = response.get("catalogs", [])
-        
+
         # Try to find asset in each catalog
         for catalog in catalogs:
             catalog_id = catalog.get("metadata", {}).get("guid")
             if not catalog_id:
                 continue
-            
+
             try:
                 # Try to get asset from this catalog
                 await tool_helper_service.execute_get_request(
                     url=f"{tool_helper_service.base_url}{CAMS_ASSETS_BASE_ENDPOINT}/{asset_id}",
                     params={"catalog_id": catalog_id},
-                    tool_name="add_asset_to_project"
+                    tool_name="add_asset_to_project",
                 )
                 # If successful, asset is in this catalog
                 return catalog_id
-            except Exception:
+            except Exception:  # noqa: S112 # Baseline
                 # Asset not in this catalog, continue searching
                 continue
-        
+
         raise ServiceError(
             f"Asset with ID '{asset_id}' not found in any accessible catalog. "
             "Please specify the catalog containing this asset.",
             remediation_steps="Call the search_asset tool with search_prompt set to '*' and container_type set to 'catalog' to retrieve the available assets, then provide a valid asset id from the results.",
-            tool="add_asset_to_project"
+            tool="add_asset_to_project",
         )
     except ServiceError:
         raise
     except Exception as e:
-        raise ServiceError(f"Failed to search for asset across catalogs: {str(e)}", tool="add_asset_to_project")
+        raise ServiceError(  # noqa: B904 # Baseline
+            f"Failed to search for asset across catalogs: {e!s}",
+            tool="add_asset_to_project",
+        )
 
 
-async def _get_catalog_details(catalog_id: str) -> Dict[str, Any]:
+async def _get_catalog_details(catalog_id: str) -> Dict[str, Any]:  # noqa: UP006 # Baseline
     """Get catalog details."""
     try:
         response = await tool_helper_service.execute_get_request(
             url=f"{tool_helper_service.base_url}{CATALOGS_BASE_ENDPOINT}/{catalog_id}",
-            tool_name="add_asset_to_project"
+            tool_name="add_asset_to_project",
         )
-        
+
         # Type assertion for response
         if isinstance(response, bytes):
             return {"name": "Unknown"}
-        
-        return {
-            "name": response.get("entity", {}).get("name", "")
-        }
+
+        return {"name": response.get("entity", {}).get("name", "")}
     except Exception as e:
-        LOGGER.error(f"Failed to get catalog details: {str(e)}")
+        LOGGER.error(f"Failed to get catalog details: {e!s}")
         return {"name": "Unknown"}
 
 
-async def _check_asset_not_in_project(project_id: str, asset_name: str):
+async def _check_asset_not_in_project(project_id: str, asset_name: str):  # noqa: ANN202 # Baseline
     """
     Check if an asset with the given name already exists in the project.
 
@@ -542,7 +594,7 @@ async def _check_asset_not_in_project(project_id: str, asset_name: str):
             url=f"{tool_helper_service.base_url}{ASSET_TYPE_BASE_ENDPOINT}/asset/search",
             params={"project_id": project_id},
             json={"query": f"asset.name:{asset_name}"},
-            tool_name="add_asset_to_project"
+            tool_name="add_asset_to_project",
         )
 
         if isinstance(search_response, bytes):
@@ -552,14 +604,19 @@ async def _check_asset_not_in_project(project_id: str, asset_name: str):
         # Check if any assets were found with this exact name
         results = search_response.get("results", [])
         match = next(
-            (r for r in results if r.get("metadata", {}).get("name", "").lower() == asset_name.lower()),
+            (
+                r
+                for r in results
+                if r.get("metadata", {}).get("name", "").lower() == asset_name.lower()
+            ),
             None,
         )
         if match:
             # Asset with same name already exists in project
             raise ServiceError(
                 f"Asset with name '{asset_name}' already exists in this project. "
-                "No need to add it again.", tool="add_asset_to_project"
+                "No need to add it again.",
+                tool="add_asset_to_project",
             )
 
         LOGGER.info(f"Asset '{asset_name}' not in project yet - proceeding with add")
@@ -570,11 +627,13 @@ async def _check_asset_not_in_project(project_id: str, asset_name: str):
         raise
     except ExternalAPIError as e:
         # If we can't check, log warning and proceed
-        LOGGER.warning(f"Could not verify if asset exists in project: {str(e)} - proceeding")
+        LOGGER.warning(
+            f"Could not verify if asset exists in project: {e!s} - proceeding"
+        )
         return
     except Exception as e:
         # Handle any other exceptions
-        LOGGER.warning(f"Error checking if asset exists in project: {str(e)} - proceeding")
+        LOGGER.warning(f"Error checking if asset exists in project: {e!s} - proceeding")
         return
 
 
@@ -607,7 +666,7 @@ async def _create_asset_reference_in_project(
                 "auto_copy_connections_in_remote_attachments": True,
             },
             json=payload,
-            tool_name="add_asset_to_project"
+            tool_name="add_asset_to_project",
         )
 
         # Extract the new project-scoped asset ID from the response
@@ -631,11 +690,11 @@ async def _create_asset_reference_in_project(
         return asset_id
 
     except Exception as e:
-        LOGGER.error(f"Failed to create asset reference: {str(e)}")
-        raise ServiceError(
+        LOGGER.error(f"Failed to create asset reference: {e!s}")
+        raise ServiceError(  # noqa: B904 # Baseline
             f"Failed to add asset to project. This may be due to insufficient permissions "
-            f"or the asset type may not support project references. Error: {str(e)}",
-            tool="add_asset_to_project"
+            f"or the asset type may not support project references. Error: {e!s}",
+            tool="add_asset_to_project",
         )
 
 
@@ -643,10 +702,12 @@ def _build_asset_url(project_id: str, asset_id: str) -> str:
     """Build URL to access asset in project UI."""
     if not tool_helper_service.ui_base_url:
         return ""
-    
+
     # Build URL based on UI base URL
-    base_url = f"{tool_helper_service.ui_base_url}/projects/{project_id}/assets/{asset_id}"
-    
+    base_url = (
+        f"{tool_helper_service.ui_base_url}/projects/{project_id}/assets/{asset_id}"
+    )
+
     # Add context if needed
     return append_context_to_url(base_url, "wx")
 
@@ -710,25 +771,21 @@ Example use cases:
     - Add asset customer_data from Enterprise Catalog to Customer Analytics Project
     - Add asset 550e8400-e29b-41d4-a716-446655440000 to project My Analytics Project
     - Add sales_orders from mcpbvtcatalog to mcpbvtproject""",
-    annotations={
-        "title": "Add Catalog Asset to Project",
-        "destructiveHint": True
-    },
-    tags={"metadata_management_and_governance"}
+    annotations={"title": "Add Catalog Asset to Project", "destructiveHint": True},
+    tags={"metadata_management_and_governance"},
 )
 @auto_context
 async def add_asset_to_project(
     asset_id_or_name: Annotated[
-        str,
-        "The ID (UUID) or name of the catalog asset to add to the project."
+        str, "The ID (UUID) or name of the catalog asset to add to the project."
     ],
     project_id_or_name: Annotated[
         str,
-        "The ID or name of the target project where the asset reference will be created."
+        "The ID or name of the target project where the asset reference will be created.",
     ],
     catalog_id_or_name: Annotated[
-        Optional[str],
-        "Optional ID or name of the catalog containing the asset. Required when asset_id_or_name is provided as a name."
+        Optional[str],  # noqa: UP045 # Baseline
+        "Optional ID or name of the catalog containing the asset. Required when asset_id_or_name is provided as a name.",
     ] = None,
 ) -> AddAssetToProjectResponse:
     """
@@ -737,9 +794,10 @@ async def add_asset_to_project(
     request = AddAssetToProjectRequest(
         asset_id_or_name=asset_id_or_name,
         project_id_or_name=project_id_or_name,
-        catalog_id_or_name=catalog_id_or_name
+        catalog_id_or_name=catalog_id_or_name,
     )
-    
+
     return await _add_asset_to_project(request)
+
 
 # Made with Bob

@@ -11,16 +11,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field  # noqa: I001 # Baseline
 from app.shared.models import BaseResponseModel
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional  # noqa: UP035 # Baseline
 from app.services.search.models.get_asset_details import GetAssetDetailsResponse
 
 
 class GetAssetDetailsForAssetsRequest(BaseModel):
     """Request model for bulk asset details retrieval."""
 
-    asset_ids_or_names: List[str] = Field(
+    asset_ids_or_names: List[str] = Field(  # noqa: UP006 # Baseline
         ...,
         description="List of asset UUIDs or names. "
         "Example: ['customer_data_2023', 'sales_records_q2', 'inventory_management']",
@@ -41,10 +41,10 @@ class AssetDetails(BaseModel):
     asset_id_or_name: str = Field(
         ..., description="Asset UUID or name as provided in the request"
     )
-    details: Optional[GetAssetDetailsResponse] = Field(
+    details: Optional[GetAssetDetailsResponse] = Field(  # noqa: UP045 # Baseline
         None, description="Complete asset details including metadata, usage, ROV, etc."
     )
-    error: Optional[str] = Field(
+    error: Optional[str] = Field(  # noqa: UP045 # Baseline
         None, description="Error message if asset details could not be retrieved"
     )
 
@@ -52,7 +52,7 @@ class AssetDetails(BaseModel):
 class GetAssetDetailsForAssetsResponse(BaseResponseModel):
     """Response model for bulk asset details retrieval."""
 
-    assets: List[AssetDetails] = Field(
+    assets: List[AssetDetails] = Field(  # noqa: UP006 # Baseline
         default_factory=list,
         description="List of asset details. Includes both successful and failed retrievals.",
     )
@@ -60,6 +60,9 @@ class GetAssetDetailsForAssetsResponse(BaseResponseModel):
         ..., description="Number of assets with details successfully returned"
     )
     requested_count: int = Field(..., description="Number of assets requested")
-    failed_count: int = Field(..., description="Number of assets that failed to retrieve")
+    failed_count: int = Field(
+        ..., description="Number of assets that failed to retrieve"
+    )
+
 
 # Made with Bob

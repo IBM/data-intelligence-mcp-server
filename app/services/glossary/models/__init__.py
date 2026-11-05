@@ -4,7 +4,7 @@
 
 """Models for glossary service."""
 
-from app.services.glossary.models.glossary_artifact import (
+from app.services.glossary.models.glossary_artifact import (  # noqa: I001 # Baseline
     GlossaryArtifact,
     ExplainGlossaryArtifactRequest,
     GlossaryArtifactDescription,
@@ -25,7 +25,7 @@ from app.services.glossary.models.import_status import (
     ImportGlossaryStatusResult,
 )
 
-__all__ = [
+__all__ = [  # noqa: RUF022 # Baseline
     # Glossary artifact models
     "GlossaryArtifact",
     "ExplainGlossaryArtifactRequest",
@@ -38,6 +38,6 @@ __all__ = [
     "CSVImportRequest",
     "CSVImportResult",
     "CSVSchemaInfo",
-    "ImportStatusApiResponse", 
-    "ImportGlossaryStatusResult"
+    "ImportStatusApiResponse",
+    "ImportGlossaryStatusResult",
 ]

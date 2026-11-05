@@ -1,0 +1,27 @@
+repos:
+  - repo: https://github.com/ibm/detect-secrets
+    rev: 0.13.1+ibm.64.dss
+    hooks:
+      - id: detect-secrets # pragma: whitelist secret
+        args: [--baseline, .secrets.baseline, --use-all-plugins]
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        language: system
+        types_or: [python, pyi]
+        entry: >-
+          bash -c '
+          uv run --only-group lint ruff check --fix "$@" || {
+            echo "";
+            echo "ruff check failed. If the findings are known or intentional:";
+            echo "  uv run --only-group lint ruff check --add-noqa=\"Known issue\" <files>";
+            echo "  or add # noqa: <code>  # intentional  directly in the code";
+            exit 1;
+          }' --
+
+      - id: ruff-format
+        name: ruff format
+        language: system
+        types_or: [python, pyi]
+        entry: uv run --only-group lint ruff format

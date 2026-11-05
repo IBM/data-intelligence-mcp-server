@@ -2,8 +2,8 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 # See the LICENSE file in the project root for license information.
 
-import json
-from typing import Annotated, Any, Dict, Optional
+import json  # noqa: I001 # Baseline
+from typing import Annotated, Any, Dict, Optional  # noqa: UP035 # Baseline
 
 from pydantic import Field
 from fastmcp import Context
@@ -33,15 +33,15 @@ from app.shared.utils.tool_helper_service import tool_helper_service
 def _is_unused_key(key: str) -> bool:
     """
     Check if a key should be excluded from metadata cleaning.
-    
+
     Keys are considered unused if they:
     - Are in the UNUSED_KEYS constant list
     - End with 'id', 'ids', 'global_id', or 'global_ids'
     - Contain 'id' anywhere in the key name
-    
+
     Args:
         key: The key name to check
-        
+
     Returns:
         True if the key should be excluded, False otherwise
     """
@@ -53,7 +53,7 @@ def _is_unused_key(key: str) -> bool:
     )
 
 
-def _clean_value(value, shorten_text: bool, max_len: int):
+def _clean_value(value, shorten_text: bool, max_len: int):  # noqa: ANN001, ANN202 # Baseline
     if isinstance(value, dict):
         return _clean_metadata_for_prompt(value, shorten_text, max_len)
     if isinstance(value, list):
@@ -61,7 +61,7 @@ def _clean_value(value, shorten_text: bool, max_len: int):
     return value
 
 
-def _clean_list(values: list, shorten_text: bool, max_len: int):
+def _clean_list(values: list, shorten_text: bool, max_len: int):  # noqa: ANN202 # Baseline
     cleaned = [
         _clean_value(v, shorten_text, max_len)
         for v in values
@@ -79,12 +79,12 @@ def _clean_metadata_for_prompt(
 ) -> dict:
     """
     Clean metadata by removing usused keys and empty values.
-    
+
     Args:
         data: Dictionary to clean
         shorten_text: Whether to shorten text values
         max_len: Maximum length for text values
-        
+
     Returns:
         Cleaned dictionary
     """
@@ -94,7 +94,7 @@ def _clean_metadata_for_prompt(
         if _is_unused_key(key):
             continue
 
-        value = _clean_value(value, shorten_text, max_len)
+        value = _clean_value(value, shorten_text, max_len)  # noqa: PLW2901 # Baseline
         if is_empty(value):
             continue
 
@@ -103,14 +103,14 @@ def _clean_metadata_for_prompt(
     return cleaned
 
 
-async def _prepare_description(
+async def _prepare_description(  # noqa: PLR0913 # Baseline # NOSONAR
     name: str,
     artifact_type: str,
     metadata: dict,
     entity: dict,
     categories: dict,
-    ctx: Optional[Context] = None,
-) -> tuple[str, bool, Optional[str]]:
+    ctx: Optional[Context] = None,  # noqa: UP045 # Baseline # NOSONAR
+) -> tuple[str, bool, Optional[str]]:  # noqa: UP045 # Baseline
     """
     Prepare description for a glossary artifact.
 
@@ -142,9 +142,7 @@ async def _prepare_description(
     )
 
     generation_prompt = generate_artifact_description_prompt(
-        artifact_type=artifact_type,
-        artifact_name=name,
-        metadata=metadata_str
+        artifact_type=artifact_type, artifact_name=name, metadata=metadata_str
     )
 
     LOGGER.info("Using metaprompting approach - returning prompt for client")
@@ -156,14 +154,14 @@ async def _prepare_description(
 
 def _transform_global_search_response(
     response: dict, artifact_name: str
-) -> Optional[Dict[str, Any]]:
+) -> Optional[Dict[str, Any]]:  # noqa: UP006, UP045 # Baseline
     """
     Transform global search response into glossary artifact description structure.
-    
+
     Args:
         response: Response from global search API
         artifact_name: Name of the artifact being searched
-        
+
     Returns:
         Dictionary containing glossary artifact description or None if not found
     """
@@ -174,18 +172,21 @@ def _transform_global_search_response(
     # Filter to only glossary artifact types; non-glossary types (e.g. data_asset,
     # data_asset_column) lack the artifact_id/version_id fields and would cause a crash.
     glossary_rows = [
-        row for row in rows
+        row
+        for row in rows
         if row.get("metadata", {}).get("artifact_type") in ARTIFACT_TYPE_MAPPING
     ]
     if not glossary_rows:
-        non_glossary_types = sorted({
-            row.get("metadata", {}).get("artifact_type")
-            for row in rows
-            if row.get("metadata", {}).get("artifact_type")
-        })
+        non_glossary_types = sorted(
+            {
+                row.get("metadata", {}).get("artifact_type")
+                for row in rows
+                if row.get("metadata", {}).get("artifact_type")
+            }
+        )
         return {"non_glossary_types": non_glossary_types}
 
-    def row_score(row):
+    def row_score(row):  # noqa: ANN001, ANN202 # Baseline
         metadata = row.get("metadata", {})
         name = metadata.get("name", "").lower()
         score = row.get("_score", 0)
@@ -225,17 +226,17 @@ def _transform_global_search_response(
 
 async def _explain_glossary_artifact(
     request: ExplainGlossaryArtifactRequest,
-    ctx: Optional[Context] = None,
+    ctx: Optional[Context] = None,  # noqa: UP045 # Baseline
 ) -> GlossaryArtifactDescription:
     """
     Explain a glossary artifact by its name.
-    
+
     Args:
         request: Request containing the artifact name
-        
+
     Returns:
         GlossaryArtifactDescription with artifact details and description
-        
+
     Raises:
         ServiceError: If the artifact cannot be found
         ExternalAPIError: If the API call fails
@@ -247,9 +248,7 @@ async def _explain_glossary_artifact(
     payload = {
         "query": {
             "bool": {
-                "must": [
-                    {"match": {METADATA_NAME: {"query": request.artifact_name}}}
-                ]
+                "must": [{"match": {METADATA_NAME: {"query": request.artifact_name}}}]
             }
         }
     }
@@ -260,7 +259,9 @@ async def _explain_glossary_artifact(
         params={"auth_cache": True, "tenant_scope": True},
     )
 
-    transformed_data = _transform_global_search_response(response, request.artifact_name)
+    transformed_data = _transform_global_search_response(
+        response, request.artifact_name
+    )
 
     if not transformed_data:
         raise ServiceError(
@@ -310,32 +311,34 @@ async def _explain_glossary_artifact(
     name="explain_glossary_artifact",
     annotations={
         "readOnlyHint": True,
-        "title": "Retrieve and Generate Detailed Explanations for Glossary Artifacts by Name"
+        "title": "Retrieve and Generate Detailed Explanations for Glossary Artifacts by Name",
     },
     tags={"metadata_management_and_governance"},
-    description="""Use this tool when you need to retrieve and explain metadata about a glossary artifact, which could be any of:
-    - Glossary term
-    - Classification
-    - Data class
-    - Reference data
-    - Policy
-    - Rule (Glossary artifact)
+    description="""Retrieve and explain metadata about a published glossary artifact.
 
-    The explanation includes the artifact's definition, purpose, and related metadata.
-    Return: The glossary artifact details (id, name, type, url), a textual explanation of the artifact and its purpose, and metadata indicating whether the description was AI-generated.""",
+Use this tool for any general glossary lookup — when the user asks to look up, explain, define, or find a glossary artifact. This is the default tool for all glossary artifact questions. Only defer to `get_artifact_details` when the user explicitly asks about a draft or pending-approval artifact.
+
+Supports: glossary terms, classifications, data classes, reference data, policies, and rules.
+
+Returns: artifact details (id, name, type, url), a textual explanation of the artifact's definition and purpose, and a flag indicating whether the description was AI-generated.""",
 )
 @auto_context
 async def explain_glossary_artifact(
-    artifact_name: Annotated[str, Field(description="The name of the glossary artifact to look up. Can be a glossary term, classification, data class, reference data, policy, or rule.")],
-    ctx: Optional[Context] = None,
+    artifact_name: Annotated[
+        str,
+        Field(
+            description="The name of the glossary artifact to look up. Can be a glossary term, classification, data class, reference data, policy, or rule."
+        ),
+    ],
+    ctx: Optional[Context] = None,  # noqa: UP045 # Baseline
 ) -> GlossaryArtifactDescription:
     """
     This is a simplified wrapper that doesn't require the full request object.
-    
+
     Args:
         artifact_name: Name of the glossary artifact to explain
         ctx: Optional MCP Context for checking capabilities and LLM sampling
-        
+
     Returns:
         GlossaryArtifactDescription with artifact details and description
     """

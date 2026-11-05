@@ -17,8 +17,9 @@ This document provides a comprehensive list of all Model Context Protocol (MCP) 
     - [Metadata Onboarding and Enrichment Skill](#metadata-onboarding-and-enrichment-skill)
     - [Data Product Creation Skill](#data-product-creation-skill)
     - [Data Lineage Skill](#data-lineage-skill)
-    - [MDI Job Control Skill](#mdi-job-control-skill)
     - [Data Quality Skill](#data-quality-skill)
+    - [Data Quality Remediation Skill](#data-quality-remediation-skill)
+    - [Curate Glossary Skill](#curate-glossary-skill)
     - [Workflow Skills](#workflow-skills)
 
 
@@ -181,6 +182,18 @@ In order to use the Data Intelligence skills with VS Code Copilot:
 | Skill Name | Description | Sample Prompts | pypi version | CPD version |
 |-----------|-------------|---------------|-------------|-------------|
 | data-quality | Guides users through the full data quality lifecycle: running DQ pipelines (via MDE jobs with objectives `analyze_quality`, `dq_gen_constraints`, `dq_sla_assessment`, and `profile`), monitoring results against SLA rules, creating new SLA rules, and visualising scores via Mermaid charts. Covers project setup, connection configuration, metadata import, and DQ enrichment execution across four phases: intent detection → project setup → metadata import (conditional) → DQ enrichment and monitoring | "Generate a DQ pipeline for my sales data" or "Run data quality checks on my Postgres tables" or "How good is my data?" or "Validate my tables and score completeness" or "Analyze data quality for the tables in my BANK database" or "Create SLA rules for my datasets" or "Monitor data quality against defined SLAs" | >=1.5.0 | TBD |
+
+### Data Quality Remediation Skill
+
+| Skill Name | Description | Sample Prompts | pypi version | CPD version |
+|-----------|-------------|---------------|-------------|-------------|
+| data-quality-remediation | Automatically remediates data quality and contract violations by fetching a GitHub issue and applying the appropriate fix path for each violation detected. Supports three paths: **Schema Drift (dropped column)** — updates the ODCS contract via the Data Product Exchange or Contract Direct API to remove the dropped column and referencing quality rules; **Remediation Plan** — generates and executes a Python script that fetches the dataset via CPD Data Flight and applies column-level data fixes (e.g. imputation) directly to the source database; **General DQ/Contract Violation** — locates and patches the producer code, generates a data migration script, and opens a pull request. Handles multi-violation issues, child issue resolution, user confirmation at each step, and posts outcome comments back to GitHub | "Remediate the data quality violation in issue #42" or "Fix the ODCS schema drift in this GitHub issue" or "Apply the remediation plan from this contract violation issue" or "Fix the dropped column violation" or "Run the data quality fix for our sales table" | >=1.7.0 | TBD |
+
+### Curate Glossary Skill
+
+| Skill Name | Description | Sample Prompts | pypi version | CPD version |
+|-----------|-------------|---------------|-------------|-------------|
+| curate-glossary | Guides users through an interactive, step-by-step workflow for curating glossary terms from IBM Knowledge Catalog. Supports three curation modes — Definitions (generate or update term descriptions), PI/SPI Classification (classify personal and sensitive personal information), and Translations (translate term descriptions into a target language). Orchestrates the full pipeline via `glossary_curator`: selecting a category, choosing a project, picking a curation type, running parallel sub-agent chunks, and importing the results back into the catalog | "I want to work on my glossary" or "Add definitions to my glossary terms" or "Translate my glossary to French" or "Classify personal information in my glossary" or "Enrich glossary terms in the Finance category" or "Update definitions for terms in Risk Management" | >=1.7.0 | TBD |
 
 ### Workflow Skills
 

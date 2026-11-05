@@ -3,7 +3,7 @@
 # See the LICENSE file in the project root for license information.
 
 import asyncio
-from typing import Any, List
+from typing import Any, List  # noqa: UP035 # Baseline
 
 from aiocache import cached
 
@@ -27,14 +27,18 @@ async def _fetch_single_container_name(
         )
         name = response.get("entity", {}).get("name")
         if name:
-            LOGGER.debug("Fetched %s name: %s -> %s", container_type, container_id, name)
+            LOGGER.debug(
+                "Fetched %s name: %s -> %s", container_type, container_id, name
+            )
         return (container_id, name)
     except Exception as e:
-        LOGGER.warning("Failed to fetch %s name for %s: %s", container_type, container_id, str(e))
+        LOGGER.warning(
+            "Failed to fetch %s name for %s: %s", container_type, container_id, str(e)
+        )
         return (container_id, None)
 
 
-async def fetch_container_names(results: List[Any]) -> dict[str, str]:
+async def fetch_container_names(results: List[Any]) -> dict[str, str]:  # noqa: UP006 # Baseline
     """Fetch project and catalog names for all unique container IDs in results.
 
     Args:
@@ -50,12 +54,30 @@ async def fetch_container_names(results: List[Any]) -> dict[str, str]:
     if not project_ids and not catalog_ids:
         return {}
 
-    LOGGER.info("Fetching names for %d projects and %d catalogs", len(project_ids), len(catalog_ids))
+    LOGGER.info(
+        "Fetching names for %d projects and %d catalogs",
+        len(project_ids),
+        len(catalog_ids),
+    )
 
     bearer_token = await get_access_token()
     tasks = []
-    tasks.extend([_fetch_single_container_name(bearer_token, pid, "project", PROJECTS_BASE_ENDPOINT) for pid in project_ids])
-    tasks.extend([_fetch_single_container_name(bearer_token, cid, "catalog", CATALOGS_BASE_ENDPOINT) for cid in catalog_ids])
+    tasks.extend(
+        [
+            _fetch_single_container_name(
+                bearer_token, pid, "project", PROJECTS_BASE_ENDPOINT
+            )
+            for pid in project_ids
+        ]
+    )
+    tasks.extend(
+        [
+            _fetch_single_container_name(
+                bearer_token, cid, "catalog", CATALOGS_BASE_ENDPOINT
+            )
+            for cid in catalog_ids
+        ]
+    )
 
     container_names: dict[str, str] = {}
     for result in await asyncio.gather(*tasks, return_exceptions=True):
@@ -70,7 +92,10 @@ async def fetch_container_names(results: List[Any]) -> dict[str, str]:
     return container_names
 
 
-def enrich_with_container_names(results: List[Any], container_names: dict[str, str]) -> None:
+def enrich_with_container_names(
+    results: List[Any],  # noqa: UP006 # Baseline
+    container_names: dict[str, str],  # noqa: UP006 # Baseline
+) -> None:
     """Patch project_name / catalog_name on each result in-place.
 
     Args:
@@ -81,7 +106,15 @@ def enrich_with_container_names(results: List[Any], container_names: dict[str, s
     for result in results:
         if result.project_id and result.project_id in container_names:
             result.project_name = container_names[result.project_id]
-            LOGGER.debug("Enriched project_name for %s: %s", result.project_id, result.project_name)
+            LOGGER.debug(
+                "Enriched project_name for %s: %s",
+                result.project_id,
+                result.project_name,
+            )
         if result.catalog_id and result.catalog_id in container_names:
             result.catalog_name = container_names[result.catalog_id]
-            LOGGER.debug("Enriched catalog_name for %s: %s", result.catalog_id, result.catalog_name)
+            LOGGER.debug(
+                "Enriched catalog_name for %s: %s",
+                result.catalog_id,
+                result.catalog_name,
+            )

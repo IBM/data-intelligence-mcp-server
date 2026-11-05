@@ -47,7 +47,7 @@ Locate the starting asset(s) in the lineage graph using the appropriate entry pa
    - `data_quality_operator` and `data_quality_value`: If user mentions quality thresholds
 </Step>
 <Step>
-2. The tool returns a list of matching lineage assets with their 64-character hexadecimal lineage IDs, names, types, and hierarchical paths.
+2. The tool returns a list of matching lineage assets with their lineage IDs (either 64-character hexadecimal strings or UUID-format strings, e.g. `ffffffff-bbbb-dddd-cccc-aaaaaaaaaaaa`), names, types, and hierarchical paths.
 </Step>
 <Step>
 3. Present the matched assets to the user in a clear format showing:
@@ -84,7 +84,7 @@ Locate the starting asset(s) in the lineage graph using the appropriate entry pa
    - `asset_id`: The asset ID from the search result
 </Step>
 <Step>
-5. The tool returns the 64-character hexadecimal lineage ID required for lineage graph queries.
+5. The tool returns the lineage ID required for lineage graph queries (either a 64-character hexadecimal string or a UUID-format string, e.g. `ffffffff-bbbb-dddd-cccc-aaaaaaaaaaaa`).
 </Step>
 <Step>
 6. Save the lineage ID for Phase 2.
@@ -92,9 +92,11 @@ Locate the starting asset(s) in the lineage graph using the appropriate entry pa
 </Steps>
 
 **Important Validation**:
-- Lineage IDs must be exactly 64 hexadecimal characters
-- If you receive a shorter ID or UUID, you MUST use `get_lineage_id` to convert it
-- Never proceed to Phase 2 without a valid 64-character lineage ID
+- Lineage IDs must match one of two supported formats:
+  - **64-character hexadecimal string** (legacy CPD format), e.g. `aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeee11111111112222`
+  - **UUID format** (SaaS format), e.g. `ffffffff-bbbb-dddd-cccc-aaaaaaaaaaaa` (8-4-4-4-12 hex groups separated by dashes)
+- If you receive an identifier that matches neither format, you MUST use `get_lineage_id` or `search_lineage_assets` to obtain a valid lineage ID
+- Never proceed to Phase 2 without a valid lineage ID in one of the above formats
 
 ## Phase 2: Lineage Graph Traversal
 
@@ -128,7 +130,7 @@ Retrieve and present the upstream and downstream lineage relationships.
 <Steps>
 <Step>
 4. Based on the user's depth preference, call `get_lineage_graph` with:
-   - `lineage_ids`: The 64-character lineage ID(s) from Phase 1 (can be a single ID or list of IDs)
+   - `lineage_ids`: The lineage ID(s) from Phase 1 — either 64-character hex strings or UUID-format strings (can be a single ID or list of IDs)
    - `hop_up`: Number of upstream levels
      - "1" for immediate upstream
      - "3" for standard (default)
@@ -277,10 +279,10 @@ User: "Has anything changed in the pipeline for our revenue dashboard in the las
 ## Important Guidelines
 
 ### Lineage ID Validation
-- **CRITICAL**: `get_lineage_graph` ONLY accepts 64-character hexadecimal lineage IDs
-- Before calling `get_lineage_graph`, verify each lineage_id:
-  - Length is exactly 64 characters
-  - Contains only hexadecimal characters (0-9, a-f)
+- **CRITICAL**: `get_lineage_graph` accepts lineage IDs in two formats:
+  - **64-character hexadecimal string** (legacy CPD format), e.g. `aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeee11111111112222`
+  - **UUID format** (SaaS format), e.g. `ffffffff-bbbb-dddd-cccc-aaaaaaaaaaaa` (pattern: 8-4-4-4-12 hex chars separated by dashes)
+- Before calling `get_lineage_graph`, verify each lineage_id matches one of the above formats
 - If validation fails, use `get_lineage_id` or `search_lineage_assets` to get valid IDs
 
 ### Hop Depth Best Practices
