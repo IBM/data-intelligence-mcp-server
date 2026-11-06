@@ -92,6 +92,7 @@ internal = [
     "pymilvus>=2.4.0",
     "ibm-watsonx-ai>=1.1.0",
     "torch>=2.0.0",
+    "setuptools>=84.1.0",
 ]
 lint = ["ruff>=0.12.10"]
 release = [
