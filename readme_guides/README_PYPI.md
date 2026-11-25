@@ -1,5 +1,7 @@
 # Data Intelligence MCP Server
 
+<!-- mcp-name: io.github.IBM/data-intelligence-mcp-server -->
+
 The IBM Data Intelligence MCP Server provides a modular and scalable implementation of the Model Context Protocol (MCP), purpose-built to integrate with IBM Data Intelligence services. It enables secure and extensible interaction between MCP clients and IBM's data intelligence capabilities.
 
 For the list of tools supported in this version and sample prompts, refer to [Tools](https://github.com/IBM/data-intelligence-mcp-server/blob/main/TOOLS_PROMPTS.md).
