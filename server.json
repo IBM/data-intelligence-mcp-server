@@ -1,0 +1,70 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.IBM/data-intelligence-mcp-server",
+  "title": "IBM Data Intelligence",
+  "description": "MCP Server implementation for IBM Data Intelligence",
+  "repository": {
+    "url": "https://github.com/IBM/data-intelligence-mcp-server",
+    "source": "github"
+  },
+  "version": "1.7.0.post1",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "ibm-watsonx-data-intelligence-mcp-server",
+      "version": "1.7.0.post1",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "named",
+          "name": "--transport",
+          "value": "stdio"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "ENV_MODE",
+          "description": "Deployment type: SaaS or CPD",
+          "isRequired": true,
+          "format": "string",
+          "default": "SaaS"
+        },
+        {
+          "name": "DI_SERVICE_URL",
+          "description": "Data Intelligence service URL (cluster URL for CPD)",
+          "isRequired": true,
+          "format": "string"
+        },
+        {
+          "name": "DI_APIKEY",
+          "description": "API key for authentication (alternative to DI_AUTH_TOKEN)",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "DI_USERNAME",
+          "description": "Username, required for CPD when using DI_APIKEY",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "DI_AUTH_TOKEN",
+          "description": "Bearer token for authentication (alternative to DI_APIKEY)",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "LOG_FILE_PATH",
+          "description": "Log file path; required in stdio mode since stdout carries the MCP protocol",
+          "isRequired": true,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}
