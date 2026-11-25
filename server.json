@@ -7,12 +7,12 @@
     "url": "https://github.com/IBM/data-intelligence-mcp-server",
     "source": "github"
   },
-  "version": "1.7.1",
+  "version": "1.7.0.post1",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "ibm-watsonx-data-intelligence-mcp-server",
-      "version": "1.7.1",
+      "version": "1.7.0.post1",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
